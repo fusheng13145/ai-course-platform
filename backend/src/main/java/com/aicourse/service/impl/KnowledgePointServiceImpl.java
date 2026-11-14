@@ -28,6 +28,11 @@ import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.aicourse.common.JsonUtils;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * 知识点服务实现类
  * 提供知识树构建、父子关系查询、前置依赖、掌握度计算等功能实现
@@ -357,5 +362,177 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
         return list(new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId)
                 .orderByAsc(KnowledgePoint::getOrderIndex));
+    }
+
+    // ===== AI 抽取落库与掌握度快照（2026-11-14 B3） =====
+
+    private static final ObjectMapper EXTRACT_OM = new ObjectMapper();
+
+    /** 抽取落库的知识点类型白名单（与 KnowledgeController 原内联口径一致）。 */
+    private static final Set<String> KP_TYPES = Set.of("CONCEPT", "PRINCIPLE", "METHOD", "FACT");
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
+    public Map<String, Object> extractAndSaveGraph(Long courseId, String rawJson) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<KnowledgePoint> created = new ArrayList<>();
+        Map<String, Long> nameToId = new HashMap<>();
+        // 既有知识点按名建索引：同名跳过（幂等），抽取结果挂到既有节点上
+        for (KnowledgePoint ep : list(new LambdaQueryWrapper<KnowledgePoint>()
+                .eq(KnowledgePoint::getCourseId, courseId))) {
+            if (ep.getName() != null) {
+                nameToId.put(ep.getName().trim().toLowerCase(), ep.getId());
+            }
+        }
+
+        String raw = JsonUtils.extractJsonObject(rawJson);
+        if (raw == null) {
+            result.put("parseError", "AI 未返回有效结构");
+            result.put("nodeCount", 0);
+            result.put("nodes", created);
+            result.put("relationCount", 0);
+            result.put("relations", new ArrayList<>());
+            return result;
+        }
+
+        List<Map<String, Object>> createdRelations = new ArrayList<>();
+        try {
+            JsonNode root = EXTRACT_OM.readTree(raw);
+            if (root.has("nodes") && root.get("nodes").isArray()) {
+                for (JsonNode n : root.get("nodes")) {
+                    String name = n.has("name") ? n.get("name").asText() : null;
+                    if (name == null || name.isBlank()) {
+                        continue;
+                    }
+                    String key = name.trim().toLowerCase();
+                    if (nameToId.containsKey(key)) {
+                        continue;
+                    }
+                    String content = n.has("content") ? n.get("content").asText() : "";
+                    String type = n.has("type") ? n.get("type").asText().toUpperCase() : "CONCEPT";
+                    if (!KP_TYPES.contains(type)) {
+                        type = "CONCEPT";
+                    }
+                    KnowledgePoint kp = new KnowledgePoint();
+                    kp.setCourseId(courseId);
+                    kp.setName(name.trim());
+                    kp.setDescription(content);
+                    kp.setPointType(type);
+                    save(kp);
+                    created.add(kp);
+                    nameToId.put(key, kp.getId());
+                }
+            }
+            if (root.has("relations") && root.get("relations").isArray()) {
+                for (JsonNode r : root.get("relations")) {
+                    String sName = r.has("source") ? r.get("source").asText() : null;
+                    String tName = r.has("target") ? r.get("target").asText() : null;
+                    String rel = r.has("relationType") ? r.get("relationType").asText().toUpperCase() : "RELATED_TO";
+                    Long sId = sName != null ? nameToId.get(sName.trim().toLowerCase()) : null;
+                    Long tId = tName != null ? nameToId.get(tName.trim().toLowerCase()) : null;
+                    if (sId != null && tId != null && !sId.equals(tId)) {
+                        try {
+                            KnowledgePointRelation relEntity = relationService.createRelation(sId, tId, rel, null, null);
+                            Map<String, Object> m = new LinkedHashMap<>();
+                            m.put("id", relEntity.getId());
+                            m.put("source", sName);
+                            m.put("target", tName);
+                            m.put("relationType", rel);
+                            createdRelations.add(m);
+                        } catch (Exception ex) {
+                            log.debug("跳过关系 {} -> {}: {}", sName, tName, ex.getMessage());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("知识图谱抽取结果解析失败: {}", e.getMessage());
+            result.put("parseError", "AI 返回结构解析失败，请稍后重试");
+        }
+
+        result.put("nodeCount", created.size());
+        result.put("nodes", created);
+        result.put("relationCount", createdRelations.size());
+        result.put("relations", createdRelations);
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> masterySnapshot(Long studentId, List<Long> courseIds, int limit) {
+        if (courseIds == null || courseIds.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        // 1) 课程知识点（一次 in 查询；按重要度降序）
+        List<KnowledgePoint> points = list(new LambdaQueryWrapper<KnowledgePoint>()
+                .in(KnowledgePoint::getCourseId, courseIds)
+                .orderByDesc(KnowledgePoint::getImportance));
+        if (points.isEmpty()) {
+            return List.of();
+        }
+
+        // 2) 课程题库（一次查询），按知识点名称精确切分建索引（与 calculateMastery 的
+        //    FIND_IN_SET 语义一致：名称必须命中独立逗号/分号分隔项，防子串误匹配）
+        List<Question> courseQuestions = questionService.list(new LambdaQueryWrapper<Question>()
+                .in(Question::getCourseId, courseIds)
+                .select(Question::getId, Question::getKnowledgePoints));
+        Map<String, List<Long>> questionsByKpName = new HashMap<>();
+        for (Question q : courseQuestions) {
+            for (String name : splitKpNames(q.getKnowledgePoints())) {
+                questionsByKpName.computeIfAbsent(name, k -> new ArrayList<>()).add(q.getId());
+            }
+        }
+
+        // 3) 学生错题记录（一次查询），按题聚合已掌握状态
+        List<Long> allQuestionIds = courseQuestions.stream().map(Question::getId).toList();
+        Map<Long, Boolean> wrongByQuestion = new HashMap<>();
+        if (!allQuestionIds.isEmpty()) {
+            for (WrongQuestion wq : wrongQuestionService.list(new LambdaQueryWrapper<WrongQuestion>()
+                    .eq(WrongQuestion::getStudentId, studentId)
+                    .in(WrongQuestion::getQuestionId, allQuestionIds))) {
+                wrongByQuestion.put(wq.getQuestionId(), Boolean.TRUE.equals(wq.getMastered()));
+            }
+        }
+
+        // 4) 按同一公式内存计算：(已掌握 + 未出错) / 总关联题数 * 100
+        List<Map<String, Object>> snapshot = new ArrayList<>();
+        for (KnowledgePoint point : points) {
+            if (point.getName() == null || point.getName().isBlank()) {
+                continue;
+            }
+            List<Long> related = questionsByKpName.getOrDefault(point.getName().trim(), List.of());
+            long mastered = related.stream().filter(id -> Boolean.TRUE.equals(wrongByQuestion.get(id))).count();
+            long wrong = related.stream().filter(wrongByQuestion::containsKey).count();
+            long notWrong = related.size() - wrong;
+            double masteryRate = related.isEmpty() ? 0d
+                    : (mastered + notWrong) / (double) related.size() * 100;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("courseId", point.getCourseId());
+            row.put("kpId", point.getId());
+            row.put("name", point.getName());
+            row.put("mastery", BigDecimal.valueOf(masteryRate).setScale(2, RoundingMode.HALF_UP));
+            snapshot.add(row);
+        }
+        snapshot.sort(Comparator.comparingDouble(m -> ((Number) m.get("mastery")).doubleValue()));
+        return snapshot.subList(0, Math.min(limit, snapshot.size()));
+    }
+
+    /** 拆分题目知识点名称（兼容 JSON 数组与中英文逗号/分号形态，与题库写入口径一致）。 */
+    private static List<String> splitKpNames(String knowledgePoints) {
+        if (knowledgePoints == null || knowledgePoints.isBlank()) {
+            return List.of();
+        }
+        String trimmed = knowledgePoints.trim();
+        if (trimmed.startsWith("[")) {
+            try {
+                List<String> names = EXTRACT_OM.readValue(trimmed, new TypeReference<List<String>>() {});
+                return names.stream().filter(n -> n != null && !n.isBlank())
+                        .map(String::trim).collect(Collectors.toList());
+            } catch (Exception e) {
+                // 非法 JSON 退回分隔符拆分
+            }
+        }
+        return Arrays.stream(trimmed.split("[,，;；]"))
+                .map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList());
     }
 }

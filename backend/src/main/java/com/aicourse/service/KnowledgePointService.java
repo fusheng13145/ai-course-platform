@@ -91,4 +91,28 @@ public interface KnowledgePointService extends IService<KnowledgePoint> {
      * @return 知识点列表（按 orderIndex 升序）
      */
     List<KnowledgePoint> listByCourse(Long courseId);
+
+    /**
+     * AI 抽取结果落库（2026-11-14 P2-3 下沉自 KnowledgeController，事务化）：
+     * 解析 LLM 抽取的结构化 JSON，幂等创建课程知识点（同名跳过）与关系，节点/关系
+     * 逐条容错。控制器只做 AI 调用与参数校验，不再承载解析与逐条落库。
+     *
+     * @param courseId 课程ID
+     * @param rawJson  LLM 返回的原始文本（可为栅栏包裹；解析失败返回 parseError 提示而非抛错）
+     * @return {nodeCount, nodes, relationCount, relations[, parseError]}
+     */
+    java.util.Map<String, Object> extractAndSaveGraph(Long courseId, String rawJson);
+
+    /**
+     * 学生知识点掌握度快照（2026-11-14 P2-1，红线②：薄弱点诊断必须基于图谱）。
+     * <p>按课程批量计算知识点掌握度（与 {@link #calculateMastery} 同公式：题库按知识点
+     * 名称精确关联 + 错题本已掌握占比），批量查询避免逐知识点 3 次 SQL 的放大。
+     * 结果按掌握度升序、截取最薄弱 {@code limit} 条。</p>
+     *
+     * @param studentId 学生ID
+     * @param courseIds 课程ID集合（已在调用方按选课过滤；空集合返回空列表）
+     * @param limit     返回条数上限
+     * @return [{courseId, kpId, name, mastery}]，mastery 为 0-100
+     */
+    java.util.List<java.util.Map<String, Object>> masterySnapshot(Long studentId, java.util.List<Long> courseIds, int limit);
 }
