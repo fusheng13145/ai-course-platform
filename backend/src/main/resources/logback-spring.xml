@@ -15,6 +15,14 @@
 
     <springProperty scope="context" name="AICP_LOG_PATH" source="app.log.path" defaultValue="logs"/>
 
+    <!-- 2026-11-14 P2-9/N5：在 Boot 默认 CONSOLE/FILE 模板上前置定义含 traceId 的覆盖版
+         （defaults.xml 的属性定义带 :- 默认值，此处先定义即优先生效）。TraceIdFilter 把
+         请求级 traceId 写入 MDC；无请求上下文（启动日志/调度器）时显示为空占位。 -->
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr([%X{traceId:-}]){faint} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
+    <property name="FILE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{traceId:-}] [%t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
+
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>

@@ -2,7 +2,7 @@
 
 > 一个基于 Spring Boot + MyBatis-Plus + Vue 3 的智能在线教育平台
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.15-green)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-green)](https://spring.io/projects/spring-boot)
 [![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen)](https://vuejs.org/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-blue)](https://www.mysql.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](https://opensource.org/licenses/MIT)
@@ -62,7 +62,7 @@
 
 | 层级 | 技术 | 版本 |
 | --- | --- | --- |
-| 后端框架 | Spring Boot | 3.5.15（JDK 21） |
+| 后端框架 | Spring Boot | 3.5.16（JDK 21） |
 | ORM | MyBatis-Plus | 3.5.7 |
 | 安全 | Spring Security + JWT | 6.x / jjwt 0.12.6 |
 | 数据库迁移 | Flyway | 结构 V1–V4、V8–V18（`db/migration`，全环境）＋ 演示种子 V5–V7、V12_1（`db/seed-demo`，prod 排除）；下一个空号 V19；已应用迁移校验和冻结不可改 |

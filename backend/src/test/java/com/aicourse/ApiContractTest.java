@@ -149,13 +149,14 @@ class ApiContractTest {
     // ===================== 考试接口契约 =====================
 
     @Test
-    @DisplayName("GET /exam-sessions/active - 未认证应返回4xx")
+    @DisplayName("GET /exam-sessions/active - 未认证返回401（P2-10/T1：弱断言收精确码）")
     void getActiveExams_WithoutAuth_ShouldReturnError() throws Exception {
-        // /exam-sessions/active 需要 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+        // /exam-sessions/active 需要 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")；
+        // 未认证经 JwtAuthenticationEntryPoint 统一 401——精确钉住，防 400↔401↔403 回归不可察觉
         mockMvc.perform(get("/exam-sessions/active")
                         .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isUnauthorized());
     }
 
     // ===================== 公共接口契约 =====================
@@ -176,25 +177,24 @@ class ApiContractTest {
     // ===================== 安全边界契约 =====================
 
     @Test
-    @DisplayName("GET /admin/dashboard - 未认证返回4xx/5xx")
+    @DisplayName("GET /admin/analytics - 未认证返回401（P2-10/T1：弱断言收精确码）")
     void getAdminEndpoint_WithoutAuth_ShouldReturnError() throws Exception {
-        // /admin/** 需要 ADMIN 角色
+        // /admin/** 需要 ADMIN 角色；未认证 401（已认证但角色不足才是 403）
         mockMvc.perform(get("/admin/analytics")
                         .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
-                .andExpect(
-                        status().is4xxClientError());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("POST /auth/refresh - 无刷新令牌Cookie返回4xx")
+    @DisplayName("POST /auth/refresh - 无刷新令牌Cookie返回400（P2-10/T1：弱断言收精确码）")
     void postRefreshToken_WithoutCookie_ShouldReturnError() throws Exception {
-        // /auth/refresh 需要从 Cookie 读取刷新令牌
+        // /auth/refresh 需要从 Cookie 读取刷新令牌；缺失由 AuthService 显式 BusinessException(400)
         MvcResult result = mockMvc.perform(post("/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
-                .andExpect(status().is4xxClientError())
+                .andExpect(status().isBadRequest())
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
