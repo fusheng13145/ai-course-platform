@@ -16,7 +16,8 @@ import java.util.function.Supplier;
  *       否则线程池复用会把上一个请求的归属串到下一个请求（污染统计，比不记更糟）；</li>
  *   <li>该上下文是 {@link ThreadLocal}，<b>跨线程即失效</b>：本控制器的 AI 端点以
  *       {@code Callable} 在 MVC 异步线程上执行，作用域必须设在 {@code Callable} 内部；
- *       流式（SSE）路径的实际调用发生在订阅线程上，故<b>不在</b>本机制的覆盖范围内（见 {@code AiCoreComponent} 注释）。</li>
+ *       流式（SSE）路径的实际调用发生在订阅线程上，须在作用域内用 {@link #capture()}
+ *       捕获 {@link Snapshot} 随 Flux 闭包携带，终止回调才能拿到归属。</li>
  * </ol>
  */
 public final class AiCallContext {
@@ -31,6 +32,24 @@ public final class AiCallContext {
         this.userId = userId;
         this.courseId = courseId;
         this.scene = scene;
+    }
+
+    /**
+     * 调用归属的不可变快照：供流式（SSE）路径在作用域内捕获后，随 Flux 闭包跨线程携带。
+     *
+     * <p>流式订阅发生在 Reactor 线程上，{@link ThreadLocal} 作用域跨线程即失效；
+     * 快照把「归属三元组」从 Tomcat 线程显式搬运到流终止回调，是流式调用落库的唯一归属来源。</p>
+     */
+    public record Snapshot(Long userId, Long courseId, String scene) {
+    }
+
+    /**
+     * 捕获当前线程作用域的不可变快照；未处于作用域内返回 {@code null}（流式路径据此跳过落库，
+     * 与同步路径"宁可少记、不记错归属"的口径一致）。
+     */
+    public static Snapshot capture() {
+        AiCallContext ctx = HOLDER.get();
+        return ctx == null ? null : new Snapshot(ctx.userId, ctx.courseId, ctx.scene);
     }
 
     /** 设置当前线程的调用归属（由 {@link #run} 调用，业务代码不要直接调用）。 */

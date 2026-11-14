@@ -81,6 +81,67 @@ class AiQuotaInterceptorTest {
     }
 
     @Test
+    void preHandle_getQaStream_chargesQuota() {
+        // GET /ai/qa/stream 与写请求同成本（连接建立即真实发起 LLM 流式调用），必须纳入双重熔断
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRequestURI()).thenReturn("/api/ai/qa/stream");
+        when(request.getContextPath()).thenReturn("/api");
+        when(request.getParameter("question")).thenReturn("进程和线程的区别");
+        when(aiQuotaService.estimateTokensFromChars(8L)).thenReturn(10L);
+        authenticatedAs(1L);
+
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+
+        verify(aiQuotaService).assertTokenBudget(1L);
+        verify(aiQuotaService).assertRequestQuota(1L);
+        // token 记账按 question 参数字符数折算，叠加响应侧保守开销
+        verify(aiQuotaService).recordTokenUsage(eq(1L), eq(10L + 1500L));
+    }
+
+    @Test
+    void preHandle_getQaStream_overLimit_throws429() {
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRequestURI()).thenReturn("/ai/qa/stream");
+        when(request.getContextPath()).thenReturn("");
+        authenticatedAs(1L);
+        doThrow(new BusinessException(429, "今日 AI 使用次数已达上限"))
+                .when(aiQuotaService).assertRequestQuota(1L);
+
+        assertThrows(BusinessException.class,
+                () -> interceptor.preHandle(request, response, new Object()));
+    }
+
+    @Test
+    void preHandle_getLlmGeneratingEndpoints_chargeQuota() {
+        // 推荐/薄弱点/建议三类 GET 同样在服务端真实触发 LLM 生成（callLlm），必须纳入配额
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRequestURI()).thenReturn("/api/ai/advice/learning");
+        when(request.getContextPath()).thenReturn("/api");
+        authenticatedAs(1L);
+
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+
+        verify(aiQuotaService).assertTokenBudget(1L);
+        verify(aiQuotaService).assertRequestQuota(1L);
+        // 无 question 参数 → prompt 折算为 0，仅叠加响应侧保守开销
+        verify(aiQuotaService).recordTokenUsage(eq(1L), eq(1500L));
+    }
+
+    @Test
+    void preHandle_getOtherAiPath_notBillable() {
+        // 其余 GET（如查询历史会话）不触发 LLM 调用，不计入配额
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRequestURI()).thenReturn("/ai/qa/sessions");
+        when(request.getContextPath()).thenReturn("");
+        authenticatedAs(1L);
+
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+
+        verify(aiQuotaService, never()).assertTokenBudget(any());
+        verify(aiQuotaService, never()).assertRequestQuota(any());
+    }
+
+    @Test
     void preHandle_unauthenticated_notBillable() {
         when(request.getMethod()).thenReturn("POST");
         // 未设置认证 -> currentUserId 为 null

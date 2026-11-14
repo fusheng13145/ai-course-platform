@@ -11,11 +11,14 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Set;
+
 /**
  * AI 端点配额拦截器：把「没人会恶意刷 AI」这一乐观假设变成代码级保证。
  *
- * <p>拦截路径 {@code /ai/**} 的写请求（POST/PUT/PATCH，即真正触发 LLM 调用的接口），在进入
- * Controller <b>之前</b>完成两道熔断：</p>
+ * <p>拦截路径 {@code /ai/**} 的写请求（POST/PUT/PATCH，即真正触发 LLM 调用的接口），
+ * 以及流式问答 {@code GET /ai/qa/stream}（SSE 连接建立即真实发起一次 LLM 流式调用），
+ * 在进入 Controller <b>之前</b>完成两道熔断：</p>
  * <ol>
  *   <li>{@link AiQuotaService#assertTokenBudget(Long)} —— 当日 token 预算是否已耗尽；</li>
  *   <li>{@link AiQuotaService#assertRequestQuota(Long)} —— 当日请求次数是否超限（原子自增并占用一次）。</li>
@@ -40,6 +43,21 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
      */
     private static final long RESPONSE_TOKEN_OVERHEAD = 1500L;
 
+    /**
+     * GET 方法中真实触发 LLM 生成的端点清单：流式问答、学习/题目推荐、薄弱点分析、学习建议
+     * （后三者服务端分别经 recommendQuestionsJson / analyzeWeakPointsJson /
+     * generateLearningAdviceJson 走 callLlm 真实生成，成本与写接口同级）。
+     * 不纳入配额即留下绕过口——流式按连接建立计数（含断线重连的真实重跑）；
+     * 其余按请求计数，token 记账取请求参数折算 + 响应侧保守开销。
+     * 查询历史会话等零 LLM 成本的 GET 不在列。
+     */
+    private static final Set<String> BILLABLE_GET_PATHS = Set.of(
+            "/ai/qa/stream",
+            "/ai/recommendations/learning",
+            "/ai/recommendations/questions",
+            "/ai/analysis/weak-points",
+            "/ai/advice/learning");
+
     private final AiQuotaService aiQuotaService;
 
     public AiQuotaInterceptor(AiQuotaService aiQuotaService) {
@@ -53,8 +71,9 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // 仅对会触发 LLM 调用的写操作计费；GET（如查询历史会话）不计入 AI 成本配额
-        if (!isBillableMethod(request.getMethod())) {
+        // 仅对会触发 LLM 调用的请求计费：写操作，加上流式问答的 GET 连接建立
+        // （其余 GET 如查询历史会话无 LLM 成本，不计入配额）
+        if (!isBillableRequest(request)) {
             return true;
         }
 
@@ -84,10 +103,28 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    private boolean isBillableMethod(String method) {
-        return "POST".equalsIgnoreCase(method)
+    private boolean isBillableRequest(HttpServletRequest request) {
+        String method = request.getMethod();
+        if ("POST".equalsIgnoreCase(method)
                 || "PUT".equalsIgnoreCase(method)
-                || "PATCH".equalsIgnoreCase(method);
+                || "PATCH".equalsIgnoreCase(method)) {
+            return true;
+        }
+        // 流式问答（GET）与写请求同成本：连接建立前必须过配额熔断，否则 GET 通道即配额绕过口
+        return "GET".equalsIgnoreCase(method) && BILLABLE_GET_PATHS.contains(servletPath(request));
+    }
+
+    /** 取相对 context-path 的 servlet 内路径（应用 context-path=/api，请求 URI 形如 /api/ai/**）。 */
+    private String servletPath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (uri == null) {
+            return "";
+        }
+        if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
+            return uri.substring(contextPath.length());
+        }
+        return uri;
     }
 
     private Long currentUserId() {
@@ -99,8 +136,15 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
         return (principal instanceof Long) ? (Long) principal : null;
     }
 
-    /** 用 Content-Length（请求体字节数）近似 prompt 字符数折算 token，避免消费请求流；缺失时按 0 计。 */
+    /**
+     * 估算本次 prompt 的 token 数：写请求按 Content-Length（请求体字节数，不消费请求流）折算；
+     * GET 流式问答无请求体，prompt 即 {@code question} 参数，按其字符数折算。缺失时按 0 计。
+     */
     private long estimatePromptTokens(HttpServletRequest request) {
+        if ("GET".equalsIgnoreCase(request.getMethod())) {
+            String question = request.getParameter("question");
+            return aiQuotaService.estimateTokensFromChars(question == null ? 0L : question.length());
+        }
         long contentLength = Math.max(request.getContentLengthLong(), 0L);
         return aiQuotaService.estimateTokensFromChars(contentLength);
     }

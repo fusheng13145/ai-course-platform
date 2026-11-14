@@ -20,6 +20,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -106,5 +107,62 @@ class RAGControllerScopeTest {
 
         verify(ragService, never()).buildIndex(anyLong());
         verify(ragService, never()).clearIndex(anyLong());
+    }
+
+    // ==================== 2026-11-13 对象级收口：update/deleteDocument 反查归属 ====================
+
+    @Test
+    @DisplayName("更新/删除文档前必须反查归属并过课程管理权（他课文档教师 403，且不落到引擎写接口）")
+    void documentMutationChecksCourseOwnership() {
+        // 反查到文档 7 属于课程 4060，而当前教师对该课程无管理权
+        when(ragService.listDocuments(null))
+                .thenReturn("{\"documents\":[{\"id\":7,\"document_name\":\"讲义\",\"course_id\":4060}]}");
+        doThrow(forbidden()).when(courseAccessControl).assertCanManageCourse(eq(4060L), any());
+
+        assertThatThrownBy(() -> controller().updateDocument(7L, "new content", as("TEACHER")))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> controller().deleteDocument(7L, as("TEACHER")))
+                .isInstanceOf(BusinessException.class);
+
+        verify(courseAccessControl, times(2)).assertCanManageCourse(eq(4060L), any());
+        verify(ragService, never()).updateDocument(anyLong(), anyString());
+        verify(ragService, never()).deleteDocument(anyLong());
+    }
+
+    @Test
+    @DisplayName("有权教师更新/删除本人课程文档：反查归属后放行到引擎")
+    void documentMutationAllowedForCourseOwner() {
+        when(ragService.listDocuments(null))
+                .thenReturn("{\"documents\":[{\"id\":7,\"document_name\":\"讲义\",\"course_id\":4061}]}");
+        when(ragService.updateDocument(7L, "new content")).thenReturn("{\"id\":7}");
+        when(ragService.deleteDocument(7L)).thenReturn("{\"id\":7}");
+
+        controller().updateDocument(7L, "new content", as("TEACHER"));
+        controller().deleteDocument(7L, as("TEACHER"));
+
+        verify(courseAccessControl, times(2)).assertCanManageCourse(eq(4061L), any());
+        verify(ragService).updateDocument(eq(7L), eq("new content"));
+        verify(ragService).deleteDocument(eq(7L));
+    }
+
+    @Test
+    @DisplayName("反查不到归属（引擎不可用/文档不存在）时教师 fail-closed 403；管理员免反查放行")
+    void documentMutationFailsClosedWhenOwnershipUnknown() {
+        // 引擎不可用：listDocuments 返回 503 降级占位（无 documents 数组）
+        when(ragService.listDocuments(null)).thenReturn("{\"documents\":null,\"code\":503}");
+
+        assertThatThrownBy(() -> controller().updateDocument(7L, "x", as("TEACHER")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("无法确认该文档所属课程");
+        assertThatThrownBy(() -> controller().deleteDocument(7L, as("TEACHER")))
+                .isInstanceOf(BusinessException.class);
+
+        // 管理员不依赖反查，引擎不可用也保持原有放行行为
+        when(ragService.updateDocument(7L, "x")).thenReturn("{\"id\":7}");
+        when(ragService.deleteDocument(7L)).thenReturn("{\"id\":7}");
+        controller().updateDocument(7L, "x", as("ADMIN"));
+        controller().deleteDocument(7L, as("ADMIN"));
+        verify(ragService).updateDocument(eq(7L), eq("x"));
+        verify(ragService).deleteDocument(eq(7L));
     }
 }

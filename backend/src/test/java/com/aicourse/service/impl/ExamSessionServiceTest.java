@@ -9,6 +9,7 @@ import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.ExamPaperMapper;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
@@ -59,6 +60,7 @@ class ExamSessionServiceTest {
     @Mock private WrongQuestionService wrongQuestionService;
     @Mock private ExamSessionGradingService gradingService;
     @Mock private ExamSessionMapper examSessionMapper;
+    @Mock private ExamPaperMapper examPaperMapper;
 
     private ExamSessionServiceImpl examSessionService;
 
@@ -75,7 +77,7 @@ class ExamSessionServiceTest {
         ExamSessionLifecycleComponent lifecycleComponent =
                 new ExamSessionLifecycleComponent(examPaperService, null,
                         org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
-                        objectMapper);
+                        objectMapper, examPaperMapper);
         ExamSessionCheatingComponent cheatingComponent =
                 new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
         ExamSessionQueryComponent queryComponent =

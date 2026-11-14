@@ -100,20 +100,76 @@ public class RAGController {
         return ApiResponse.success(toJson(ragService.listDocuments(courseId)));
     }
 
-    /** 更新知识库中指定文档的内容（教师/管理员） */
+    /**
+     * 更新知识库中指定文档的内容（教师/管理员）。
+     * <p>对象级收口（2026-11-13）：原先仅 hasRole('TEACHER')，甲课教师可改乙课文档。
+     * 与 addDocument 同款：先反查文档所属课程，再套 {@link CourseAccessControl#assertCanManageCourse}。</p>
+     */
     @PutMapping("/documents/{documentId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> updateDocument(
             @PathVariable Long documentId,
-            @Valid @RequestBody String content) {
+            @Valid @RequestBody String content,
+            Authentication auth) {
+        assertCanManageDocument(documentId, auth);
         return ApiResponse.success(toJson(ragService.updateDocument(documentId, content)));
     }
 
-    /** 删除知识库中指定文档（教师/管理员） */
+    /**
+     * 删除知识库中指定文档（教师/管理员）。
+     * <p>对象级收口（2026-11-13）：同 updateDocument，教师仅可删除本人课程下的文档。</p>
+     */
     @DeleteMapping("/documents/{documentId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> deleteDocument(@PathVariable Long documentId) {
+    public ApiResponse<JsonNode> deleteDocument(@PathVariable Long documentId, Authentication auth) {
+        assertCanManageDocument(documentId, auth);
         return ApiResponse.success(toJson(ragService.deleteDocument(documentId)));
+    }
+
+    /**
+     * 文档级归属校验：文档ID是 RAG 引擎侧资源，本端无本地表，先经 listDocuments 反查其
+     * 所属课程，再套用与 addDocument 相同的 {@code assertCanManageCourse} 课程管理权判定。
+     * 反查不到（引擎不可用/文档不存在/未挂课程）时对教师 fail-closed 403，管理员放行。
+     */
+    private void assertCanManageDocument(Long documentId, Authentication auth) {
+        if (isAdmin(auth)) {
+            return;
+        }
+        Long courseId = resolveCourseIdOfDocument(documentId);
+        if (courseId == null) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无法确认该文档所属课程，禁止操作");
+        }
+        courseAccessControl.assertCanManageCourse(courseId, auth);
+    }
+
+    /** 经 RAG 引擎全量文档列表反查 documentId → courseId；列表为空/解析失败返回 null。 */
+    private Long resolveCourseIdOfDocument(Long documentId) {
+        String raw = ragService.listDocuments(null);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(raw);
+            JsonNode arr = root.isArray() ? root : (root.has("documents") ? root.get("documents") : null);
+            if (arr == null || !arr.isArray()) {
+                return null;
+            }
+            for (JsonNode doc : arr) {
+                if (!doc.isObject()) {
+                    continue;
+                }
+                long id = doc.has("id") ? doc.get("id").asLong()
+                        : (doc.has("document_id") ? doc.get("document_id").asLong() : -1L);
+                if (id == documentId
+                        && doc.has("course_id") && !doc.get("course_id").isNull()) {
+                    return doc.get("course_id").asLong();
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("反查知识库文档归属课程失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     /** 为指定课程构建/重建向量索引（教师/管理员，且教师须是本课程） */

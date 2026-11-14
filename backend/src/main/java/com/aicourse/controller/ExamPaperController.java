@@ -300,12 +300,13 @@ public class ExamPaperController {
                     id, existing.getCourseId(), effectiveVisibility, exam.getTeachingClassIds(), true);
             exam.setVisibility(normalizedVisibility);
         }
-        exam.setId(id);
-        examPaperService.updateById(exam);
+        // 修复 A-02 #5/#8：更新收口到服务层 updateExamPaper——
+        // status/isActive/creatorId 白名单剔除（审核流转只走 /publish、/approve、/reject），
+        // 并校验显式传入的 totalScore 与题目分值合计一致
+        ExamPaper updatedExam = examPaperService.updateExamPaper(id, exam);
         if (targetsTouched) {
             activityTargetService.replaceExamPaperTargets(id, normalizedVisibility, exam.getTeachingClassIds());
         }
-        ExamPaper updatedExam = examPaperService.getById(id);
         return ApiResponse.success("更新成功", updatedExam);
     }
 
@@ -502,12 +503,17 @@ public class ExamPaperController {
      * 复制试卷（教师/管理员权限）
      * @param id 源试卷ID
      * @param body 包含新标题
+     * @param auth 认证信息
      * @return 新试卷信息
      */
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "复制试卷")
-    public ApiResponse<ExamPaper> copy(@PathVariable Long id, @Valid @RequestBody Map<String, String> body) {
+    public ApiResponse<ExamPaper> copy(@PathVariable Long id, @Valid @RequestBody Map<String, String> body,
+                                       Authentication auth) {
+        // 修复 A-02 #6：对象级 ACL——复制源试卷要求对源试卷所属课程有管理权。
+        // 缺失时任意教师可复制他师试卷，并经 /detail 读取全部题目与标准答案。
+        examPaperAccessControl.assertCanManage(requirePaper(id), auth);
         String newTitle = body.get("newTitle");
         ExamPaper newPaper = examPaperService.copyExamPaper(id, newTitle);
         return ApiResponse.success("复制成功", newPaper);

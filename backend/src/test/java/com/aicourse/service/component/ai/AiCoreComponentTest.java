@@ -6,10 +6,12 @@ import com.aicourse.service.AiCallLogService;
 import com.aicourse.service.impl.PromptGuard;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -17,8 +19,15 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -114,5 +123,62 @@ class AiCoreComponentTest {
 
         assertThrows(LLMUnavailableException.class,
                 () -> core.completeAndSanitize(messages(), 0.7, "chat"));
+    }
+
+    // ==================== 流式调用落库（2026-11-13 成本面收口修复） ====================
+
+    private static AiCallContext.Snapshot qaStreamSnapshot() {
+        return new AiCallContext.Snapshot(7L, 3L, "QA_STREAM");
+    }
+
+    @Test
+    @DisplayName("流式正常完成：按快照归属异步落 ai_call_logs，completion token 按累计增量估算")
+    void stream_onCompleted_recordsCallLog() {
+        when(llmProvider.stream(any(), anyDouble())).thenReturn(Flux.just("你", "好"));
+        when(promptGuard.sanitizeOutput(anyString())).thenAnswer(inv -> inv.getArgument(0));
+
+        core.stream(messages(), 0.7, qaStreamSnapshot()).blockLast();
+
+        // 落库在异步线程执行，用 timeout 轮询等待；成功记录：原文累计用于 completion 估算、无错误信息
+        verify(aiCallLogService, timeout(1000)).record(eq(7L), eq(3L), eq("QA_STREAM"),
+                any(), anyLong(), eq("你好"), anyLong(), eq(true), isNull());
+    }
+
+    @Test
+    @DisplayName("流式异常：同样落失败记录（errorMsg 取异常消息），且异常照常透传给上层")
+    void stream_onError_recordsFailedCallLog() {
+        when(llmProvider.stream(any(), anyDouble()))
+                .thenReturn(Flux.error(new RuntimeException("上游网关 5xx")));
+
+        assertThrows(RuntimeException.class,
+                () -> core.stream(messages(), 0.7, qaStreamSnapshot()).blockLast());
+
+        verify(aiCallLogService, timeout(1000)).record(eq(7L), eq(3L), eq("QA_STREAM"),
+                any(), anyLong(), isNull(), anyLong(), eq(false), eq("上游网关 5xx"));
+    }
+
+    @Test
+    @DisplayName("客户端中断（取消订阅，如断线重连）：按失败记录，错误信息带终止信号")
+    void stream_onCancel_recordsFailedCallLog() {
+        when(llmProvider.stream(any(), anyDouble())).thenReturn(Flux.just("a", "b", "c"));
+        when(promptGuard.sanitizeOutput(anyString())).thenAnswer(inv -> inv.getArgument(0));
+
+        core.stream(messages(), 0.7, qaStreamSnapshot()).take(1).blockLast();
+
+        verify(aiCallLogService, timeout(1000)).record(eq(7L), eq(3L), eq("QA_STREAM"),
+                any(), anyLong(), isNull(), anyLong(), eq(false), contains("cancel"));
+    }
+
+    @Test
+    @DisplayName("无归属快照：流式调用静默跳过落库（宁可少记，不记错归属）")
+    void stream_withoutSnapshot_skipsCallLog() {
+        when(llmProvider.stream(any(), anyDouble())).thenReturn(Flux.just("a"));
+        when(promptGuard.sanitizeOutput(anyString())).thenAnswer(inv -> inv.getArgument(0));
+
+        core.stream(messages(), 0.7).blockLast();
+
+        // 快照缺失时终止回调直接短路，异步落库根本不会发生
+        verify(aiCallLogService, never()).record(any(), any(), any(),
+                any(), anyLong(), any(), anyLong(), anyBoolean(), any());
     }
 }

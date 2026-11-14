@@ -65,6 +65,9 @@ class TeacherControllerTest extends ControllerTestBase {
     private TeacherCourseService teachingService;
     @MockitoBean
     private KnowledgePointService knowledgePointService;
+    /** 2026-11-13 对象级收口：/teacher/questions/import 逐题课程归属校验走 CourseAccessControl。 */
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     // ============ 归属校验桩（owner id 与 withUser(1L,...) 一致，越权校验才能放行） ============
     private Course ownerCourse() {
@@ -771,6 +774,35 @@ class TeacherControllerTest extends ControllerTestBase {
     void importQuestions_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/teacher/questions/import").contentType(MediaType.APPLICATION_JSON).content("[]").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST /teacher/questions/import - 逐题过课程归属校验（同 QuestionController.batchImport 口径）")
+    void importQuestions_checksCourseOwnershipPerQuestion() throws Exception {
+        when(questionService.save(any(Question.class))).thenReturn(true);
+        mockMvc.perform(post("/teacher/questions/import").contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"content\":\"题干一\",\"courseId\":1},{\"content\":\"题干二\",\"courseId\":1}]")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.importedCount").value(2));
+
+        verify(courseAccessControl, times(2)).assertCanManageCourse(eq(1L), any());
+        verify(questionService, times(2)).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /teacher/questions/import - 向他人课程导入返回403且一条都不落库")
+    void importQuestions_otherTeachersCourse_forbidden_403() throws Exception {
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(2L), any());
+        mockMvc.perform(post("/teacher/questions/import").contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"content\":\"题干一\",\"courseId\":2}]")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(questionService, never()).save(any(Question.class));
     }
 
     @Test
