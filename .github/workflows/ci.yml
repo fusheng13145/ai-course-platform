@@ -611,6 +611,21 @@ jobs:
         # 两个 profile 必须同时启用，否则会漏掉 backend/frontend 的构建。
         run: docker compose --profile full --profile python -f docker-compose.yml build
 
+      - name: Build FT image (profile ft, 2026-11-14 U5b 验证位)
+        # 此前 CI 只 build full+python，ft 镜像构建失败无门禁可测（启用 --profile ft 即部署失败）。
+        # Dockerfile 已按修复候选①（torch==2.11.0+cpu 显式本地版本号阻断 CUDA 回落）改写；
+        # 本步即实机验证：若 wheel 缺位假说仍不成立，此处会红并给出真实报错（而非静默漏到发布）。
+        env:
+          MYSQL_ROOT_PASSWORD: ci-build-only-password-9f2k1m8x
+          REDIS_PASSWORD: ci-build-only-redis-7q4w2e9r
+          JWT_SECRET: ci-build-only-jwt-secret-0123456789abcdef0123456789abcdef
+          APP_ADMIN_INITIAL_PASSWORD: CiBuild0nly!Admin#2026
+          NEO4J_PASSWORD: ci-test-neo4j-8f3k
+          GRAFANA_ADMIN_PASSWORD: ci-build-only-grafana-4p6t1s0d
+          COOKIE_SECURE: true
+          REQUIRE_HTTPS: true
+        run: docker compose --profile ft -f docker-compose.yml build fine-tune-service
+
   # ------------------------------------------------------------------
   # Python 知识图谱基线服务（端口 8001）契约校验
   # 覆盖 docs/系统架构设计.md 集成契约章节的关键端点，与 Java 端
@@ -788,7 +803,10 @@ jobs:
     name: Frontend E2E (Playwright, full-stack)
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    if: github.event_name == 'workflow_dispatch'
+    # 2026-11-14 P1-9（Q7 拍板：纳入 push 观察一轮）：此前仅 workflow_dispatch 手动触发，
+    # e2e 主链回归依赖人工。现 push 到 main 即跑（PR 不跑，控 runner 资源——PR 阶段
+    # 由单测/typecheck 守，合并后真栈复验）；观察一轮稳定后再评估纳入 PR 链。
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: frontend
