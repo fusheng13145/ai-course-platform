@@ -2,10 +2,10 @@
 # AI 课程平台 - Alertmanager 配置
 # 挂载到 /etc/alertmanager/alertmanager.yml（docker-compose alertmanager 服务）
 #
-# 【通知渠道】本机无真实 SMTP，默认路由到 webhook 占位端点。
-# 生产请将下方 webhook url 直接改为真实告警网关地址
-# （企业微信/钉钉/飞书机器人、PagerDuty、自定义 webhook 等）；
-# 或使用下方注释的 email 路由（填入真实 SMTP）。
+# 【通知渠道】默认路由到 ops-email（QQ SMTP 587+STARTTLS，授权码经 compose secrets
+# 从 deploy/secrets/alertmanager_smtp_password 挂载到 /etc/alertmanager/smtp_password，
+# 不入 git）。monitor profile 启动前须确保该密钥文件存在（与 actuator_basic_password 同规约）。
+# 企业微信/钉钉/飞书等 webhook 渠道可在 receivers 追加，url 必须写字面值。
 #
 # 【重要 · 不支持环境变量插值】
 # Alertmanager 不支持配置文件内的通用 ${VAR} / ${VAR:-default} 展开
@@ -24,7 +24,7 @@ global:
   resolve_timeout: 5m
 
 route:
-  receiver: "default-webhook"
+  receiver: "ops-email"
   group_by: ["alertname", "severity"]
   group_wait: 30s
   group_interval: 5m
@@ -33,31 +33,29 @@ route:
     # 严重告警缩短重复通知间隔，确保第一时间持续触达
     - matchers:
         - severity = "critical"
-      receiver: "default-webhook"
+      receiver: "ops-email"
       repeat_interval: 1h
 
 receivers:
-  - name: "default-webhook"
-    webhook_configs:
-      # 【上线前必改】占位端点仅本机回环，不对外推送任何告警。
-      # 生产环境必须把本行 url 改为真实告警网关地址（企业微信/钉钉/飞书群机器人、PagerDuty、
-      # 自定义接收服务等），否则告警仅能在 Prometheus/Alertmanager UI 看见、不会主动通知。
-      # 注意：本文件不支持 ${VAR} 插值（见文件头说明），此处必须写**字面值**。
-      # TODO(上线前): 将下方 url 替换为真实告警 webhook 字面值。
-      - url: "http://localhost:9000/alerts"
+  # 邮件通知（2026-11-14 接入，替代原 localhost:9000 占位 webhook）。
+  # - 授权码不进本文件：经 compose secrets 挂载到 /etc/alertmanager/smtp_password
+  #   （deploy/secrets/alertmanager_smtp_password，gitignored），由 auth_password_file 读取。
+  # - QQ SMTP 走 587+STARTTLS（465 是隐式 TLS，Alertmanager 不支持隐式 SSL 拨号，
+  #   require_tls 对应 STARTTLS 语义）。
+  # - 发件/收件邮箱为运维信箱字面值（本文件不支持 ${VAR} 插值，见文件头说明）；
+  #   更换收件人时改 to 即可。
+  - name: "ops-email"
+    email_configs:
+      - smarthost: 'smtp.qq.com:587'
+        from: '3039613979@qq.com'
+        to: '3039613979@qq.com'
+        auth_username: '3039613979@qq.com'
+        auth_password_file: '/run/secrets/alertmanager_smtp_password'
+        require_tls: true
         send_resolved: true
 
-  # 可选：邮件通知（需真实 SMTP）。取消注释后请把下列各项替换为**字面值**，
-  # 不要使用 ${VAR} —— 本文件不支持环境变量插值（见文件头说明）。
-  # 密码建议改用 auth_password_file 指向挂载的密钥文件，避免明文入库。
-  # - name: 'email-admin'
-  #   email_configs:
-  #     - smarthost: 'smtp.example.com:587'
-  #       from: 'alert@example.com'
-  #       to: 'admin@example.com'
-  #       auth_username: 'alert@example.com'
-  #       auth_password_file: '/etc/alertmanager/smtp_password'
-  #       require_tls: true
+  # 后续若接入企业微信/钉钉/飞书机器人，可追加 webhook receiver 并在 route 中分流；
+  # 注意：本文件不支持 ${VAR} 插值（见文件头说明），url 必须写**字面值**。
 
 # 同实例的 critical 告警抑制其 warning 告警，避免噪音叠加
 inhibit_rules:

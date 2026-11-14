@@ -683,6 +683,12 @@ services:
     # 故移除该变量；webhook 地址请直接在 monitoring/prometheus/alertmanager.yml 中写字面值。
     volumes:
       - ./monitoring/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    # 邮件授权码走 secrets 挂载（2026-11-14 P1-10 接入 ops-email 通道）：
+    # alertmanager.yml 的 auth_password_file 指向 /run/secrets/alertmanager_smtp_password；
+    # 授权码本体在 deploy/secrets/alertmanager_smtp_password（gitignored），不进任何跟踪文件。
+    # 本机/生产开通 monitor profile 前必须创建该文件（与 actuator_basic_password 同规约）。
+    secrets:
+      - alertmanager_smtp_password
     ports:
       - "${ALERTMANAGER_HOST_BIND:-127.0.0.1}:${ALERTMANAGER_HOST_PORT:-9093}:9093"
     logging:
@@ -892,4 +898,8 @@ volumes:
 secrets:
   actuator_basic_password:
     file: ${ACTUATOR_BASIC_PASSWORD_FILE:-./deploy/secrets/actuator_basic_password}
+  # Alertmanager 邮件通道授权码（ops-email receiver 的 auth_password_file 消费）。
+  # 内容 = QQ SMTP 授权码本身，**末尾不要换行**（同上方 actuator_basic_password 的告诫）。
+  alertmanager_smtp_password:
+    file: ${ALERTMANAGER_SMTP_PASSWORD_FILE:-./deploy/secrets/alertmanager_smtp_password}
 
