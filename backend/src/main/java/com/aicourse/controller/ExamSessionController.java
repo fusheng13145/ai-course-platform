@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import com.aicourse.util.TrustedClientIpResolver;
 import java.util.List;
 import java.util.Map;
 
@@ -38,13 +39,19 @@ public class ExamSessionController {
     private final ExamSessionService examSessionService;
     private final ExamSessionAccessControl examSessionAccessControl;
     private final CourseAccessControl courseAccessControl;
+    /** 监考 IP 单源（2026-11-14 P1-5）：直连形态下 getRemoteAddr 即对端地址，但生产置于
+     * 反代之后恒为代理 IP，「IP 变化」作弊检测（detectCheating）将天然失效。改与限流/节流
+     * 同一 {@link TrustedClientIpResolver}，由 app.security.trust-proxy-header 单点决定。 */
+    private final TrustedClientIpResolver clientIpResolver;
 
     public ExamSessionController(ExamSessionService examSessionService,
                                  ExamSessionAccessControl examSessionAccessControl,
-                                 CourseAccessControl courseAccessControl) {
+                                 CourseAccessControl courseAccessControl,
+                                 TrustedClientIpResolver clientIpResolver) {
         this.examSessionService = examSessionService;
         this.examSessionAccessControl = examSessionAccessControl;
         this.courseAccessControl = courseAccessControl;
+        this.clientIpResolver = clientIpResolver;
     }
 
     /**
@@ -60,7 +67,7 @@ public class ExamSessionController {
             HttpServletRequest request) {
         Long examPaperId = body.get("examPaperId");
         Long studentId = (Long) auth.getPrincipal();
-        String ipAddress = request.getRemoteAddr();
+        String ipAddress = clientIpResolver.resolve(request);
         String userAgent = request.getHeader("User-Agent");
 
         // 开考前置校验：学生必须是该试卷所属课程的选课学生（修复未选课学生越权开考）
