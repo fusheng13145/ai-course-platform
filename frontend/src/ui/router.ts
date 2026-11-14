@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw, Router, RouterHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { installRouterGuard } from '@/router/guard'
+import { cancelAllPendingRequests } from '@/api/request'
 import { ROLE_HOME } from './types'
 
 const Shell = () => import('./Shell.vue')
@@ -248,6 +249,13 @@ export function installGuards(router: Router): void {
     forbiddenPath: '/403',
     unavailablePath: '/503',
   }))
+  // 2026-11-14 P2-5：路由切换后取消上一页遗留的在途请求——此前
+  // cancelAllPendingRequests 全仓零调用，「页面切换统一取消」是死功能，旧页响应
+  // 仍会写入新页状态。放在 afterEach（守卫探针 fetchPermissions 之后发起，
+  // 不会被误杀）；新页请求在 afterEach 之后才发出，不受影响。
+  router.afterEach(() => {
+    cancelAllPendingRequests()
+  })
 }
 
 /**

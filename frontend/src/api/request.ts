@@ -2,6 +2,7 @@ import logger from '@/utils/logger'
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { apiHost, type ApiMessageHost } from '@/api/apiHost'
 import { useAuthStore } from '@/stores/auth'
+import { disconnect as wsDisconnect } from '@/utils/websocket'
 import { showLoading, hideLoading } from '@/utils/loadingBar'
 import { getRequestKey, generateReqKey } from '@/api/requestKey'
 import {
@@ -206,6 +207,9 @@ export function resetLoginRedirectDedupe() {
 function handleAuthExpired() {
   const authStore = useAuthStore()
   authStore.resetAuthState()
+  // 2026-11-14 P2-5：会话过期收尾必须断开 WebSocket——此前仅 logout() 显式断连，
+  // 401 过期路径不断开，重连循环带着失效会话 Cookie 继续跑（最多 5 次）。
+  wsDisconnect()
   showThrottledMessage('error', '登录已过期，请重新登录')
   const now = Date.now()
   if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
