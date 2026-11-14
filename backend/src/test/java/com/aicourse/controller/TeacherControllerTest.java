@@ -391,9 +391,11 @@ class TeacherControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /teacher/assignments - 真实业务断言：分页返回作业列表")
+    @DisplayName("GET /teacher/assignments - 真实业务断言：分页返回作业列表（P2-2：教师按可读课程过滤）")
     void getAssignments_authorized_passes_security() throws Exception {
         when(taskService.page(any(), any())).thenReturn(pageOf(ownerTask()));
+        // P2-2（D9 收口）：教师视角恒按 readableCourseIds 过滤（null=管理员语义才全量）
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(1L));
         mockMvc.perform(get("/teacher/assignments?page=1&size=1&courseId=1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -401,6 +403,16 @@ class TeacherControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.list").isArray())
                 .andExpect(jsonPath("$.data.total").value(1));
         verify(taskService).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /teacher/assignments - 可读课程集为空的教师返回空页且不触达查询（P2-2 收口）")
+    void getAssignments_noReadableCourses_returnsEmpty() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of());
+        mockMvc.perform(get("/teacher/assignments?page=1&size=1").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+        verify(taskService, never()).page(any(), any());
     }
 
     @Test

@@ -366,6 +366,8 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /teacher/assignments - 带 courseId：分页参数与等值条件一并下传")
     void getAssignments_withCourseId_appliesCourseFilter() throws Exception {
+        // P2-2：教师视角恒按 readableCourseIds 过滤（mock 给出包含目标课程的可读集）
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(COURSE_ID));
         AtomicReference<Page<Task>> sentPage = new AtomicReference<>();
         AtomicReference<Wrapper<Task>> sentQw = new AtomicReference<>();
         when(taskService.page(any(), any())).thenAnswer(inv -> {
@@ -391,7 +393,7 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /teacher/assignments - 不带 courseId：跨课程全量列表不拼 where")
+    @DisplayName("GET /teacher/assignments - 不带 courseId：按 readableCourseIds in 过滤（P2-2/D9 收口，旧契约'教师看全量'废止）")
     void getAssignments_withoutCourseId_buildsEmptyWrapper() throws Exception {
         AtomicReference<Wrapper<Task>> sentQw = new AtomicReference<>();
         AtomicReference<Page<Task>> sentPage = new AtomicReference<>();
@@ -401,19 +403,22 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
             sentQw.set(inv.getArgument(1));
             return echoPage(sent, List.of());
         });
+        // P2-2：教师恒按可读课程过滤；这里给两门可读课程，wrapper 须拼出 in 条件
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(COURSE_ID, 9L));
 
         mockMvc.perform(get("/teacher/assignments").with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.list").isArray())
-                .andExpect(jsonPath("$.data.total").value(0))
                 .andExpect(jsonPath("$.data.page").value(1))
                 .andExpect(jsonPath("$.data.pageSize").value(10));
 
         assertEquals(1L, sentPage.get().getCurrent(), "缺省页码应为 1");
         assertEquals(10L, sentPage.get().getSize(), "缺省每页条数应为 10");
-        assertTrue(wrapperParams(sentQw.get()).isEmpty(),
-                "不带 courseId 时不得拼任何条件（否则教师看不到全部作业），实际=" + wrapperParams(sentQw.get()));
+        // MP 的 in(column, 集合) 展开为逐元素参数：可读集 {COURSE_ID, 9} 须同时出现在参数中
+        Collection<Object> params = wrapperParams(sentQw.get());
+        assertTrue(params.contains(COURSE_ID) && params.contains(9L),
+                "不带 courseId 时须按可读课程 in 过滤（D9 收口），实际=" + params);
     }
 
     // ==================== 题库：可选归属与题目孤儿态 ====================
