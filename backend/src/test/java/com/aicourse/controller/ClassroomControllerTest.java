@@ -167,20 +167,73 @@ class ClassroomControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /classrooms/1/students - 查询班级学生返回200，分页数组透传")
-    void getStudents_authorized_passes_security() throws Exception {
+    @DisplayName("GET /classrooms/1/students - 管理员返回完整实体（管理台需要联系方式，Q6）")
+    void getStudents_admin_returns_fullEntity() throws Exception {
+        Classroom classroom = new Classroom();
+        classroom.setId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(classroom);
         User u = new User();
         u.setId(1L);
+        u.setEmail("stu@example.com");
+        u.setPhone("13800138000");
         Page<User> page = new Page<>();
         page.setRecords(List.of(u));
         page.setTotal(1L);
         when(classroomService.getClassroomStudents(eq(1L), any(), anyInt(), anyInt())).thenReturn(page);
-        mockMvc.perform(get("/classrooms/1/students?keyword=test&page=1&size=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+        mockMvc.perform(get("/classrooms/1/students?keyword=test&page=1&size=1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.records").isArray())
-                .andExpect(jsonPath("$.data.records[0].id").value(1));
+                .andExpect(jsonPath("$.data.records[0].id").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").value("stu@example.com"));
         verify(classroomService).getClassroomStudents(eq(1L), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /classrooms/1/students - 班主任教师返回脱敏投影（结构性无 email/phone，N3）")
+    void getStudents_advisor_returns_sanitizedProjection() throws Exception {
+        Classroom classroom = new Classroom();
+        classroom.setId(1L);
+        classroom.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(classroom);
+        User u = new User();
+        u.setId(1L);
+        u.setFullName("张三");
+        u.setEmail("stu@example.com");
+        u.setPhone("13800138000");
+        Page<User> page = new Page<>();
+        page.setRecords(List.of(u));
+        page.setTotal(1L);
+        when(classroomService.getClassroomStudents(eq(1L), any(), anyInt(), anyInt())).thenReturn(page);
+        mockMvc.perform(get("/classrooms/1/students?page=1&size=1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].id").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").doesNotExist())
+                .andExpect(jsonPath("$.data.records[0].phone").doesNotExist())
+                .andExpect(jsonPath("$.data.records[0].fullName").value("张三"));
+    }
+
+    @Test
+    @DisplayName("GET /classrooms/1/students - 学生访问名册返回403（N3 收口）")
+    void getStudents_student_forbidden_403() throws Exception {
+        Classroom classroom = new Classroom();
+        classroom.setId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(classroom);
+        mockMvc.perform(get("/classrooms/1/students").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(classroomService, never()).getClassroomStudents(anyLong(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /classrooms/1/students - 非班主任教师访问名册返回403")
+    void getStudents_nonAdvisorTeacher_forbidden_403() throws Exception {
+        Classroom others = new Classroom();
+        others.setId(1L);
+        others.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(others);
+        mockMvc.perform(get("/classrooms/1/students").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(classroomService, never()).getClassroomStudents(anyLong(), any(), anyInt(), anyInt());
     }
 
     @Test
