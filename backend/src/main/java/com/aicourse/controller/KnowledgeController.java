@@ -3,7 +3,6 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.common.ApiResponse;
-import com.aicourse.common.JsonUtils;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.KnowledgeExtractDTO;
 import com.aicourse.dto.KnowledgeRelationDTO;
@@ -60,7 +59,6 @@ public class KnowledgeController {
     private final CourseAccessControl courseAccessControl;
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
-    private static final Set<String> KP_TYPES = Set.of("CONCEPT", "PRINCIPLE", "METHOD", "FACT");
     /** 核心知识点判定阈值：重要度不低于该值 */
     private static final int CORE_IMPORTANCE = 8;
 
@@ -423,7 +421,11 @@ public class KnowledgeController {
 
     /**
      * AI 抽取知识点与关系（教师/管理员权限）
-     * 从课程内容调用大模型抽取结构，写入课程知识点表与关系表（真实持久化，前端列表立即可见）
+     * 从课程内容调用大模型抽取结构，写入课程知识点表与关系表（真实持久化，前端列表立即可见）。
+     * <p>2026-11-14 P2-3（U1 收口）：解析与逐条落库下沉
+     * {@link KnowledgePointService#extractAndSaveGraph}（事务化 + 缓存逐出），控制器只保留
+     * 参数校验、AI 调用与跨课程统计作用域——此前约 80 行业务内联在控制器且无事务，
+     * 节点写一半解析失败即留半成品图谱。</p>
      * POST /api/knowledge/extract
      */
     @PostMapping("/extract")
@@ -441,74 +443,9 @@ public class KnowledgeController {
             // 跨课程 AI 统计：图谱抽取同样是一次真实大模型调用，按课程归属落库
             String json = AiCallContext.run(userId, courseId, "GRAPH_EXTRACT",
                     () -> aiService.extractKnowledgeGraphJson(content));
-            String raw = JsonUtils.extractJsonObject(json);
-            Map<String, Object> result = new LinkedHashMap<>();
-            List<KnowledgePoint> created = new ArrayList<>();
-            Map<String, Long> nameToId = new HashMap<>();
-            List<KnowledgePoint> existing = knowledgePointService.list(
-                    new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId));
-            for (KnowledgePoint ep : existing) {
-                if (ep.getName() != null) nameToId.put(ep.getName().trim().toLowerCase(), ep.getId());
-            }
-            if (raw != null) {
-                try {
-                    JsonNode root = KG_OM.readTree(raw);
-                    if (root.has("nodes") && root.get("nodes").isArray()) {
-                        for (JsonNode n : root.get("nodes")) {
-                            String name = n.has("name") ? n.get("name").asText() : null;
-                            if (name == null || name.isBlank()) continue;
-                            String key = name.trim().toLowerCase();
-                            if (nameToId.containsKey(key)) {
-                                continue;
-                            }
-                            String kc = n.has("content") ? n.get("content").asText() : "";
-                            String type = n.has("type") ? n.get("type").asText().toUpperCase() : "CONCEPT";
-                            if (!KP_TYPES.contains(type)) type = "CONCEPT";
-                            KnowledgePoint kp = new KnowledgePoint();
-                            kp.setCourseId(courseId);
-                            kp.setName(name.trim());
-                            kp.setDescription(kc);
-                            kp.setPointType(type);
-                            knowledgePointService.save(kp);
-                            created.add(kp);
-                            nameToId.put(key, kp.getId());
-                        }
-                    }
-                    List<Map<String, Object>> createdRelations = new ArrayList<>();
-                    if (root.has("relations") && root.get("relations").isArray()) {
-                        for (JsonNode r : root.get("relations")) {
-                            String sName = r.has("source") ? r.get("source").asText() : null;
-                            String tName = r.has("target") ? r.get("target").asText() : null;
-                            String rel = r.has("relationType") ? r.get("relationType").asText().toUpperCase() : "RELATED_TO";
-                            Long sId = sName != null ? nameToId.get(sName.trim().toLowerCase()) : null;
-                            Long tId = tName != null ? nameToId.get(tName.trim().toLowerCase()) : null;
-                            if (sId != null && tId != null && !sId.equals(tId)) {
-                                try {
-                                    KnowledgePointRelation relEntity = relationService.createRelation(sId, tId, rel, null, null);
-                                    Map<String, Object> m = new LinkedHashMap<>();
-                                    m.put("id", relEntity.getId());
-                                    m.put("source", sName);
-                                    m.put("target", tName);
-                                    m.put("relationType", rel);
-                                    createdRelations.add(m);
-                                } catch (Exception ex) {
-                                    log.debug("跳过关系 {} -> {}: {}", sName, tName, ex.getMessage());
-                                }
-                            }
-                        }
-                    }
-                    result.put("relationCount", createdRelations.size());
-                    result.put("relations", createdRelations);
-                } catch (Exception e) {
-                    log.warn("知识图谱抽取结果解析失败: {}", e.getMessage());
-                    result.put("parseError", "AI 返回结构解析失败，请稍后重试");
-                }
-            } else {
-                result.put("parseError", "AI 未返回有效结构");
-            }
-            result.put("nodeCount", created.size());
-            result.put("nodes", created);
-            return ApiResponse.success("AI 抽取完成，共写入 " + created.size() + " 个知识点", result);
+            Map<String, Object> result = knowledgePointService.extractAndSaveGraph(courseId, json);
+            Object nodeCount = result.getOrDefault("nodeCount", 0);
+            return ApiResponse.success("AI 抽取完成，共写入 " + nodeCount + " 个知识点", result);
         };
     }
 
