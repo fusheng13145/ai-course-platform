@@ -119,7 +119,11 @@ public class SubmissionGradeComponent {
     }
 
     /**
-     * 教师端批改作业（TeacherController.gradeSubmission 业务下沉，行为保持一致）
+     * 教师端批改作业（TeacherController.gradeSubmission 业务下沉）。
+     * <p>2026-11-14 P1-2 批阅语义统一：本路径此前「直写字段落库」，与
+     * {@link #gradeSubmission}（逾期扣分/百分比/reviewCount/通知）行为分叉——同一教师批阅
+     * 动作两条入口两种结果。现归属一致性校验通过后直接委托 {@link #gradeSubmission}，
+     * 落库口径单一化。</p>
      */
     public Submission gradeSubmissionByTeacher(Long assignmentId, Long submissionId, Submission grade, Long graderId) {
         Submission submission = submissionMapper.selectById(submissionId);
@@ -129,13 +133,7 @@ public class SubmissionGradeComponent {
         if (!assignmentId.equals(submission.getTaskId())) {
             throw new BusinessException(403, "提交记录不属于该作业");
         }
-        submission.setScore(grade.getScore());
-        submission.setFeedback(grade.getFeedback());
-        submission.setStatus(SubmissionStatus.GRADED);
-        submission.setGradedAt(LocalDateTime.now());
-        submission.setGraderId(graderId);
-        submissionMapper.updateById(submission);
-        return submission;
+        return gradeSubmission(submissionId, grade.getScore(), grade.getFeedback(), graderId);
     }
 
     /**
