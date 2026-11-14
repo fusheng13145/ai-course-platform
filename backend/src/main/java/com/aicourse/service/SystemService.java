@@ -58,7 +58,7 @@ public interface SystemService {
      * 执行备份恢复
      * @param fileName 备份文件名
      */
-    void restoreBackup(String fileName);
+    java.util.Map<String, Object> restoreBackup(String fileName, String targetDb);
 
     /**
      * 获取日志文件列表

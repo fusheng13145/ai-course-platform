@@ -118,23 +118,27 @@ class SysBackupComponentTest {
     @DisplayName("restoreBackup 各类非法文件名抛异常")
     void restoreBackup_illegal() {
         SysBackupComponent c = newComponent();
-        assertThrows(BusinessException.class, () -> c.restoreBackup("a/b.sql"));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("a\\b.sql"));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("..\\x.sql"));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("/etc/passwd"));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("../escape.sql"));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("a/b.sql", null));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("a\\b.sql", null));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("..\\x.sql", null));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("/etc/passwd", null));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("../escape.sql", null));
     }
 
     @Test
-    @DisplayName("restoreBackup 文件不存在抛异常；存在则通过")
+    @DisplayName("restoreBackup 文件不存在抛异常；非隔离目标库拒绝（P0-2B：真实执行由恢复演练取证）")
     void restoreBackup_exists() throws IOException {
         Files.createDirectories(Path.of("backups"));
         Path f = Path.of("backups", "valid.sql");
         Files.writeString(f, "x");
         try {
             SysBackupComponent c = newComponent();
-            assertThrows(BusinessException.class, () -> c.restoreBackup("missing.sql"));
-            assertDoesNotThrow(() -> c.restoreBackup("valid.sql"));
+            assertThrows(BusinessException.class, () -> c.restoreBackup("missing.sql", null));
+            // P0-2B 后 valid.sql 会真实执行 mysql——单元环境无凭据/无 mysql 客户端，
+            // 改为钉隔离前缀护栏（演练执行取证走 scripts/restore-mysql.sh，PRD §13 外部项）
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> c.restoreBackup("valid.sql", "not_isolated_db"));
+            assertTrue(ex.getMessage().contains("前缀"), "应拒绝非隔离目标库，实际=" + ex.getMessage());
         } finally {
             Files.deleteIfExists(f);
         }

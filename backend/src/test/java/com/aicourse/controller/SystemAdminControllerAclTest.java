@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -170,12 +171,14 @@ class SystemAdminControllerAclTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /admin/system/backup/{file}/restore - 管理员恢复备份 200，委托 restoreBackup")
+    @DisplayName("POST /admin/system/backup/{file}/restore - 管理员恢复备份 200，委托 restoreBackup（P0-2B：含 targetDb 参数）")
     void restoreBackup_admin_ok() throws Exception {
+        when(systemService.restoreBackup(eq("backup.sql"), isNull())).thenReturn(Map.of("targetDb", "ai_course_platform"));
         mockMvc.perform(post("/admin/system/backup/backup.sql/restore").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-        verify(systemService).restoreBackup(eq("backup.sql"));
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.targetDb").value("ai_course_platform"));
+        verify(systemService).restoreBackup(eq("backup.sql"), isNull());
     }
 
     @Test

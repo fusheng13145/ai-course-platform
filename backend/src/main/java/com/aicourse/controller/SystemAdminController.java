@@ -738,13 +738,17 @@ public class SystemAdminController {
     }
 
     /**
-     * 从指定备份文件恢复数据（原接口，保留兼容）
+     * 从指定备份文件恢复数据（2026-11-14 P0-2B 真实现，替换原「仅校验不执行」假实现）。
+     * <p>目标库二选一：显式 {@code targetDb} 必须带 {@code aicourse_restore_}/{@code restore_}
+     * 隔离前缀（与 scripts/restore-mysql.sh 同护栏，用于恢复演练）；省缺则恢复到当前应用库
+     * （明确的破坏性动作，请于维护窗口执行）。返回可核验读数：目标库/表数/耗时。</p>
      */
     @PostMapping("/admin/system/backup/{fileName}/restore")
-    public ApiResponse<Void> restoreBackup(@PathVariable String fileName) {
+    public ApiResponse<Map<String, Object>> restoreBackup(@PathVariable String fileName,
+                                                          @RequestParam(required = false) String targetDb) {
         adminScopeGuard.assertSchoolOnly();
-        systemService.restoreBackup(fileName);
-        return ApiResponse.success("恢复成功", null);
+        Map<String, Object> report = systemService.restoreBackup(fileName, targetDb);
+        return ApiResponse.success("恢复完成（详见 data 读数：目标库/表数/耗时）", report);
     }
 
     /**

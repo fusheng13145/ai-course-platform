@@ -93,12 +93,14 @@ class SystemServiceImplTest {
     }
 
     @Test
-    @DisplayName("getBackups/restoreBackup 委托备份组件")
+    @DisplayName("getBackups/restoreBackup 委托备份组件（P0-2B：含隔离目标库参数）")
     void backupDelegation() {
         service.getBackups();
-        service.restoreBackup("x.sql");
+        service.restoreBackup("x.sql", null);
+        service.restoreBackup("x.sql", "aicourse_restore_x");
         verify(backupComponent).getBackups();
-        verify(backupComponent).restoreBackup("x.sql");
+        verify(backupComponent).restoreBackup("x.sql", null);
+        verify(backupComponent).restoreBackup("x.sql", "aicourse_restore_x");
     }
 
     @Test
