@@ -99,9 +99,9 @@ function mountPage(): VueWrapper {
   })
 }
 
-function sourceChipText(wrapper: VueWrapper): string {
-  const chip = wrapper.find('.page-kicker .chip')
-  return chip.exists() ? chip.text() : ''
+function pageKickerText(wrapper: VueWrapper): string {
+  const kicker = wrapper.find('.page-kicker')
+  return kicker.exists() ? kicker.text() : ''
 }
 
 beforeEach(() => {
@@ -147,7 +147,7 @@ beforeEach(() => {
 })
 
 describe('全局页壳层：真实页面不得再戴「示例数据」章', () => {
-  it('学生任务 / 学业档案 / 个人中心都标「接口数据」', async () => {
+  it('学生任务 / 学业档案 / 个人中心的页头不再挂 kicker 与来源章', async () => {
     const bodies: Record<string, string> = {
       tasks: '.tasks-body',
       academic: '.academic-body',
@@ -160,13 +160,13 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
       await vi.waitFor(() => {
         expect(wrapper.find(bodies[page]).exists(), `student/${page} 真实正文未渲染`).toBe(true)
       })
-      expect(sourceChipText(wrapper), `student/${page} 仍标示例`).toBe('接口数据')
+      expect(pageKickerText(wrapper), `student/${page} 仍有来源章`).toBe('')
       expect(wrapper.text(), `student/${page} 出现示例数据`).not.toContain('示例数据')
       wrapper.unmount()
     }
   })
 
-  it('管理端 users / roles / semesters / adminClasses / approvals 都标「接口数据」', async () => {
+  it('管理端 users / roles / semesters / adminClasses / approvals 的页头不再挂 kicker 与来源章', async () => {
     uiState.role.value = 'admin'
     for (const page of ['users', 'roles', 'semesters', 'adminClasses', 'approvals']) {
       route.meta.pageKey = page
@@ -178,7 +178,7 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
           expect(wrapper.find('.users-body').exists(), 'admin/users 真实正文未渲染').toBe(true)
         })
       }
-      expect(sourceChipText(wrapper), `admin/${page} 仍标示例`).toBe('接口数据')
+      expect(pageKickerText(wrapper), `admin/${page} 仍有来源章`).toBe('')
       expect(wrapper.text(), `admin/${page} 出现示例数据`).not.toContain('示例数据')
       wrapper.unmount()
     }
@@ -191,13 +191,13 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
     route.meta.pageKey = 'courses'
     const wrapper = mountPage()
     await settle()
-    expect(sourceChipText(wrapper)).toBe('')
+    expect(pageKickerText(wrapper)).toBe('')
     expect(wrapper.text()).not.toContain('示例数据')
     expect(wrapper.find('[data-testid="page-not-provided"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('管理端 AI 用量页走真实正文并标「接口数据」（M-14 接真后不再回落待扩展空态）', async () => {
+  it('管理端 AI 用量页走真实正文，页头不再挂来源章（M-14 接真后不再回落待扩展空态）', async () => {
     uiState.role.value = 'admin'
     route.meta.pageKey = 'aiUsage'
     const wrapper = mountPage()
@@ -206,7 +206,7 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
       expect(wrapper.find('.ai-usage-body').exists(), 'AI 用量正文未渲染').toBe(true)
     })
     expect(wrapper.find('[data-testid="page-not-provided"]').exists()).toBe(false)
-    expect(sourceChipText(wrapper)).toBe('接口数据')
+    expect(pageKickerText(wrapper)).toBe('')
     expect(wrapper.text()).not.toContain('示例数据')
     wrapper.unmount()
   })
@@ -275,7 +275,7 @@ describe('全局页壳层：收件箱不留空控件', () => {
     const actionTexts = wrapper.findAll('.page-head-actions button').map((node) => node.text())
     expect(actionTexts).not.toContain('批量确认')
     expect(actionTexts).not.toContain('导出')
-    expect(sourceChipText(wrapper)).toBe('接口数据')
+    expect(pageKickerText(wrapper)).toBe('')
     wrapper.unmount()
   })
 })

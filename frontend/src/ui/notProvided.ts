@@ -29,9 +29,8 @@ const UNAVAILABLE: Record<Role, string[]> = {
 const COPY: Record<string, { head: string; detail: string }> = {}
 
 const GENERIC_UNAVAILABLE = {
-  head: '待扩展：该页签无可用数据面',
-  detail:
-    '依赖的后端接口尚未落地（内部编号见后端待办项 B-13），本页只给明确空态、不展示示例读数。待扩展方向见产品规划 §4.1 的能力矩阵。',
+  head: '该页暂不提供数据',
+  detail: '本页暂无可用数据。',
 }
 
 function inList(list: Record<Role, string[]>, role: Role, page: string): boolean {

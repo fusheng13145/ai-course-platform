@@ -4,7 +4,6 @@
     <section v-if="viewMode === 'list'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">EXAMS / MINE</p>
           <h2>{{ scopeLabel }}</h2>
         </div>
         <button class="btn btn-sm btn-ghost" :disabled="listLoading" @click="loadExamList">
@@ -69,7 +68,6 @@
     <section v-else-if="viewMode === 'exam'" class="card sheet">
       <header class="card-head">
         <div>
-          <p class="card-kicker">SESSION / {{ sessionId ?? '—' }}</p>
           <h2>{{ currentExamPaper?.title || currentExamPaper?.name || '正在作答' }}</h2>
         </div>
         <div class="timer" :class="{ warn: remainingMinutes <= 5 }">
@@ -185,7 +183,6 @@
 
     <!-- 结果 -->
     <section v-else class="card result">
-      <p class="card-kicker">RESULT / 成绩</p>
       <div class="score" :class="getResultClass()">
         <b>{{ scoreText }}</b>
         <small v-if="percentageText">百分制 {{ percentageText }}</small>
@@ -200,7 +197,6 @@
     <Modal
       v-model:open="askState.open"
       :title="askState.title"
-      kicker="RECORD / CONFIRM"
       width="480px"
       @close="resolveAsk(false)"
     >
@@ -287,7 +283,6 @@ const {
   filteredExams,
   loadExamList,
   currentExamPaper,
-  sessionId,
   submitting,
   questions,
   questionsLoading,

@@ -2,10 +2,8 @@
   <section class="module">
     <PageHead
       v-if="!isCourseScope"
-      kicker="TEACHER / EXAM PAPERS · 2026 秋"
       title="试卷库"
       sub="试卷的创建、编辑、题目明细、统计与提交审核；管理员审核通过后学生才可见。"
-      source="api"
     >
       <template #actions>
         <button class="btn btn-primary" @click="openCreate">新建试卷</button>
@@ -13,7 +11,6 @@
     </PageHead>
     <div v-else class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / EXAM PAPERS</p>
         <h2>课程试卷</h2>
       </div>
       <div class="course-tab-actions">
@@ -28,7 +25,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PAPERS / {{ isCourseScope ? 'COURSE' : 'ALL COURSES' }}</p>
           <h2>试卷列表</h2>
         </div>
         <span class="chip chip-mute">{{ total }} 条</span>
@@ -120,12 +116,7 @@
     </section>
 
     <!-- 新建 / 编辑试卷 -->
-    <Modal
-      v-model:open="formOpen"
-      :title="editingId ? '编辑试卷' : '新建试卷'"
-      kicker="PAPER / FORM"
-      width="680px"
-    >
+    <Modal v-model:open="formOpen" :title="editingId ? '编辑试卷' : '新建试卷'" width="680px">
       <div class="form-grid">
         <label v-if="!isCourseScope" class="field span-2">
           <span>所属课程</span>
@@ -168,7 +159,7 @@
     </Modal>
 
     <!-- 题目明细 -->
-    <Modal v-model:open="questionsOpen" title="试卷题目" kicker="PAPER / QUESTIONS" width="760px">
+    <Modal v-model:open="questionsOpen" title="试卷题目" width="760px">
       <p class="modal-text">{{ currentExam?.title || '试卷' }} · {{ examQuestions.length }} 道题</p>
       <div class="table-wrap">
         <table>
@@ -198,7 +189,7 @@
     </Modal>
 
     <!-- 统计 -->
-    <Modal v-model:open="statsOpen" title="试卷统计" kicker="PAPER / STATISTICS" width="620px">
+    <Modal v-model:open="statsOpen" title="试卷统计" width="620px">
       <p class="modal-text">{{ currentExam?.title || '试卷' }}</p>
       <div v-if="statsLoading" class="modal-hint">正在加载统计…</div>
       <PaperStats v-else-if="examStats" :stats="examStats" />
@@ -212,7 +203,6 @@
     <Modal
       v-model:open="confirmState.open"
       :title="confirmState.title"
-      kicker="CONFIRM / ACTION"
       width="460px"
       :close-on-backdrop="false"
     >

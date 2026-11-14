@@ -2,10 +2,8 @@
   <section class="module">
     <PageHead
       v-if="!isCourseScope"
-      kicker="TEACHER / QUESTION BANK · 2026 秋"
       title="题库管理"
       sub="课程题库的题目筛选、创建、审核、复制与 AI 出题；审核通过后才进入可用题库。"
-      source="api"
     >
       <template #actions>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
@@ -16,7 +14,6 @@
     </PageHead>
     <div v-else class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / QUESTION BANK</p>
         <h2>课程题库</h2>
       </div>
       <div class="course-tab-actions">
@@ -34,7 +31,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">QUESTIONS / {{ isCourseScope ? 'COURSE' : 'ALL COURSES' }}</p>
           <h2>题目列表</h2>
         </div>
         <span class="chip chip-mute">{{ total }} 条</span>
@@ -151,12 +147,7 @@
     </section>
 
     <!-- 新建 / 编辑题目 -->
-    <Modal
-      v-model:open="formOpen"
-      :title="editingId ? '编辑题目' : '新建题目'"
-      kicker="QUESTION / FORM"
-      width="760px"
-    >
+    <Modal v-model:open="formOpen" :title="editingId ? '编辑题目' : '新建题目'" width="760px">
       <div class="form-grid">
         <label class="field">
           <span>题型</span>
@@ -276,7 +267,7 @@
     </Modal>
 
     <!-- 审核 -->
-    <Modal v-model:open="reviewOpen" title="审核题目" kicker="QUESTION / REVIEW" width="520px">
+    <Modal v-model:open="reviewOpen" title="审核题目" width="520px">
       <p class="modal-text">{{ reviewRow ? questionText(reviewRow) : '' }}</p>
       <div class="form-grid">
         <label class="field span-2">
@@ -305,7 +296,7 @@
     </Modal>
 
     <!-- AI 出题 -->
-    <Modal v-model:open="aiOpen" title="AI 出题" kicker="QUESTION / AI" width="560px">
+    <Modal v-model:open="aiOpen" title="AI 出题" width="560px">
       <div class="form-grid">
         <label v-if="!isCourseScope" class="field span-2">
           <span>课程</span>
@@ -358,7 +349,6 @@
     <Modal
       v-model:open="confirmState.open"
       :title="confirmState.title"
-      kicker="CONFIRM / ACTION"
       width="460px"
       :close-on-backdrop="false"
     >

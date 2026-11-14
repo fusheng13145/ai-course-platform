@@ -6,7 +6,6 @@
         <span class="brand-mark">枢</span>
         <span class="av-brand-text">
           <b>云枢 AI 助教</b>
-          <small>YUNSHU / AI TUTOR</small>
         </span>
       </a>
       <div class="av-actions">
@@ -24,7 +23,6 @@
     <main class="av-main">
       <section class="av-card">
         <aside class="av-story">
-          <p class="eyebrow">YUNSHU / KNOWLEDGE GRAPH + LLM / 2026</p>
           <h1>让每一次提问，<br /><em>都有据可依的答案。</em></h1>
           <p class="lede">
             知识图谱与 LLM 双引擎，答疑、出题、批改、学情一条线；AI 只给建议，教师保留最终确认权。
@@ -35,7 +33,6 @@
             <li><Icon name="check" /><b>AI 预批建议</b><small>教师保留最终确认权</small></li>
             <li><Icon name="chart" /><b>学情诊断</b><small>逐周跟踪与预警</small></li>
           </ul>
-          <p class="av-motto" aria-hidden="true">AI SUGGESTS / TEACHER DECIDES</p>
         </aside>
         <section class="av-panel">
           <slot name="form" />

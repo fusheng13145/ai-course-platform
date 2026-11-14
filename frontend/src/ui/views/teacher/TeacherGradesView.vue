@@ -1,10 +1,8 @@
 <template>
   <section class="module">
     <PageHead
-      kicker="TEACHER / GRADES · 2026 秋"
       title="成绩管理"
       sub="按课程查看学情与正式总评；可导出成绩，或从待批阅任务直接进入批阅。"
-      source="api"
     >
       <template #actions>
         <button class="btn btn-ghost" :disabled="!filteredGradeList.length" @click="handleExport">
@@ -15,7 +13,7 @@
     </PageHead>
 
     <div v-if="loadNotice" class="callout">
-      <span>NOTICE / 数据可用性</span>
+      <span>数据可用性</span>
       <p>{{ loadNotice }}</p>
     </div>
 
@@ -26,7 +24,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">GRADES / {{ selectedCourseName || 'ALL COURSES' }}</p>
           <h2>成绩总览</h2>
         </div>
         <div class="filter-row">
@@ -111,7 +108,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">DISTRIBUTION</p>
             <h2>总评分布</h2>
           </div>
         </header>
@@ -128,13 +124,12 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PENDING / TASKS</p>
             <h2>待批阅任务</h2>
           </div>
         </header>
         <div v-if="pendingUnavailable" class="empty-state compact">
           <b>待批阅任务暂不可用</b>
-          <p>接口未返回数据，成绩表不受影响。</p>
+          <p>暂无数据，成绩表不受影响。</p>
         </div>
         <div v-else-if="!pendingTasks.length" class="empty-state compact">
           <b>没有待批阅任务</b>
@@ -152,7 +147,6 @@
     <Modal
       v-model:open="detailDialogVisible"
       :title="currentStudent ? `成绩构成 · ${currentStudent.studentName}` : '成绩构成'"
-      kicker="STUDENT / GRADE COMPONENTS"
       width="680px"
     >
       <div v-if="currentStudent" class="detail-body">
@@ -240,7 +234,6 @@ const {
   searchText,
   selectedCourseId,
   courseList,
-  selectedCourseName,
   overview,
   gradeList,
   pendingTasks,

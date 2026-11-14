@@ -9,7 +9,6 @@
       <Icon name="chevron" />
     </button>
     <div class="topbar-context">
-      <span class="context-kicker">{{ kicker }}</span>
       <nav class="breadcrumbs" aria-label="面包屑">
         <template v-for="(crumb, index) in crumbs" :key="index">
           <button v-if="crumb.path" class="crumb" @click="go(crumb.path)">{{ crumb.label }}</button>
@@ -72,7 +71,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from './Icon.vue'
 import { useUi } from '../composables/ui'
-import { ROLE_HOME, ROLE_KICKER, courseTabs, pageDef, type Role } from '../nav'
+import { ROLE_HOME, courseTabs, pageDef, type Role } from '../nav'
 
 const route = useRoute()
 const router = useRouter()
@@ -103,10 +102,6 @@ const tabId = computed(() => String(route.params.tab || 'overview'))
 const tabLabel = computed(() => tabs.value.find((tab) => tab.id === tabId.value)?.label || '')
 const courseLabel = computed(
   () => courseContext.name || (courseId.value ? `课程 #${courseId.value}` : '课程'),
-)
-
-const kicker = computed(
-  () => `${ROLE_KICKER[roleValue.value]} / ${isCourse.value ? '课程空间' : '页面'}`,
 )
 
 const crumbs = computed<Array<{ label: string; path?: string }>>(() => {

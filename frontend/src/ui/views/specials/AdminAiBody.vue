@@ -1,19 +1,13 @@
 <template>
   <section class="admin-ai-body">
     <div class="card caveat-card">
-      <p class="card-kicker">SCOPE / 口径边界</p>
-      <p class="scope-line">
-        当前供应商由 <code>system_configs</code> 的 <code>ai.provider</code> 决定， 后端每次 LLM
-        调用实时读取——切换<b>即时生效</b>，无需重启。
-      </p>
-      <p class="scope-note">
-        密钥等启动级配置不在本页：供应商 API Key
-        由环境变量注入（见部署文档），本页只做供应商选择与连通性探测。
-      </p>
+      <p class="card-kicker">口径边界</p>
+      <p class="scope-line">切换供应商后<b>即时生效</b>，无需重启。</p>
+      <p class="scope-note">密钥不在本页维护；本页只做供应商选择与连通性探测。</p>
     </div>
 
     <div v-if="loadError" class="callout" role="alert">
-      <span>ERROR / 当前供应商</span>
+      <span>当前供应商</span>
       <p>{{ loadError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load()">
         {{ loading ? '重试中…' : '重试' }}
@@ -23,7 +17,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI PROVIDER / CURRENT</p>
           <h2>当前供应商</h2>
         </div>
         <div class="filter-row">
@@ -54,7 +47,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI PROVIDER / SWITCH</p>
           <h2>切换供应商</h2>
         </div>
       </header>
@@ -80,7 +72,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI PROVIDER / TEST</p>
           <h2>连通性探测</h2>
         </div>
         <div class="filter-row">
@@ -103,10 +94,7 @@
         </p>
         <small>供应商：{{ testResult.provider || current.provider || '—' }}</small>
       </div>
-      <p v-else class="hint">
-        探测会向当前供应商发送一条
-        <code>ping</code> 消息（temperature=0），成功即代表密钥与端点可用。
-      </p>
+      <p v-else class="hint">探测会向当前供应商发送一次零温度请求，成功即代表密钥与服务可用。</p>
     </section>
   </section>
 </template>

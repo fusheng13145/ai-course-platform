@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <p class="section-kicker">TYPE / 题型分布</p>
+    <p class="section-kicker">题型分布</p>
     <div v-if="typeRows.length" class="hbar-list">
       <div v-for="item in typeRows" :key="item.label" class="hbar">
         <span>{{ item.label }}</span>
@@ -32,7 +32,7 @@
     </div>
     <p v-else class="modal-hint">暂无题型分布。</p>
 
-    <p class="section-kicker">SCORE / 分值分布</p>
+    <p class="section-kicker">分值分布</p>
     <div v-if="scoreRows.length" class="hbar-list">
       <div v-for="item in scoreRows" :key="item.label" class="hbar">
         <span>{{ item.label }}</span>
@@ -43,8 +43,7 @@
     <p v-else class="modal-hint">暂无分值分布。</p>
 
     <p class="modal-hint">
-      口径 GET /exam-papers/{id}/statistics：成绩聚合只统计已阅卷会话，按百分制； 及格线固定
-      60，无样本时均分与及格率显示「—」。
+      成绩聚合只统计已阅卷会话，按百分制；及格线固定 60，无样本时均分与及格率显示「—」。
     </p>
   </div>
 </template>

@@ -1,7 +1,7 @@
 <template>
   <section class="approvals-body">
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 审批队列</span>
+      <span>审批队列</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadCourses()">
         {{ loading ? '重试中…' : '重试' }}
@@ -15,7 +15,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">APPROVALS / COURSES</p>
           <h2>
             待审批课程 <span class="chip chip-warn">{{ pending.length }} 门</span>
           </h2>
@@ -69,24 +68,14 @@
         <span class="e-ico"><Icon name="check" /></span>
         <b>{{ emptyDescription() }}</b>
         <p>
-          {{ listError ? '请查看上方提示后重试。' : '教师新提交的课程会以 PENDING 状态进入这里。' }}
+          {{ listError ? '请查看上方提示后重试。' : '教师新提交的课程会以待审批状态进入这里。' }}
         </p>
       </div>
 
-      <p class="hint">
-        待审批队列由 GET /courses 全量读取后按 approvalStatus=PENDING 过滤（列表端点只支持 status
-        参数）。 通过走 POST /courses/{id}/approve，驳回走 POST
-        /courses/{id}/reject，成功后重新拉取队列。
-      </p>
+      <p class="hint">通过或驳回后队列自动刷新；驳回的课程可修改后重新提交。</p>
     </section>
 
-    <Modal
-      v-model:open="approveOpen"
-      title="通过课程审批"
-      kicker="CONFIRM / APPROVE"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="approveOpen" title="通过课程审批" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         确定通过 <b>{{ approveTarget?.name || '该课程' }}</b> 的审批吗？
       </p>
@@ -100,13 +89,7 @@
       </template>
     </Modal>
 
-    <Modal
-      v-model:open="rejectOpen"
-      title="驳回课程审批"
-      kicker="CONFIRM / REJECT"
-      width="520px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="rejectOpen" title="驳回课程审批" width="520px" :close-on-backdrop="false">
       <p class="modal-text">
         驳回 <b>{{ rejectTarget?.name || '该课程' }}</b> 的审批；理由将写入课程审核备注。
       </p>
@@ -188,7 +171,7 @@ const metrics = computed<Metric[]>(() => [
     label: '待审批',
     value: listError.value ? '—' : pending.value.length,
     unit: '门',
-    note: 'approvalStatus=PENDING',
+    note: '待审批中',
     icon: 'clock',
     tone: 'warn',
   },

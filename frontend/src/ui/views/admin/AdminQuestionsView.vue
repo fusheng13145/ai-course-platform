@@ -1,11 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      kicker="ADMIN / QUESTION BANK"
-      title="题库管理"
-      sub="全校题目库维护：筛选、编辑、AI 出题、统计与易错题榜单。"
-      source="api"
-    >
+    <PageHead title="题库管理" sub="全校题目库维护：筛选、编辑、AI 出题、统计与易错题榜单。">
       <template #actions>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleExport">导出</button>
@@ -18,7 +13,7 @@
     </PageHead>
 
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -29,7 +24,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">QUESTIONS / SCHOOL-WIDE</p>
           <h2>
             题目列表 <span class="chip chip-mute">{{ total }} 条</span>
           </h2>
@@ -125,12 +119,7 @@
     </section>
 
     <!-- 新建 / 编辑 -->
-    <Modal
-      v-model:open="formOpen"
-      :title="editingId ? '编辑题目' : '新建题目'"
-      kicker="QUESTION / FORM"
-      width="760px"
-    >
+    <Modal v-model:open="formOpen" :title="editingId ? '编辑题目' : '新建题目'" width="760px">
       <div class="form-grid">
         <label class="field">
           <span>题型</span>
@@ -207,7 +196,7 @@
     </Modal>
 
     <!-- AI 出题 -->
-    <Modal v-model:open="aiOpen" title="AI 出题" kicker="QUESTION / AI" width="560px">
+    <Modal v-model:open="aiOpen" title="AI 出题" width="560px">
       <div class="form-grid">
         <label class="field span-2">
           <span>课程 *</span>
@@ -250,7 +239,7 @@
     </Modal>
 
     <!-- 题目统计 -->
-    <Modal v-model:open="statsOpen" title="题目统计分析" kicker="QUESTION / STATS" width="480px">
+    <Modal v-model:open="statsOpen" title="题目统计分析" width="480px">
       <div v-if="statsLoading" class="empty-state compact"><b>正在加载统计…</b></div>
       <template v-else-if="stats">
         <div class="stat-grid kpi-grid">
@@ -265,12 +254,7 @@
     </Modal>
 
     <!-- 易错题榜单 -->
-    <Modal
-      v-model:open="errorOpen"
-      title="易错题榜单"
-      kicker="QUESTION / ERROR-PRONE"
-      width="680px"
-    >
+    <Modal v-model:open="errorOpen" title="易错题榜单" width="680px">
       <table v-if="errorRows.length" class="table-wrap">
         <thead>
           <tr>
@@ -294,7 +278,7 @@
     </Modal>
 
     <!-- 删除确认 -->
-    <Modal v-model:open="confirm.open" title="删除题目" kicker="CONFIRM / DELETE" width="460px">
+    <Modal v-model:open="confirm.open" title="删除题目" width="460px">
       <p class="modal-text">{{ confirmText }}</p>
       <p class="modal-hint">删除后不可恢复；已组入试卷的题目可能受影响。</p>
       <template #footer>

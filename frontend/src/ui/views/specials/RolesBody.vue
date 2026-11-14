@@ -1,7 +1,7 @@
 <template>
   <section class="roles-body">
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 权限列表</span>
+      <span>权限列表</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadAll()">
         {{ loading ? '重试中…' : '重试' }}
@@ -16,7 +16,6 @@
       <section class="card role-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">ROLES / PLATFORM</p>
             <h2>角色</h2>
           </div>
         </header>
@@ -45,7 +44,6 @@
       <section class="card table-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PERMISSIONS / ROLE SCOPED</p>
             <h2>
               {{ selectedLabel }}权限
               <span class="chip chip-mute">{{ roleRows.length }} 项</span>
@@ -101,20 +99,11 @@
           </p>
         </div>
 
-        <p class="hint">
-          查看与分配走 GET /admin/permissions/all、POST /admin/permissions/create；本页不展示旧端
-          的菜单 / 按钮 Key，因为后端 role_permissions 没有这两个字段。
-        </p>
+        <p class="hint">本页只维护资源级权限，不提供菜单或按钮级权限项。</p>
       </section>
     </div>
 
-    <Modal
-      v-model:open="assignOpen"
-      title="分配权限"
-      kicker="PERMISSION / ASSIGN"
-      width="640px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="assignOpen" title="分配权限" width="640px" :close-on-backdrop="false">
       <p class="modal-text">
         为 <b>{{ selectedLabel }}</b> 写入一条 role_permissions 记录。角色与权限 Key 组合唯一。
       </p>

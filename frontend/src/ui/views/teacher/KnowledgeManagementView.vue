@@ -1,11 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      kicker="TEACHER / KNOWLEDGE · 2026 秋"
-      title="知识管理"
-      sub="维护课程知识点结构、层级与前置依赖，支持批量导入。"
-      source="api"
-    >
+    <PageHead title="知识管理" sub="维护课程知识点结构、层级与前置依赖，支持批量导入。">
       <template #actions>
         <select v-model="courseId" class="input course-pick" aria-label="选择课程">
           <option :value="null">选择课程</option>
@@ -19,7 +14,7 @@
     </PageHead>
 
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -27,7 +22,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">KNOWLEDGE / TREE</p>
             <h2>知识树</h2>
           </div>
           <button class="text-btn" :disabled="!flatTree.length" @click="expanded = !expanded">
@@ -59,7 +53,6 @@
       <section class="card table-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">KNOWLEDGE / POINTS</p>
             <h2>
               知识点列表 <span class="chip chip-mute">{{ filteredList.length }}</span>
             </h2>
@@ -127,12 +120,7 @@
     </div>
 
     <!-- 新建 / 编辑知识点 -->
-    <Modal
-      v-model:open="formOpen"
-      :title="editingId ? '编辑知识点' : '新建知识点'"
-      kicker="KNOWLEDGE / FORM"
-      width="620px"
-    >
+    <Modal v-model:open="formOpen" :title="editingId ? '编辑知识点' : '新建知识点'" width="620px">
       <div class="form-grid">
         <label class="field span-2">
           <span>知识点名称 *</span>
@@ -191,7 +179,6 @@
     <Modal
       v-model:open="relationOpen"
       :title="relationTarget ? `前置依赖 · ${relationTarget.name || ''}` : '前置依赖'"
-      kicker="KNOWLEDGE / RELATIONS"
       width="560px"
     >
       <div class="relation-row">
@@ -218,12 +205,7 @@
     </Modal>
 
     <!-- 批量导入 -->
-    <Modal
-      v-model:open="importOpen"
-      title="批量导入知识点"
-      kicker="KNOWLEDGE / IMPORT"
-      width="560px"
-    >
+    <Modal v-model:open="importOpen" title="批量导入知识点" width="560px">
       <p class="modal-text">上传 .xlsx 一次性建立知识点结构；父知识点填名称即可形成层级。</p>
       <ul class="import-notes">
         <li v-for="note in IMPORT_NOTES" :key="note">{{ note }}</li>
@@ -255,7 +237,7 @@
     </Modal>
 
     <!-- 删除确认 -->
-    <Modal v-model:open="confirm.open" title="删除知识点" kicker="CONFIRM / DELETE" width="460px">
+    <Modal v-model:open="confirm.open" title="删除知识点" width="460px">
       <p class="modal-text">{{ confirmText }}</p>
       <p class="modal-hint">其子节点也将被一并删除，删除后不可恢复。</p>
       <template #footer>

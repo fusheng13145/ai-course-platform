@@ -89,6 +89,27 @@ describe('弹层无障碍', () => {
     expect(liveText()).toContain('确认导入题库')
   })
 
+  it('挂载但未打开时不得锁背景滚动（回归：整页滚不动的根因）', async () => {
+    const wrapper = mount(Modal, {
+      props: { open: false, title: '未打开的弹层' },
+      attachTo: document.body,
+    })
+    wrappers.push(wrapper as unknown as VueWrapper)
+    await flushPromises()
+
+    // 旧实现 onMounted 无条件 lockViewportScroll()，这里会是 'hidden'，整页从此滚不动
+    expect(document.body.style.overflow).toBe('')
+    expect(panel()).toBeNull()
+
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await wrapper.setProps({ open: false })
+    await flushPromises()
+    expect(document.body.style.overflow).toBe('')
+  })
+
   it('Tab 到底部回卷到首个可聚焦元素，Shift+Tab 反向回卷', async () => {
     await openModal()
     const items = Array.from(panel()!.querySelectorAll<HTMLElement>(FOCUSABLE))

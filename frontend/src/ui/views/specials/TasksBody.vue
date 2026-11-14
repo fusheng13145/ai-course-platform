@@ -2,7 +2,6 @@
   <!-- 学生全局任务页：跨课程聚合待办 / 已完成作业（GET /student/assignments/{pending,completed}） -->
   <section class="tasks-body">
     <div class="tasks-toolbar">
-      <p class="tasks-note">跨课程聚合待办与已完成作业；点击带课程的任务行进入该课程的任务页。</p>
       <button class="btn btn-ghost btn-sm" :disabled="loading" @click="load">
         {{ loading ? '刷新中…' : '刷新' }}
       </button>
@@ -20,7 +19,6 @@
     <section class="card table-card pending-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TASKS / PENDING</p>
           <h2>
             待完成 <span class="chip chip-warn">{{ pendingRows.length }} 项</span>
           </h2>
@@ -28,7 +26,7 @@
       </header>
 
       <div v-if="pendingError" class="callout danger" role="alert">
-        <span>ERROR / 待完成</span>
+        <span>待完成</span>
         <p>{{ pendingError }}</p>
         <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
       </div>
@@ -79,7 +77,6 @@
     <section class="card table-card completed-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TASKS / COMPLETED</p>
           <h2>
             已完成 <span class="chip chip-ok">{{ completedRows.length }} 项</span>
           </h2>
@@ -87,7 +84,7 @@
       </header>
 
       <div v-if="completedError" class="callout danger" role="alert">
-        <span>ERROR / 已完成</span>
+        <span>已完成</span>
         <p>{{ completedError }}</p>
         <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
       </div>

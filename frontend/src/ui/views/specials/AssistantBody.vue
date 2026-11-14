@@ -3,7 +3,6 @@
     <section class="card chat-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">STUDENT ASSISTANT / AI</p>
           <h2>全局 AI 助手</h2>
         </div>
       </header>

@@ -1,7 +1,7 @@
 <template>
   <section class="semesters-body">
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 学期列表</span>
+      <span>学期列表</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadSemesters()">
         {{ loading ? '重试中…' : '重试' }}
@@ -15,7 +15,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">SEMESTERS / REGISTRY</p>
           <h2>
             学期列表 <span class="chip chip-mute">{{ semesters.length }} 个</span>
           </h2>
@@ -80,19 +79,11 @@
       </div>
 
       <p class="hint">
-        后端只提供 GET/POST /admin/semesters 与 POST
-        /admin/semesters/{id}/archive；没有更新或删除端点。
-        归档仅改变学期自身状态，不冻结课程——courses.semester 仍是自由文本列。
+        学期只支持新建与归档，不支持修改或删除；归档只改变学期状态，不冻结其下课程。
       </p>
     </section>
 
-    <Modal
-      v-model:open="createOpen"
-      title="新建学期"
-      kicker="SEMESTER / CREATE"
-      width="560px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="createOpen" title="新建学期" width="560px" :close-on-backdrop="false">
       <div class="form-grid">
         <label class="field span-2">
           <span>学期名称 *</span>
@@ -125,13 +116,7 @@
       </template>
     </Modal>
 
-    <Modal
-      v-model:open="archiveOpen"
-      title="归档学期"
-      kicker="CONFIRM / ARCHIVE"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="archiveOpen" title="归档学期" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         确定归档学期 <b>{{ archiveTarget?.name || '该学期' }}</b> 吗？
       </p>
@@ -209,7 +194,7 @@ const metrics = computed<Metric[]>(() => [
     label: '在册',
     value: listError.value ? '—' : activeCount.value,
     unit: '个',
-    note: 'status=ACTIVE',
+    note: '当前生效',
     icon: 'check',
     tone: 'ok',
   },
@@ -217,7 +202,7 @@ const metrics = computed<Metric[]>(() => [
     label: '已归档',
     value: listError.value ? '—' : archivedCount.value,
     unit: '个',
-    note: 'status=ARCHIVED',
+    note: '已结束存档',
     icon: 'lock',
     tone: 'warn',
   },

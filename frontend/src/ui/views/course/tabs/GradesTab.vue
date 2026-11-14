@@ -3,7 +3,6 @@
   <div v-if="isStudent" class="student-grades">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / GRADES</p>
         <h2>
           我的成绩 <span class="chip chip-mute">{{ gradeItems.length }} 项</span>
         </h2>
@@ -14,7 +13,7 @@
     </div>
 
     <div v-if="loadError" class="callout danger">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
       <button class="btn btn-sm" @click="loadStudentGrades">重试</button>
     </div>
@@ -42,7 +41,6 @@
     <template v-else>
       <div class="grades-layout">
         <section class="card grade-summary">
-          <p class="card-kicker">COURSE / FINAL SCORE</p>
           <h2>{{ gradeCourse.courseName || '本课程' }}</h2>
           <div class="grade-total">
             <b>{{ finalScoreText }}</b
@@ -51,7 +49,6 @@
           <p class="grade-sub">总评由教师提交批阅后确认；未出分时显示「待出分」。</p>
         </section>
         <section class="card">
-          <p class="card-kicker">ITEMS / ARCHIVE</p>
           <h2>成绩口径</h2>
           <p class="side-body">作业分来自教师批阅；考试分为答卷得分率，卷面总分单列。</p>
           <ul class="side-list">
@@ -65,7 +62,6 @@
       <section class="card table-card" style="margin-top: 14px">
         <header class="card-head">
           <div>
-            <p class="card-kicker">ITEMS / GRADES</p>
             <h2>成绩项</h2>
           </div>
           <span v-if="feedbackNotice" class="chip chip-warn">{{ feedbackNotice }}</span>

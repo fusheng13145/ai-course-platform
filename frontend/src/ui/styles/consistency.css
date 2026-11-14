@@ -460,18 +460,11 @@ body[data-app='ui'][data-style='record'] .class-badge {
   padding: 3px 7px;
   font-size: 9.5px;
 }
-body[data-app='ui'][data-style='record'] .course-nav-kicker,
-body[data-app='ui'][data-style='record'] .scope-label {
+body[data-app='ui'][data-style='record'] .course-nav-kicker {
   font-size: 9px;
 }
 body[data-app='ui'][data-style='record'] .course-nav-meta {
   font-size: 10px;
-}
-body[data-app='ui'][data-style='record'] .course-scope {
-  font-size: 10px;
-}
-body[data-app='ui'][data-style='record'] .course-scope b {
-  font-size: 10.5px;
 }
 body[data-app='ui'][data-style='record'] .course-cover {
   font-size: 9.5px;

@@ -3,14 +3,11 @@
     <!-- 口径先摆在前头：这一页只有「查」——没有删除、改写或导出日志的入口。
          审计记录的完整性由后端保证，前端不提供任何会让留痕变浅的操作。 -->
     <div class="card caveat-card">
-      <p class="card-kicker">SCOPE / 审计面</p>
-      <p class="scope-line">
-        数据源 <code>operation_logs</code>／<code>login_logs</code>：操作日志记录关键写操作，
-        登录日志记录每一次登录尝试（含失败原因）。
-      </p>
+      <p class="card-kicker">审计面</p>
+      <p class="scope-line">操作日志记录关键写操作；登录日志记录每一次登录尝试（含失败原因）。</p>
       <p class="scope-note">
-        本页只提供查询与筛选，<b>不提供删除／改写日志</b>；模块与操作筛选由服务端做
-        <b>精确匹配</b>，输入需与库内值一致（如 <code>Auth</code>／<code>CREATE</code>）。
+        本页只提供查询与筛选，<b>不提供删除或改写日志</b>；模块与操作按<b>精确匹配</b>筛选，
+        需与系统内记录的取值一致。
       </p>
     </div>
 
@@ -30,7 +27,7 @@
     <!-- ============ 操作日志 ============ -->
     <template v-if="tab === 'operation'">
       <div v-if="opError" class="callout" role="alert">
-        <span>ERROR / 操作日志</span>
+        <span>操作日志</span>
         <p>{{ opError }}</p>
         <button class="btn btn-sm" :disabled="opLoading" @click="reloadOp()">
           {{ opLoading ? '重试中…' : '重试' }}
@@ -44,7 +41,6 @@
       <section class="card table-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">AUDIT / OPERATION</p>
             <h2>
               操作日志 <span class="chip chip-mute">{{ opTotal }} 条</span>
             </h2>
@@ -179,7 +175,7 @@
     <!-- ============ 登录日志 ============ -->
     <template v-else>
       <div v-if="loginError" class="callout" role="alert">
-        <span>ERROR / 登录日志</span>
+        <span>登录日志</span>
         <p>{{ loginError }}</p>
         <button class="btn btn-sm" :disabled="loginLoading" @click="reloadLogin()">
           {{ loginLoading ? '重试中…' : '重试' }}
@@ -193,7 +189,6 @@
       <section class="card table-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">AUDIT / LOGIN</p>
             <h2>
               登录日志 <span class="chip chip-mute">{{ loginTotal }} 条</span>
             </h2>
@@ -444,11 +439,11 @@ const opMetrics = computed<Metric[]>(() => {
       label: '成功',
       value: countText(success),
       unit: '条',
-      note: 'status=SUCCESS',
+      note: '全部尝试中成功',
       icon: 'check',
       tone: 'ok',
     },
-    { label: '失败', value: countText(failed), unit: '条', note: 'status≠SUCCESS', icon: 'alert' },
+    { label: '失败', value: countText(failed), unit: '条', note: '全部尝试中失败', icon: 'alert' },
     { label: '成功率', value: rate, note: '成功 / 总数', icon: 'chart' },
   ]
 })
@@ -467,7 +462,7 @@ const loginMetrics = computed<Metric[]>(() => {
       note: '全部登录尝试',
       icon: 'lock',
     },
-    { label: '成功率', value: rate, note: '后端按全部尝试计算', icon: 'check', tone: 'ok' },
+    { label: '成功率', value: rate, note: '按全部尝试计算', icon: 'check', tone: 'ok' },
     {
       label: '今日登录',
       value: countText(stats.todayCount),

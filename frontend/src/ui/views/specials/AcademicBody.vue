@@ -19,14 +19,13 @@
 
     <div v-show="active === 'grades'">
       <div class="academic-toolbar">
-        <p class="academic-note">成绩以教师提交批阅为准；AI 建议分不直接写入成绩。</p>
         <button class="btn btn-ghost btn-sm" :disabled="loading" @click="load">
           {{ loading ? '刷新中…' : '刷新' }}
         </button>
       </div>
 
       <div v-if="error" class="callout danger" role="alert">
-        <span>ERROR / 成绩</span>
+        <span>成绩</span>
         <p>{{ error }}</p>
         <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
       </div>
@@ -68,7 +67,6 @@
           <section v-if="activeCourse" class="card table-card">
             <header class="card-head">
               <div>
-                <p class="card-kicker">COURSE / GRADES</p>
                 <h2>{{ activeCourse.courseName }}</h2>
               </div>
               <span class="chip" :class="activeCourse.finalScore == null ? 'chip-warn' : 'chip-ok'">
@@ -116,7 +114,6 @@
         <section v-else class="card table-card">
           <header class="card-head">
             <div>
-              <p class="card-kicker">GRADES / LIST</p>
               <h2>成绩明细</h2>
             </div>
             <span class="chip chip-mute">{{ flatRows.length }} 项</span>
@@ -156,9 +153,7 @@
         </section>
       </template>
 
-      <p v-if="loaded && !loading && !error" class="export-note">
-        「导出成绩」待扩展：后端学生成绩导出端点尚未落地，本页不提供该动作。
-      </p>
+      <p v-if="loaded && !loading && !error" class="export-note">本页暂不提供成绩导出。</p>
     </div>
 
     <LearningCenterPanel v-if="active === 'learning'" />

@@ -6,7 +6,6 @@
         <span class="brand-mark">枢</span>
         <span class="lv-brand-text">
           <b>云枢 AI 助教</b>
-          <small>YUNSHU / LEGAL</small>
         </span>
       </a>
       <div class="lv-actions">
@@ -24,7 +23,6 @@
     <main class="lv-main">
       <article class="lv-doc">
         <header class="lv-head">
-          <p class="eyebrow">YUNSHU / LEGAL / 2026</p>
           <h1>{{ doc.title }}</h1>
           <p class="lv-sub">{{ doc.subtitle }}</p>
         </header>
