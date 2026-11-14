@@ -81,6 +81,8 @@ spring:
         - classpath:db/migration/V16__announcement_and_snapshot.sql
         - classpath:db/migration/V17__org_cutover.sql
         - classpath:db/migration/V18__purge_demo_seed.sql
+        # V19（2026-11-13）：压测残留数据清理（纯 DELETE，无建表）—— 结构迁移，非演示数据
+        - classpath:db/migration/V19__purge_stress_test_data.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
