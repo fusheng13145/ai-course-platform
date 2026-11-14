@@ -156,7 +156,7 @@ class StudentControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("DELETE /student/courses/1/enroll - STUDENT 退出课程返回 code=200")
+    @DisplayName("DELETE /student/courses/1/enroll - STUDENT 退出课程走软删（P1-3 收口，不物理删行）")
     void unenrollCourse_authorized_passes_security() throws Exception {
         CourseEnrollment enrollment = new CourseEnrollment();
         enrollment.setId(9L);
@@ -166,7 +166,10 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        verify(enrollmentService).removeById(eq(9L));
+        // 2026-11-14 P1-3：学生端与管理端统一走服务层软删（is_active=false），
+        // 不再 removeById 物理删行（容量统计与历史留痕依赖软删行）
+        verify(enrollmentService).unenroll(eq(9L), eq(1L));
+        verify(enrollmentService, never()).removeById(anyLong());
     }
 
 
@@ -215,6 +218,61 @@ class StudentControllerTest extends ControllerTestBase {
     void getPendingAssignments_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/student/assignments/pending"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /student/assignments/pending - 最新提交为 RETURNED 的作业仍在待办（P1-4 收口）")
+    void getPendingAssignments_returnedLatest_staysInPending() throws Exception {
+        CourseEnrollment enrollment = new CourseEnrollment();
+        enrollment.setCourseId(3L);
+        when(enrollmentService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(enrollment));
+
+        Task task = new Task();
+        task.setId(3L);
+        when(taskService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(task));
+
+        // 两次提交：attempt 1 = GRADED，attempt 2 = RETURNED（最新一次被退回）
+        Submission older = new Submission();
+        older.setTaskId(3L);
+        older.setAttemptNumber(1);
+        older.setStatus("GRADED");
+        Submission latest = new Submission();
+        latest.setTaskId(3L);
+        latest.setAttemptNumber(2);
+        latest.setStatus("RETURNED");
+        when(submissionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(older, latest));
+
+        mockMvc.perform(get("/student/assignments/pending").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(3));
+    }
+
+    @Test
+    @DisplayName("GET /student/assignments/pending - 最新提交为 GRADED 的作业不在待办")
+    void getPendingAssignments_gradedLatest_excluded() throws Exception {
+        CourseEnrollment enrollment = new CourseEnrollment();
+        enrollment.setCourseId(3L);
+        when(enrollmentService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(enrollment));
+
+        Task task = new Task();
+        task.setId(3L);
+        when(taskService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(task));
+
+        Submission graded = new Submission();
+        graded.setTaskId(3L);
+        graded.setAttemptNumber(2);
+        graded.setStatus("GRADED");
+        Submission returnedOlder = new Submission();
+        returnedOlder.setTaskId(3L);
+        returnedOlder.setAttemptNumber(1);
+        returnedOlder.setStatus("RETURNED");
+        when(submissionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(graded, returnedOlder));
+
+        mockMvc.perform(get("/student/assignments/pending").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
 
