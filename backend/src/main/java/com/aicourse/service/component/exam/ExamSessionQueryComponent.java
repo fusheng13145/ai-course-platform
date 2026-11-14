@@ -91,6 +91,17 @@ public class ExamSessionQueryComponent {
             report.put("questionDetails", scores);
         }
 
+        // 人工阅卷评语回传（2026-11-14 P1-8）：与 questionDetails 同键，供报告页展示教师评语
+        if (session.getQuestionComments() != null && !"{}".equals(session.getQuestionComments().trim())) {
+            try {
+                Map<Long, String> comments = objectMapper.readValue(session.getQuestionComments(),
+                        new com.fasterxml.jackson.core.type.TypeReference<Map<Long, String>>() {});
+                report.put("questionComments", comments);
+            } catch (Exception e) {
+                log.warn("成绩报告评语解析失败，忽略评语块: sessionId={}, err={}", sessionId, e.getMessage());
+            }
+        }
+
         // 等级评定
         if (session.getPercentage() != null) {
             double pct = session.getPercentage().doubleValue();

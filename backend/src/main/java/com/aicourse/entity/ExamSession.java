@@ -80,6 +80,12 @@ public class ExamSession {
     private String questionScores;
 
     /**
+     * 人工阅卷评语集合（JSON字符串存储，V20）：{ questionId : comment }，
+     * 与 question_scores 同键；manualGrade 持久化，成绩报告回传（P1-8）
+     */
+    private String questionComments;
+
+    /**
      * 作弊检测结果（JSON字符串存储，独立于 answers，绝不直接改写作答答案）
      * 结构：{"detectedAt":"...","flagCount":n,"details":["...","..."],"riskLevel":"LOW|MEDIUM|HIGH"}
      */
