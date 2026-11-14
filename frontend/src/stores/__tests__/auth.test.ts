@@ -124,15 +124,15 @@ describe('AuthStore', () => {
 
     // 设置 user 对象来影响 userRole computed
     store.user = { role: 'ADMIN', id: 1, username: 'admin' }
-    expect(store.getDefaultRoute()).toBe('/admin/dashboard')
+    expect(store.getDefaultRoute()).toBe('/admin/home')
 
     // 教师
     store.user = { role: 'TEACHER', id: 2, username: 'teacher' }
-    expect(store.getDefaultRoute()).toBe('/teacher/dashboard')
+    expect(store.getDefaultRoute()).toBe('/teacher/home')
 
     // 学生
     store.user = { role: 'STUDENT', id: 3, username: 'student' }
-    expect(store.getDefaultRoute()).toBe('/student/dashboard')
+    expect(store.getDefaultRoute()).toBe('/student/home')
   })
 
   it('resetAuthState 清理所有状态', () => {
@@ -150,22 +150,22 @@ describe('AuthStore', () => {
   })
 
   describe('getDefaultRoute', () => {
-    it('ADMIN 角色返回 /admin/dashboard', () => {
+    it('ADMIN 角色返回 /admin/home', () => {
       const store = useAuthStore()
       store.user = { role: 'ADMIN', id: 1, username: 'admin' }
-      expect(store.getDefaultRoute()).toBe('/admin/dashboard')
+      expect(store.getDefaultRoute()).toBe('/admin/home')
     })
 
-    it('TEACHER 角色返回 /teacher/dashboard', () => {
+    it('TEACHER 角色返回 /teacher/home', () => {
       const store = useAuthStore()
       store.user = { role: 'TEACHER', id: 2, username: 'teacher' }
-      expect(store.getDefaultRoute()).toBe('/teacher/dashboard')
+      expect(store.getDefaultRoute()).toBe('/teacher/home')
     })
 
-    it('STUDENT 角色返回 /student/dashboard', () => {
+    it('STUDENT 角色返回 /student/home', () => {
       const store = useAuthStore()
       store.user = { role: 'STUDENT', id: 3, username: 'student' }
-      expect(store.getDefaultRoute()).toBe('/student/dashboard')
+      expect(store.getDefaultRoute()).toBe('/student/home')
     })
 
     it('未知角色（已登录）返回安全落点 /403，不再返回 /login', () => {
@@ -410,6 +410,35 @@ describe('AuthStore', () => {
 
         await expect(store.fetchPermissions()).resolves.toBe('ok')
         expect(store.permissionsLoaded).toBe(true)
+      })
+
+      it('服务端角色与本地缓存矛盾 → 结论为 expired 并清空脏缓存（2026-11-14 用户实测回归）', async () => {
+        // 本地残留 user.role=TEACHER，而服务端 Cookie 会话确认的角色是 STUDENT
+        // （旧版本/换分支残留的 localStorage user，或 localhost 多端口共享 Cookie
+        // 被另一账号会话覆盖）。原实现拿着脏缓存去过角色门禁 → 困在 /403，且错误页
+        // 在 Shell 之外没有退出入口、/login 又被「已登录跳默认落地页」拦走，
+        // 用户永远到不了登录页。现就地清空并按会话失效处理。
+        mockGetPermissions.mockResolvedValue({
+          data: { role: 'STUDENT', menus: ['student/home'], buttons: {} },
+        })
+        const store = seedCachedSession()
+
+        await expect(store.fetchPermissions()).resolves.toBe('expired')
+        expect(store.isLoggedIn).toBe(false)
+        expect(store.user).toBeNull()
+        expect(store.serverRole).toBe('')
+      })
+
+      it('服务端角色与本地缓存一致 → 结论为 ok，登录态不受影响', async () => {
+        mockGetPermissions.mockResolvedValue({
+          data: { role: 'TEACHER', menus: ['teacher/home'], buttons: {} },
+        })
+        const store = seedCachedSession()
+
+        await expect(store.fetchPermissions()).resolves.toBe('ok')
+        expect(store.isLoggedIn).toBe(true)
+        expect(store.serverRole).toBe('TEACHER')
+        expect(store.effectiveRole).toBe('TEACHER')
       })
     })
   })
