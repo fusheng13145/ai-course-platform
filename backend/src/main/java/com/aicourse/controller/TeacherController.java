@@ -61,6 +61,7 @@ public class TeacherController {
     private final CourseEnrollmentService enrollmentService;
     private final TeacherCourseService teachingService;
     private final KnowledgePointService knowledgePointService;
+    private final com.aicourse.security.CourseAccessControl courseAccessControl;
 
     public TeacherController(CourseService courseService,
                              CourseApprovalService courseApprovalService,
@@ -71,7 +72,8 @@ public class TeacherController {
                              AnalyticsService analyticsService,
                              CourseEnrollmentService enrollmentService,
                              TeacherCourseService teachingService,
-                             KnowledgePointService knowledgePointService) {
+                             KnowledgePointService knowledgePointService,
+                             com.aicourse.security.CourseAccessControl courseAccessControl) {
         this.courseService = courseService;
         this.courseApprovalService = courseApprovalService;
         this.chapterService = chapterService;
@@ -82,6 +84,7 @@ public class TeacherController {
         this.enrollmentService = enrollmentService;
         this.teachingService = teachingService;
         this.knowledgePointService = knowledgePointService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     // ==================== 课程管理（8个接口，已加归属校验） ====================
@@ -347,10 +350,18 @@ public class TeacherController {
         return ApiResponse.success("删除成功", null);
     }
 
-    /** JSON 批量导入题目（兼容保留，推荐改用 Excel 导入） */
+    /**
+     * JSON 批量导入题目（兼容保留，推荐改用 Excel 导入）。
+     * <p>对象级收口（2026-11-13）：补齐与 {@code QuestionController.batchImport} 同款的
+     * 逐题课程归属校验（{@code assertCanManageCourse}），此前该通道可向任意课程写入题目。</p>
+     */
     @PostMapping("/questions/import")
-    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
-    public ApiResponse<TeacherImportResultVO> importQuestions(@Valid @RequestBody List<Question> questions) {
+    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，逐题校验课程归属）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
+    public ApiResponse<TeacherImportResultVO> importQuestions(@Valid @RequestBody List<Question> questions,
+                                                              Authentication auth) {
+        for (Question question : questions) {
+            courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
+        }
         int count = 0;
         for (Question q : questions) {
             questionService.save(q);
