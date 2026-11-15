@@ -184,6 +184,9 @@ public class QuestionController {
     public ApiResponse<Question> generateByAI(@Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long courseId = Long.valueOf(params.get("courseId"));
         courseAccessControl.assertCanManageCourse(courseId, auth);
+        // 出题治理两层校验（2026-11-14 审计 D3）：本端点此前缺治理闸，管理员总闸与逐人名单
+        // 在「生成并直接落库」的真实出题路径上失效。与 /ai-generate、/generate-by-ai/batch 同口径。
+        assertQuestionGenerationAllowed(auth);
         String type = params.get("type");
         String difficulty = params.get("difficulty");
         String knowledgePointNames = params.get("knowledgePointNames");
@@ -277,6 +280,9 @@ public class QuestionController {
             @RequestParam(required = false) String difficulty,
             @RequestParam(defaultValue = "10") int count,
             Authentication auth) {
+        // 对象级 ACL（2026-11-14 审计 U2）：随堂测取题虽走 VO 脱敏，但题干本身是课程内容——
+        // 未选课学生不得跨课程捞题。与资源/章节读面同一成员关系判定（管理员放行、教师须授课、学生须已选课）。
+        courseAccessControl.assertCanReadCourse(courseId, auth);
         boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         List<Question> questions = questionService.randomSelect(courseId, type, difficulty, count);
         if (questions == null) {
