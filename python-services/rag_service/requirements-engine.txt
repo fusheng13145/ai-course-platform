@@ -9,3 +9,6 @@ jieba==0.42.1
 rank-bm25==0.2.2
 faiss-cpu==1.13.2
 sentence-transformers==5.4.1
+# sentence-transformers 会经 datasets 间接依赖 pyarrow；datasets 5.1.0 要求 pyarrow>=24，
+# 低版本缺少 pyarrow.json_ 别名，会让整个引擎 import 失败（2026-11-13 实测 16.1.0 不可用）。
+pyarrow>=24,<25

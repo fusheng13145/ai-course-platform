@@ -100,8 +100,22 @@ public interface RagContract {
     record IndexResult(Boolean success, Integer indexedChunks, String error, Integer code) {
     }
 
-    /** 检索召回结果。 */
+    /**
+     * 检索召回结果。
+     * <p>{@code mode} 取引擎应答原文（{@code ENGINE}/{@code PLACEHOLDER}/{@code UNAVAILABLE}）：
+     * 调用方只有看到 {@code ENGINE} 才能把召回内容当作真实引擎证据，否则必须走本地降级路径。</p>
+     */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    record RagRetrievalResult(List<RagSource> results, String error, Integer code) {
+    record RagRetrievalResult(List<RagSource> results, String mode, String error, Integer code) {
+
+        /**
+         * 是否可作为真实引擎证据：只有 {@code mode=ENGINE} 且未被降级（{@code code} 非 503）。
+         * <p>{@code PLACEHOLDER}（CI 占位桩）与 {@code UNAVAILABLE} 一律不算——它们不是引擎产物，
+         * 上层必须改走本地降级路径，不得把占位/降级内容当作课程答案。</p>
+         */
+        public boolean engineReady() {
+            return ContractPaths.MODE_ENGINE.equals(mode)
+                    && (code == null || code != ContractPaths.CODE_UNAVAILABLE);
+        }
     }
 }

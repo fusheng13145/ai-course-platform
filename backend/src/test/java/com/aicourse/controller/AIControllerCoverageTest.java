@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -275,6 +276,29 @@ class AIControllerCoverageTest extends ControllerTestBase {
         assertTrue(body.contains("<script>危险片段</script>"), body);
 
         verify(aiService).streamChat(eq("什么是闭包"), eq(7L));
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 服务编排处于 QA_STREAM 归属作用域内（流式落库快照的捕获点）")
+    void streamChat_runsWithinQaStreamCallContext() throws Exception {
+        AtomicReference<com.aicourse.service.component.ai.AiCallContext.Snapshot> captured =
+                new AtomicReference<>();
+        // 服务层在该端点的真实链路里于作用域内捕获归属快照（AiDialogueComponent.streamChat），
+        // 这里以 thenAnswer 原位捕获，验证控制器确实建立了 userId/courseId/scene 三元组作用域
+        when(aiService.streamChat("什么是闭包", 7L)).thenAnswer(inv -> {
+            captured.set(com.aicourse.service.component.ai.AiCallContext.capture());
+            return new QaStreamVO(reactor.core.publisher.Flux.just("答案"), List.of());
+        });
+
+        MvcResult mvc = mockMvc.perform(get("/ai/qa/stream").param("question", "什么是闭包")
+                        .param("courseId", "7").with(withUser(9L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc)).andExpect(status().isOk());
+
+        org.junit.jupiter.api.Assertions.assertNotNull(captured.get(), "服务编排必须在归属作用域内执行");
+        org.junit.jupiter.api.Assertions.assertEquals(9L, captured.get().userId());
+        org.junit.jupiter.api.Assertions.assertEquals(7L, captured.get().courseId());
+        org.junit.jupiter.api.Assertions.assertEquals("QA_STREAM", captured.get().scene());
     }
 
     // ==================== /ai/recommendations/questions ====================

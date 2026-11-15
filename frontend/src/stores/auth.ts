@@ -133,15 +133,19 @@ export const useAuthStore = defineStore('auth', () => {
    * 自指向重定向**。`/403` 的 `meta.requiresAuth === false`，是无条件可达且不会再
    * 触发的跳转的安全落点，故未知角色改落 `/403`。
    * 仅当完全没有登录态（无 user 对象）时才回落 `/login`——此时守卫不会调用本函数。
+   *
+   * 修复（2026-11-14 审计 D1）：三端返回值原为 `/xx/dashboard`，而路由表只有
+   * `/xx/home`（`ui/types.ts` 的 `ROLE_HOME` 是单一来源）——守卫据此
+   * `next(target)` 会落进 catch-all 404。现与 ROLE_HOME 逐字对齐。
    */
   const getDefaultRoute = () => {
     switch (userRole.value) {
       case 'ADMIN':
-        return '/admin/dashboard'
+        return '/admin/home'
       case 'TEACHER':
-        return '/teacher/dashboard'
+        return '/teacher/home'
       case 'STUDENT':
-        return '/student/dashboard'
+        return '/student/home'
       default:
         // 已登录但角色缺失/未知 → 安全落点 /403（可达、无守卫、不成环）
         return user.value ? '/403' : '/login'

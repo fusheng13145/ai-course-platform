@@ -93,6 +93,12 @@ def dep_errors() -> list[str]:
     return list(_DEP_ERRORS)
 
 
+def embed_model_name() -> str:
+    """向量模型名（`.env` 的 RAG_EMBED_MODEL 可覆盖）。默认值只在这里出现一份：
+    健康检查上报的模型必须与真正加载/写入索引元数据的那个同名，分开写字面量迟早漂移。"""
+    return os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
+
+
 def embed_model_cached(model_name: Optional[str] = None) -> bool:
     """嵌入模型是否已本地缓存（**不触发联网**）。
 
@@ -105,7 +111,7 @@ def embed_model_cached(model_name: Optional[str] = None) -> bool:
     """
     if not engine_available():
         return False
-    model_name = model_name or os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
+    model_name = model_name or embed_model_name()
     try:
         from huggingface_hub import try_to_load_from_cache
         # config_sentence_transformers.json 是 sentence-transformers 加载任一模型
@@ -378,7 +384,7 @@ _model_holder: dict = {"model": None}
 
 def _get_model():
     if _model_holder["model"] is None:
-        model_name = os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
+        model_name = embed_model_name()
         load_kwargs: dict = {}
         # 模型已本地缓存时强制 offline 加载：SentenceTransformer 默认即便文件已缓存
         # 也会向 HF 发连通性探测请求，离线 / CI 环境会因此长时间挂起；local_files_only=True
@@ -522,7 +528,7 @@ def build_course_index(course_id: int) -> dict:
         _INDEX_META[course_id] = {
             "indexed_chunks": len(chunks),
             "doc_ids": [d["id"] for d in docs],
-            "embed_model": os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5"),
+            "embed_model": embed_model_name(),
         }
         _save_store()
     return {"success": True, "indexed_chunks": len(chunks)}

@@ -8,7 +8,10 @@ import com.aicourse.mapper.SubmissionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.PlagiarismCheckService;
+import com.aicourse.service.RAGService;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.TaskService;
+import com.aicourse.service.component.ai.CourseEvidenceComponent;
 import com.aicourse.service.component.submission.SubmissionGradeComponent;
 import com.aicourse.service.component.submission.SubmissionJsonComponent;
 import com.aicourse.service.component.submission.SubmissionReadComponent;
@@ -63,6 +66,8 @@ class SubmissionServiceImplTest {
     @Mock private ObjectMapper objectMapper;
     @Mock private NotificationService notificationService;
     @Mock private SubmissionMapper submissionMapper;
+    @Mock private RAGService ragService;
+    @Mock private KnowledgePointService knowledgePointService;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
@@ -81,8 +86,10 @@ class SubmissionServiceImplTest {
                 new SubmissionWriteComponent(null, taskService, jsonSupport,
                         org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
                         meterRegistry);
+        CourseEvidenceComponent evidenceComponent =
+                new CourseEvidenceComponent(ragService, knowledgePointService);
         SubmissionGradeComponent gradeComponent = new SubmissionGradeComponent(null, taskService,
-                notificationService, aiService, jsonSupport, writeComponent);
+                notificationService, aiService, jsonSupport, writeComponent, evidenceComponent);
         SubmissionReadComponent readComponent =
                 new SubmissionReadComponent(null, plagiarismCheckService, aiService, jsonSupport);
         service = new SubmissionServiceImpl(writeComponent, gradeComponent, readComponent);

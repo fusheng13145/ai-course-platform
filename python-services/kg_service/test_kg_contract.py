@@ -108,12 +108,89 @@ def test_ingest_and_subgraph():
         ing = c.post("/api/v1/graph/ingest", json={"course_id": 3})
         assert ing.status_code == 200
         assert ing.json()["status"] == "ok"
+        # 旧契约调用（仅 course_id）不得写入任何数据
+        assert ing.json()["upserted_nodes"] == 0
 
         sub = c.post("/api/v1/graph/subgraph", json={"course_id": 3, "max_hops": 2})
         assert sub.status_code == 200
         body = sub.json()
         assert body["status"] == "ok"
         assert len(body["nodes"]) == 2
+
+
+def _snapshot(course_id: int) -> dict:
+    return {
+        "course_id": course_id,
+        "nodes": [
+            {"id": 1001, "course_id": course_id, "name": "变量", "content": "存储数据的命名单元", "type": "CONCEPT"},
+            {"id": 1002, "course_id": course_id, "name": "数据类型", "content": "对值的分类", "type": "CONCEPT"},
+            {"id": 1003, "course_id": course_id, "name": "运算符", "content": "对值进行计算", "type": "CONCEPT"},
+        ],
+        "relations": [
+            {"id": 2001, "source_id": 1001, "target_id": 1002, "relation_type": "PREREQUISITE"},
+            {"id": 2002, "source_id": 1002, "target_id": 1003, "relation_type": "PREREQUISITE"},
+        ],
+    }
+
+
+def test_ingest_snapshot_writes_nodes_and_relations():
+    """快照摄取必须真实写图：节点可查、关系可走、路径可算。"""
+    with TestClient(app) as c:
+        body = c.post("/api/v1/graph/ingest", json=_snapshot(11)).json()
+        assert body["status"] == "ok"
+        assert body["upserted_nodes"] == 3
+        assert body["upserted_relations"] == 2
+        assert body["synced_nodes"] == 3
+
+        sub = c.post("/api/v1/graph/subgraph",
+                     json={"course_id": 11, "max_hops": 2}).json()
+        assert {n["id"] for n in sub["nodes"]} == {1001, 1002, 1003}
+        assert {n["name"] for n in sub["nodes"]} == {"变量", "数据类型", "运算符"}
+        assert len(sub["edges"]) == 2
+
+        plan = c.post("/api/v1/graph/path/plan",
+                      json={"source_id": 1001, "target_id": 1003, "max_hops": 2}).json()
+        assert plan["path"] == [1001, 1002, 1003]
+
+
+def test_ingest_snapshot_is_idempotent_and_prunes_stale_nodes():
+    """重复摄取不产生重复数据；快照收缩后陈旧节点与其边必须被清理。"""
+    with TestClient(app) as c:
+        c.post("/api/v1/graph/ingest", json=_snapshot(12))
+        again = c.post("/api/v1/graph/ingest", json=_snapshot(12)).json()
+        assert again["upserted_nodes"] == 3
+        assert again["upserted_relations"] == 2
+        assert again["synced_nodes"] == 3
+
+        shrunk = _snapshot(12)
+        shrunk["nodes"] = shrunk["nodes"][:2]
+        shrunk["relations"] = shrunk["relations"][:1]
+        res = c.post("/api/v1/graph/ingest", json=shrunk).json()
+        assert res["synced_nodes"] == 2
+        assert res["pruned_nodes"] == 1
+        assert res["upserted_relations"] == 1
+
+        sub = c.post("/api/v1/graph/subgraph",
+                     json={"course_id": 12, "max_hops": 2}).json()
+        assert {n["id"] for n in sub["nodes"]} == {1001, 1002}
+        assert len(sub["edges"]) == 1
+
+
+def test_ingest_snapshot_does_not_touch_other_courses():
+    """摄取只以 course_id 为界：其他课程的节点/边不得被清理或篡改。"""
+    with TestClient(app) as c:
+        c.post("/api/v1/graph/ingest", json=_snapshot(13))
+        other = {
+            "course_id": 14,
+            "nodes": [{"id": 2001, "course_id": 14, "name": "别的课程", "content": "", "type": "CONCEPT"}],
+            "relations": [],
+        }
+        c.post("/api/v1/graph/ingest", json=other)
+        c.post("/api/v1/graph/ingest", json=_snapshot(13))
+
+        sub = c.post("/api/v1/graph/subgraph",
+                     json={"course_id": 14, "max_hops": 1}).json()
+        assert [n["name"] for n in sub["nodes"]] == ["别的课程"]
 
 
 def test_course_graph():

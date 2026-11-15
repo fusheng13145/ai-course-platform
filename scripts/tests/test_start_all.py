@@ -311,6 +311,20 @@ def test_order_detector_negative_control():
     assert not (reversed_body.index("engine_flags(") < reversed_body.index("start_api("))
 
 
+def test_engine_subprocess_is_started_with_the_service_venv_interpreter():
+    """形态守卫：一键启动器构造 uvicorn 命令时必须把服务自己的解释器传下去。
+
+    漏传就回落到 `sys.executable`（系统 Python），而重依赖只装在 `python-services/<svc>/.venv`，
+    结果是端口在听、health 也 200、检索却恒为降级——典型静默假绿（2026-11-13 真跑踩中）。
+    """
+    body = function_source("start_engine")
+    assert "eng.engine_python(" in body, "解释器必须由 start-engines 的 engine_python 统一裁决"
+    assert "eng.uvicorn_command(eng.APP_MODULES[name], PORTS[name], python_exe)" in body, \
+        "uvicorn_command 必须收到 venv 解释器，否则一键启动路径仍用系统 Python"
+    # 阴性对照：旧写法（不传解释器）确实不含该参数，证明上面不是恒真
+    assert "uvicorn_command(eng.APP_MODULES[name], PORTS[name])" not in body
+
+
 # ------------------------------------------------------------- 后端环境注入
 
 

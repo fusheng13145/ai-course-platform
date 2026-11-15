@@ -1,5 +1,7 @@
 package com.aicourse.service;
 
+import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
+
 /**
  * RAG服务接口
  * 对接Python RAG微服务（端口 8002），实现基于知识库的智能问答
@@ -75,4 +77,15 @@ public interface RAGService {
      * @return 召回结果JSON
      */
     String retrieve(String query, Long courseId, int topK);
+
+    /**
+     * 检索相似文档（类型化返回，供服务端业务直接判定 {@code mode}/{@code code}）。
+     * <p>问答主路径必须走这里：字符串 JSON 需要二次解析且容易退化成子串嗅探，
+     * 而 {@code mode} 是「召回是否真的来自引擎」的唯一判据，不能在传输层被丢掉。</p>
+     * @param query 查询文本
+     * @param courseId 课程ID
+     * @param topK 返回数量
+     * @return 召回结果（含 mode/error/code），引擎不可用时 {@code mode=UNAVAILABLE} 且 {@code code=503}
+     */
+    RagRetrievalResult retrieveTyped(String query, Long courseId, int topK);
 }

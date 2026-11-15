@@ -7,6 +7,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.ExamManualGradeDTO;
 import com.aicourse.dto.ExamSubmitDTO;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ExamSessionService;
 import com.aicourse.vo.ActiveExamSessionVO;
@@ -36,11 +37,14 @@ public class ExamSessionController {
 
     private final ExamSessionService examSessionService;
     private final ExamSessionAccessControl examSessionAccessControl;
+    private final CourseAccessControl courseAccessControl;
 
     public ExamSessionController(ExamSessionService examSessionService,
-                                 ExamSessionAccessControl examSessionAccessControl) {
+                                 ExamSessionAccessControl examSessionAccessControl,
+                                 CourseAccessControl courseAccessControl) {
         this.examSessionService = examSessionService;
         this.examSessionAccessControl = examSessionAccessControl;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -215,15 +219,26 @@ public class ExamSessionController {
     }
 
     /**
-     * 获取正在进行的考试列表（管理员）
+     * 获取正在进行的考试列表（教师/管理员）。
+     * <p>对象级收口（2026-11-13）：原先对全体 TEACHER 开放跨课程在考学生名单。现按
+     * {@link CourseAccessControl#readableCourseIds} 过滤——教师仅见自己课程的进行中会话
+     * （按 VO 的 courseId 匹配）；管理员（readableCourseIds 返回 null）不限。</p>
      */
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取进行中的考试列表",
-            description = "返回所有正在进行中的考试会话（VO）：含 paperTitle、courseId、courseName、"
-                    + "studentName 与同卷进行中的 participantCount，监考页无需再按 id 回查试卷与用户名单")
-    public ApiResponse<List<ActiveExamSessionVO>> activeExams() {
+            description = "返回正在进行中的考试会话（VO）：含 paperTitle、courseId、courseName、"
+                    + "studentName 与同卷进行中的 participantCount，监考页无需再按 id 回查试卷与用户名单；"
+                    + "教师仅返回自己课程的会话，管理员返回全部")
+    public ApiResponse<List<ActiveExamSessionVO>> activeExams(Authentication auth) {
         List<ActiveExamSessionVO> activeExams = examSessionService.getActiveExams();
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+        if (readableCourseIds != null) {
+            // 教师：只保留本人课程下的会话（无课程归属的会话对教师不可见）
+            activeExams = activeExams.stream()
+                    .filter(vo -> vo.getCourseId() != null && readableCourseIds.contains(vo.getCourseId()))
+                    .toList();
+        }
         return ApiResponse.success(activeExams);
     }
 

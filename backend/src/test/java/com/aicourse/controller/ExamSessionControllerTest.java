@@ -35,6 +35,10 @@ class ExamSessionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.security.ExamSessionAccessControl examSessionAccessControl;
 
+    /** 2026-11-13 对象级收口：/exam-sessions/active 按教师可读课程过滤走 CourseAccessControl。 */
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+
     @Test
     @DisplayName("POST /exam-sessions/start - 学生开始考试返回200，会话ID透传")
     void start_authorized_passes_security() throws Exception {
@@ -379,6 +383,8 @@ class ExamSessionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /exam-sessions/active - 教师/管理员返回 VO 化考试列表（含试卷/课程/学生/人数）")
     void activeExams_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：TEACHER+ADMIN 双角色按 readableCourseIds 契约返回 null（管理员不过滤），全量透传
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
         ActiveExamSessionVO row = new ActiveExamSessionVO();
         row.setId(1L);
         row.setExamPaperId(10L);
@@ -416,6 +422,56 @@ class ExamSessionControllerTest extends ControllerTestBase {
     void activeExams_forbidden_for_student() throws Exception {
         mockMvc.perform(get("/exam-sessions/active").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /exam-sessions/active - 教师仅见自己课程的进行中会话（他课会话被过滤为空）")
+    void activeExams_teacher_scopedToOwnCourses() throws Exception {
+        // 2026-11-13 收口：教师 7 只拥有课程 100，课程 200 的在考会话不得出现在名单里
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(100L));
+        ActiveExamSessionVO mine = new ActiveExamSessionVO();
+        mine.setId(1L);
+        mine.setCourseId(100L);
+        ActiveExamSessionVO others = new ActiveExamSessionVO();
+        others.setId(2L);
+        others.setCourseId(200L);
+        when(examSessionService.getActiveExams()).thenReturn(List.of(mine, others));
+
+        mockMvc.perform(get("/exam-sessions/active").with(withUser(7L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].courseId").value(100));
+
+        verify(courseAccessControl).readableCourseIds(any());
+    }
+
+    @Test
+    @DisplayName("GET /exam-sessions/active - 教师无任何课程时返回空名单（不回退全量）")
+    void activeExams_teacherWithoutCourses_emptyResult() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of());
+        ActiveExamSessionVO others = new ActiveExamSessionVO();
+        others.setId(2L);
+        others.setCourseId(200L);
+        when(examSessionService.getActiveExams()).thenReturn(List.of(others));
+
+        mockMvc.perform(get("/exam-sessions/active").with(withUser(7L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    @DisplayName("GET /exam-sessions/active - 管理员不限课程（readableCourseIds=null 全量透传）")
+    void activeExams_admin_seesAll() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
+        ActiveExamSessionVO row = new ActiveExamSessionVO();
+        row.setId(1L);
+        row.setCourseId(100L);
+        when(examSessionService.getActiveExams()).thenReturn(List.of(row));
+
+        mockMvc.perform(get("/exam-sessions/active").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].courseId").value(100));
     }
 
     @Test
