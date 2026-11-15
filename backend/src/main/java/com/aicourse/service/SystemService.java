@@ -57,8 +57,10 @@ public interface SystemService {
     /**
      * 执行备份恢复
      * @param fileName 备份文件名
+     * @param targetDb 恢复目标库（必填；缺省/空白直接拒绝）
+     * @param confirmCurrentDb 目标库为当前应用库时必须为 true
      */
-    java.util.Map<String, Object> restoreBackup(String fileName, String targetDb);
+    java.util.Map<String, Object> restoreBackup(String fileName, String targetDb, boolean confirmCurrentDb);
 
     /**
      * 获取日志文件列表

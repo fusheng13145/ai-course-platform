@@ -227,23 +227,27 @@ public class SysBackupComponent {
      * 恢复备份（2026-11-14 P0-2B/Q2=B 真实现，替换原「仅校验不执行」的假实现）。
      *
      * <p>执行路径与 createBackup 对称：凭据经 --defaults-extra-file 临时文件传递（0600 +
-     * finally 删除）；目标库二选一——</p>
+     * finally 删除）；目标库必须显式指定，且分两类——</p>
      * <ul>
-     *   <li>显式 {@code targetDb}：<b>必须带 {@code aicourse_restore_}/{@code restore_} 前缀</b>
-     *       （与 shell 恢复脚本同款隔离护栏，杜绝把任意库名当恢复靶子）；</li>
-     *   <li>缺省：恢复到当前应用库（{@code spring.datasource.url} 解析出的 schema）——
-     *       这是明确的破坏性动作，调用方（管理端）须在维护窗口执行；恢复后应用连接池
-     *       内的既有连接见到的是恢复后的表结构，无需重启（MySQL schema 级切换）。</li>
+     *   <li>{@code targetDb} 缺省/空白：<b>直接拒绝（400）</b>，不存在「省略即恢复到当前应用库」
+     *       的隐式破坏路径；</li>
+     *   <li>隔离演练库：必须带 {@code aicourse_restore_}/{@code restore_} 前缀（与 shell
+     *       恢复脚本同款隔离护栏，杜绝把任意库名当恢复靶子）；</li>
+     *   <li>当前应用库：仅当显式传 {@code targetDb=<当前库名>} 且
+     *       {@code confirmCurrentDb=true} 时允许——这是明确的破坏性动作，调用方（管理端）
+     *       须在维护窗口执行；恢复后应用连接池内的既有连接见到的是恢复后的表结构，
+     *       无需重启（MySQL schema 级切换）。</li>
      * </ul>
      * <p>.gz 备份经 gunzip 子进程管道喂给 mysql stdin（数组式进程管道，不经 shell）；
      * 退出码非零抛出并携带 stderr 尾部（可操作报错，不再「恢复成功」假成功）；恢复后
      * 回读 information_schema 表数作为可核验读数。</p>
      *
      * @param fileName 备份目录内的文件名（沿用原路径防穿越五道校验）
-     * @param targetDb 恢复目标库；null/空白 = 当前应用库
+     * @param targetDb 恢复目标库；<b>必填</b>，缺省直接拒绝
+     * @param confirmCurrentDb 目标库等于当前应用库时必须为 true 才允许执行
      * @return 可核验读数：targetDb / tableCount / durationMs / backupFile
      */
-    public Map<String, Object> restoreBackup(String fileName, String targetDb) {
+    public Map<String, Object> restoreBackup(String fileName, String targetDb, boolean confirmCurrentDb) {
         // ---- 路径遍历防护（原五道校验原样保留）----
         if (fileName.contains("/") || fileName.contains("\\")) {
             throw new BusinessException("非法文件名：禁止路径分隔符");
@@ -264,20 +268,21 @@ public class SysBackupComponent {
         }
 
         // ---- 目标库解析与隔离护栏（先于凭据解析：安全护栏 fail-fast，与凭据无关）----
-        String resolvedDb;
         if (targetDb == null || targetDb.isBlank()) {
-            resolvedDb = null; // 由 resolveConnection 的结果补全
-        } else {
-            boolean isolated = RESTORE_ISOLATION_PREFIXES.stream().anyMatch(targetDb::startsWith);
-            if (!isolated) {
-                throw new BusinessException("恢复目标库须带 aicourse_restore_/restore_ 前缀"
-                        + "（隔离演练口径，与 scripts/restore-mysql.sh 一致）；省略参数则恢复到当前应用库");
-            }
-            resolvedDb = targetDb;
+            throw new BusinessException("必须显式指定恢复目标库 targetDb：隔离演练库须带"
+                    + " aicourse_restore_/restore_ 前缀；恢复当前应用库须显式传 targetDb=<当前库名>"
+                    + " 并附 confirmCurrentDb=true（该操作会覆盖线上数据）");
         }
         ConnectionInfo conn = resolveConnection();
-        if (resolvedDb == null) {
-            resolvedDb = conn.database();
+        String resolvedDb = targetDb;
+        if (resolvedDb.equals(conn.database())) {
+            if (!confirmCurrentDb) {
+                throw new BusinessException("目标库 " + resolvedDb + " 即当前应用库，恢复将覆盖线上数据，"
+                        + "必须显式传 confirmCurrentDb=true 确认后再执行");
+            }
+        } else if (RESTORE_ISOLATION_PREFIXES.stream().noneMatch(resolvedDb::startsWith)) {
+            throw new BusinessException("恢复目标库须带 aicourse_restore_/restore_ 前缀"
+                    + "（隔离演练口径，与 scripts/restore-mysql.sh 一致），或显式指定当前应用库并确认");
         }
 
         boolean gzipped = fileName.endsWith(".gz");

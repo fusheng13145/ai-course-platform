@@ -76,8 +76,8 @@ public class SystemServiceImpl implements SystemService {
     }
 
     @Override
-    public java.util.Map<String, Object> restoreBackup(String fileName, String targetDb) {
-        return backupComponent.restoreBackup(fileName, targetDb);
+    public java.util.Map<String, Object> restoreBackup(String fileName, String targetDb, boolean confirmCurrentDb) {
+        return backupComponent.restoreBackup(fileName, targetDb, confirmCurrentDb);
     }
 
     // ===================== 日志文件 =====================

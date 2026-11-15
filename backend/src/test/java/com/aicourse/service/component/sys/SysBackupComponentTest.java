@@ -118,11 +118,11 @@ class SysBackupComponentTest {
     @DisplayName("restoreBackup 各类非法文件名抛异常")
     void restoreBackup_illegal() {
         SysBackupComponent c = newComponent();
-        assertThrows(BusinessException.class, () -> c.restoreBackup("a/b.sql", null));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("a\\b.sql", null));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("..\\x.sql", null));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("/etc/passwd", null));
-        assertThrows(BusinessException.class, () -> c.restoreBackup("../escape.sql", null));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("a/b.sql", null, false));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("a\\b.sql", null, false));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("..\\x.sql", null, false));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("/etc/passwd", null, false));
+        assertThrows(BusinessException.class, () -> c.restoreBackup("../escape.sql", null, false));
     }
 
     @Test
@@ -132,15 +132,62 @@ class SysBackupComponentTest {
         Path f = Path.of("backups", "valid.sql");
         Files.writeString(f, "x");
         try {
+            stubDatasourceForRestore();
             SysBackupComponent c = newComponent();
-            assertThrows(BusinessException.class, () -> c.restoreBackup("missing.sql", null));
+            assertThrows(BusinessException.class, () -> c.restoreBackup("missing.sql", null, false));
             // P0-2B 后 valid.sql 会真实执行 mysql——单元环境无凭据/无 mysql 客户端，
             // 改为钉隔离前缀护栏（演练执行取证走 scripts/restore-mysql.sh，PRD §13 外部项）
             BusinessException ex = assertThrows(BusinessException.class,
-                    () -> c.restoreBackup("valid.sql", "not_isolated_db"));
+                    () -> c.restoreBackup("valid.sql", "not_isolated_db", false));
             assertTrue(ex.getMessage().contains("前缀"), "应拒绝非隔离目标库，实际=" + ex.getMessage());
         } finally {
             Files.deleteIfExists(f);
         }
+    }
+
+    @Test
+    @DisplayName("restoreBackup 缺省 targetDb 直接拒绝，不再隐式回落到当前应用库")
+    void restoreBackup_missingTargetDbRejected() throws IOException {
+        Files.createDirectories(Path.of("backups"));
+        Path f = Path.of("backups", "valid2.sql");
+        Files.writeString(f, "x");
+        try {
+            // targetDb 校验先于凭据解析，故此处不打桩 datasource（保持 Mockito 严格桩检查通过）
+            SysBackupComponent c = newComponent();
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> c.restoreBackup("valid2.sql", null, false));
+            assertTrue(ex.getMessage().contains("必须显式指定"), "应要求显式目标库，实际=" + ex.getMessage());
+            BusinessException blank = assertThrows(BusinessException.class,
+                    () -> c.restoreBackup("valid2.sql", "  ", false));
+            assertTrue(blank.getMessage().contains("必须显式指定"), "空白目标库同样拒绝，实际=" + blank.getMessage());
+        } finally {
+            Files.deleteIfExists(f);
+        }
+    }
+
+    @Test
+    @DisplayName("restoreBackup 目标库为当前应用库时必须显式 confirmCurrentDb=true")
+    void restoreBackup_currentDbRequiresConfirm() throws IOException {
+        Files.createDirectories(Path.of("backups"));
+        Path f = Path.of("backups", "valid3.sql");
+        Files.writeString(f, "x");
+        try {
+            stubDatasourceForRestore();
+            SysBackupComponent c = newComponent();
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> c.restoreBackup("valid3.sql", "ai_course_platform", false));
+            assertTrue(ex.getMessage().contains("confirmCurrentDb=true"),
+                    "覆盖当前应用库须显式确认，实际=" + ex.getMessage());
+        } finally {
+            Files.deleteIfExists(f);
+        }
+    }
+
+    /** 恢复路径的凭据解析桩：datasource 元数据给出当前库名 ai_course_platform。 */
+    private void stubDatasourceForRestore() throws IOException {
+        when(environment.getProperty("spring.datasource.url"))
+                .thenReturn("jdbc:mysql://localhost:3306/ai_course_platform");
+        when(environment.getProperty("spring.datasource.username")).thenReturn("root");
+        when(environment.getProperty("spring.datasource.password")).thenReturn("secret");
     }
 }
