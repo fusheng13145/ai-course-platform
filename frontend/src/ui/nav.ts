@@ -234,7 +234,7 @@ const STUDENT_PAGES: Record<string, PageDef> = {
   },
   profile: {
     title: '个人',
-    desc: '账号、安全与偏好设置。',
+    desc: '查看资料、学习进展与账号设置。',
     special: 'profile',
   },
   // 全局 AI 助手页已判下线（M-30）：导航不挂入口，深链接落到「待扩展」空态。
@@ -323,7 +323,7 @@ const TEACHER_PAGES: Record<string, PageDef> = {
   },
   profile: {
     title: '个人',
-    desc: '账号、安全与偏好设置。',
+    desc: '查看资料、通知与账号设置。',
     special: 'profile',
   },
 }
@@ -435,7 +435,7 @@ const ADMIN_PAGES: Record<string, PageDef> = {
   },
   profile: {
     title: '个人',
-    desc: '账号、安全与偏好设置。',
+    desc: '查看资料、通知与账号设置。',
     special: 'profile',
   },
 }

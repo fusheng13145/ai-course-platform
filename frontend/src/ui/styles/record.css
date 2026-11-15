@@ -935,19 +935,11 @@ body[data-app="ui"] .user-chip .user-text small { font-size: 10.5px; }
 body[data-app="ui"] .user-chip .user-caret { width: 14px; height: 14px; color: var(--ink-3); transform: rotate(90deg); }
 body[data-app="ui"] .user-dropdown {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 201;
-  min-width: 216px; padding: 6px;
+  width: 100%; padding: 6px;
   background: var(--surface); border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl); box-shadow: var(--sh-pop);
   animation: popIn .2s var(--ease) both;
 }
-body[data-app="ui"] .user-dropdown-head {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 12px 12px; margin-bottom: 6px;
-  border-bottom: 1px solid var(--line);
-}
-body[data-app="ui"] .user-dropdown-head .user-avatar { width: 38px; height: 38px; font-size: 14px; }
-body[data-app="ui"] .user-dropdown-head .user-text b { font-size: 14px; }
-body[data-app="ui"] .user-dropdown-head .user-text small { font-size: 11px; }
 body[data-app="ui"] .user-menu-item {
   display: flex; align-items: center; gap: 10px; width: 100%;
   padding: 11px 12px; border: 0; border-radius: var(--r-sm);

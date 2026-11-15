@@ -74,13 +74,6 @@
           :aria-label="`${displayName} 的账号菜单`"
           @keydown.esc="userMenuOpen = false"
         >
-          <div class="user-dropdown-head">
-            <span class="user-avatar">{{ avatar }}</span>
-            <span class="user-text">
-              <b>{{ displayName }}</b>
-              <small>{{ roleLabel }}</small>
-            </span>
-          </div>
           <button class="user-menu-item" role="menuitem" @click="goProfile">
             <Icon name="user" />
             <span>个人中心</span>
