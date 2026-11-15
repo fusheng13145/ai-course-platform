@@ -210,12 +210,12 @@ def test_path_plan_max_hops_bounds():
     with TestClient(app) as c:
         a = c.post("/api/v1/graph/nodes", json={"course_id": 5, "name": "A"}).json()
         b = c.post("/api/v1/graph/nodes", json={"course_id": 5, "name": "B"}).json()
-        for bad in (0, -1, 6):
+        for bad in (0, -1, 13):
             resp = c.post("/api/v1/graph/path/plan",
                           json={"source_id": a["id"], "target_id": b["id"], "max_hops": bad})
             assert resp.status_code == 422, f"max_hops={bad} 应 422"
         ok = c.post("/api/v1/graph/path/plan",
-                    json={"source_id": a["id"], "target_id": b["id"], "max_hops": 5})
+                    json={"source_id": a["id"], "target_id": b["id"], "max_hops": 12})
         assert ok.status_code == 200
 
 
