@@ -164,8 +164,9 @@ export const useAuthStore = defineStore('auth', () => {
    *
    * 结论分三种，守卫据此决定唯一的一次导航：
    * - `'ok'`：服务端确认了本次会话，正常放行；
-   * - `'expired'`：服务端明确 401（含静默刷新也失败后的会话失效），就地清空本地登录态，
-   *   由守卫带 `redirect` 跳登录页；
+   * - `'expired'`：服务端明确 401（含静默刷新也失败后的会话失效），或服务端确认的
+   *   会话角色与本地缓存 user.role 矛盾（本地登录态已脏）——两种情形都就地清空本地
+   *   登录态，由守卫带 `redirect` 跳登录页；
    * - `'unavailable'`：网络异常/5xx 等**无法判定**的情形，保留本地登录态继续渲染
    *   （拦截器另有重试），后端仍是真正的准入闸门。
    *
@@ -182,6 +183,16 @@ export const useAuthStore = defineStore('auth', () => {
         // 服务端若回传角色，作为路由鉴权的权威来源，压过可篡改的本地 user.role
         if (typeof data === 'object' && (data.role || data.userRole)) {
           serverRole.value = String(data.role || data.userRole)
+          // 本地缓存的 user.role 与服务端确认的会话角色矛盾（2026-11-14 用户实测）：
+          // 典型成因是旧版本/换分支残留的 localStorage user，或 localhost 多端口共享
+          // Cookie 被另一账号的会话覆盖。拿着脏缓存去过角色门禁，用户会被困在 /403——
+          // 错误页在 Shell 之外没有退出入口，/login 又被「已登录跳默认落地页」拦走，
+          // 永远到不了登录页。就地清空本地登录态、按会话失效回传，让守卫带 redirect
+          // 送回登录页重新认证；login/register 里刚建立的会话两端必然一致，不受影响。
+          if (userRole.value && serverRole.value !== userRole.value) {
+            resetAuthState()
+            return 'expired'
+          }
         }
         const storage = persistent.value ? localStorage : sessionStorage
         storage.setItem('permissions', JSON.stringify(data))

@@ -202,15 +202,28 @@ public class TeacherController {
         return ApiResponse.success("创建成功", task);
     }
 
-    /** 分页查询作业列表（可按课程筛选） */
+    /** 分页查询作业列表（可按课程筛选）。
+     * <p>2026-11-14 P2-2（D9 收口）：无 courseId 时此前返回全平台任务，跨教师标题/截止期
+     * 互相可见，与 {@code /tasks}（ActivityVisibilityGuard）口径冲突。现教师恒限定本人
+     * 课程（自有课 OR 带班课与 /tasks 教师段同源由 {@code ActivityVisibilityGuard.applyTaskScope}
+     * 承担——此处沿用同一守卫），管理员不受限。</p> */
     @GetMapping("/assignments")
     @Operation(summary = "分页查询作业列表")
     public ApiResponse<PagedResponse<Task>> getAssignments(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
-            @RequestParam(required = false) Long courseId) {
+            @RequestParam(required = false) Long courseId,
+            Authentication auth) {
         LambdaQueryWrapper<Task> qw = new LambdaQueryWrapper<Task>()
                 .eq(courseId != null, Task::getCourseId, courseId);
+        // 教师视角收窄到本人可读课程；管理员（readableCourseIds=null）保持全量
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+        if (readableCourseIds != null) {
+            if (readableCourseIds.isEmpty()) {
+                return ApiResponse.success(PagedResponse.empty());
+            }
+            qw.in(Task::getCourseId, readableCourseIds);
+        }
         Page<Task> taskPage = taskService.page(Page.of(page, size), qw);
         return ApiResponse.success(PagedResponse.of(taskPage));
     }
@@ -298,7 +311,10 @@ public class TeacherController {
         return ApiResponse.success("创建成功", question);
     }
 
-    /** 分页查询题目列表（可按课程/题型/难度筛选） */
+    /** 分页查询题目列表（可按课程/题型/难度筛选）。
+     * <p>2026-11-14 P2-2（D9 收口）：无 courseId 时此前返回全平台题目（含他师答案原文），
+     * 与详情端点的归属校验冲突。现教师默认限定本人课程题目 + 本人创建的无课程归属历史题；
+     * 管理员保持全量。</p> */
     @GetMapping("/questions")
     @Operation(summary = "分页查询题目列表")
     public ApiResponse<PagedResponse<Question>> getQuestions(
@@ -308,11 +324,24 @@ public class TeacherController {
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String difficulty,
             Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
         if (courseId != null) assertCourseOwner(courseId, auth);
         LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId)
                 .eq(type != null, Question::getType, type)
                 .eq(difficulty != null, Question::getDifficulty, difficulty);
+        if (courseId == null && !isAdmin(auth)) {
+            // 教师无课程筛选时：本人课程题目 ∪ 本人创建的无归属历史题
+            List<Long> ownCourseIds = courseService.list(
+                            new LambdaQueryWrapper<Course>().eq(Course::getTeacherId, userId))
+                    .stream().map(Course::getId).toList();
+            qw.and(w -> {
+                if (!ownCourseIds.isEmpty()) {
+                    w.in(Question::getCourseId, ownCourseIds).or();
+                }
+                w.eq(Question::getCreatedBy, userId);
+            });
+        }
         Page<Question> questionPage = questionService.page(Page.of(page, size), qw);
         return ApiResponse.success(PagedResponse.of(questionPage));
     }

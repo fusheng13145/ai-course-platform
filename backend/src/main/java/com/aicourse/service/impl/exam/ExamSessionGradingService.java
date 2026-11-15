@@ -286,6 +286,14 @@ public class ExamSessionGradingService {
         String updatedScoresJson = scoresMapToJson(currentScores);
         session.setQuestionScores(updatedScoresJson);
 
+        // 持久化人工评语（2026-11-14 P1-8/D5 收口）：comment 此前仅入参、从未落库。
+        // 与 question_scores 同键对称存 {questionId: comment}；null/空白评语不落键也不清旧值。
+        if (comment != null && !comment.isBlank()) {
+            Map<Long, String> currentComments = parseCommentsJson(session.getQuestionComments());
+            currentComments.put(questionId, comment);
+            session.setQuestionComments(commentsMapToJson(currentComments));
+        }
+
         // 重新计算总分
         BigDecimal newTotalScore = calculateTotalScoreFromScores(currentScores);
         session.setTotalScore(newTotalScore);
@@ -461,6 +469,35 @@ public class ExamSessionGradingService {
             log.error("考试会话Grading相关操作失败: {}", e.getMessage(), e);
 
             return result;
+        }
+    }
+
+    /** 解析人工阅卷评语 JSON（{questionId: comment}）为 Map；缺省/损坏一律回退空 Map。 */
+    private Map<Long, String> parseCommentsJson(String json) {
+        Map<Long, String> result = new HashMap<>();
+        if (json == null || json.isEmpty() || "{}".equals(json.trim())) {
+            return result;
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<Long, String>>() {});
+        } catch (Exception e) {
+            log.error("考试会话评语解析失败: {}", e.getMessage(), e);
+
+            return result;
+        }
+    }
+
+    /** 评语 Map 序列化为 JSON 字符串；空 Map 落 "{}"。 */
+    private String commentsMapToJson(Map<Long, String> comments) {
+        if (comments == null || comments.isEmpty()) {
+            return "{}";
+        }
+        try {
+            return objectMapper.writeValueAsString(comments);
+        } catch (Exception e) {
+            log.error("考试会话评语序列化失败: {}", e.getMessage(), e);
+
+            return "{}";
         }
     }
 
