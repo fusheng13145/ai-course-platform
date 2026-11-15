@@ -708,9 +708,12 @@ async function loadExtra() {
   feedLoading.value = false
 }
 
-onMounted(() => {
-  loadProfile()
-  loadExtra()
+onMounted(async () => {
+  // 角色判定依赖 profile 返回：profile 未就绪时 roleKey 会按 profileRole 为空回落到
+  // student，导致教师/管理员也发一次 /student/** 请求（CI 慢环境必现）。
+  // 先等 profile 定稿，再决定 loadExtra 是否发起学生专属请求。
+  await loadProfile()
+  await loadExtra()
 })
 </script>
 
