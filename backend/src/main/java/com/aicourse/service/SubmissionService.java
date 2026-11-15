@@ -59,9 +59,9 @@ public interface SubmissionService extends IService<Submission> {
 
     /**
      * 教师端批改作业（/teacher/assignments/{id}/submissions/{sid} 接口业务下沉）：
-     * 校验提交记录存在且属于指定作业，然后置分/评语/状态为GRADED并落库。
-     * 与 {@link #gradeSubmission} 的差异：不含逾期扣分/百分比/reviewCount 等增强逻辑，
-     * 行为与原 TeacherController 内联实现完全一致。
+     * 校验提交记录存在且属于指定作业，其余语义与 {@link #gradeSubmission} 完全一致
+     * （2026-11-14 P1-2 批阅语义统一：此前本路径不含逾期扣分/百分比/reviewCount，
+     * 同一「教师批阅」动作两条入口行为分叉，现收口为单一落库口径）。
      *
      * @param assignmentId 作业ID（用于归属一致性校验）
      * @param submissionId 提交记录ID
