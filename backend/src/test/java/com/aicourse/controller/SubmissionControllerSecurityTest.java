@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -92,7 +93,9 @@ class SubmissionControllerSecurityTest extends ControllerTestBase {
                         .contentType("application/json")
                         .content("{\"score\":90,\"feedback\":\"good\"}"))
                 .andExpect(status().isOk());
-        verify(submissionService).updateById(any(Submission.class));
+        // 2026-11-14 P1-2：控制器统一委托服务层 gradeSubmission，不再直写实体
+        verify(submissionService).gradeSubmission(eq(1L), any(), eq("good"), eq(20L));
+        verify(submissionService, never()).updateById(any(Submission.class));
     }
 
     @Test

@@ -9,8 +9,10 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.RoleUtil;
 import com.aicourse.service.ClassroomService;
 import com.aicourse.vo.ClassroomDetailVO;
+import com.aicourse.vo.ClassroomStudentVO;
 import com.aicourse.vo.ClassroomPendingCountVO;
 import com.aicourse.vo.ClassroomStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -111,21 +113,41 @@ public class ClassroomController {
     }
 
     /**
-     * 获取班级学生列表（分页）
-     * @param id      班级ID
-     * @param keyword 搜索关键字
-     * @param page    页码
-     * @param size    每页大小
-     * @return 分页学生列表
+     * 获取班级学生列表（分页）。
+     * <p>对象级收口（2026-11-14 审计 N3/P0-3）：本端点此前无任何角色/归属校验且下发
+     * 完整 {@link User} 实体（email/phone 明文），任意学生可枚举全校班级名册与联系方式。
+     * 现口径（Q6 已拍板）：</p>
+     * <ul>
+     *   <li>管理员：完整实体（管理台花名册需要联系方式，Q6）；</li>
+     *   <li>班主任教师：{@link ClassroomStudentVO} 脱敏投影（结构性剔除 email/phone）；</li>
+     *   <li>学生与非班主任教师：403（学生查同班同学走 {@code /users/{id}/classmates}）。</li>
+     * </ul>
      */
     @GetMapping("/{id}/students")
-    public ApiResponse<Page<User>> getStudents(
+    public ApiResponse<?> getStudents(
             @PathVariable Long id,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication auth) {
+        Classroom classroom = classroomService.getById(id);
+        if (classroom == null) {
+            throw new BusinessException(com.aicourse.common.ApiCode.NOT_FOUND, "班级不存在");
+        }
+        boolean admin = RoleUtil.isAdmin(auth);
+        if (admin) {
+            return ApiResponse.success(classroomService.getClassroomStudents(id, keyword, page, size));
+        }
+        Long userId = (Long) auth.getPrincipal();
+        boolean student = "STUDENT".equals(RoleUtil.roleOf(auth));
+        if (student || !userId.equals(classroom.getAdvisorId())) {
+            throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN,
+                    student ? "班级名册仅班主任与管理员可查看" : "仅该班级的归属教师或管理员可查看名册");
+        }
         Page<User> studentPage = classroomService.getClassroomStudents(id, keyword, page, size);
-        return ApiResponse.success(studentPage);
+        Page<ClassroomStudentVO> voPage = new Page<>(studentPage.getCurrent(), studentPage.getSize(), studentPage.getTotal());
+        voPage.setRecords(studentPage.getRecords().stream().map(ClassroomStudentVO::from).toList());
+        return ApiResponse.success(voPage);
     }
 
     /**
