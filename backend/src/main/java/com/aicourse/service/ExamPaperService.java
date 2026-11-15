@@ -17,6 +17,17 @@ import java.util.List;
 public interface ExamPaperService extends IService<ExamPaper> {
 
     /**
+     * 更新试卷基础信息（PUT 更新路径专用）。
+     * <p>状态字段白名单：status / isActive / creatorId 不允许经请求体透传，
+     * 审核流转只能走 submitExamPaperForReview / approveExamPaper / rejectExamPaper 端点；
+     * 显式传入 totalScore 时校验其与题目分值合计一致（卷面尚未配置题目时跳过校验，总分以教师申报值为准）。</p>
+     * @param paperId 试卷ID
+     * @param patch 待更新字段（置 null 的字段不更新）
+     * @return 更新后的试卷
+     */
+    ExamPaper updateExamPaper(Long paperId, ExamPaper patch);
+
+    /**
      * 获取试卷完整详情（含题目列表）
      * @param paperId 试卷ID
      * @return 试卷详情（包含题目信息）

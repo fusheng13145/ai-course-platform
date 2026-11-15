@@ -9,6 +9,7 @@ import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.ExamPaperMapper;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
@@ -60,6 +61,7 @@ class ExamSessionServiceImplTest {
     @Mock private WrongQuestionService wrongQuestionService;
     @Mock private ExamSessionGradingService gradingService;
     @Mock private ExamSessionMapper examSessionMapper;
+    @Mock private ExamPaperMapper examPaperMapper;
 
     private ExamSessionServiceImpl examSessionService;
 
@@ -73,7 +75,7 @@ class ExamSessionServiceImplTest {
         ExamSessionLifecycleComponent lifecycleComponent =
                 new ExamSessionLifecycleComponent(examPaperService, null,
                         org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
-                        objectMapper);
+                        objectMapper, examPaperMapper);
         ExamSessionCheatingComponent cheatingComponent =
                 new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
         ExamSessionQueryComponent queryComponent =
@@ -198,20 +200,59 @@ class ExamSessionServiceImplTest {
         assertEquals("您有正在进行的考试，请先完成或结束当前考试", ex.getMessage());
     }
 
+    // A-01 #4 回归：两次顺序调用模拟被试卷行悲观锁（FOR UPDATE）串行化的并发双击。
+    // 第一次开考成功 insert STARTED 会话；第二次开考在锁释放后重查，命中该 STARTED 会话被拒——
+    // check-then-insert 不再可能双双通过（修复前并发双开可绕过 maxAttempts）。
+    @Test
+    @DisplayName("startExam - 并发双开被悲观锁串行化：第二次开考命中已存在的 STARTED 会话被拒绝")
+    void testStartExam_ConcurrentDoubleStart_rejected() {
+        when(examPaperService.getById(1L)).thenReturn(publishedPaper);
+        when(examSessionMapper.selectCount(any())).thenReturn(0L);
+        // 第一次开考无活跃会话；第二次开考（锁串行化后重查）看到第一次创建的 STARTED 会话
+        when(examSessionMapper.selectOne(any(), anyBoolean())).thenReturn(null, startedSession);
+        when(examSessionMapper.insert(any(ExamSession.class))).thenReturn(1);
+
+        ExamSession first = examSessionService.startExam(1L, 2L, "ip", "ua");
+        assertNotNull(first);
+        assertEquals("STARTED", first.getStatus());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> examSessionService.startExam(1L, 2L, "ip", "ua"));
+        assertEquals("您有正在进行的考试，请先完成或结束当前考试", ex.getMessage());
+
+        // 两次开考都必须先对试卷行取 FOR UPDATE 锁（串行化点），且会话仅插入一次
+        verify(examPaperMapper, times(2)).selectByIdForUpdate(1L);
+        verify(examSessionMapper, times(1)).insert(any(ExamSession.class));
+    }
+
     // ===================== autoSaveAnswers =====================
 
     @Test
-    @DisplayName("autoSaveAnswers - 将答案序列化为JSON保存")
+    @DisplayName("autoSaveAnswers - 定向 CAS 更新：只 set 答案与更新时间，不再整实体回写")
     void testAutoSaveAnswers_SavesJson() {
         when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
-        when(examSessionMapper.updateById(any(ExamSession.class))).thenReturn(1);
+        when(examSessionMapper.update(isNull(), any())).thenReturn(1);
 
         Map<String, Object> answers = new HashMap<>();
         answers.put("101", "A");
         examSessionService.autoSaveAnswers(1L, answers);
 
-        assertEquals("{\"101\":\"A\"}", startedSession.getAnswers());
-        verify(examSessionMapper).updateById(startedSession);
+        // 修复 A-01 #1：走 LambdaUpdateWrapper 定向更新，且 WHERE 限定 status=STARTED（CAS）
+        @SuppressWarnings("unchecked")
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ExamSession> wrapper =
+                (com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ExamSession>)
+                        captureUpdateWrapper();
+        assertTrue(wrapper.getSqlSet().contains("answers"), "SET 子句必须包含 answers 列");
+        assertTrue(wrapper.getParamNameValuePairs().containsValue("{\"101\":\"A\"}"),
+                "保存的必须是序列化后的答案 JSON");
+        verify(examSessionMapper, never()).updateById(any(ExamSession.class));
+    }
+
+    /** 捕获最近一次 update(null, wrapper) 调用的 wrapper 参数。 */
+    private Object captureUpdateWrapper() {
+        org.mockito.ArgumentCaptor<Object> captor = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(examSessionMapper).update(isNull(), (com.baomidou.mybatisplus.core.conditions.Wrapper<ExamSession>) captor.capture());
+        return captor.getValue();
     }
 
     @Test
@@ -233,6 +274,20 @@ class ExamSessionServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> examSessionService.autoSaveAnswers(1L, new HashMap<>()));
         assertEquals("当前考试状态不允许保存答案", ex.getMessage());
+    }
+
+    // A-01 #1 回归：读取时仍是 STARTED，但 CAS 写入前学生已并发提交（0 行受影响）——
+    // 必须拒绝保存并抛「考试已结束」，不得把已交会话复活回 STARTED。
+    @Test
+    @DisplayName("autoSaveAnswers - CAS 0 行受影响时拒绝保存（并发提交后不得复活会话）")
+    void testAutoSaveAnswers_CasConflict_rejected() {
+        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
+        when(examSessionMapper.update(isNull(), any())).thenReturn(0);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> examSessionService.autoSaveAnswers(1L, new HashMap<>()));
+        assertEquals("考试已结束，无法保存答案", ex.getMessage());
+        verify(examSessionMapper, never()).updateById(any(ExamSession.class));
     }
 
     // ===================== submitExam =====================
@@ -285,17 +340,24 @@ class ExamSessionServiceImplTest {
     // ===================== forceSubmit =====================
 
     @Test
-    @DisplayName("forceSubmit - 强制交卷成功")
+    @DisplayName("forceSubmit - 强制交卷成功（CAS 定向更新，返回最新会话）")
     void testForceSubmit_Success() {
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
-        when(examSessionMapper.updateById(any(ExamSession.class))).thenReturn(1);
+        ExamSession forceSubmitted = new ExamSession();
+        forceSubmitted.setId(1L);
+        forceSubmitted.setStatus("FORCE_SUBMITTED");
+        forceSubmitted.setSubmitTime(LocalDateTime.now());
+        forceSubmitted.setTimeSpent(300);
+        when(examSessionMapper.selectById(1L)).thenReturn(startedSession, forceSubmitted);
+        when(examSessionMapper.update(isNull(), any())).thenReturn(1);
 
         ExamSession result = examSessionService.forceSubmit(1L);
 
         assertEquals("FORCE_SUBMITTED", result.getStatus());
         assertNotNull(result.getSubmitTime());
         assertNotNull(result.getTimeSpent());
-        verify(examSessionMapper).updateById(startedSession);
+        // 修复 A-01 #2：CAS 定向更新，不再整实体 updateById
+        verify(examSessionMapper).update(isNull(), any());
+        verify(examSessionMapper, never()).updateById(any(ExamSession.class));
     }
 
     @Test
@@ -307,6 +369,26 @@ class ExamSessionServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> examSessionService.forceSubmit(1L));
         assertEquals("该试卷已经提交，无需强制交卷", ex.getMessage());
+    }
+
+    // A-01 #2 回归：读取时仍是 STARTED，但 CAS 写入前学生已并发提交（0 行受影响）——
+    // 不得覆盖学生已交答案，记 warn 后返回当前真实状态。
+    @Test
+    @DisplayName("forceSubmit - CAS 0 行受影响时返回真实状态且不覆盖学生答案")
+    void testForceSubmit_CasConflict_returnsRealState() {
+        ExamSession submittedByStudent = new ExamSession();
+        submittedByStudent.setId(1L);
+        submittedByStudent.setStatus("SUBMITTED");
+        submittedByStudent.setAnswers("{\"101\":\"B\"}");
+        submittedByStudent.setSubmitTime(LocalDateTime.now());
+        when(examSessionMapper.selectById(1L)).thenReturn(startedSession, submittedByStudent);
+        when(examSessionMapper.update(isNull(), any())).thenReturn(0);
+
+        ExamSession result = examSessionService.forceSubmit(1L);
+
+        assertEquals("SUBMITTED", result.getStatus(), "CAS 失败必须返回并发后的真实状态");
+        assertEquals("{\"101\":\"B\"}", result.getAnswers(), "学生已交答案不得被强交覆盖");
+        verify(examSessionMapper, never()).updateById(any(ExamSession.class));
     }
 
     // ===================== getSessionQuestions =====================

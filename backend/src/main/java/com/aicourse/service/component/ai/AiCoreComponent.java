@@ -12,11 +12,14 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.SignalType;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * AI 执行核心组件：LLM 供应商调用出口、消息构建、PromptGuard 护栏与埋点。
@@ -27,9 +30,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 而调用者身份（userId）与归属课程（courseId）由控制器经 {@link AiCallContext} 作用域带入。
  * 未处于作用域内时静默跳过落库——宁可少记一条，也不记出错误的归属。</p>
  *
- * <p>⚠️ <b>覆盖边界（如实记录）</b>：{@link #stream} 的实际调用发生在 SSE 订阅线程上，
- * {@code ThreadLocal} 作用域不会跟随过去，故流式路径<b>不落库</b>；管理端统计页与手册
- * 均已注明"仅统计非流式调用"。</p>
+ * <p><b>流式路径落库（2026-11-13 修复）</b>：{@link #stream} 的实际订阅发生在 SSE 订阅线程上，
+ * {@code ThreadLocal} 作用域不会跟随过去——故调用方须在作用域内经 {@link AiCallContext#capture()}
+ * 捕获不可变快照并传入流式出口，由流的终止回调（完成/失败/取消）按快照归属异步落库。
+ * 未携带快照时静默跳过落库——宁可少记一条，也不记出错误的归属。</p>
  */
 @Slf4j
 @Component
@@ -270,10 +274,64 @@ public class AiCoreComponent {
 
     /**
      * 流式 LLM 调用出口：委托供应商流式接口，逐 token 增量统一做输出清洗。
+     * <p>不带归属快照（兼容旧调用方）：流终止时不落 {@code ai_call_logs}。</p>
      */
     public Flux<String> stream(List<Map<String, String>> messages, double temperature) {
+        return stream(messages, temperature, null);
+    }
+
+    /**
+     * 流式 LLM 调用出口（带归属快照）：终止回调按快照把本次调用 best-effort 异步落 {@code ai_call_logs}。
+     *
+     * <p>落库口径与同步出口 {@code logCall} 一致：成功=流正常完成（completion token 按累计增量估算）；
+     * 失败/客户端中断（{@code ON_ERROR}/{@code ON_CANCEL}）按失败计，失败原因取异常消息，
+     * 无消息时用终止信号兜底（超时在 Reactor 里也以错误信号终止，自然归入失败）。</p>
+     *
+     * <p>落库在独立线程异步执行且全量吞异常（debug 日志）——统计是旁路，
+     * 绝不允许把 SSE 拆链路径搞挂。</p>
+     */
+    public Flux<String> stream(List<Map<String, String>> messages, double temperature,
+                               AiCallContext.Snapshot callInfo) {
+        long startedNanos = System.nanoTime();
+        long inputTokens = estimateInputTokens(messages);
+        // 单订阅内 onNext 串行，StringBuilder 累计安全；仅用于估算 completion token，不落盘原文
+        StringBuilder outputAccumulator = new StringBuilder();
+        AtomicReference<String> errorMsgRef = new AtomicReference<>();
         return llmProvider.stream(messages, temperature)
-                .map(promptGuard::sanitizeOutput);
+                .map(promptGuard::sanitizeOutput)
+                .doOnNext(outputAccumulator::append)
+                .doOnError(e -> errorMsgRef.set(
+                        e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()))
+                .doFinally(signal -> logStreamCall(callInfo, inputTokens,
+                        outputAccumulator.toString(), startedNanos, signal, errorMsgRef.get()));
+    }
+
+    /**
+     * 流式调用落库：仅当携带归属快照时，以异步 best-effort 方式写 {@code ai_call_logs}。
+     * <p>record() 自身已失败安全，这里再包一层 try/catch 兜住异步调度本身的异常（如线程池拒绝），
+     * 只留 debug 日志——落库失败不影响主流程。</p>
+     */
+    private void logStreamCall(AiCallContext.Snapshot callInfo, long inputTokens, String outputText,
+                               long startedNanos, SignalType signal, String upstreamError) {
+        if (callInfo == null || aiCallLogService == null) {
+            return;
+        }
+        boolean success = signal == SignalType.ON_COMPLETE;
+        String errorMsg = success ? null
+                : (upstreamError != null && !upstreamError.isBlank()
+                        ? upstreamError
+                        : "流式调用未正常完成（" + signal + "）");
+        long durationMs = (System.nanoTime() - startedNanos) / 1_000_000L;
+        CompletableFuture.runAsync(() -> {
+            try {
+                aiCallLogService.record(callInfo.userId(), callInfo.courseId(), callInfo.scene(),
+                        providerName(), inputTokens, success ? outputText : null,
+                        durationMs, success, errorMsg);
+            } catch (Exception e) {
+                log.debug("流式 AI 调用落库失败（不影响主流程）: scene={}, err={}",
+                        callInfo.scene(), e.getMessage());
+            }
+        });
     }
 
     /**

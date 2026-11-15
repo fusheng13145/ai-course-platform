@@ -214,7 +214,10 @@ public class AiDialogueComponent {
         messages.add(Map.of("role", "user", "content", safeQuestion));
         core.recordAiToken("chat", core.estimateInputTokens(messages));
 
-        Flux<String> tokens = core.stream(messages, 0.7)
+        // 归属快照必须在本方法（Tomcat 线程、控制器作用域内）捕获：流式订阅发生在 Reactor 线程，
+        // ThreadLocal 作用域跨线程即失效，快照是流终止回调落库（QA_STREAM 场景）的唯一归属来源
+        AiCallContext.Snapshot callInfo = AiCallContext.capture();
+        Flux<String> tokens = core.stream(messages, 0.7, callInfo)
                 .onErrorMap(e -> {
                     log.error("流式问答调用失败: {}", e.getMessage(), e);
                     core.recordAiFailure("chat");
