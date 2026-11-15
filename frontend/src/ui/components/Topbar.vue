@@ -1,6 +1,10 @@
 <template>
   <header class="topbar">
-    <button class="topbar-brand brand" aria-label="云枢 AI 助教：返回首页" @click="go(ROLE_HOME[roleValue])">
+    <button
+      class="topbar-brand brand"
+      aria-label="云枢 AI 助教：返回首页"
+      @click="go(ROLE_HOME[roleValue])"
+    >
       <span class="brand-mark">枢</span>
       <span class="brand-text">
         <b>云枢 AI 助教</b>
@@ -57,8 +61,19 @@
           <Icon class="user-caret" name="chevron" />
         </button>
         <!-- 透明遮罩：点面板外任意处收起菜单；面板自身 z 更高不受影响 -->
-        <div v-if="userMenuOpen" class="user-menu-scrim" aria-hidden="true" @click="userMenuOpen = false"></div>
-        <div v-if="userMenuOpen" class="user-dropdown" role="menu" :aria-label="`${displayName} 的账号菜单`" @keydown.esc="userMenuOpen = false">
+        <div
+          v-if="userMenuOpen"
+          class="user-menu-scrim"
+          aria-hidden="true"
+          @click="userMenuOpen = false"
+        ></div>
+        <div
+          v-if="userMenuOpen"
+          class="user-dropdown"
+          role="menu"
+          :aria-label="`${displayName} 的账号菜单`"
+          @keydown.esc="userMenuOpen = false"
+        >
           <div class="user-dropdown-head">
             <span class="user-avatar">{{ avatar }}</span>
             <span class="user-text">

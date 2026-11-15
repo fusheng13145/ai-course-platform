@@ -79,7 +79,11 @@
         </div>
         <footer v-if="selectedNode" class="card-foot">
           <span>{{ selectedNode.name }} · {{ categoryText(selectedNode.category) }}</span>
-          <span v-if="isStudent" class="chip chip-mute" :title="masteryError || '按当前登录学生计算'">
+          <span
+            v-if="isStudent"
+            class="chip chip-mute"
+            :title="masteryError || '按当前登录学生计算'"
+          >
             我的掌握度 {{ masteryText }}
           </span>
           <button class="text-btn" @click="select(null)">取消选中</button>
@@ -97,7 +101,9 @@
           </header>
           <div class="legend">
             <div class="legend-row">
-              <svg viewBox="0 0 64 10" class="legend-line"><line x1="2" y1="5" x2="62" y2="5" /></svg>
+              <svg viewBox="0 0 64 10" class="legend-line">
+                <line x1="2" y1="5" x2="62" y2="5" />
+              </svg>
               <span>前置依赖（先修 → 后继）</span>
             </div>
             <div class="legend-row">
@@ -111,7 +117,9 @@
             <li>点击图中任意节点：右侧会给出它的学习价值与先修 / 后继清单。</li>
             <li>先修没有掌握时，可把节点设为路径规划的终点，由图谱引擎给出学习顺序。</li>
             <li>路径找到后，图上会以高亮标出整条学习路径。</li>
-            <li v-if="!isStudent">教师可在下方「图谱引擎」把课程图谱同步到 Neo4j 引擎，由引擎执行多跳推理。</li>
+            <li v-if="!isStudent">
+              教师可在下方「图谱引擎」把课程图谱同步到 Neo4j 引擎，由引擎执行多跳推理。
+            </li>
           </ol>
         </template>
 
@@ -125,13 +133,18 @@
           </header>
 
           <div class="kg-chips">
-            <span class="chip" :class="selectedNode.category === 'SKILL' ? 'chip-accent' : 'chip-info'">
+            <span
+              class="chip"
+              :class="selectedNode.category === 'SKILL' ? 'chip-accent' : 'chip-info'"
+            >
               {{ categoryText(selectedNode.category) }}
             </span>
             <span v-if="selectedNode.difficultyLevel" class="chip chip-mute">
               难度 · {{ selectedNode.difficultyLevel }}
             </span>
-            <span class="chip chip-mute">重要性 {{ stars(Number(selectedNode.importance ?? 0)) }}</span>
+            <span class="chip chip-mute"
+              >重要性 {{ stars(Number(selectedNode.importance ?? 0)) }}</span
+            >
             <span v-if="nodeDetail?.estimatedTime" class="chip chip-mute">
               约 {{ nodeDetail.estimatedTime }} 分钟
             </span>
@@ -166,7 +179,14 @@
                 </li>
               </ul>
             </div>
-            <p v-if="!relationGroups.prereqIn.length && !relationGroups.prereqOut.length && !relationGroups.related.length" class="modal-hint">
+            <p
+              v-if="
+                !relationGroups.prereqIn.length &&
+                !relationGroups.prereqOut.length &&
+                !relationGroups.related.length
+              "
+              class="modal-hint"
+            >
               该节点暂无直接关系。
             </p>
           </div>
@@ -854,7 +874,9 @@ watch(() => props.courseId, loadAll, { immediate: true })
 .kg-svg line {
   stroke: var(--line-strong, var(--line));
   stroke-width: 1.3;
-  transition: stroke-opacity 0.2s, stroke 0.2s;
+  transition:
+    stroke-opacity 0.2s,
+    stroke 0.2s;
 }
 .kg-svg line.is-related {
   stroke-dasharray: 5 4;
@@ -876,7 +898,9 @@ watch(() => props.courseId, loadAll, { immediate: true })
   fill: var(--surface-3);
   stroke: var(--accent);
   stroke-width: 1.4;
-  transition: stroke-width 0.15s, fill 0.15s;
+  transition:
+    stroke-width 0.15s,
+    fill 0.15s;
 }
 .kg-node:hover circle {
   stroke-width: 2.4;
