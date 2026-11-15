@@ -367,7 +367,16 @@ interface Task {
   status?: string
 }
 
-const uiRole = computed(() => String(ui.role ?? '').toLowerCase())
+const uiRole = computed(() => {
+  // useUi 暴露的 role 可能是 ref，也可能已解包成字符串：两种形态都要取到值。
+  // 直接 String(ref) 会得到 "[object Object]"，导致角色判定这一层永远失效。
+  const raw = ui.role as unknown
+  const val =
+    raw !== null && typeof raw === 'object' && 'value' in (raw as Record<string, unknown>)
+      ? (raw as { value: unknown }).value
+      : raw
+  return String(val ?? '').toLowerCase()
+})
 const profileRole = computed(() => String(profile.value.role ?? '').toUpperCase())
 const roleKey = computed<'student' | 'teacher' | 'admin'>(() => {
   if (uiRole.value === 'teacher' || uiRole.value === 'admin') return uiRole.value
