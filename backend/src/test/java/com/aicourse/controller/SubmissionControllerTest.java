@@ -181,17 +181,21 @@ class SubmissionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /submissions/1/grade - 教师评分返回200，ID透传")
+    @DisplayName("POST /submissions/1/grade - 教师评分委托服务层 gradeSubmission（P1-2 收口）")
     void grade_authorized_passes_security() throws Exception {
         Submission s = new Submission();
         s.setId(1L);
-        when(submissionService.getById(eq(1L))).thenReturn(s);
+        s.setStatus("GRADED");
+        when(submissionService.gradeSubmission(eq(1L), any(), any(), any())).thenReturn(s);
         mockMvc.perform(post("/submissions/1/grade").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"score\":95,\"feedback\":\"good\"}").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1));
-        verify(submissionService).updateById(any());
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.status").value("GRADED"));
+        // 2026-11-14 P1-2：控制器不再直写实体，统一委托服务层（逾期扣分/百分比/reviewCount 单一口径）
+        verify(submissionService).gradeSubmission(eq(1L), any(), any(), any());
+        verify(submissionService, never()).updateById(any());
     }
 
     @Test

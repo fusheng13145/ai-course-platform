@@ -296,6 +296,27 @@ class QuestionControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("POST /questions/generate-by-ai - 出题治理总闸关闭时403且不触达生成（D3 收口）")
+    void generateByAI_policyDisabled_returns_403() throws Exception {
+        when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(false);
+        mockMvc.perform(post("/questions/generate-by-ai").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).generateByAI(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /questions/random - 未选课学生跨课程取题403且不触达查询（U2 收口）")
+    void randomSelect_studentNotEnrolled_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程"))
+                .when(courseAccessControl).assertCanReadCourse(eq(1L), any());
+        mockMvc.perform(get("/questions/random?courseId=1&count=1").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).randomSelect(any(), any(), any(), anyInt());
+    }
+
+    @Test
     @DisplayName("GET /questions/kp/1 - 返回200且data为数组")
     void getByKnowledgePoint_authorized_returns_success() throws Exception {
         when(questionService.getByKnowledgePoint(any())).thenReturn(List.of(sampleQuestion()));

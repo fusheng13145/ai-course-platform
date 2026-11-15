@@ -1,7 +1,5 @@
 package com.aicourse.controller;
 
-import com.aicourse.constant.SubmissionStatus;
-
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.common.RoleConstants;
@@ -9,7 +7,6 @@ import com.aicourse.dto.GradeDTO;
 import com.aicourse.dto.SubmissionCreateDTO;
 import com.aicourse.dto.SubmissionResubmitDTO;
 import com.aicourse.entity.Submission;
-import com.aicourse.exception.BusinessException;
 import com.aicourse.security.SubmissionAccessControl;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.vo.PlagiarismCheckResultVO;
@@ -22,7 +19,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -139,7 +135,10 @@ public class SubmissionController {
     }
 
     /**
-     * 给提交记录评分（教师/管理员，且须拥有所属课程）
+     * 给提交记录评分（教师/管理员，且须拥有所属课程）。
+     * <p>2026-11-14 P1-2 批阅语义统一：控制器此前直写实体（无事务、无逾期扣分/百分比/
+     * reviewCount/通知），与 {@code SubmissionGradeComponent} 行为分叉。现统一委托
+     * {@link SubmissionService#gradeSubmission}，落库口径单一化。</p>
      */
     @PostMapping("/{id}/grade")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
@@ -148,16 +147,8 @@ public class SubmissionController {
             @Valid @RequestBody GradeDTO grade,
             Authentication auth) {
         accessControl.assertManageable(id, auth);
-        Submission submission = submissionService.getById(id);
-        if (submission == null) {
-            throw new BusinessException(404, "提交记录不存在");
-        }
-        submission.setScore(grade.getScore());
-        submission.setFeedback(grade.getFeedback());
-        submission.setStatus(SubmissionStatus.GRADED);
-        submission.setGradedAt(LocalDateTime.now());
-        submission.setGraderId((Long) auth.getPrincipal());
-        submissionService.updateById(submission);
+        Submission submission = submissionService.gradeSubmission(
+                id, grade.getScore(), grade.getFeedback(), (Long) auth.getPrincipal());
         return ApiResponse.success("评分成功", submission);
     }
 
