@@ -79,6 +79,7 @@ class DisabledRagProviderTest {
         RagContract.RagRetrievalResult r = provider.retrieve(new RagContract.RagRetrieveRequest("q", 1L, 5));
         assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
         assertEquals(ContractPaths.MSG_RAG_UNAVAILABLE, r.error());
+        assertEquals(ContractPaths.MODE_UNAVAILABLE, r.mode());
         assertNull(r.results());
     }
 }

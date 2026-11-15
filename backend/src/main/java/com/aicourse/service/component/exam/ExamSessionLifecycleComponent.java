@@ -4,6 +4,7 @@ import com.aicourse.constant.ExamSessionStatus;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.ExamPaperMapper;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.component.org.TeachingClassSnapshotResolver;
@@ -30,15 +31,18 @@ public class ExamSessionLifecycleComponent {
     private final ExamSessionMapper examSessionMapper;
     private final TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     private final ObjectMapper objectMapper;
+    private final ExamPaperMapper examPaperMapper;
 
     public ExamSessionLifecycleComponent(ExamPaperService examPaperService,
                                          ExamSessionMapper examSessionMapper,
                                          TeachingClassSnapshotResolver teachingClassSnapshotResolver,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         ExamPaperMapper examPaperMapper) {
         this.examPaperService = examPaperService;
         this.examSessionMapper = examSessionMapper;
         this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
         this.objectMapper = objectMapper;
+        this.examPaperMapper = examPaperMapper;
     }
 
     /**
@@ -62,6 +66,11 @@ public class ExamSessionLifecycleComponent {
         if (examPaper.getEndTime() != null && now.isAfter(examPaper.getEndTime())) {
             throw new BusinessException("考试已结束");
         }
+
+        // 修复 A-01 #4：对试卷行加悲观锁（FOR UPDATE），使同卷并发开考的
+        // 「检查尝试次数/活跃会话 → insert 会话」串行化，杜绝双击并发开出两个 STARTED 会话绕过 maxAttempts。
+        // 事务由门面 ExamSessionServiceImpl#startExam 提供（@Transactional），锁随事务提交释放。
+        examPaperMapper.selectByIdForUpdate(examPaperId);
 
         // 检查尝试次数限制
         Integer maxAttempts = examPaper.getMaxAttempts();
@@ -119,10 +128,18 @@ public class ExamSessionLifecycleComponent {
             throw new BusinessException("当前考试状态不允许保存答案");
         }
 
-        // 将答案Map转换为JSON字符串存储
-        String answersJson = mapToJson(answers);
-        session.setAnswers(answersJson);
-        examSessionMapper.updateById(session);
+        // 修复 A-01 #1：改为定向 CAS 更新——只 set 答案与更新时间，且 WHERE 限定 status=STARTED。
+        // 原实现「读整实体 → updateById 全字段回写」，与学生交卷（STARTED→SUBMITTED）并发时
+        // 会用本地快照把已结束会话复活回 STARTED，答案/提交时间一并被旧值覆盖。
+        // 影响行数为 0 说明并发窗口内会话已流转，按既有 API 契约抛业务异常（返回形状不变）。
+        LambdaUpdateWrapper<ExamSession> updateWrapper = new LambdaUpdateWrapper<ExamSession>()
+                .eq(ExamSession::getId, sessionId)
+                .eq(ExamSession::getStatus, ExamSessionStatus.STARTED)
+                .set(ExamSession::getAnswers, mapToJson(answers))
+                .set(ExamSession::getUpdatedAt, LocalDateTime.now());
+        if (examSessionMapper.update(null, updateWrapper) == 0) {
+            throw new BusinessException("考试已结束，无法保存答案");
+        }
     }
 
     /**
@@ -168,16 +185,22 @@ public class ExamSessionLifecycleComponent {
             throw new BusinessException("该试卷已经提交，无需强制交卷");
         }
 
-        // 计算考试用时
+        // 修复 A-01 #2：CAS 更新 STARTED → FORCE_SUBMITTED，不再整实体 updateById。
+        // 原实现会把本地快照（含覆盖前的 answers/timeSpent）整行回写，与学生提交并发时
+        // 会抹掉学生刚交的答案；CAS 失败（0 行）即并发窗口内状态已流转，不得覆盖，
+        // 记 warn 后返回当前真实状态，由调用方自行呈现。
         LocalDateTime now = LocalDateTime.now();
-        long secondsSpent = ChronoUnit.SECONDS.between(session.getStartTime(), now);
-        session.setTimeSpent((int) secondsSpent);
-
-        session.setStatus(ExamSessionStatus.FORCE_SUBMITTED);
-        session.setSubmitTime(now);
-        examSessionMapper.updateById(session);
-
-        return session;
+        LambdaUpdateWrapper<ExamSession> updateWrapper = new LambdaUpdateWrapper<ExamSession>()
+                .eq(ExamSession::getId, sessionId)
+                .eq(ExamSession::getStatus, ExamSessionStatus.STARTED)
+                .set(ExamSession::getStatus, ExamSessionStatus.FORCE_SUBMITTED)
+                .set(ExamSession::getSubmitTime, now)
+                .set(ExamSession::getTimeSpent, (int) ChronoUnit.SECONDS.between(session.getStartTime(), now));
+        int updated = examSessionMapper.update(null, updateWrapper);
+        if (updated == 0) {
+            log.warn("强制交卷未生效：会话已在并发中流转（提交/强交/超时收卷），保留最新落库状态: sessionId={}", sessionId);
+        }
+        return examSessionMapper.selectById(sessionId);
     }
 
     /**

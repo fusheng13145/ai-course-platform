@@ -32,6 +32,11 @@ class CourseChapterControllerTest extends ControllerTestBase {
     private com.aicourse.service.CourseService courseService;
     @MockitoBean
     private com.aicourse.service.TeacherCourseService teachingService;
+    /** 2026-11-13 对象级收口：章节读端点的课程归属/学生成员判定走 CourseAccessControl。 */
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService enrollmentService;
 
     @Test
     @DisplayName("GET /chapters/course/1 - 查询章节树返回200，数组透传")
@@ -227,5 +232,126 @@ class CourseChapterControllerTest extends ControllerTestBase {
         mockMvc.perform(put("/batch-reorder").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"orderList\":[{\"id\":1,\"orderIndex\":0}]}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    // ==================== 2026-11-13 对象级收口：章节读端点 ACL ====================
+
+    /** 构造可变章节树节点（学生视图过滤会在原地改写 children，须用可变集合）。 */
+    private Map<String, Object> chapterNode(long id, String title, boolean published) {
+        Map<String, Object> node = new java.util.LinkedHashMap<>();
+        node.put("id", id);
+        node.put("title", title);
+        node.put("isPublished", published);
+        node.put("submittedCount", 12L);
+        node.put("completionRate", 85.5);
+        Map<String, Object> taskPoint = new java.util.LinkedHashMap<>();
+        taskPoint.put("id", 900L);
+        taskPoint.put("title", "作业A");
+        taskPoint.put("submittedCount", 12L);
+        taskPoint.put("completionRate", 85.5);
+        node.put("taskPoints", new java.util.ArrayList<>(List.of(taskPoint)));
+        node.put("children", new java.util.ArrayList<Map<String, Object>>());
+        return node;
+    }
+
+    private void stubActiveCourse(long courseId, long teacherId) {
+        Course course = new Course();
+        course.setId(courseId);
+        course.setTeacherId(teacherId);
+        course.setStatus("ACTIVE");
+        course.setIsActive(true);
+        when(courseService.getById(courseId)).thenReturn(course);
+    }
+
+    @Test
+    @DisplayName("GET /chapters/course/1 - 他课教师（无课程管理权）返回403且不查树")
+    void getByCourse_crossCourseTeacher_forbidden_403() throws Exception {
+        stubActiveCourse(1L, 1L);
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+
+        mockMvc.perform(get("/chapters/course/1").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(teachingService, never()).getFullChapterTree(anyLong());
+    }
+
+    @Test
+    @DisplayName("GET /chapters/course/1 - 已选课学生可见：未发布章节隐藏、教师统计清零但键位保留")
+    void getByCourse_studentView_filtersUnpublishedAndStripsStats() throws Exception {
+        stubActiveCourse(1L, 1L);
+        when(courseAccessControl.isStudent(any())).thenReturn(true);
+        when(enrollmentService.hasApprovedEnrollment(5L, 1L)).thenReturn(true);
+        Map<String, Object> published = chapterNode(11L, "第一章", true);
+        Map<String, Object> unpublished = chapterNode(12L, "未发布章", false);
+        when(teachingService.getFullChapterTree(eq(1L))).thenReturn(
+                new java.util.ArrayList<>(List.of(published, unpublished)));
+
+        mockMvc.perform(get("/chapters/course/1").with(withUser(5L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(11))
+                // 教师侧提交率统计剥离数值但保留键位（前端结构兼容）
+                .andExpect(jsonPath("$.data[0].submittedCount").value(0))
+                .andExpect(jsonPath("$.data[0].completionRate").value(0))
+                .andExpect(jsonPath("$.data[0].taskPoints[0].submittedCount").value(0))
+                .andExpect(jsonPath("$.data[0].taskPoints[0].completionRate").value(0));
+
+        verify(enrollmentService).hasApprovedEnrollment(eq(5L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /chapters/course/1 - 未选课学生访问停用课程返回403")
+    void getByCourse_unenrolledStudent_invisibleCourse_forbidden_403() throws Exception {
+        Course inactive = new Course();
+        inactive.setId(1L);
+        inactive.setTeacherId(1L);
+        inactive.setStatus("INACTIVE");
+        inactive.setIsActive(false);
+        when(courseService.getById(1L)).thenReturn(inactive);
+        when(courseAccessControl.isStudent(any())).thenReturn(true);
+        when(enrollmentService.hasApprovedEnrollment(5L, 1L)).thenReturn(false);
+
+        mockMvc.perform(get("/chapters/course/1").with(withUser(5L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(teachingService, never()).getFullChapterTree(anyLong());
+    }
+
+    @Test
+    @DisplayName("GET /chapters/1 - 本课程教师读已发布章节详情返回200")
+    void getById_courseTeacher_allowed() throws Exception {
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(1L);
+        chapter.setCourseId(1L);
+        chapter.setIsPublished(true);
+        when(chapterService.getById(eq(1L))).thenReturn(chapter);
+        stubActiveCourse(1L, 1L);
+
+        mockMvc.perform(get("/chapters/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.id").value(1));
+
+        verify(courseAccessControl).assertCanManageCourse(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("GET /chapters/1 - 学生读未发布章节详情返回403")
+    void getById_student_unpublishedChapter_forbidden_403() throws Exception {
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(1L);
+        chapter.setCourseId(1L);
+        chapter.setIsPublished(false);
+        when(chapterService.getById(eq(1L))).thenReturn(chapter);
+        stubActiveCourse(1L, 1L);
+        when(courseAccessControl.isStudent(any())).thenReturn(true);
+        when(enrollmentService.hasApprovedEnrollment(5L, 1L)).thenReturn(true);
+
+        mockMvc.perform(get("/chapters/1").with(withUser(5L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 }

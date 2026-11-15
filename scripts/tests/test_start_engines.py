@@ -13,6 +13,7 @@
 """
 
 import importlib.util
+import os
 import re
 import socket
 import sys
@@ -275,6 +276,43 @@ def test_uvicorn_command_uses_current_interpreter_and_loopback_only():
     # 两个引擎都无鉴权，绑 0.0.0.0 等于把图谱写接口开放到局域网
     assert "127.0.0.1" in cmd and "--host" in cmd
     assert "0.0.0.0" not in cmd
+
+
+def test_venv_python_points_at_the_service_local_venv():
+    """重依赖只装在服务自己的 `.venv` 里；用系统解释器起 8002 会静默降级（端口在听、检索恒空）。
+
+    因此解释器选择必须是「优先服务 venv」，且 venv 缺失时**显式返回 None** 让调用方上报，
+    不允许悄悄换回 `sys.executable` 而仍宣称引擎真实可用。
+    """
+    path = eng.venv_python("rag", exists=lambda p: True)
+    assert path is not None
+    assert str(ROOT / "python-services" / "rag_service") in path
+    if os.name == "nt":
+        assert path.endswith(r".venv\Scripts\python.exe")
+    else:  # pragma: no cover - 本机为 Windows，这里只是不炸
+        assert path.endswith(".venv/bin/python")
+
+    # 阴性对照：venv 缺失必须返回 None（KG 本机就没有 .venv，这是被允许的降级）
+    assert eng.venv_python("rag", exists=lambda p: False) is None
+
+
+def test_venv_python_checks_the_file_system_with_a_file_test(tmp_path):
+    """回归：`default_exists` 是 `is_dir()`（给 Neo4j 目录/模型快照用的），
+    拿它判 `python.exe` 会恒为 False —— 启动器就会一直静默回落到系统解释器（2026-11-13 实测踩中）。
+    """
+    sub = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
+    exe = tmp_path.joinpath("python-services", "rag_service", ".venv", *sub)
+    exe.parent.mkdir(parents=True)
+    exe.write_text("", encoding="utf-8")
+    assert eng.venv_python("rag", root=tmp_path) == str(exe)
+    # 只有目录、没有解释器文件时仍然返回 None
+    assert eng.venv_python("kg", root=tmp_path) is None
+
+
+def test_engine_python_is_the_shared_decision_both_launchers_use():
+    """`start-all.py` 也构造 uvicorn 命令；解释器的裁决只准有一处（否则两条路径会分叉）。"""
+    assert eng.engine_python("kg") == (eng.venv_python("kg") or sys.executable)
+    assert eng.engine_python("rag") == (eng.venv_python("rag") or sys.executable)
 
 
 def test_wait_until_succeeds_on_later_attempt_and_times_out_otherwise():

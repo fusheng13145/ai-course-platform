@@ -112,6 +112,9 @@ class RAGControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PUT /rag/documents/1 - TEACHER 更新文档返回 code=200 且字段透传")
     void updateDocument_authorized_passes_security() throws Exception {
+        // 2026-11-13 对象级收口：更新前先经 listDocuments 反查文档归属课程（引擎契约），再过课程管理权
+        when(ragService.listDocuments(null))
+                .thenReturn("{\"documents\":[{\"id\":1,\"document_name\":\"a\",\"course_id\":9}]}");
         when(ragService.updateDocument(anyLong(), anyString())).thenReturn("{\"id\":1,\"updated\":true}");
 
         mockMvc.perform(put("/rag/documents/1").contentType(MediaType.APPLICATION_JSON).content("new content")
@@ -120,6 +123,7 @@ class RAGControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
 
+        verify(ragService).listDocuments(null);
         verify(ragService).updateDocument(eq(1L), anyString());
     }
 
@@ -143,6 +147,9 @@ class RAGControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /rag/documents/1 - TEACHER 删除文档返回 code=200 且字段透传")
     void deleteDocument_authorized_passes_security() throws Exception {
+        // 2026-11-13 对象级收口：删除前先经 listDocuments 反查文档归属课程，再过课程管理权
+        when(ragService.listDocuments(null))
+                .thenReturn("{\"documents\":[{\"id\":1,\"document_name\":\"a\",\"course_id\":9}]}");
         when(ragService.deleteDocument(anyLong())).thenReturn("{\"deleted\":true}");
 
         mockMvc.perform(delete("/rag/documents/1").with(withUser(1L, "TEACHER")))
@@ -150,6 +157,7 @@ class RAGControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.deleted").value(true));
 
+        verify(ragService).listDocuments(null);
         verify(ragService).deleteDocument(eq(1L));
     }
 

@@ -191,9 +191,45 @@ class ClassroomControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /classrooms/1/students/1 - 教师添加学生返回200")
+    @DisplayName("POST /classrooms/1/students/1 - 班级归属教师添加学生返回200")
     void addStudent_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：班级成员增删须为该班归属教师（advisor_id）或管理员
+        Classroom owned = new Classroom();
+        owned.setId(1L);
+        owned.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(owned);
+
         mockMvc.perform(post("/classrooms/1/students/1").with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(classroomService).addStudent(eq(1L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /classrooms/1/students/1 - 非归属教师改他人班级返回403且不落服务")
+    void addStudent_crossTeacher_forbidden_403() throws Exception {
+        // 教师 A（id=9）试图向教师 B（advisor_id=1）的班级加人：对象级收口 403
+        Classroom othersClassroom = new Classroom();
+        othersClassroom.setId(1L);
+        othersClassroom.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(othersClassroom);
+
+        mockMvc.perform(post("/classrooms/1/students/1").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(classroomService, never()).addStudent(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("POST /classrooms/1/students/1 - 管理员非归属教师仍可管理班级成员")
+    void addStudent_admin_bypassesOwnership() throws Exception {
+        Classroom othersClassroom = new Classroom();
+        othersClassroom.setId(1L);
+        othersClassroom.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(othersClassroom);
+
+        mockMvc.perform(post("/classrooms/1/students/1").with(withUser(9L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(classroomService).addStudent(eq(1L), eq(1L));
@@ -214,8 +250,14 @@ class ClassroomControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("DELETE /classrooms/1/students/1 - 教师移除学生返回200")
+    @DisplayName("DELETE /classrooms/1/students/1 - 班级归属教师移除学生返回200")
     void removeStudent_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：同 addStudent，仅归属教师或管理员可移除
+        Classroom owned = new Classroom();
+        owned.setId(1L);
+        owned.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(owned);
+
         mockMvc.perform(delete("/classrooms/1/students/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
@@ -223,17 +265,18 @@ class ClassroomControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("DELETE /classrooms/1/students/1 - 未认证返回401")
-    void removeStudent_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(delete("/classrooms/1/students/1"))
-                .andExpect(status().isUnauthorized());
-    }
+    @DisplayName("DELETE /classrooms/1/students/1 - 非归属教师移除他人班级学生返回403且不落服务")
+    void removeStudent_crossTeacher_forbidden_403() throws Exception {
+        Classroom othersClassroom = new Classroom();
+        othersClassroom.setId(1L);
+        othersClassroom.setAdvisorId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(othersClassroom);
 
-    @Test
-    @DisplayName("DELETE /classrooms/1/students/1 - STUDENT角色返回403")
-    void removeStudent_student_forbidden_403() throws Exception {
-        mockMvc.perform(delete("/classrooms/1/students/1").with(withUser(2L, "STUDENT")))
-                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/classrooms/1/students/1").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(classroomService, never()).removeStudent(anyLong(), anyLong());
     }
 
     @Test

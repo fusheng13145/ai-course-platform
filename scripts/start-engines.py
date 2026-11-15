@@ -122,6 +122,11 @@ def default_exists(path: str) -> bool:
     return Path(path).is_dir()
 
 
+def default_file_exists(path: str) -> bool:
+    """解释器是**文件**，不能用上面的 `is_dir()` 判（那样 venv 永远判成不存在）。"""
+    return Path(path).is_file()
+
+
 def discover_neo4j_home(env: dict, exists=default_exists) -> str | None:
     """定位 Neo4j 安装目录。写了 NEO4J_HOME 但目录不存在时**不回落到默认位**——
     静默换库会让图谱对不上，必须显式失败并上报。"""
@@ -189,8 +194,32 @@ def engine_env(base: dict, *, service: str, neo4j_uri=None, api_key=None, offlin
     return env
 
 
+def venv_python(service: str, *, root: Path = ROOT, exists=default_file_exists) -> str | None:
+    """服务自己的 venv 解释器；不存在返回 None，由调用方回落当前解释器。
+
+    为什么不能直接用 `sys.executable`：重依赖（sentence-transformers / torch / faiss）
+    只装在 `python-services/<service>/.venv` 里，而启动器通常由系统 Python 跑。
+    用系统解释器起 8002，`rag_engine` 会因缺包恒走降级分支——端口在听、健康检查也 200，
+    但检索永远是空/占位，这类失败没有任何报错，只能靠解释器路径本身钉住。
+    venv 缺失是**如实上报**的降级（KG 本机就没有 .venv），不是静默换解释器。
+    """
+    parts = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
+    candidate = root / "python-services" / SERVICE_DIRS[service] / ".venv" / parts[0] / parts[1]
+    return str(candidate) if exists(str(candidate)) else None
+
+
+def engine_python(service: str) -> str:
+    """两个启动器共用的解释器选择：优先服务自己的 venv，缺失才回落当前解释器。
+
+    放在这里而不是各启动器各写一份：`start-engines.py` 与 `start-all.py` 都构造 uvicorn
+    命令，两处一旦分叉就会出现「一键启动用系统解释器、单起引擎用 venv」这种只在一半
+    路径上成立的假绿（本仓已因同类分叉吃过 DR-36 的教训）。
+    """
+    return venv_python(service) or sys.executable
+
+
 def uvicorn_command(module: str, port: int, python_exe=None) -> list:
-    """用当前解释器（不是 PATH 上的 python），只绑 127.0.0.1——两个引擎都无鉴权，
+    """用 `python_exe` 起 uvicorn（缺省为当前解释器），只绑 127.0.0.1——两个引擎都无鉴权，
     绑 0.0.0.0 等于把图谱写接口开放到局域网。"""
     return [
         python_exe or sys.executable,
@@ -296,10 +325,16 @@ def wait_for_engine(service: str, *, timeout: float = ENGINE_START_TIMEOUT) -> b
 
 def start_engine(service: str, env: dict) -> bool:
     workdir = ROOT / "python-services" / SERVICE_DIRS[service]
-    cmd = uvicorn_command(APP_MODULES[service], PORTS[service])
     if not workdir.is_dir():
         print(f"[FAIL] 服务目录不存在：{workdir}")
         return False
+    own_python = venv_python(service)
+    if own_python is None:
+        print(f"[WARN] {service} 没有自己的 .venv，回落当前解释器 {sys.executable}"
+              "（重依赖缺失时会静默降级，请在服务目录建 venv 后重跑）")
+    python_exe = engine_python(service)
+    print(f"[INFO] {service} 解释器：{python_exe}")
+    cmd = uvicorn_command(APP_MODULES[service], PORTS[service], python_exe)
     spawn_detached(cmd, workdir, env, workdir / f"{service}-engine.log")
     return wait_for_engine(service)
 

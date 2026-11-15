@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.integration.ContractPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -57,6 +58,7 @@ class RAGServiceImplTest {
         assertTrue(svc.buildIndex(1L).contains("\"code\":503"));
         assertTrue(svc.clearIndex(1L).contains("\"code\":503"));
         assertTrue(svc.retrieve("梯度", 1L, 3).contains("\"code\":503"));
+        assertEquals(ContractPaths.MODE_UNAVAILABLE, svc.retrieveTyped("梯度", 1L, 3).mode());
         assertFalse(svc.healthCheck());
     }
 
@@ -81,6 +83,11 @@ class RAGServiceImplTest {
 
         Map<?, ?> ret = OBJECT_MAPPER.readValue(svc.retrieve("梯度", null, 2), Map.class);
         assertEquals(1, ((java.util.List<?>) ret.get("results")).size());
+
+        // 类型化返回是问答主路径的判据来源：mode 必须原样透传，不能被序列化层丢掉
+        com.aicourse.integration.rag.RagContract.RagRetrievalResult typed = svc.retrieveTyped("梯度", null, 2);
+        assertEquals(ContractPaths.MODE_ENGINE, typed.mode());
+        assertEquals(1, typed.results().size());
 
         Map<?, ?> built = OBJECT_MAPPER.readValue(svc.buildIndex(7L), Map.class);
         assertEquals(Boolean.TRUE, built.get("success"));
@@ -121,7 +128,7 @@ class RAGServiceImplTest {
         switch (path) {
             case "/api/v1/rag/health" -> body = "{}";
             case "/api/v1/rag/ask" -> body = "{\"answer\":\"proxy-ok\",\"sources\":[]}";
-            case "/api/v1/rag/retrieve" -> body = "{\"results\":[{\"document_id\":1,\"document_name\":\"a\",\"relevance_score\":0.9}]}";
+            case "/api/v1/rag/retrieve" -> body = "{\"mode\":\"ENGINE\",\"results\":[{\"document_id\":1,\"document_name\":\"a\",\"relevance_score\":0.9}]}";
             case "/api/v1/rag/index/build/7" -> body = "{\"success\":true,\"indexed_chunks\":3}";
             default -> body = "{\"success\":true}";
         }

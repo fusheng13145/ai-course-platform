@@ -56,7 +56,7 @@ class HttpRagProviderContractTest {
         server.createContext(ContractPaths.RAG_DOCUMENTS + "/5", ex -> respond(ex, 200,
                 "{\"id\":5,\"document_name\":\"d5\"}"));
         server.createContext(ContractPaths.RAG_RETRIEVE, ex -> respond(ex, 200,
-                "{\"results\":[{\"document_id\":1,\"document_name\":\"d1\",\"relevance_score\":0.8,\"snippet\":\"s\"}]}"));
+                "{\"mode\":\"ENGINE\",\"results\":[{\"document_id\":1,\"document_name\":\"d1\",\"relevance_score\":0.8,\"snippet\":\"s\"}]}"));
         server.createContext("/api/v1/rag/index/build/1", ex -> respond(ex, 200,
                 "{\"success\":true,\"indexed_chunks\":10}"));
         server.createContext("/api/v1/rag/index/1", ex -> respond(ex, 200,
@@ -107,6 +107,7 @@ class HttpRagProviderContractTest {
         RagContract.RagRetrievalResult r = newProvider().retrieve(new RagContract.RagRetrieveRequest("二叉树", 1L, 5));
         assertEquals(1, r.results().size());
         assertEquals(0.8, r.results().get(0).relevanceScore(), 1e-9);
+        assertEquals(ContractPaths.MODE_ENGINE, r.mode(), "检索结果必须带上引擎应答的 mode，供上层判定是否真实引擎证据");
     }
 
     @Test
@@ -192,6 +193,7 @@ class HttpRagProviderContractTest {
         RagContract.RagRetrievalResult r = newProvider().retrieve(new RagContract.RagRetrieveRequest("q", 1L, 5));
         assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code(),
                 "检索路径同样须识别 body 的 503/UNAVAILABLE，降级为 code=503 而非结果为空的伪成功");
+        assertEquals(ContractPaths.MODE_UNAVAILABLE, r.mode(), "降级检索结果必须带 mode=UNAVAILABLE");
     }
 
     @Test
