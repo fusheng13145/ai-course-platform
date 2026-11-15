@@ -28,7 +28,7 @@ import java.util.List;
  *   <tr><th>方法</th><th>路径</th><th>请求体关键字段</th><th>响应关键字段</th></tr>
  *   <tr><td>GET</td><td>{@code /api/v1/graph/health}</td><td>-</td><td>任意 2xx 即健康</td></tr>
  *   <tr><td>POST</td><td>{@code /api/v1/graph/path/plan}</td><td>source_id, target_id, max_hops</td><td>path[], edges[], hops</td></tr>
- *   <tr><td>POST</td><td>{@code /api/v1/graph/ingest}</td><td>course_id</td><td>status, course_id, synced_nodes</td></tr>
+ *   <tr><td>POST</td><td>{@code /api/v1/graph/ingest}</td><td>course_id, nodes[], relations[]</td><td>status, course_id, synced_nodes, upserted_nodes, upserted_relations, pruned_nodes</td></tr>
  *   <tr><td>POST</td><td>{@code /api/v1/graph/subgraph}</td><td>course_id, max_hops</td><td>status, nodes[], edges[]</td></tr>
  * </table>
  * 状态码语义：{@code 200} 成功；{@code 503} 引擎未接入/不可用（降级占位）。
@@ -47,12 +47,14 @@ public interface KnowledgeGraphContract {
     PathPlanResult planLearningPath(PathPlanRequest request);
 
     /**
-     * 向图谱引擎提交课程知识点/关系（摄取）。
+     * 向图谱引擎提交某课程的知识点/关系<b>全量快照</b>（幂等摄取）。
+     * <p>快照由消费侧 MySQL 生成，引擎按 {@code id} MERGE 节点、重建该课程出边并清理快照外的
+     * 陈旧节点——两侧数据以 MySQL 为唯一事实来源，不再各算各的。</p>
      *
-     * @param courseId 课程ID
-     * @return 摄取结果（code/mode/status/syncedPoints）
+     * @param request 课程ID + 该课程知识点/关系快照
+     * @return 摄取结果（code/mode/status/syncedNodes/syncedRelations）
      */
-    IngestResult ingest(Long courseId);
+    IngestResult ingest(IngestRequest request);
 
     /**
      * 获取课程全量子图（节点 + 边）。
@@ -82,6 +84,18 @@ public interface KnowledgeGraphContract {
     record PathEdge(Long sourceId, Long targetId, String relationType) {
     }
 
+    /** 摄取节点：消费侧 MySQL 知识点快照的一条（id 与 MySQL 知识点主键一致）。 */
+    record IngestNode(Long id, Long courseId, String name, String content, String type) {
+    }
+
+    /** 摄取关系：消费侧 MySQL 知识点关系快照的一条（id 与关系主键一致）。 */
+    record IngestRelation(Long id, Long sourceId, Long targetId, String relationType) {
+    }
+
+    /** 摄取请求：某课程的全量快照。 */
+    record IngestRequest(Long courseId, List<IngestNode> nodes, List<IngestRelation> relations) {
+    }
+
     /**
      * 路径规划结果（数据结构定义）。
      * <ul>
@@ -103,10 +117,12 @@ public interface KnowledgeGraphContract {
      *   <li>{@code code}：200 成功 / 503 降级；</li>
      *   <li>{@code status}：引擎返回的同步状态（占位实现为 null）；</li>
      *   <li>{@code mode}：LOCAL（占位）/ ENGINE；</li>
-     *   <li>{@code syncedPoints}：本次确认/同步的知识点数量。</li>
+     *   <li>{@code syncedNodes}：摄取后引擎内该课程的节点总数；</li>
+     *   <li>{@code syncedRelations}：本次实际写入/确认的关系数量。</li>
      * </ul>
      */
-    record IngestResult(int code, String status, String mode, Long courseId, long syncedPoints, String note) {
+    record IngestResult(int code, String status, String mode, Long courseId,
+                        long syncedNodes, long syncedRelations, String note) {
     }
 
     /**

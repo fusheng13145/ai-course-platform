@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ClassroomService;
 import com.aicourse.vo.ClassroomDetailVO;
 import com.aicourse.vo.ClassroomPendingCountVO;
@@ -128,29 +129,54 @@ public class ClassroomController {
     }
 
     /**
-     * 向班级添加学生（教师/管理员权限）
+     * 向班级添加学生（教师/管理员权限）。
+     * <p>对象级收口（2026-11-13）：班级成员增删原先仅角色校验，教师 A 可改教师 B 的班级。
+     * 对齐 {@code AdminClassAccessControl.assertAdminClassAdvisor} 的单一事实源口径：
+     * {@code classrooms.advisor_id == 当前用户}，管理员放行。</p>
      * @param id        班级ID
      * @param studentId 学生ID
      * @return 操作结果
      */
     @PostMapping("/{id}/students/{studentId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> addStudent(@PathVariable Long id, @PathVariable Long studentId) {
+    public ApiResponse<Void> addStudent(@PathVariable Long id, @PathVariable Long studentId,
+                                        Authentication auth) {
+        assertClassroomOwner(id, auth);
         classroomService.addStudent(id, studentId);
         return ApiResponse.success("添加成功", null);
     }
 
     /**
-     * 从班级移除学生（教师/管理员权限）
+     * 从班级移除学生（教师/管理员权限）。
+     * <p>对象级收口（2026-11-13）：同 addStudent，仅班级归属教师或管理员可移除成员。</p>
      * @param id        班级ID
      * @param studentId 学生ID
      * @return 操作结果
      */
     @DeleteMapping("/{id}/students/{studentId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> removeStudent(@PathVariable Long id, @PathVariable Long studentId) {
+    public ApiResponse<Void> removeStudent(@PathVariable Long id, @PathVariable Long studentId,
+                                           Authentication auth) {
+        assertClassroomOwner(id, auth);
         classroomService.removeStudent(id, studentId);
         return ApiResponse.success("移除成功", null);
+    }
+
+    /**
+     * 班级归属校验：判定单一事实源为 {@code classrooms.advisor_id}（班级归属教师），
+     * 管理员放行；非归属教师 403。班级不存在 404。
+     */
+    private void assertClassroomOwner(Long classroomId, Authentication auth) {
+        Classroom classroom = classroomService.getById(classroomId);
+        if (classroom == null) {
+            throw new BusinessException(com.aicourse.common.ApiCode.NOT_FOUND, "班级不存在");
+        }
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> "ROLE_ADMIN".equals(g.getAuthority()));
+        if (!isAdmin && !((Long) auth.getPrincipal()).equals(classroom.getAdvisorId())) {
+            throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN,
+                    "只有该班级的归属教师或管理员可管理班级成员");
+        }
     }
 
     /**

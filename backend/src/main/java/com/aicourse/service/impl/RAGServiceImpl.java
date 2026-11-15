@@ -5,6 +5,7 @@ import com.aicourse.integration.rag.DisabledRagProvider;
 import com.aicourse.integration.rag.HttpRagProvider;
 import com.aicourse.integration.rag.RagContract;
 import com.aicourse.integration.rag.RagContract.RagAskRequest;
+import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
 import com.aicourse.integration.rag.RagContract.RagRetrieveRequest;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -106,6 +107,12 @@ public class RAGServiceImpl implements RAGService {
     @Override
     public String retrieve(String query, Long courseId, int topK) {
         return serialize(provider.retrieve(new RagRetrieveRequest(query, courseId, topK)));
+    }
+
+    @Override
+    public RagRetrievalResult retrieveTyped(String query, Long courseId, int topK) {
+        // 直接透传契约结果：mode 是「引擎是否真实应答」的判据，经 JSON 序列化再反解只会丢语义。
+        return provider.retrieve(new RagRetrieveRequest(query, courseId, topK));
     }
 
     private String serialize(Object obj) {

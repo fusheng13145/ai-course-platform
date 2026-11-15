@@ -3,6 +3,7 @@ package com.aicourse.service.component.ai;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,6 +35,8 @@ class AiDialogueComponentTest {
 
     @Mock private AiCoreComponent core;
     @Mock private RAGService ragService;
+    // 既有缺口修复：generateQuestion 依赖出题证据组件（已提交代码即有），此前未 mock 导致注入为 null
+    @Mock private CourseEvidenceComponent evidence;
 
     @InjectMocks
     private AiDialogueComponent dialogue;
@@ -65,5 +68,27 @@ class AiDialogueComponentTest {
         String prompt = captureQuestionPrompt();
         assertTrue(prompt.contains("JSON") && (prompt.contains("只") || prompt.contains("仅")),
                 "提示词必须要求只返回 JSON，实际：" + prompt);
+    }
+
+    @Test
+    @DisplayName("streamChat 在归属作用域内捕获快照传给流式出口；作用域外为 null（不落库归属）")
+    void streamChat_passesCapturedSnapshotToCoreStream() {
+        when(core.isProviderEnabled()).thenReturn(true);
+        when(core.neutralizeInjection(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(core.estimateInputTokens(any())).thenReturn(1L);
+        when(core.stream(anyList(), eq(0.7), any())).thenReturn(reactor.core.publisher.Flux.empty());
+
+        // 模拟控制器以 AiCallContext.run 建立作用域（真实链路中归属来自认证用户与课程参数）
+        AiCallContext.run(7L, null, "QA_STREAM", () -> dialogue.streamChat("你好", null));
+        // 作用域外直连调用（如内部任务）：快照必须为 null，流式出口据此跳过落库
+        dialogue.streamChat("你好", null);
+
+        ArgumentCaptor<AiCallContext.Snapshot> captor =
+                ArgumentCaptor.forClass(AiCallContext.Snapshot.class);
+        org.mockito.Mockito.verify(core, org.mockito.Mockito.times(2))
+                .stream(anyList(), eq(0.7), captor.capture());
+        org.junit.jupiter.api.Assertions.assertNotNull(captor.getAllValues().get(0));
+        org.junit.jupiter.api.Assertions.assertEquals("QA_STREAM", captor.getAllValues().get(0).scene());
+        org.junit.jupiter.api.Assertions.assertNull(captor.getAllValues().get(1));
     }
 }
