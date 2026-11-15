@@ -345,6 +345,22 @@ watch(
   },
 )
 
+// 2026-11-14 P2-5：`/:role/courses/:id/:tab?` 组件复用下切换课程时 props.courseId 变化，
+// 而 courseIdRef 仅初始化一次——批阅页残留上一门课的任务与提交。现同步 ref 并重拉任务
+// 列表（loadTasks 内部会按新课程重置选中任务并连带刷新提交）。
+watch(
+  () => props.courseId,
+  (value) => {
+    if (value != null && value !== courseIdRef.value) {
+      courseIdRef.value = value
+      selectedId.value = null
+      selectedTaskId.value = null
+      returnModal.row = null
+      void loadTasks()
+    }
+  },
+)
+
 const {
   statusFilter,
   filteredSubmissions,
