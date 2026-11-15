@@ -34,6 +34,8 @@ class AiDialogueComponentTest {
 
     @Mock private AiCoreComponent core;
     @Mock private RAGService ragService;
+    // generateQuestion 依赖出题证据组件（本组引入），不 mock 会被注入为 null
+    @Mock private CourseEvidenceComponent evidence;
 
     @InjectMocks
     private AiDialogueComponent dialogue;
