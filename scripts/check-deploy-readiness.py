@@ -41,11 +41,17 @@ REQUIRED_FILES = [
     "deploy/env.production.template",
     "deploy/docker-compose.ghcr.yml",
     ".github/workflows/deploy.yml",
-    "docs/恢复演练记录模板.md",
-    "docs/异地备份与TLS件方案骨架.md",
-    "docs/B-12-P-08-拆包与排期方案.md",
-    "docs/组织映射清单模板.md",
 ]
+
+# 2026-11-15 文档治理（根目录 6→2、docs 46→10）把 4 份过程稿并入活跃文档后删除。
+# 补件语义不随之消失：恢复演练模板与异地备份/TLS 骨架落在部署文档，B-12/P-08 与
+# 组织映射清单的落地口径落在后端待办项与 docs/README 的归档说明。这里按「文件 + 章节
+# 关键词」断言——文档再被合并搬迁时改锚点即可，也不会退化回「只看文件在不在」。
+DOC_ANCHORS = {
+    "docs/部署文档.md": ("6.9 异地备份", "9.3 恢复演练"),
+    "docs/后端待办项.md": ("B-12",),
+    "docs/README.md": ("组织映射清单",),
+}
 
 PY_SCRIPTS = [
     "scripts/check-required-env.py",
@@ -73,6 +79,21 @@ def check_files():
         record("补件文件存在", "FAIL", "缺失：" + ", ".join(missing))
     else:
         record("补件文件存在", "PASS", f"{len(REQUIRED_FILES)} 个文件均存在")
+
+
+def check_doc_anchors():
+    missing = []
+    for rel, anchors in DOC_ANCHORS.items():
+        path = REPO / rel
+        if not path.is_file():
+            missing.append(f"{rel}（文件缺失）")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        missing.extend(f"{rel}：缺章节「{a}」" for a in anchors if a not in text)
+    if missing:
+        record("补件文档章节", "FAIL", "缺失：" + ", ".join(missing))
+    else:
+        record("补件文档章节", "PASS", f"{len(DOC_ANCHORS)} 份活跃文档的关键章节均在")
 
 
 def check_python_syntax():
@@ -230,6 +251,7 @@ def main():
     args = parser.parse_args()
 
     check_files()
+    check_doc_anchors()
     check_python_syntax()
     check_shell_syntax()
     check_https_static_fixture()
