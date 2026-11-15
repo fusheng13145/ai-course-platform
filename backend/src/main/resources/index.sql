@@ -755,6 +755,7 @@ CREATE TABLE exam_sessions (
   percentage DECIMAL(5,2) NULL COMMENT '得分百分比',
   answers JSON NULL COMMENT '学生答案，JSON格式',
   question_scores JSON NULL COMMENT '每题得分，JSON格式',
+  question_comments JSON NULL COMMENT '人工阅卷评语，JSON格式：{questionId: comment}，与 question_scores 同键（V20）',
   ip_address VARCHAR(50) NULL COMMENT '考试IP地址',
   user_agent VARCHAR(500) NULL COMMENT 'User-Agent字符串',
   cheating_flags JSON NULL COMMENT '作弊检测结果JSON，独立于answers存储（detectedAt/flagCount/details/riskLevel）',

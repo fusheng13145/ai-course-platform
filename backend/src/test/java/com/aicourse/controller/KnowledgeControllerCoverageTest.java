@@ -23,6 +23,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -726,30 +729,16 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - 完整结构：跳过空白名/无名/已存在，未知题型回落 CONCEPT，关系按名称解析成边")
+    @DisplayName("POST /knowledge/extract - 完整结构：控制器委托服务层抽取落库（P2-3 下沉）")
     void extractGraph_fullStructure_createsNodesAndEdges() throws Exception {
-        // 库中已有：一条正常名称（用于命中去重分支）、一条名称为 null（走 ep.getName() != null 为假的守卫）
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(
-                List.of(point(500L, "已存在知识点"), point(501L, null)));
-        stubSaveAssigningIds(900L);
-        when(relationService.createRelation(any(), any(), any(), isNull(), isNull()))
-                .thenAnswer(inv -> relation(700L, inv.getArgument(0), inv.getArgument(1)));
-
-        String aiJson = "{\"nodes\":["
-                + "{\"name\":\" 栈 \",\"content\":\"LIFO 结构\",\"type\":\"principle\"},"
-                + "{\"name\":\"   \",\"content\":\"空白名应跳过\"},"
-                + "{\"content\":\"没有 name 应跳过\"},"
-                + "{\"name\":\"已存在知识点\"},"
-                + "{\"name\":\"新点\",\"type\":\"weird-type\"},"
-                + "{\"name\":\"队列\"}"
-                + "],\"relations\":["
-                + "{\"source\":\"栈\",\"target\":\"队列\",\"relationType\":\"prerequisite\"},"
-                + "{\"target\":\"队列\"},"
-                + "{\"source\":\"栈\",\"target\":\"栈\"},"
-                + "{\"source\":\"查无此点\",\"target\":\"队列\"},"
-                + "{\"source\":\"队列\"}"
-                + "]}";
+        String aiJson = "{\"nodes\":[{\"name\":\"栈\"}]}";
         when(aiService.extractKnowledgeGraphJson("课程内容")).thenReturn(aiJson);
+        Map<String, Object> svcResult = new LinkedHashMap<>();
+        svcResult.put("nodeCount", 3);
+        svcResult.put("nodes", List.of(Map.of("name", "栈")));
+        svcResult.put("relationCount", 1);
+        svcResult.put("relations", List.of(Map.of("source", "栈")));
+        when(knowledgePointService.extractAndSaveGraph(1L, aiJson)).thenReturn(svcResult);
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"课程内容\"}")
@@ -762,20 +751,9 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("AI 抽取完成，共写入 3 个知识点"))
                 .andExpect(jsonPath("$.data.nodeCount").value(3))
-                .andExpect(jsonPath("$.data.nodes.length()").value(3))
-                .andExpect(jsonPath("$.data.relationCount").value(1))
-                .andExpect(jsonPath("$.data.relations[0].source").value("栈"))
-                .andExpect(jsonPath("$.data.relations[0].target").value("队列"))
-                .andExpect(jsonPath("$.data.relations[0].relationType").value("PREREQUISITE"))
-                .andExpect(jsonPath("$.data.parseError").doesNotExist());
-
-        ArgumentCaptor<KnowledgePoint> cap = ArgumentCaptor.forClass(KnowledgePoint.class);
-        verify(knowledgePointService, times(3)).save(cap.capture());
-        KnowledgeTypeAssertions.assertAll(cap.getAllValues());
-        // 关系两端由名称解析为 ID：栈=901、队列=903（902 是「新点」）
-        verify(relationService).createRelation(901L, 903L, "PREREQUISITE", null, null);
-        // 5 条候选关系只成了 1 条：其余分别因缺 source、自环、名称查不到、缺 target 被跳过
-        verify(relationService, times(1)).createRelation(any(), any(), any(), isNull(), isNull());
+                .andExpect(jsonPath("$.data.relationCount").value(1));
+        // P2-3：解析与落库下沉服务层，控制器仅以 (courseId, 原始 AI 文本) 委托
+        verify(knowledgePointService).extractAndSaveGraph(eq(1L), eq(aiJson));
     }
 
     @Test
@@ -821,10 +799,11 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - 大模型返回无 JSON 结构的纯文本：报「未返回有效结构」而不是 500")
+    @DisplayName("POST /knowledge/extract - 大模型返回无 JSON 结构：服务层 parseError 原样透传")
     void extractGraph_noJsonObject_reportsParseError() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
         when(aiService.extractKnowledgeGraphJson("纯文本没有花括号")).thenReturn("模型说它无法抽取");
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
+                .thenReturn(Map.of("parseError", "AI 未返回有效结构", "nodeCount", 0, "nodes", List.of()));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"纯文本没有花括号\"}")
@@ -836,16 +815,15 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.parseError").value("AI 未返回有效结构"))
-                .andExpect(jsonPath("$.data.nodeCount").value(0))
-                .andExpect(jsonPath("$.data.nodes").isArray());
-        verify(knowledgePointService, never()).save(any(KnowledgePoint.class));
+                .andExpect(jsonPath("$.data.nodeCount").value(0));
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - 有花括号但 JSON 语法坏：整体解析失败降级，不影响接口可用性")
+    @DisplayName("POST /knowledge/extract - JSON 语法坏：服务层降级 parseError，接口保持可用")
     void extractGraph_malformedJson_reportsParseFailure() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
         when(aiService.extractKnowledgeGraphJson(any())).thenReturn("{nodes: [坏掉的 JSON}");
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
+                .thenReturn(Map.of("parseError", "AI 返回结构解析失败，请稍后重试", "nodeCount", 0));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"任意内容\"}")
@@ -860,10 +838,11 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - nodes 是对象而非数组：不进入节点循环，也不误建知识点")
+    @DisplayName("POST /knowledge/extract - nodes 非数组：服务层计数为 0，控制器透传")
     void extractGraph_nodesNotArray_createsNothing() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
         when(aiService.extractKnowledgeGraphJson(any())).thenReturn("{\"nodes\":{\"a\":1},\"relations\":[]}");
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
+                .thenReturn(Map.of("nodeCount", 0, "relationCount", 0));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"内容\"}")
@@ -875,16 +854,15 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nodeCount").value(0))
                 .andExpect(jsonPath("$.data.relationCount").value(0));
-        verify(knowledgePointService, never()).save(any(KnowledgePoint.class));
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - relations 是对象而非数组：跳过连边但节点照常写入")
+    @DisplayName("POST /knowledge/extract - relations 非数组：服务层跳过连边、节点照常，控制器透传")
     void extractGraph_relationsNotArray_stillCreatesNodes() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
-        stubSaveAssigningIds(950L);
         when(aiService.extractKnowledgeGraphJson(any()))
                 .thenReturn("{\"nodes\":[{\"name\":\"甲\"}],\"relations\":{\"x\":1}}");
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
+                .thenReturn(Map.of("nodeCount", 1, "relationCount", 0));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"内容\"}")
@@ -896,19 +874,16 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nodeCount").value(1))
                 .andExpect(jsonPath("$.data.relationCount").value(0));
-        verify(relationService, never()).createRelation(any(), any(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - 单条关系建边失败：内部吞掉，其余节点与响应不受影响")
+    @DisplayName("POST /knowledge/extract - 单条关系建边失败：服务层内部吞掉，控制器透传不受影响")
     void extractGraph_singleRelationFailure_swallowedAndContinues() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
-        stubSaveAssigningIds(980L);
         when(aiService.extractKnowledgeGraphJson(any()))
                 .thenReturn("{\"nodes\":[{\"name\":\"甲\"},{\"name\":\"乙\"}],"
                         + "\"relations\":[{\"source\":\"甲\",\"target\":\"乙\"}]}");
-        when(relationService.createRelation(any(), any(), any(), isNull(), isNull()))
-                .thenThrow(new IllegalStateException("关系类型不合法"));
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
+                .thenReturn(Map.of("nodeCount", 2, "relationCount", 0, "relations", List.of()));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"内容\"}")
@@ -920,16 +895,15 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nodeCount").value(2))
                 .andExpect(jsonPath("$.data.relationCount").value(0))
-                .andExpect(jsonPath("$.data.relations").isArray())
-                .andExpect(jsonPath("$.data.relations.length()").value(0))
                 .andExpect(jsonPath("$.data.parseError").doesNotExist());
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - 大模型返回空对象：既无 nodes 也无 relations，计数全 0")
+    @DisplayName("POST /knowledge/extract - 大模型返回空对象：计数全 0，控制器透传")
     void extractGraph_emptyObject_returnsZeroCounts() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
         when(aiService.extractKnowledgeGraphJson(any())).thenReturn("{}");
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
+                .thenReturn(Map.of("nodeCount", 0, "relationCount", 0));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"内容\"}")
@@ -940,17 +914,16 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
         mockMvc.perform(asyncDispatch(started))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nodeCount").value(0))
-                .andExpect(jsonPath("$.data.relationCount").value(0))
-                .andExpect(jsonPath("$.data.parseError").doesNotExist());
+                .andExpect(jsonPath("$.data.relationCount").value(0));
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - ```json 代码块包裹：extractJsonObject 先剥壳再解析")
+    @DisplayName("POST /knowledge/extract - ```json 代码块包裹：控制器把原始文本整体交给服务层剥壳")
     void extractGraph_codeBlockWrappedJson_parsed() throws Exception {
-        when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
-        stubSaveAssigningIds(990L);
-        when(aiService.extractKnowledgeGraphJson(any()))
-                .thenReturn("这是模型的废话前缀\n```json\n{\"nodes\":[{\"name\":\"归一化\"}]}\n```");
+        String fenced = "这是模型的废话前缀\n```json\n{\"nodes\":[{\"name\":\"归一化\"}]}\n```";
+        when(aiService.extractKnowledgeGraphJson(any())).thenReturn(fenced);
+        when(knowledgePointService.extractAndSaveGraph(eq(1L), eq(fenced)))
+                .thenReturn(Map.of("nodeCount", 1, "nodes", List.of(Map.of("name", "归一化", "pointType", "CONCEPT"))));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"内容\"}")
@@ -961,8 +934,7 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
         mockMvc.perform(asyncDispatch(started))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nodeCount").value(1))
-                .andExpect(jsonPath("$.data.nodes[0].name").value("归一化"))
-                .andExpect(jsonPath("$.data.nodes[0].pointType").value("CONCEPT"));
+                .andExpect(jsonPath("$.data.nodes[0].name").value("归一化"));
     }
 
     /**

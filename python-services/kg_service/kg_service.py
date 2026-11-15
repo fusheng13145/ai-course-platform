@@ -91,6 +91,23 @@ class IngestRelationIn(BaseModel):
     relation_type: str = Field(min_length=1, max_length=255)
 
 
+class IngestNodeIn(BaseModel):
+    """快照节点：id 与 Java 侧 MySQL 知识点主键一致，入库按 id MERGE。"""
+    id: int = Field(ge=1)
+    course_id: Optional[int] = Field(default=None, ge=1)
+    name: str = Field(min_length=1, max_length=255)
+    content: str = ""
+    type: str = "CONCEPT"
+
+
+class IngestRelationIn(BaseModel):
+    """快照关系：id 与 Java 侧 MySQL 知识点关系主键一致。"""
+    id: int = Field(ge=1)
+    source_id: int = Field(ge=1)
+    target_id: int = Field(ge=1)
+    relation_type: str = Field(min_length=1, max_length=255)
+
+
 class IngestIn(BaseModel):
     course_id: int = Field(ge=1)
     # 兼容旧调用：不带 nodes/relations 时退化为只回读已同步数量，不写入

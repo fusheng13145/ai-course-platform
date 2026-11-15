@@ -72,7 +72,8 @@ class DemoSeedMigrationIsolationTest {
             "V18__purge_demo_seed.sql",
             // V19（2026-11-13）：压测残留数据清理（纯 DELETE，无建表不产演示数据）—— 结构迁移
             "V19__purge_stress_test_data.sql",
-            // V20（2026-11-14）：资源方向迁移（#89）已占用 V20
+            // V20（2026-11-14）：exam_sessions 人工阅卷评语列（纯加列）—— 结构迁移，非演示数据
+            "V20__exam_session_question_comments.sql",
             // V21（2026-11-14）：file_type 列扩容 100（对齐上传 MIME 白名单）—— 结构迁移
             "V21__resources_file_type_len.sql");
 

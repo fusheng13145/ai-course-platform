@@ -11,6 +11,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;
@@ -85,7 +86,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @MockitoBean
     private LearningRecommendationService learningRecommendationService;
     @MockitoBean
-    private com.aicourse.service.KnowledgePointService knowledgePointService;
+    private KnowledgePointService knowledgePointService;
 
     /**
      * 会话夹具。owner 必须显式给出：库里 ai_chat_sessions.user_id 是 NOT NULL，

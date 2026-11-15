@@ -76,6 +76,15 @@ ENGINE_EXPORTS = {
         "RAG_DATA_DIR",
         "RAG_CHUNK_SIZE",
         "RAG_CHUNK_OVERLAP",
+        # B4（2026-11-15）：HyDE 与 Cross-Encoder 重排的开关/模型/阈值同在引擎侧读取，
+        # 不导出则 .env 配了也不生效（DR-63 同型盲区，本文件导出名单护栏已覆盖）
+        "RAG_HYDE_ENABLED",
+        "RAG_HYDE_TIMEOUT",
+        "RAG_HYDE_ALLOW_OLLAMA",
+        "RAG_RERANK_ENABLED",
+        "RAG_RERANK_MODEL",
+        "RAG_RERANK_POOL",
+        "RAG_RERANK_MAX_LENGTH",
         "HF_HOME",
         "HF_HUB_CACHE",
     ),

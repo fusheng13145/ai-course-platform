@@ -29,10 +29,19 @@ import java.util.Optional;
 public class OperationLogAspect {
 
     private final OperationLogService operationLogService;
+    /**
+     * 审计 IP 单一来源（DR-66 收口口径）：与限流键/登录节流共用同一
+     * {@link TrustedClientIpResolver}，由 {@code app.security.trust-proxy-header} 单点决定
+     * 是否信任反代头。审计切面此前自读 {@code X-Forwarded-For} 最左段——直连形态下该头
+     * 客户端可控，审计记录可被伪造头污染（2026-11-14 审计发现 N4）。
+     */
+    private final com.aicourse.util.TrustedClientIpResolver clientIpResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OperationLogAspect(OperationLogService operationLogService) {
+    public OperationLogAspect(OperationLogService operationLogService,
+                              com.aicourse.util.TrustedClientIpResolver clientIpResolver) {
         this.operationLogService = operationLogService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Around("execution(* com.aicourse.controller..*.*(..))")
@@ -137,10 +146,7 @@ public class OperationLogAspect {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty()) ip = request.getHeader("X-Real-IP");
-        if (ip == null || ip.isEmpty()) ip = request.getRemoteAddr();
-        return ip;
+        return clientIpResolver.resolve(request);
     }
 
     private String resolveAction(String httpMethod, String methodName) {

@@ -123,7 +123,10 @@ public class StudentController {
     }
 
     /**
-     * 退出课程
+     * 退出课程。
+     * <p>2026-11-14 P1-3 退课语义统一：学生端此前硬删选课行（{@code removeById}），
+     * 而服务层 {@code unenroll} 为软删（is_active=false，容量统计与历史留痕都依赖软删行）——
+     * 学生退课绕过了容量口径并物理消失记录。现两入口统一走服务层软删。</p>
      */
     @DeleteMapping("/courses/{courseId}/enroll")
     public ApiResponse<Void> unenrollCourse(@PathVariable Long courseId, Authentication auth) {
@@ -135,7 +138,7 @@ public class StudentController {
         if (enrollment == null) {
             throw new BusinessException("未加入该课程");
         }
-        enrollmentService.removeById(enrollment.getId());
+        enrollmentService.unenroll(enrollment.getId(), userId);
         return ApiResponse.success("已退出课程", null);
     }
 
@@ -150,10 +153,12 @@ public class StudentController {
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
+        // V14 口径对齐（2026-11-14）：有效选课 = is_active 且审批通过（此前漏了 APPROVED 过滤）
         List<CourseEnrollment> enrollments = enrollmentService.list(
                 new LambdaQueryWrapper<CourseEnrollment>()
                         .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getIsActive, true));
+                        .eq(CourseEnrollment::getIsActive, true)
+                        .eq(CourseEnrollment::getApprovalStatus, "APPROVED"));
         if (enrollments.isEmpty()) {
             return ApiResponse.success(Collections.emptyList());
         }
@@ -166,13 +171,26 @@ public class StudentController {
                         .in(courseId == null, Task::getCourseId, courseIds)
                         .eq(Task::getStatus, "PUBLISHED")
                         .orderByDesc(Task::getCreatedAt));
-        // 过滤已提交的
-        Set<Long> submittedTaskIds = submissionService.list(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getStudentId, userId))
-                .stream().map(Submission::getTaskId).collect(Collectors.toSet());
+        // 2026-11-14 P1-4：按「最新一次提交的状态」判定待办——此前只要有任意提交行即从
+        // 待办剔除，被退回（RETURNED）待重做的作业从待办消失。现口径：无提交，或
+        // 最新一次提交为 RETURNED（允许重交）→ 仍属待办；SUBMITTED/GRADED → 完成。
+        Map<Long, Submission> latestByTask = new HashMap<>();
+        for (Submission s : submissionService.list(
+                new LambdaQueryWrapper<Submission>().eq(Submission::getStudentId, userId))) {
+            Submission cur = latestByTask.get(s.getTaskId());
+            int a = s.getAttemptNumber() != null ? s.getAttemptNumber() : 0;
+            int b = cur != null && cur.getAttemptNumber() != null ? cur.getAttemptNumber() : -1;
+            if (cur == null || a >= b) {
+                latestByTask.put(s.getTaskId(), s);
+            }
+        }
+        Set<Long> finishedTaskIds = latestByTask.values().stream()
+                .filter(s -> s.getStatus() != null
+                        && ("SUBMITTED".equals(s.getStatus()) || "GRADED".equals(s.getStatus())))
+                .map(Submission::getTaskId)
+                .collect(Collectors.toSet());
         tasks = tasks.stream()
-                .filter(t -> !submittedTaskIds.contains(t.getId()))
+                .filter(t -> !finishedTaskIds.contains(t.getId()))
                 .collect(Collectors.toList());
         return ApiResponse.success(tasks);
     }

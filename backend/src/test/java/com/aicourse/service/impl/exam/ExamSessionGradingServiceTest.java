@@ -451,6 +451,56 @@ class ExamSessionGradingServiceTest {
         assertEquals("请先完成自动阅卷", ex.getMessage());
     }
 
+    @Test
+    @DisplayName("人工阅卷 - 评语按题持久化（P1-8/D5 收口：comment 此前被静默丢弃）")
+    void testManualGrade_commentPersisted() throws Exception {
+        testSession.setStatus("GRADED");
+        testSession.setQuestionScores("{\"101\":\"5\"}");
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        // 类型感知桩：scores 与 comments 两个 readValue 调用按 TypeReference 泛型区分
+        when(objectMapper.readValue(anyString(), any(TypeReference.class))).thenAnswer(inv -> {
+            com.fasterxml.jackson.core.type.TypeReference<?> ref = inv.getArgument(1);
+            return ref.getType().getTypeName().contains("String")
+                    ? new HashMap<Long, String>()
+                    : new HashMap<Long, BigDecimal>(Map.of(101L, new BigDecimal("5")));
+        });
+        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
+            Object arg = inv.getArgument(0);
+            if (arg instanceof Map<?, ?> m && !m.isEmpty()
+                    && m.values().iterator().next() instanceof String) {
+                return "{\"101\":\"good\"}";
+            }
+            return "{}";
+        });
+        when(examPaperService.getById(1L)).thenReturn(testExamPaper);
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        gradingService.manualGrade(1L, 101L, new BigDecimal("8"), "good");
+
+        assertEquals("{\"101\":\"good\"}", testSession.getQuestionComments(),
+                "评语必须与 question_scores 同键落库（P1-8）");
+        verify(examSessionMapper).updateById((ExamSession) any());
+    }
+
+    @Test
+    @DisplayName("人工阅卷 - 空白评语不落评语键也不清旧值")
+    void testManualGrade_blankComment_leavesCommentsUntouched() {
+        testSession.setStatus("GRADED");
+        testSession.setQuestionComments("{\"101\":\"旧评语\"}");
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        ExamQuestion eq = new ExamQuestion();
+        eq.setQuestionId(101L);
+        eq.setExamPaperId(1L);
+        eq.setPoints(new BigDecimal("5"));
+        when(examQuestionService.getOne(any(LambdaQueryWrapper.class))).thenReturn(eq);
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        gradingService.manualGrade(1L, 101L, new BigDecimal("3"), "  ");
+
+        assertEquals("{\"101\":\"旧评语\"}", testSession.getQuestionComments(),
+                "空白评语不得清掉既有评语");
+    }
+
     // ==================== D5 人工阅卷分数边界校验 ====================
 
     @Test
