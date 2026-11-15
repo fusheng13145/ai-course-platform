@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.dto.AutoComposeDTO;
+import com.aicourse.dto.ExamQuestionBatchDTO;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -250,6 +252,110 @@ class ExamPaperServiceImplTest {
         assertThrows(BusinessException.class, () -> service.copyExamPaper(1L, "x"));
     }
 
+    // ===================== updateExamPaper（A-02 #5 / #8） =====================
+
+    @Test
+    @DisplayName("updateExamPaper 白名单：status/isActive/creatorId 不经请求体透传（A-02 #5）")
+    void update_stripsStatusFields() {
+        ExamPaper patch = new ExamPaper();
+        patch.setTitle("改标题");
+        patch.setStatus("PUBLISHED");     // 试图绕审核直发
+        patch.setIsActive(Boolean.FALSE);
+        patch.setCreatorId(777L);         // 试图改归属
+        patch.setTotalScore(new BigDecimal("100")); // paper 无题目 → 跳过总分校验
+
+        service.updateExamPaper(1L, patch);
+
+        ArgumentCaptor<ExamPaper> captor = ArgumentCaptor.forClass(ExamPaper.class);
+        verify(examPaperMapper).updateById(captor.capture());
+        assertNull(captor.getValue().getStatus(), "status 必须被白名单剔除，审核流转只走专用端点");
+        assertNull(captor.getValue().getIsActive());
+        assertNull(captor.getValue().getCreatorId());
+        assertEquals(1L, captor.getValue().getId());
+        assertEquals("改标题", captor.getValue().getTitle(), "普通业务字段照常更新");
+    }
+
+    @Test
+    @DisplayName("updateExamPaper 已配置题目时总分与分值合计不一致抛 400（A-02 #8）")
+    void update_totalScoreMismatch_rejected() {
+        ExamQuestion eq = new ExamQuestion();
+        eq.setQuestionId(9L);
+        eq.setPoints(new BigDecimal("30"));
+        when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
+
+        ExamPaper patch = new ExamPaper();
+        patch.setTotalScore(new BigDecimal("100")); // 题目合计只有 30
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.updateExamPaper(1L, patch));
+        assertTrue(ex.getMessage().contains("总分与题目分值合计不一致"),
+                "拒绝信息应给出两侧分值，实际=" + ex.getMessage());
+        verify(examPaperMapper, never()).updateById(any(ExamPaper.class));
+    }
+
+    @Test
+    @DisplayName("updateExamPaper 总分与分值合计一致（或卷面未配题）时正常更新")
+    void update_totalScoreMatch_ok() {
+        ExamQuestion eq = new ExamQuestion();
+        eq.setQuestionId(9L);
+        eq.setPoints(new BigDecimal("30"));
+        when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
+
+        ExamPaper patch = new ExamPaper();
+        patch.setTotalScore(new BigDecimal("30"));
+
+        assertDoesNotThrow(() -> service.updateExamPaper(1L, patch));
+        verify(examPaperMapper).updateById(any(ExamPaper.class));
+    }
+
+    // ===================== replaceExamQuestions 状态门禁（A-02 #7） =====================
+
+    @Test
+    @DisplayName("replaceExamQuestions PUBLISHED 试卷拒绝换题（A-02 #7：防篡改在考学生题目与判分口径）")
+    void replaceQuestions_published_rejected() {
+        paper.setStatus("PUBLISHED");
+        ExamQuestionBatchDTO.ExamQuestionItem item = new ExamQuestionBatchDTO.ExamQuestionItem();
+        item.setQuestionId(9L);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.replaceExamQuestions(1L, List.of(item)));
+        assertTrue(ex.getMessage().contains("不允许替换题目"), "实际=" + ex.getMessage());
+        verify(examQuestionService, never()).remove(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("replaceExamQuestions PENDING_REVIEW 试卷拒绝换题（待审内容冻结）")
+    void replaceQuestions_pendingReview_rejected() {
+        paper.setStatus("PENDING_REVIEW");
+        ExamQuestionBatchDTO.ExamQuestionItem item = new ExamQuestionBatchDTO.ExamQuestionItem();
+        item.setQuestionId(9L);
+
+        assertThrows(BusinessException.class, () -> service.replaceExamQuestions(1L, List.of(item)));
+        verify(examQuestionService, never()).remove(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("replaceExamQuestions REJECTED 试卷允许换题并回填题目数与总分")
+    void replaceQuestions_rejected_allowed() {
+        paper.setStatus("REJECTED");
+        when(questionService.listByIds(anyCollection()))
+                .thenReturn(List.of(q(9L, "SINGLE", new BigDecimal("10"), null)));
+        doReturn(true).when(examQuestionService).saveBatch(anyCollection());
+
+        ExamQuestionBatchDTO.ExamQuestionItem item = new ExamQuestionBatchDTO.ExamQuestionItem();
+        item.setQuestionId(9L);
+        item.setPoints(new BigDecimal("10"));
+
+        List<ExamQuestion> rows = service.replaceExamQuestions(1L, List.of(item));
+
+        assertEquals(1, rows.size());
+        assertEquals(new BigDecimal("10"), rows.get(0).getPoints());
+        ArgumentCaptor<ExamPaper> captor = ArgumentCaptor.forClass(ExamPaper.class);
+        verify(examPaperMapper).updateById(captor.capture());
+        assertEquals(1, captor.getValue().getQuestionCount());
+        assertEquals(new BigDecimal("10"), captor.getValue().getTotalScore());
+    }
+
     // ===================== getPaperStatistics =====================
 
     @Test
@@ -412,5 +518,38 @@ class ExamPaperServiceImplTest {
         when(questionService.list(any(Wrapper.class)))
                 .thenReturn(List.of(q(1L, "MULTI", new BigDecimal("5"), null)));
         assertThrows(BusinessException.class, () -> service.autoComposeExamPaper(baseDto(), 99L));
+    }
+
+    // ===================== autoComposeExamPaper 总分校验（A-02 #8） =====================
+
+    @Test
+    @DisplayName("autoCompose 显式传入总分与题目分值合计不一致抛 400（A-02 #8：拒绝静默覆盖）")
+    void compose_totalScoreMismatch_rejected() {
+        when(questionService.list(any(Wrapper.class)))
+                .thenReturn(List.of(q(1L, "SINGLE", new BigDecimal("5"), null),
+                        q(2L, "SINGLE", new BigDecimal("5"), null)));
+        AutoComposeDTO d = baseDto();
+        d.setTotalScore(new BigDecimal("100")); // 规则选出 2 题 × 5 分，合计只有 10
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.autoComposeExamPaper(d, 99L));
+        assertTrue(ex.getMessage().contains("总分与题目分值合计不一致"),
+                "实际=" + ex.getMessage());
+        verify(examPaperMapper, never()).insert(any(ExamPaper.class));
+    }
+
+    @Test
+    @DisplayName("autoCompose 显式传入总分与合计一致时按合计落库")
+    void compose_totalScoreMatch_ok() {
+        when(questionService.list(any(Wrapper.class)))
+                .thenReturn(List.of(q(1L, "SINGLE", new BigDecimal("5"), null),
+                        q(2L, "SINGLE", new BigDecimal("5"), null)));
+        AutoComposeDTO d = baseDto();
+        d.setTotalScore(new BigDecimal("10")); // 与 2 × 5 合计一致
+
+        ExamPaper r = service.autoComposeExamPaper(d, 99L);
+
+        assertEquals(new BigDecimal("10"), r.getTotalScore());
+        verify(examPaperMapper).insert(any(ExamPaper.class));
     }
 }

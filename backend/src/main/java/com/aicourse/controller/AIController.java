@@ -209,8 +209,11 @@ public class AIController {
      * <p>
      * 传入 {@code courseId} 时，服务层会先检索课程资料做接地，并把出处随流回传；
      * 检索失败/未命时不中断，sources 为空数组（降级纯 LLM 直答）。
-     * <p>⚠️ 该路径<b>不落</b> {@code ai_call_logs}：实际调用发生在 SSE 订阅线程上，
-     * 而调用归属是线程级作用域，跨线程即失效——少记一条好过记错归属（见 {@code AiCoreComponent} 注释）。
+     * <p>调用归属（2026-11-13 修复）：本端点同样触发真实 LLM 流式调用，与 {@code /qa/ask}
+     * 同口径以 {@link AiCallContext#run} 建立归属作用域；流式订阅跨线程失效，故服务层在
+     * 作用域内捕获不可变快照随 Flux 携带，流终止回调据此把调用异步落 {@code ai_call_logs}
+     * （scene=QA_STREAM），消除管理端统计对流式调用的盲区。配额由 {@code AiQuotaInterceptor}
+     * 在连接建立前按 1 次调用计数（超限 429，语义与 POST 路径一致）。
      *
      * @param question 用户提问内容
      * @param courseId 归属课程（可选）；用于检索课程资料做接地并回传出处
@@ -218,8 +221,12 @@ public class AIController {
      */
     @GetMapping(value = "/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamChat(@RequestParam @NotBlank(message = "提问内容不能为空") String question,
-                                   @RequestParam(required = false) Long courseId) {
-        QaStreamVO stream = aiService.streamChat(question, courseId);
+                                   @RequestParam(required = false) Long courseId,
+                                   Authentication auth) {
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+        // 作用域仅覆盖 Tomcat 线程内的服务编排：AiDialogueComponent 在其中捕获归属快照供流式落库
+        QaStreamVO stream = AiCallContext.run(userId, courseId, "QA_STREAM",
+                () -> aiService.streamChat(question, courseId));
         // 出处与 /qa/ask 同口径：原文下发，不做 HTML 转义
         List<QaSourceVO> sources = stream.getSources() != null ? stream.getSources() : List.of();
         return stream.getTokens()
