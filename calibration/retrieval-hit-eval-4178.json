@@ -1,0 +1,95 @@
+{
+  "generated_at": "2026-11-15T21:19:01",
+  "course_id": 4178,
+  "course_name": "计算机网络",
+  "top_k": 5,
+  "total": 10,
+  "recalled": 10,
+  "recall_rate": 1.0,
+  "keyword_hit": 9,
+  "keyword_hit_rate": 0.9,
+  "errors": 0,
+  "caveat": "规则化近似；R-K2 的最终结论需人工或标注集判定，不得用本表替代",
+  "rows": [
+    {
+      "id": "CN-001",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "OSI 参考模型自底向上分为物理层、数据链路层、网络层、传输层、会话层、表示层、应用层七层，第三层是网络层，负责寻址与路由；传输层负责进程之间端到端的可靠或不可靠传输。TCP/IP 体系实际只有四层：网络接口层、网际层、传输层、应用层，其中"
+    },
+    {
+      "id": "CN-002",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "校验和计算覆盖首部、数据与伪首部。TCP 提供面向连接、可靠有序、字节流服务、点对点单播，不直接支持组播。TCP 三次握手的主要目的是同步双方的初始序号并确认双向收发能力；两次握手无法确认客户端的接收能力，还会浪费服务器资源，因此不可省略。"
+    },
+    {
+      "id": "CN-003",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "传输层把网络层送到主机的分组进一步送到进程，提供端到端进程通信。UDP 是无连接的数据报服务，头部小、时延低，不提供可靠交付、不保证报文有序、也没有自动流量控制，牺牲可靠性换取低开销，适合实时业务；其校验和计算覆盖首部、数据与伪首部。TCP"
+    },
+    {
+      "id": "CN-004",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": false,
+      "source_count": 5,
+      "top1_preview": "权威服务器逐级迭代查询；普通查询使用 UDP，区域传送需要可靠传输因此使用 TCP。HTTP 是请求/响应式协议，报文由请求行或状态行、首部行与主体组成；状态码 304 表示资源未修改、客户端应读取本地缓存，需配合 ETag 与 If-No"
+    },
+    {
+      "id": "CN-005",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "通用方法是先统计各子网所需主机数，按 2^n-2 不小于需求取最小的 n，再从 /24 向主机位借位确定掩码。网络地址与广播地址不可分配给主机，因此 /26 提供 62 个可用主机地址。从用户输入网址到页面渲染的协议流程是本章主线，也是抓包"
+    },
+    {
+      "id": "CN-006",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "NS 记录。解析过程通常先查本地缓存，客户端向本地域名服务器发起递归查询，本地服务器再向根、顶级域、权威服务器逐级迭代查询；普通查询使用 UDP，区域传送需要可靠传输因此使用 TCP。HTTP 是请求/响应式协议，报文由请求行或状态行、首部"
+    },
+    {
+      "id": "CN-007",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "校验和计算覆盖首部、数据与伪首部。TCP 提供面向连接、可靠有序、字节流服务、点对点单播，不直接支持组播。TCP 三次握手的主要目的是同步双方的初始序号并确认双向收发能力；两次握手无法确认客户端的接收能力，还会浪费服务器资源，因此不可省略。"
+    },
+    {
+      "id": "CN-008",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "-Ford 为基础，路由器只与邻居交换整张路由表，按下一跳与距离更新，收敛依赖逐跳传播，容易出现计数到无穷；RIP 限制最大跳数为 15，16 跳记为不可达，正是为了控制路由环带来的慢收敛。链路状态算法要求每个路由器泛洪链路状态信息、构建全"
+    },
+    {
+      "id": "CN-009",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "能力，还会浪费服务器资源，因此不可省略。连接释放由四次挥手完成，被动关闭方最后发送的报文段标志位是 FIN，随后进入 TIME_WAIT。TCP 用滑动窗口实现流量控制，接收方通过 rwnd 通告余量，发送方实际使用有效发送窗口取 min("
+    },
+    {
+      "id": "CN-010",
+      "status": "ok",
+      "recalled": true,
+      "keyword_hit": true,
+      "source_count": 5,
+      "top1_preview": "机重组。ARP 协议工作在数据链路层与网络层之间，作用是由 IP 地址求取同网段主机的 MAC 地址，是转发与组帧的前提；它不负责把域名解析为 IP，也不负责动态分配地址。IPv4 编址采用前缀表示法，CIDR 消除了有类地址边界，支持更灵"
+    }
+  ]
+}

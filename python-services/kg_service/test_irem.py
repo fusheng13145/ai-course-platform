@@ -177,7 +177,8 @@ def test_module_has_no_storage_or_network_side_effects():
             imported.append(node.module or "")
 
     roots = {name.split(".")[0] for name in imported if name}
-    assert roots <= {"re", "__future__"}, f"只允许标准库导入，实际：{sorted(roots)}"
+    # json 是标准库（B6 五类判定需要解析 LLM 输出）；存储/驱动/网络库仍一律禁止（见下方 forbidden）
+    assert roots <= {"re", "json", "__future__"}, f"只允许标准库导入，实际：{sorted(roots)}"
     forbidden = ("kg_store", "kg_service", "neo4j", "pymysql", "sqlite3", "requests", "httpx")
     for name in imported:
         assert not any(token in name for token in forbidden), name

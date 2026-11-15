@@ -56,7 +56,7 @@ public class StudentTaskComponent {
     }
 
     /** 标记任务点完成（手动/按类型） */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> markTaskComplete(Long userId, Long courseId, Long taskId, String completionType) {
         taskSupport.assertEnrolled(userId, courseId);
         Task task = taskService.getById(taskId);
@@ -89,7 +89,7 @@ public class StudentTaskComponent {
     }
 
     /** 视频心跳上报（#65：视频进度唯一真相源收口，反拖拽累计） */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> reportVideoHeartbeat(Long userId, Long courseId, Long taskId, Long resourceId,
                                                     Integer position, Integer watchedDuration,
                                                     Integer totalDuration, Double playbackSpeed) {
@@ -154,7 +154,7 @@ public class StudentTaskComponent {
     }
 
     /** 测验提交与即时判分（P1-3：答错客观题自动收录错题本） */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<String, String> rawAnswers) {
         taskSupport.assertEnrolled(userId, courseId);
         Task task = taskService.getById(taskId);

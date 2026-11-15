@@ -144,7 +144,7 @@ class UploadResourceAccessFilterTest {
     }
 
     @Test
-    @DisplayName("全员可见资源：放行且不判归属（与上传默认值 visible_to_all=true 一致）")
+    @DisplayName("全员可见资源：放行且不判归属（显式 visible_to_all=true 的行；2026-11-15 起上传默认已改为 false）")
     void publicResourceSkipsOwnershipCheck() throws Exception {
         loginAs(5001L, "STUDENT");
         when(resourceMapper.selectOne(any(Wrapper.class))).thenReturn(resource(true, 4060L));

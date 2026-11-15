@@ -44,7 +44,39 @@ IREM：隐式关系抽取（Implicit Relation Extraction Module）——仅产�
 
 from __future__ import annotations
 
+import json
 import re
+
+_JSON_FENCE = re.compile(r"```(?:json|JSON)?\s*(.*?)```", re.S)
+
+
+def _loads_lenient(text):
+    """容错解析模型输出：去 ``` 围栏后严格解析，失败再截取首个 JSON 片段。
+
+    本模块刻意**不 import 其他项目模块**：`test_irem` 有一条机械守卫要求 irem 只依赖
+    标准库（保证它是可离线、无副作用的纯函数模块），因此解析逻辑在这里自持一份。
+    """
+    if not isinstance(text, str) or not text.strip():
+        return None
+    body = text.strip()
+    match = _JSON_FENCE.search(body)
+    if match:
+        body = match.group(1).strip()
+    try:
+        return json.loads(body)
+    except Exception:
+        pass
+    starts = [i for i in (body.find("["), body.find("{")) if i >= 0]
+    if not starts:
+        return None
+    start = min(starts)
+    end = max(body.rfind("]"), body.rfind("}"))
+    if end <= start:
+        return None
+    try:
+        return json.loads(body[start:end + 1])
+    except Exception:
+        return None
 
 # 句子分隔符：中英文句末标点与分号、换行
 _SENTENCE_SEP = re.compile(r"[。！？!?；;\n\r]+")
@@ -313,3 +345,185 @@ def infer_implicit_relations(nodes, texts, *, min_score=0.3, top_n=None,
     if _is_int(top_n) and top_n >= 0:
         ranked = ranked[:top_n]
     return ranked
+
+
+# ---------------------------------------------------------------- 五类关系判定（LLM 版）
+#
+# 论文（杜彩丽）把课程知识点关系归纳为五类：包含、前驱、同一、兄弟、其他。
+# 上面的规则推断只能给出 3 类（INCLUDES / PREREQUISITE / RELATED），
+# 「同一」与「兄弟」必须靠语义判断（规则无法从字面区分并列与同义），因此这里补 LLM 判定。
+#
+# 能力声明：与规则版同一纪律——输出仍是**候选**，未经人工标注集评估，
+# 不得表述为"已实现且有效的 IREM 能力"；入库前须人工抽检。
+
+RELATION_SAME = "SAME"
+RELATION_SIBLING = "SIBLING"
+RELATION_OTHER = "OTHER"
+
+FIVE_CLASSES = (
+    RELATION_INCLUDES,
+    RELATION_PREREQUISITE,
+    RELATION_SAME,
+    RELATION_SIBLING,
+    RELATION_OTHER,
+)
+
+_CLASS_ALIASES = {
+    "INCLUDES": RELATION_INCLUDES, "包含": RELATION_INCLUDES, "上位": RELATION_INCLUDES,
+    "PREREQUISITE": RELATION_PREREQUISITE, "前驱": RELATION_PREREQUISITE,
+    "先修": RELATION_PREREQUISITE, "前提": RELATION_PREREQUISITE,
+    "SAME": RELATION_SAME, "同一": RELATION_SAME, "同义": RELATION_SAME, "等价": RELATION_SAME,
+    "SIBLING": RELATION_SIBLING, "兄弟": RELATION_SIBLING, "并列": RELATION_SIBLING,
+    "OTHER": RELATION_OTHER, "RELATED": RELATION_OTHER, "其他": RELATION_OTHER,
+}
+
+_CLASS_SYSTEM = "你是课程知识图谱专家，只依据给定信息判断两个知识点的关系类别，不补充外部知识。"
+
+_CLASS_PROMPT = (
+    "请判断下面每一对课程知识点的关系类别，类别只能是以下五种之一：\n"
+    "INCLUDES（包含：A 包含 B，B 是 A 的下位概念或组成部分）\n"
+    "PREREQUISITE（前驱：掌握 A 是学习 B 的前提，通常 A 先讲授且被 B 引用）\n"
+    "SAME（同一：两者是同一概念的不同叫法/缩写）\n"
+    "SIBLING（兄弟：同一上位概念下的并列概念，彼此不包含）\n"
+    "OTHER（其他：以上都不是）\n"
+    "判定依据的优先顺序（**必须遵守**）：\n"
+    "1. evidence 若是原文句子，以该句为准；\n"
+    "2. evidence 若写着「同一章节内相邻知识点」，那**只是位置信息、不是语义证据**——"
+    "此时只能依据两者的名称与说明来判断，**严禁**因为“相邻”“顺序先后”就判 SIBLING 或 PREREQUISITE；\n"
+    "3. **说明不足以判断时必须判 OTHER**。OTHER 是合规答案，不得为了让每题都有“结论”而强行选前四类；\n"
+    "4. 只输出 JSON 数组，不得输出推理过程；reason 用一句不超过 30 字的判定依据。\n"
+    "   **输入有几对，输出就必须有几条**，一一对应。\n"
+    '格式示例：[{"source_id":1,"target_id":2,"type":"INCLUDES","confidence":0.8,"reason":"B 是 A 的组成部分"}]\n\n'
+    "待判定：\n{pairs}"
+)
+
+
+def _normalize_class(value) -> str:
+    """把模型返回的关系词归一到五类之一；无法识别时返回 OTHER。"""
+    if not isinstance(value, str):
+        return RELATION_OTHER
+    text = value.strip()
+    if text in _CLASS_ALIASES:
+        return _CLASS_ALIASES[text]
+    return _CLASS_ALIASES.get(text.upper(), RELATION_OTHER)
+
+
+def _coerce_confidence(value, default: float = 0.5) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if number > 1.0:   # 模型偶尔给百分数
+        number = number / 100.0
+    return round(max(0.0, min(1.0, number)), 2)
+
+
+def classify_pairs(nodes, pairs, llm_call, *, batch_size: int = 5,
+                   max_pairs=None) -> list[dict]:
+    """用 LLM 把关系候选判成论文五类。
+
+    参数：
+        nodes:    list[dict]，每项至少 ``id`` 与 ``name``，可选 ``content``/``description``。
+        pairs:    list[dict]，通常来自 :func:`infer_implicit_relations`（含 source_id/target_id）。
+        llm_call: ``llm_call(prompt, system) -> str``；返回不可解析时该批回退为规则类别。
+        batch_size: 每次 LLM 调用判几对（≤5 时模型稳定性最好，实测 B6）。
+        max_pairs: 非空时只判前 N 对。
+
+    返回 [{"source_id","source_name","target_id","target_name","relation_type",
+            "confidence","reason","evidence","method"}]，relation_type ∈ FIVE_CLASSES。
+    无法识别的类别记为 OTHER；同一对只保留一条（按出现顺序）。
+    """
+    valid_nodes = _valid_nodes(nodes)
+    if len(valid_nodes) < 2 or not isinstance(pairs, (list, tuple)) or not callable(llm_call):
+        return []
+    by_id = {node["id"]: node for node in valid_nodes}
+
+    cleaned: list[dict] = []
+    seen: set[tuple[int, int]] = set()
+    for item in pairs:
+        if not isinstance(item, dict):
+            continue
+        source_id = item.get("source_id")
+        target_id = item.get("target_id")
+        if not _is_int(source_id) or not _is_int(target_id):
+            continue
+        if source_id == target_id or source_id not in by_id or target_id not in by_id:
+            continue
+        key = (source_id, target_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(item)
+    if _is_int(max_pairs) and max_pairs >= 0:
+        cleaned = cleaned[:max_pairs]
+    if not cleaned:
+        return []
+
+    size = max(1, min(8, int(batch_size or 5)))
+    out: list[dict] = []
+    for start in range(0, len(cleaned), size):
+        chunk = cleaned[start:start + size]
+        payload = []
+        for pair in chunk:
+            source = by_id[pair["source_id"]]
+            target = by_id[pair["target_id"]]
+            payload.append({
+                "source_id": pair["source_id"],
+                "source_name": source.get("name", ""),
+                "source_desc": (source.get("description") or source.get("content") or "")[:200],
+                "target_id": pair["target_id"],
+                "target_name": target.get("name", ""),
+                "target_desc": (target.get("description") or target.get("content") or "")[:200],
+                "evidence": (pair.get("evidence") or "")[:80],
+            })
+        prompt = _CLASS_PROMPT.replace("{pairs}", json.dumps(payload, ensure_ascii=False))
+        try:
+            raw = llm_call(prompt, _CLASS_SYSTEM)
+        except Exception:
+            raw = ""
+        # 与 ipa.py 同样的容错解析（避免两处各写一份：直接复用其实现）
+        verdicts = _loads_lenient(raw)
+        if isinstance(verdicts, dict):
+            verdicts = verdicts.get("pairs") or verdicts.get("items") or []
+        matched: dict[tuple[int, int], dict] = {}
+        if isinstance(verdicts, list):
+            for verdict in verdicts:
+                if not isinstance(verdict, dict):
+                    continue
+                source_id = verdict.get("source_id")
+                target_id = verdict.get("target_id")
+                try:
+                    source_id = int(source_id)
+                    target_id = int(target_id)
+                except (TypeError, ValueError):
+                    continue
+                matched[(source_id, target_id)] = verdict
+
+        for pair in chunk:
+            source = by_id[pair["source_id"]]
+            target = by_id[pair["target_id"]]
+            verdict = matched.get((pair["source_id"], pair["target_id"]))
+            if verdict:
+                relation_type = _normalize_class(verdict.get("type") or verdict.get("relation"))
+                confidence = _coerce_confidence(verdict.get("confidence"))
+                reason = str(verdict.get("reason") or "").strip()[:120]
+                method = "IREM-LLM"
+            else:
+                # LLM 未覆盖该对（解析失败/漏答）：回退为规则给出的类别，不让候选凭空消失
+                relation_type = _normalize_class(pair.get("relation_type"))
+                confidence = _coerce_confidence(pair.get("score"), default=0.5)
+                reason = ""
+                method = "IREM-RULE"
+            out.append({
+                "source_id": pair["source_id"],
+                "source_name": source.get("name", ""),
+                "target_id": pair["target_id"],
+                "target_name": target.get("name", ""),
+                "relation_type": relation_type,
+                "confidence": confidence,
+                "reason": reason,
+                "evidence": (pair.get("evidence") or "")[:EVIDENCE_MAX_CHARS],
+                "method": method,
+            })
+    return out
+

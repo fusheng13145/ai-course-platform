@@ -52,7 +52,7 @@ public class ResourceController {
     private static final Logger log = LoggerFactory.getLogger(ResourceController.class);
 
     // 全局常量：上传目录、文件大小限制(50MB)、允许的文件类型
-    private static final String UPLOAD_BASE_DIR = "uploads/";
+    private static final String UPLOAD_BASE_DIR = com.aicourse.common.UploadPaths.BASE_DIR;
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
     private static final String[] ALLOWED_MIME_TYPES = {
             "application/pdf", "application/msword",
@@ -312,7 +312,10 @@ public class ResourceController {
             resource.setCourseId(courseId);
             resource.setUploadTime(LocalDateTime.now());
             resource.setDescription(description);
-            resource.setVisibleToAll(true);
+            // V-2（2026-11-15）：教学资源仅对已加入该课程的用户可见。
+            // 旧实现硬编码 true，等于任何登录用户拿到 UUID 即可直链下载；与裁定口径冲突。
+            // 上传方如需公开，后续以显式参数开放，不再作为默认值。
+            resource.setVisibleToAll(Boolean.FALSE);
             resourceService.save(resource);
             // B-13㉑：上传即落 resource_versions 首版，file_size 与上传人可供版本历史/回滚溯源。
             resourceVersionService.createNewVersion(resource.getId(), safeFileName, contentType,

@@ -1,5 +1,7 @@
 package com.aicourse.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 /**
  * 集成契约常量（调用约定的唯一事实来源）。
  * <p>
@@ -113,4 +115,33 @@ public final class ContractPaths {
             "知识图谱引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用";
     public static final String MSG_RAG_UNAVAILABLE =
             "RAG 引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用";
+
+    // ===================== 契约判定（唯一来源，provider 不得各写一份） =====================
+
+    /**
+     * 判定 Python 侧响应体是否声明「引擎不可用」。
+     *
+     * <p><b>为什么放在这里</b>（I-1，2026-11-15）：原先该判定是 {@code HttpRagProvider} 的私有方法
+     * {@code isEngineUnavailable}，判定规则与 {@code code}/{@code mode} 字段语义同处一地却不在契约类里。
+     * 任何新增 provider 或解析路径都会各写一份，规则必然分叉（AGENTS §4.3）。现上提为契约唯一来源。</p>
+     *
+     * <p><b>判定口径</b>：{@code body.code == 503} 或 {@code body.mode == "UNAVAILABLE"} 任一成立即视为不可用。
+     * 二者是 Python 侧同一语义的两种表达，历史上都出现过，因此两条并列而非二选一。</p>
+     *
+     * @param root 已解析的响应体节点，可为 {@code null}
+     * @return true=引擎不可用，调用方应走降级而非「空结果」
+     */
+    public static boolean isUnavailable(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return false;
+        }
+        if (root.has(R_CODE) && root.get(R_CODE).asInt() == CODE_UNAVAILABLE) {
+            return true;
+        }
+        if (root.has(R_MODE)) {
+            JsonNode mode = root.get(R_MODE);
+            return !mode.isNull() && MODE_UNAVAILABLE.equals(mode.asText());
+        }
+        return false;
+    }
 }

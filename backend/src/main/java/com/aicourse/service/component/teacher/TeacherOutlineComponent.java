@@ -80,7 +80,7 @@ public class TeacherOutlineComponent {
     }
 
     /** 课程克隆（章节复制 + 父子关系修正） */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> cloneCourse(Long sourceCourseId, String newName, Long operatorId) {
         Course src = courseService.getById(sourceCourseId);
         if (src == null) {

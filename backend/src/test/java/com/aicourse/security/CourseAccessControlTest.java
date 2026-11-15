@@ -7,11 +7,13 @@ import com.aicourse.entity.Task;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +36,8 @@ class CourseAccessControlTest {
     private CourseService courseService;
     @Mock
     private CourseEnrollmentService enrollmentService;
+    @Mock
+    private AdminScopeGuard adminScopeGuard;
     @InjectMocks
     private CourseAccessControl accessControl;
 
@@ -64,11 +69,71 @@ class CourseAccessControlTest {
         return enrollment;
     }
 
+    // ---------- A-1：管理员不再无条件放行 ----------
+
     @Test
-    void admin_can_manage_any_course_and_global_content() {
+    void school_admin_can_manage_any_existing_course() {
+        when(courseService.getById(99L)).thenReturn(course(99L, 7L));
         accessControl.assertCanManageCourse(99L, auth(1L, "ADMIN"));
-        accessControl.assertCanManageCourse(null, auth(1L, "ADMIN"));
     }
+
+    @Test
+    void admin_on_missing_course_now_fails_fast() {
+        when(courseService.getById(98L)).thenReturn(null);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> accessControl.assertCanManageCourse(98L, auth(1L, "ADMIN")));
+        assertEquals(ApiCode.NOT_FOUND, ex.getCode());
+    }
+
+    @Test
+    void admin_on_null_course_id_is_bad_request() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> accessControl.assertCanManageCourse(null, auth(1L, "ADMIN")));
+        assertEquals(ApiCode.BAD_REQUEST, ex.getCode());
+    }
+
+    @Test
+    void college_admin_cannot_manage_course_of_other_college() {
+        when(courseService.getById(5L)).thenReturn(course(5L, 7L));
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(any(Course.class));
+        assertThrows(AccessDeniedException.class,
+                () -> accessControl.assertCanManageCourse(5L, auth(1L, "ADMIN")));
+    }
+
+    @Test
+    void college_admin_cannot_read_course_of_other_college() {
+        when(courseService.getById(5L)).thenReturn(course(5L, 7L));
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(any(Course.class));
+        assertThrows(AccessDeniedException.class,
+                () -> accessControl.assertCanReadCourse(5L, auth(1L, "ADMIN")));
+    }
+
+    @Test
+    void college_admin_cannot_read_task_of_other_college() {
+        when(courseService.getById(5L)).thenReturn(course(5L, 7L));
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(any(Course.class));
+        assertThrows(AccessDeniedException.class,
+                () -> accessControl.assertCanReadTask(task(5L, "PUBLISHED"), auth(1L, "ADMIN")));
+    }
+
+    @Test
+    void college_admin_readable_course_ids_are_scoped_to_own_college() {
+        when(adminScopeGuard.currentCollegeFilter()).thenReturn(3L);
+        when(adminScopeGuard.currentCollegeUserIds()).thenReturn(List.of(7L));
+        when(courseService.list(any(Wrapper.class))).thenReturn(List.of(course(1L, 7L)));
+        assertEquals(List.of(1L), accessControl.readableCourseIds(auth(1L, "ADMIN")));
+    }
+
+    @Test
+    void school_admin_readable_course_ids_is_null_meaning_global() {
+        when(adminScopeGuard.currentCollegeFilter()).thenReturn(null);
+        assertNull(accessControl.readableCourseIds(auth(1L, "ADMIN")));
+    }
+
+    // ---------- 教师 / 学生原有语义不变 ----------
 
     @Test
     void owning_teacher_can_manage_course() {
@@ -138,13 +203,10 @@ class CourseAccessControlTest {
 
     @Test
     void readable_course_ids_follow_role_scope() {
-        assertNull(accessControl.readableCourseIds(auth(1L, "ADMIN")));
-
-        when(courseService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
-                .thenReturn(List.of(course(1L, 7L), course(2L, 7L)));
+        when(courseService.list(any(Wrapper.class))).thenReturn(List.of(course(1L, 7L), course(2L, 7L)));
         assertEquals(List.of(1L, 2L), accessControl.readableCourseIds(auth(7L, "TEACHER")));
 
-        when(enrollmentService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+        when(enrollmentService.list(any(Wrapper.class)))
                 .thenReturn(List.of(enrollment(1L), enrollment(3L)));
         assertEquals(List.of(1L, 3L), accessControl.readableCourseIds(auth(9L, "STUDENT")));
     }

@@ -17,11 +17,12 @@ import org.springframework.stereotype.Service;
 /**
  * RAG 服务实现（门面）。
  * <p>
- * 本类实现业务接口 {@link RAGService}，内部按 {@code rag.enabled} 委派到标准化契约
- * {@link RagContract} 的具体实现：
+ * 本类实现业务接口 {@link RAGService}，内部按 {@code rag.provider} 委派到标准化契约
+ * {@link RagContract} 的具体实现（2026-11-15 基线：Python 为核心、Java 仅备选）：
  * <ul>
- *   <li>{@code false}（默认）→ {@link DisabledRagProvider}：本地占位，返回 {@code 503}，不依赖 Python；</li>
- *   <li>{@code true} → {@link HttpRagProvider}：HTTP 对接 Python RAG 微服务 8002。</li>
+ *   <li>{@code provider=python}（默认）→ {@link HttpRagProvider}：HTTP 对接 Python RAG 微服务 8002；</li>
+ *   <li>{@code provider=java} → {@link DisabledRagProvider}：不调 Python，返回 {@code 503}，问答走纯 LLM 兜底；</li>
+ *   <li>{@code provider} 未配置 → 沿用历史开关 {@code rag.enabled}，保证老配置不回退。</li>
  * </ul>
  * 契约接口、数据结构与调用约定集中在 {@code com.aicourse.integration.rag} 包，便于另一成员独立实现 Python 端。
  * 禁用/不可达返回的 {@code 503} 与 {@code AIServiceImpl.ragAsk}「检测到 code:503 即回退纯 LLM」约定一致。
@@ -33,11 +34,33 @@ public class RAGServiceImpl implements RAGService {
 
     private static final ObjectMapper OM = new ObjectMapper();
 
+    /** 引擎模式：Python 契约（默认） */
+    private static final String MODE_PYTHON = "python";
+    /** 引擎模式：纯 LLM 兜底（不调 Python） */
+    private static final String MODE_JAVA = "java";
+
     private final RagContract provider;
 
     /**
-     * 兼容旧签名（internalApiKey 为空：不发内部认证头），供既有单测直构使用。
+     * 解析是否使用 Python 引擎（package-private：便于单测直测）。
+     * <ol>
+     *   <li>{@code rag.provider=java} → 强制纯 LLM，不调 Python；</li>
+     *   <li>{@code rag.provider=python} → 使用 Python 8002 契约（默认）；</li>
+     *   <li>空 / 未识别 → 沿用历史开关 {@code rag.enabled}，保证老配置文件不回退。</li>
+     * </ol>
      */
+    static boolean resolveUsePython(String providerMode, boolean enabled) {
+        String m = providerMode == null ? "" : providerMode.trim().toLowerCase(java.util.Locale.ROOT);
+        if (MODE_JAVA.equals(m)) {
+            return false;
+        }
+        if (MODE_PYTHON.equals(m)) {
+            return true;
+        }
+        return enabled;
+    }
+
+    /** 兼容旧签名（provider 走 rag.enabled），供既有单测直构使用。 */
     public RAGServiceImpl(
             boolean enabled,
             String baseUrl,
@@ -46,12 +69,26 @@ public class RAGServiceImpl implements RAGService {
             int maxRetries,
             String healthPath,
             int defaultTopK) {
-        this(enabled, baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK, "");
+        this(enabled, "", baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK, "");
+    }
+
+    /** 兼容旧签名（含 internalApiKey），provider 走 rag.enabled。 */
+    public RAGServiceImpl(
+            boolean enabled,
+            String baseUrl,
+            int connectTimeout,
+            int readTimeout,
+            int maxRetries,
+            String healthPath,
+            int defaultTopK,
+            String internalApiKey) {
+        this(enabled, "", baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK, internalApiKey);
     }
 
     @Autowired
     public RAGServiceImpl(
-            @Value("${rag.enabled:false}") boolean enabled,
+            @Value("${rag.enabled:true}") boolean enabled,
+            @Value("${rag.provider:}") String providerMode,
             @Value("${rag.base-url:http://localhost:8002}") String baseUrl,
             @Value("${rag.connect-timeout:5}") int connectTimeout,
             @Value("${rag.read-timeout:60}") int readTimeout,
@@ -59,9 +96,12 @@ public class RAGServiceImpl implements RAGService {
             @Value("${rag.health-path:/api/v1/rag/health}") String healthPath,
             @Value("${rag.default-top-k:5}") int defaultTopK,
             @Value("${app.internal.service-api-key:}") String internalApiKey) {
-        this.provider = enabled
+        boolean usePython = resolveUsePython(providerMode, enabled);
+        this.provider = usePython
                 ? new HttpRagProvider(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK, internalApiKey)
                 : new DisabledRagProvider();
+        log.info("[RAG] engine={} baseUrl={}", usePython ? MODE_PYTHON : "disabled(pure-llm)",
+                usePython ? baseUrl : "-");
     }
 
     @Override

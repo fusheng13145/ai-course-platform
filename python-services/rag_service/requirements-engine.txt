@@ -12,3 +12,5 @@ sentence-transformers==5.4.1
 # sentence-transformers 会经 datasets 间接依赖 pyarrow；datasets 5.1.0 要求 pyarrow>=24，
 # 低版本缺少 pyarrow.json_ 别名，会让整个引擎 import 失败（2026-11-13 实测 16.1.0 不可用）。
 pyarrow>=24,<25
+# Cross-Encoder 重排（B4）：BAAI/bge-reranker-base 用 XLM-R tokenizer，缺 sentencepiece 加载必失败
+sentencepiece==0.2.1
