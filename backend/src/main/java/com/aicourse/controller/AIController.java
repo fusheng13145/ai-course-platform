@@ -121,6 +121,9 @@ public class AIController {
                 resp.put("answer", answer);
                 resp.put("sessionId", sessionId);
                 resp.put("sources", qa != null && qa.getSources() != null ? qa.getSources() : List.of());
+                // mode 新增字段：ENGINE=真实引擎召回 + 本端大模型生成，LOCAL=引擎不可用时的接地降级。
+                // 前端可忽略；验收与排障据此区分「引擎应答」与「降级作答」，不再靠文案猜测。
+                resp.put("mode", qa != null ? qa.getMode() : null);
                 return ApiResponse.success(resp);
             });
         };

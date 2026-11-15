@@ -35,6 +35,8 @@ class AiDialogueComponentTest {
 
     @Mock private AiCoreComponent core;
     @Mock private RAGService ragService;
+    // 既有缺口修复：generateQuestion 依赖出题证据组件（已提交代码即有），此前未 mock 导致注入为 null
+    @Mock private CourseEvidenceComponent evidence;
 
     @InjectMocks
     private AiDialogueComponent dialogue;

@@ -143,18 +143,24 @@ class LocalKnowledgeGraphProviderTest {
     }
 
     @Test
-    void ingest_returnsLocalMode_withSyncedPointCount() {
+    void ingest_returnsLocalMode_withSnapshotCounts() {
         var kp = mockPointService();
         var rel = mockRelationService();
-        when(kp.countByCourse(1L)).thenReturn(7L);
 
         var provider = new LocalKnowledgeGraphProvider(kp, rel, 2);
-        KnowledgeGraphContract.IngestResult r = provider.ingest(1L);
+        KnowledgeGraphContract.IngestResult r = provider.ingest(new KnowledgeGraphContract.IngestRequest(
+                1L,
+                java.util.List.of(
+                        new KnowledgeGraphContract.IngestNode(11L, 1L, "A", "", "CONCEPT"),
+                        new KnowledgeGraphContract.IngestNode(12L, 1L, "B", "", "CONCEPT")),
+                java.util.List.of(
+                        new KnowledgeGraphContract.IngestRelation(21L, 11L, 12L, "PREREQUISITE"))));
 
         assertEquals(200, r.code());
         assertEquals(ContractPaths.MODE_LOCAL, r.mode());
         assertEquals(1L, r.courseId());
-        assertEquals(7L, r.syncedPoints());
+        assertEquals(2L, r.syncedNodes());
+        assertEquals(1L, r.syncedRelations());
     }
 
     @Test

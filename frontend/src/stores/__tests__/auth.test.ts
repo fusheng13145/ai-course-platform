@@ -124,15 +124,15 @@ describe('AuthStore', () => {
 
     // 设置 user 对象来影响 userRole computed
     store.user = { role: 'ADMIN', id: 1, username: 'admin' }
-    expect(store.getDefaultRoute()).toBe('/admin/dashboard')
+    expect(store.getDefaultRoute()).toBe('/admin/home')
 
     // 教师
     store.user = { role: 'TEACHER', id: 2, username: 'teacher' }
-    expect(store.getDefaultRoute()).toBe('/teacher/dashboard')
+    expect(store.getDefaultRoute()).toBe('/teacher/home')
 
     // 学生
     store.user = { role: 'STUDENT', id: 3, username: 'student' }
-    expect(store.getDefaultRoute()).toBe('/student/dashboard')
+    expect(store.getDefaultRoute()).toBe('/student/home')
   })
 
   it('resetAuthState 清理所有状态', () => {
@@ -153,19 +153,19 @@ describe('AuthStore', () => {
     it('ADMIN 角色返回 /admin/dashboard', () => {
       const store = useAuthStore()
       store.user = { role: 'ADMIN', id: 1, username: 'admin' }
-      expect(store.getDefaultRoute()).toBe('/admin/dashboard')
+      expect(store.getDefaultRoute()).toBe('/admin/home')
     })
 
     it('TEACHER 角色返回 /teacher/dashboard', () => {
       const store = useAuthStore()
       store.user = { role: 'TEACHER', id: 2, username: 'teacher' }
-      expect(store.getDefaultRoute()).toBe('/teacher/dashboard')
+      expect(store.getDefaultRoute()).toBe('/teacher/home')
     })
 
     it('STUDENT 角色返回 /student/dashboard', () => {
       const store = useAuthStore()
       store.user = { role: 'STUDENT', id: 3, username: 'student' }
-      expect(store.getDefaultRoute()).toBe('/student/dashboard')
+      expect(store.getDefaultRoute()).toBe('/student/home')
     })
 
     it('未知角色（已登录）返回安全落点 /403，不再返回 /login', () => {
