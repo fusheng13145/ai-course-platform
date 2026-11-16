@@ -39,16 +39,19 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 ROOT = Path(__file__).resolve().parent.parent
-ORDER = ("neo4j", "kg", "rag")
-PORTS = {"neo4j": 7687, "kg": 8001, "rag": 8002}
+# ft(8003) 于 2026-11-16 入编排（原 D5「存在但未入编排」）：LoRA 引擎懒加载重依赖，
+# 端口起来即代表服务活；引擎是否真可用由 /fine-tune/health 的 engine_available 如实上报，
+# 缺依赖时该服务仍能起（降级为 STRUCTURE），不阻断 KG/RAG 主链。
+ORDER = ("neo4j", "kg", "rag", "ft")
+PORTS = {"neo4j": 7687, "kg": 8001, "rag": 8002, "ft": 8003}
 
 # Neo4j 是仓库外的本机单机安装（§18.5）。首选 .env 的 NEO4J_HOME，其次本机已知路径；
 # 都不存在则只上报，不猜路径、不装东西。
 DEFAULT_NEO4J_HOMES = (r"D:\neo4j-community-5.26.12",)
 
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
-SERVICE_DIRS = {"kg": "kg_service", "rag": "rag_service"}
-APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app"}
+SERVICE_DIRS = {"kg": "kg_service", "rag": "rag_service", "ft": "fine_tune_service"}
+APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app", "ft": "lora_service:app"}
 
 # DR-63：引擎进程没有 dotenv，只调 os.getenv（kg_store.py:36/312-323、rag_engine.py:101-634）。
 # 因此「写在 .env 里」不等于「会生效」——只有在下面这份名单里的键才会被导出到子进程。
@@ -58,6 +61,27 @@ ENGINE_EXPORTS = {
     # X-Internal-Key——启动器必须透传，否则 .env 配了钥匙、引擎却收不到（DR-63 同型盲区，
     # scripts/tests/test_start_engines.py 的导出名单护栏已钉住该漂移）。
     "kg": ("INTERNAL_API_KEY", "NEO4J_USERNAME", "NEO4J_PASSWORD", "KG_BACKEND"),
+    # LoRA 微调（8003，2026-11-16 入编排）。键名依据 lora_service.py / lora_engine.py / ft_llm.py
+    # 的 os.getenv 实读点；DR-63 同型盲区——不导出则 .env 里配了也不生效。
+    # **故意不导出 FT_ENGINE_READY**：它是 CI 用的「不启动训练线程」开关，生产误配成 1
+    # 会让 /start 静默不训练，属于最不该被 .env 顺带打开的一类键。
+    "ft": (
+        "FT_DATA_DIR",
+        "FT_DEFAULT_BASE_MODEL",
+        "FT_MODEL_MAP",
+        "FT_DEVICE",
+        "FT_TRAIN_STEPS",
+        "FT_ALLOW_DOWNLOAD",
+        "FT_PUBLIC_BASE",
+        "FT_CORPUS_DIR",
+        "FT_CORPUS_JSON",
+        "AI_PROVIDER",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_MODEL",
+        "FT_OLLAMA_BASE_URL",
+        "FT_OLLAMA_MODEL",
+        "FT_OLLAMA_TIMEOUT",
+    ),
     "rag": (
         # DR-84：网关端点必须一起导出，否则 .env 里配了 base-url 也到不了引擎进程（DR-63 同型）
         "DEEPSEEK_BASE_URL",
@@ -248,6 +272,8 @@ def probe_url(service: str) -> str:
         return "http://127.0.0.1:8001/api/v1/graph/health"
     if service == "rag":
         return "http://127.0.0.1:8002/api/v1/rag/documents"
+    if service == "ft":
+        return "http://127.0.0.1:8003/api/v1/fine-tune/health"
     return "http://127.0.0.1:7474"
 
 
@@ -375,6 +401,16 @@ def describe(service: str, up: bool) -> str:
         items = docs.get("documents") if isinstance(docs, dict) else docs
         count = len(items) if isinstance(items, list) else "?"
         return f"UP (语料文档数={count})"
+    if service == "ft":
+        body = probe("ft")
+        if not isinstance(body, dict):
+            return "UP (端口在监听，/api/v1/fine-tune/health 未响应)"
+        # engine_available=false 是**如实读数**（重依赖缺失或懒加载失败），不粉饰成可用
+        ready = "true" if body.get("engine_available") else "false"
+        missing = body.get("deps_missing") or []
+        tail = f"，缺 {','.join(map(str, missing))}" if missing else ""
+        device = body.get("device") or "?"
+        return f"UP (engine_available={ready}，device={device}{tail})"
     return "UP"
 
 
@@ -425,6 +461,8 @@ def main(argv=None) -> int:
         "neo4j": should_start(env.get("NEO4J_ENABLED")) and bool(neo4j_home),
         "kg": should_start(env.get("KG_ENABLED")),
         "rag": should_start(env.get("RAG_ENABLED")),
+        # 默认也起（四引擎全编排）；不想要 LoRA 就在 .env 写 FT_ENABLED=false
+        "ft": should_start(env.get("FT_ENABLED")),
     }
     want = {name: want[name] and name in only for name in ORDER}
     todo = plan(status, want)
@@ -434,10 +472,10 @@ def main(argv=None) -> int:
     uri = (env.get("KG_NEO4J_URI") or env.get("NEO4J_URI") or "bolt://127.0.0.1:7687").strip()
 
     print("=" * 60)
-    print(" AI Course Platform - engines (Neo4j / KG / RAG)")
+    print(" AI Course Platform - engines (Neo4j / KG / RAG / LoRA)")
     print("=" * 60)
     if not todo:
-        print("[OK] 三个引擎端口都已在监听，本次不重复拉起任何进程。")
+        print("[OK] 四个引擎端口都已在监听，本次不重复拉起任何进程。")
     for name in todo:
         if name == "neo4j":
             print(f"[..] 启动 Neo4j：{neo4j_home}")
