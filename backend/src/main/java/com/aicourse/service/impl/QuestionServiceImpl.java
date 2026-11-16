@@ -63,6 +63,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @CacheEvict(value = "questionSearch", allEntries = true)
     public Question createQuestion(Question question) {
         log.info("创建题目");
+        requireCourseId(question.getCourseId());
 
         // 设置初始值
         if (question.getUsageCount() == null) {
@@ -88,6 +89,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
     @CacheEvict(value = "questionSearch", allEntries = true)
     public Question generateByAI(Long courseId, String type, String difficulty, String knowledgePointNames) {
+        requireCourseId(courseId);
         // 调用AI服务生成题目JSON
         String generatedContent = aiService.generateQuestion(courseId, type, difficulty, 1);
 
@@ -137,6 +139,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @CacheEvict(value = "questionSearch", allEntries = true)
     public List<Question> generateBatchByAI(Long courseId, String type, String difficulty,
                                             String knowledgePointNames, int count, Long createdBy) {
+        requireCourseId(courseId);
         String generated = aiService.generateQuestion(courseId, type, difficulty, count);
         List<Map<String, Object>> list;
         try {
@@ -191,6 +194,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             if (q.getContent() == null || q.getContent().isBlank()) {
                 continue;
             }
+            requireCourseId(q.getCourseId());
             if (q.getType() == null || q.getType().isBlank()) {
                 q.setType("single");
             }
@@ -351,6 +355,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         if (source == null) {
             throw new BusinessException("源题目不存在");
         }
+        requireCourseId(source.getCourseId());
 
         Question copy = new Question();
         copy.setCourseId(source.getCourseId());
@@ -625,5 +630,14 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 .last("LIMIT " + safeLimit);
 
         return this.list(queryWrapper);
+    }
+
+    /**
+     * 新题必须归属课程（V27 CHECK 为 DB 兜底；历史 legacy_unassigned=1 留空不在此路径）。
+     */
+    private void requireCourseId(Long courseId) {
+        if (courseId == null) {
+            throw new BusinessException("题目必须归属课程，不能创建无课程归属的新题");
+        }
     }
 }

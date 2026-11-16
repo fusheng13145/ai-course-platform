@@ -159,9 +159,11 @@ class SubmissionServiceImplTest {
         Submission draft = new Submission();
         draft.setId(9L); draft.setTaskId(1L); draft.setStudentId(11L);
         draft.setStatus("DRAFT"); draft.setFileUrls("old.png"); draft.setViewCount(2);
+        draft.setAttemptNumber(2);
         when(submissionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(draft);
         Submission r = service.submitAssignment(1L, 11L, "解答", null);
         assertEquals("SUBMITTED", r.getStatus());
+        assertEquals(2, r.getAttemptNumber()); // 沿用草稿预占尝试号，不得按 submittedCount+1 撞号
         assertEquals("old.png", r.getFileUrls()); // 未带新附件保留草稿附件
         verify(submissionMapper).updateById(any(Submission.class));
     }
@@ -212,6 +214,19 @@ class SubmissionServiceImplTest {
         verify(submissionMapper).updateById(any(Submission.class));
     }
 
+    @Test
+    @DisplayName("saveDraft 已有正式提交时预占最大尝试号+1，避免唯一键撞号")
+    void draft_ok_reservesNextAttempt() {
+        Submission previous = new Submission();
+        previous.setId(3L); previous.setTaskId(1L); previous.setStudentId(11L);
+        previous.setStatus("SUBMITTED"); previous.setAttemptNumber(1);
+        // 第一次查草稿返回 null；第二次查最大尝试号返回上一份正式提交
+        when(submissionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(null, previous);
+        Submission r = service.saveDraft(1L, 11L, "草稿", null);
+        assertEquals(2, r.getAttemptNumber());
+        verify(submissionMapper).insert(any(Submission.class));
+    }
+
     // ===================== resubmit =====================
 
     @Test
@@ -234,9 +249,38 @@ class SubmissionServiceImplTest {
     void resubmit_ok() {
         submission.setStatus("RETURNED");
         when(submissionMapper.selectById(anyLong())).thenReturn(submission);
+        // 第一次查草稿返回 null；第二次查最大尝试号返回当前提交（attempt=1）→ 新尝试应为 2
+        when(submissionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(null, submission);
         Submission r = service.resubmit(1L, "c", null);
         assertEquals("RESUBMITTED", r.getStatus());
+        assertEquals(2, r.getAttemptNumber());
         verify(submissionMapper).insert(any(Submission.class));
+    }
+
+    @Test
+    @DisplayName("resubmit 达到任务最大提交次数时拒绝")
+    void resubmit_maxLimit() {
+        submission.setStatus("RETURNED");
+        task.setMaxSubmissions(1);
+        when(submissionMapper.selectById(anyLong())).thenReturn(submission);
+        when(submissionMapper.selectCount(any())).thenReturn(1L);
+        assertThrows(BusinessException.class, () -> service.resubmit(1L, "c", null));
+    }
+
+    @Test
+    @DisplayName("resubmit 有草稿时复用草稿行并保留其预占尝试号")
+    void resubmit_reusesDraft() {
+        submission.setStatus("RETURNED");
+        Submission draft = new Submission();
+        draft.setId(9L); draft.setTaskId(1L); draft.setStudentId(11L);
+        draft.setStatus("DRAFT"); draft.setAttemptNumber(2); draft.setFileUrls("draft.png");
+        when(submissionMapper.selectById(anyLong())).thenReturn(submission);
+        when(submissionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(draft);
+        Submission r = service.resubmit(1L, "c", null);
+        assertEquals("RESUBMITTED", r.getStatus());
+        assertEquals(2, r.getAttemptNumber());
+        assertEquals("draft.png", r.getFileUrls());
+        verify(submissionMapper).updateById(any(Submission.class));
     }
 
     // ===================== returnSubmission =====================

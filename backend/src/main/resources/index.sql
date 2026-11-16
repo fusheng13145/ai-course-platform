@@ -463,7 +463,7 @@ CREATE TABLE resources (
   uploader_id BIGINT NULL COMMENT '上传者ID，关联users表',
   upload_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
   description TEXT NULL COMMENT '资源描述',
-  visible_to_all TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否对所有学生可见：0-仅教师可见，1-所有学生可见',
+  visible_to_all TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否对所有学生可见：0-仅教师可见（默认），1-所有学生可见',
   moderation_status VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT '审核状态：NORMAL-正常；HIDDEN-已隐藏（读路径过滤，可恢复）',
   moderation_reason VARCHAR(255) NULL COMMENT '审核原因（管理员填写）',
   moderated_at DATETIME NULL COMMENT '最近一次审核时间',
@@ -593,6 +593,7 @@ CREATE TABLE submissions (
   PRIMARY KEY (id),
   KEY idx_submissions_task_id (task_id) COMMENT '任务ID索引，用于查询任务所有提交',
   KEY idx_submissions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有提交',
+  UNIQUE KEY uk_submissions_task_student_attempt (task_id, student_id, attempt_number) COMMENT '任务-学生-尝试次数唯一：防止并发生成重复提交记录',
   CONSTRAINT fk_submissions_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
   CONSTRAINT fk_submissions_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_submissions_grader FOREIGN KEY (grader_id) REFERENCES users(id) ON DELETE SET NULL
@@ -716,7 +717,8 @@ CREATE TABLE questions (
   explanation TEXT NULL COMMENT '答案解析',
   usage_count INT NOT NULL DEFAULT 0 COMMENT '使用次数',
   correct_rate DECIMAL(5,2) NULL COMMENT '正确率（百分比）',
-  course_id BIGINT NULL COMMENT '课程ID，关联courses表',
+  course_id BIGINT NULL COMMENT '课程ID，关联courses表；新题必填，历史未归属题见 legacy_unassigned',
+  legacy_unassigned TINYINT(1) NOT NULL DEFAULT 0 COMMENT '历史未归属题标记：1=迁移前遗留且 course_id 为空；0=新题或已归属题',
   created_by BIGINT NULL COMMENT '创建者ID，关联users表',
   is_active TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否有效：0-无效，1-有效',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -724,8 +726,9 @@ CREATE TABLE questions (
   PRIMARY KEY (id),
   KEY idx_questions_course_id (course_id) COMMENT '课程ID索引，用于查询课程所有题目',
   KEY idx_questions_created_by (created_by) COMMENT '创建者ID索引',
-  CONSTRAINT fk_questions_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL,
-  CONSTRAINT fk_questions_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_questions_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_questions_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_questions_course_required CHECK (course_id IS NOT NULL OR legacy_unassigned = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='题库表';;
 
 -- exam_questions
@@ -769,6 +772,7 @@ CREATE TABLE exam_sessions (
   KEY idx_exam_sessions_paper_id (exam_paper_id) COMMENT '试卷ID索引，用于查询试卷所有考试会话',
   KEY idx_exam_sessions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有考试会话',
   KEY idx_exam_sessions_student_paper (student_id, exam_paper_id) COMMENT '学生-试卷联合索引：查询学生某卷最新会话与成绩列表',
+  UNIQUE KEY uk_exam_sessions_student_paper_attempt (student_id, exam_paper_id, attempt_number) COMMENT '学生-试卷-考试次数唯一：防止并发开考生成重复会话',
   CONSTRAINT fk_exam_sessions_paper FOREIGN KEY (exam_paper_id) REFERENCES exam_papers(id) ON DELETE CASCADE,
   CONSTRAINT fk_exam_sessions_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试会话表';;

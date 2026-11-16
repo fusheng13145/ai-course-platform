@@ -94,6 +94,7 @@ class QuestionServiceImplTest {
     void create_okDefaults() {
         Question in = new Question();
         in.setContent("新问题");
+        in.setCourseId(10L);
         Question r = service.createQuestion(in);
         assertEquals(0, r.getUsageCount());
         assertEquals(BigDecimal.ZERO, r.getCorrectRate());
@@ -106,6 +107,7 @@ class QuestionServiceImplTest {
     void create_keepProvided() {
         Question in = new Question();
         in.setContent("x");
+        in.setCourseId(10L);
         in.setUsageCount(3);
         in.setCorrectRate(new BigDecimal("0.5"));
         in.setIsActive(false);
@@ -113,6 +115,15 @@ class QuestionServiceImplTest {
         assertEquals(3, r.getUsageCount());
         assertEquals(new BigDecimal("0.5"), r.getCorrectRate());
         assertFalse(r.getIsActive());
+    }
+
+    @Test
+    @DisplayName("createQuestion 缺 courseId 抛业务异常（P0-B 新题必须归属课程）")
+    void create_requiresCourse() {
+        Question in = new Question();
+        in.setContent("无课程题");
+        assertThrows(BusinessException.class, () -> service.createQuestion(in));
+        verify(questionMapper, never()).insert(any(Question.class));
     }
 
     // ===================== generateByAI =====================
@@ -304,10 +315,12 @@ class QuestionServiceImplTest {
     void batchImport_ok() {
         Question valid = new Question();
         valid.setContent("导入题");
+        valid.setCourseId(1L);
         Question blank = new Question();
         blank.setContent("   ");
         Question partial = new Question();
         partial.setContent("带默认");
+        partial.setCourseId(1L);
         partial.setType(""); // 触发默认 single
         partial.setDifficulty(""); // 触发默认 medium
 
@@ -324,6 +337,15 @@ class QuestionServiceImplTest {
     @DisplayName("batchImport 空列表返回 0")
     void batchImport_empty() {
         assertEquals(0, service.batchImport(new ArrayList<>(), 1L));
+        verify(questionMapper, never()).insert(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("batchImport 有题干但缺课程归属时拒绝整批")
+    void batchImport_requiresCourse() {
+        Question invalid = new Question();
+        invalid.setContent("无课程导入题");
+        assertThrows(BusinessException.class, () -> service.batchImport(List.of(invalid), 1L));
         verify(questionMapper, never()).insert(any(Question.class));
     }
 
@@ -373,6 +395,18 @@ class QuestionServiceImplTest {
     void copy_null() {
         when(questionMapper.selectById(anyLong())).thenReturn(null);
         assertThrows(BusinessException.class, () -> service.copyQuestion(1L));
+    }
+
+    @Test
+    @DisplayName("copyQuestion 历史无课程题不得复制成新无归属题")
+    void copy_requiresCourse() {
+        Question legacy = new Question();
+        legacy.setId(2L);
+        legacy.setContent("历史题");
+        legacy.setCourseId(null);
+        when(questionMapper.selectById(eq(2L))).thenReturn(legacy);
+        assertThrows(BusinessException.class, () -> service.copyQuestion(2L));
+        verify(questionMapper, never()).insert(any(Question.class));
     }
 
     // ===================== searchQuestions =====================

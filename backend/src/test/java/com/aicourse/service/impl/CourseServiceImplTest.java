@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.Course;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
+import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -40,6 +41,9 @@ class CourseServiceImplTest {
     @Mock
     private TeachingClassMapper teachingClassMapper;
 
+    @Mock
+    private QuestionMapper questionMapper;
+
     private CourseServiceImpl service;
 
     @BeforeEach
@@ -47,7 +51,8 @@ class CourseServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), Course.class);
         service = new CourseServiceImpl(new CourseDefaultTeachingClassSync(teachingClassMapper),
-                org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class));
+                org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class),
+                questionMapper);
         ReflectionTestUtils.setField(service, "baseMapper", courseMapper);
     }
 
@@ -190,6 +195,15 @@ class CourseServiceImplTest {
         when(courseMapper.deleteById(any(Serializable.class))).thenReturn(1);
         service.deleteCourseById(1L);
         verify(courseMapper).deleteById(any(Serializable.class));
+    }
+
+    @Test
+    @DisplayName("deleteCourseById 有题目的课程拒绝删除（V27 FK RESTRICT 前置业务提示）")
+    void deleteCourseById_withQuestions() {
+        when(questionMapper.selectCount(any())).thenReturn(2L);
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.deleteCourseById(1L));
+        assertTrue(ex.getMessage().contains("2 道题目"));
+        verify(courseMapper, never()).deleteById(any(Serializable.class));
     }
 
     @Test

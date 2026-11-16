@@ -54,11 +54,18 @@ class CourseServiceImplCacheEvictionTest {
         }
 
         @Bean
+        com.aicourse.mapper.QuestionMapper questionMapper() {
+            return mock(com.aicourse.mapper.QuestionMapper.class);
+        }
+
+        @Bean
         CourseServiceImpl courseService(CourseMapper courseMapper,
-                                        com.aicourse.mapper.TeachingClassMapper teachingClassMapper) {
+                                        com.aicourse.mapper.TeachingClassMapper teachingClassMapper,
+                                        com.aicourse.mapper.QuestionMapper questionMapper) {
             CourseServiceImpl service = new CourseServiceImpl(
                     new com.aicourse.service.component.org.CourseDefaultTeachingClassSync(teachingClassMapper),
-                    org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class));
+                    org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class),
+                    questionMapper);
             ReflectionTestUtils.setField(service, "baseMapper", courseMapper);
             return service;
         }

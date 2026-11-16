@@ -5,8 +5,10 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
+import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SemesterService;
 import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
@@ -39,11 +41,15 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     private final CourseDefaultTeachingClassSync defaultTeachingClassSync;
     /** 学期服务：创建课程时解析默认归属的 ACTIVE 学期（4A，V17 起课程编号学期内唯一）。 */
     private final SemesterService semesterService;
+    /** 题库存在性检查：V27 把 questions.course_id 外键改为 RESTRICT，删课前先给出明确业务错误。 */
+    private final QuestionMapper questionMapper;
 
     public CourseServiceImpl(CourseDefaultTeachingClassSync defaultTeachingClassSync,
-                             SemesterService semesterService) {
+                             SemesterService semesterService,
+                             QuestionMapper questionMapper) {
         this.defaultTeachingClassSync = defaultTeachingClassSync;
         this.semesterService = semesterService;
+        this.questionMapper = questionMapper;
     }
 
     /**
@@ -214,6 +220,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     })
     public void deleteCourseById(Long id) {
         log.info("删除课程");
+
+        // V27 起 fk_questions_course 为 ON DELETE RESTRICT：先给出明确的业务错误，
+        // 避免用户看到数据库外键异常，也避免“删课程静默丢题目”的历史行为。
+        long questionCount = questionMapper.selectCount(
+                new LambdaQueryWrapper<Question>().eq(Question::getCourseId, id));
+        if (questionCount > 0) {
+            throw new BusinessException("课程下仍有 " + questionCount + " 道题目，不能直接删除；请先归档或迁移题目");
+        }
 
         this.removeById(id);
     }
