@@ -250,7 +250,7 @@ test.describe.serial('核心链路（真栈）', () => {
     await adminPage.goto('/admin/ai-usage', { waitUntil: 'domcontentloaded' })
     await expect(adminPage.locator('.ai-usage-body')).toBeVisible()
     await expect(adminPage.locator('[data-testid="page-not-provided"]')).toHaveCount(0)
-    await expect(adminPage.getByText('数据源', { exact: false }).first()).toBeVisible()
+    await expect(adminPage.getByText('口径边界', { exact: true }).first()).toBeVisible()
     await expect(adminPage.locator('body')).not.toContainText('示例数据')
     await admin.close()
 

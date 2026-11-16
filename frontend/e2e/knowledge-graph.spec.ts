@@ -74,12 +74,17 @@ test('课程图谱：点数/边数与接口一致，点节点能看到它的直�
   // 用节点名定位（SVG 里 text 与 circle 同属一个 <g>）；必要时回退到第 0 个
   // 力导向布局是逐帧收敛的，节点坐标一直在动，Playwright 的"元素稳定"检查会一直等下去
   // （实测 180s 超时）。图谱节点用 force 点击：这里要验的是点击后的关系读数，不是命中精度。
+  // 点击 circle 而不是整个 <g>：<g> 的包围盒中心可能落在圆与文字之间的空白，force 点击会落空。
   await page.waitForTimeout(1200)
   const nodeLocator = kg.locator('.kg-node', { hasText: target.name }).first()
-  const clickable = (await nodeLocator.count()) ? nodeLocator : drawn.first()
+  const clickable = (await nodeLocator.count())
+    ? nodeLocator.locator('circle').first()
+    : drawn.first().locator('circle').first()
   await clickable.click({ force: true })
 
-  const neighbours = page.locator('.nb-list li')
+  // 学生端选中节点后的直接关系在右侧 .kg-rel-groups 分组里；.nb-list 是教师「图谱引擎」子图列表，
+  // 不是学生邻居列表，旧断言选错了容器。
+  const neighbours = page.locator('.kg-rel-groups li')
   await expect(neighbours).toHaveCount(expectedNeighbours, { timeout: 20000 })
   await expect(kg).toContainText('取消选中')
 
