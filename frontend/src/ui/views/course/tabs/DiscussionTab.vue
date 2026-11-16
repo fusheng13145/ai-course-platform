@@ -94,7 +94,7 @@
 
     <!-- 话题详情 -->
     <Modal v-model:open="detailOpen" :title="detail.title || '话题详情'" width="760px">
-      <div v-if="isTeacher" class="thread-actions">
+      <div v-if="canManageTopic(detail)" class="thread-actions">
         <span class="chip" :class="detail.pinned ? 'chip-accent' : 'chip-mute'">
           {{ detail.pinned ? '已置顶' : '未置顶' }}
         </span>
@@ -122,7 +122,7 @@
             <button class="text-btn" @click="likePost(post)">
               {{ post.liked ? '取消点赞' : '点赞' }} {{ post.likeCount ?? 0 }}
             </button>
-            <button v-if="isTeacher" class="text-btn danger" @click="askDeletePost(post)">
+            <button v-if="canDeletePost(post)" class="text-btn danger" @click="askDeletePost(post)">
               删除
             </button>
           </div>
@@ -171,6 +171,7 @@ import Modal from '../../../components/Modal.vue'
 import Icon from '../../../components/Icon.vue'
 import { useUi } from '../../../composables/ui'
 import type { Role } from '../../../nav'
+import { useAuthStore } from '@/stores/auth'
 import discussionApi, {
   normalizeDiscussionPost,
   normalizeDiscussionTopic,
@@ -183,6 +184,7 @@ interface Row {
   id?: number | string
   title?: string
   content?: string
+  authorId?: number | string
   authorName?: string
   author?: string
   createdAt?: string
@@ -198,8 +200,19 @@ const props = withDefaults(defineProps<{ courseId: number; role?: Role }>(), {
   role: 'teacher',
 })
 const { toast } = useUi()
-/** 置顶 / 关闭 / 删除只对教师渲染；学生可读、可回、可点赞、可发新话题 */
+const auth = useAuthStore()
+const currentUserId = computed(() => Number(auth.userId) || null)
+/** 置顶 / 关闭 / 删除：本课程教师，或话题/回复作者本人。 */
 const isTeacher = computed(() => props.role === 'teacher')
+function isAuthor(row: Row): boolean {
+  return currentUserId.value != null && Number(row.authorId) === currentUserId.value
+}
+function canManageTopic(row: Row): boolean {
+  return isTeacher.value || isAuthor(row)
+}
+function canDeletePost(post: Row): boolean {
+  return isTeacher.value || isAuthor(post)
+}
 
 const topics = ref<Row[]>([])
 const loading = ref(false)

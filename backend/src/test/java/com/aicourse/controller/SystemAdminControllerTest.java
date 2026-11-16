@@ -10,6 +10,7 @@ import com.aicourse.service.LoginLogService;
 import com.aicourse.service.OperationLogService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.service.UserSessionService;
 import com.aicourse.security.AdminScopeGuard;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -58,6 +59,8 @@ class SystemAdminControllerTest extends ControllerTestBase {
     private LoginLogService loginLogService;
     @MockitoBean
     private OperationLogService operationLogService;
+    @MockitoBean
+    private UserSessionService userSessionService;
 
     @Test
     @DisplayName("未认证访问管理员接口-返回401")

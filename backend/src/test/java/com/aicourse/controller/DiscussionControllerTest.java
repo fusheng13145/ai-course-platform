@@ -130,7 +130,7 @@ class DiscussionControllerTest extends ControllerTestBase {
         mockMvc.perform(delete("/discussion/1").with(withUser(7L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(discussionService).deleteTopic(1L, 7L, "STUDENT");
+        verify(discussionService).deleteTopic(eq(1L), any());
     }
 
     @Test
@@ -144,7 +144,7 @@ class DiscussionControllerTest extends ControllerTestBase {
     @DisplayName("DELETE /discussion/1 - 非作者删除返回403")
     void deleteTopic_nonOwner_returns_403() throws Exception {
         doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作该话题"))
-                .when(discussionService).deleteTopic(1L, 7L, "STUDENT");
+                .when(discussionService).deleteTopic(eq(1L), any());
         mockMvc.perform(delete("/discussion/1").with(withUser(7L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
@@ -173,12 +173,12 @@ class DiscussionControllerTest extends ControllerTestBase {
     void closeTopic_authorized_passes_security() throws Exception {
         DiscussionTopic topic = new DiscussionTopic();
         topic.setId(1L);
-        when(discussionService.closeTopic(eq(1L), eq(1L), any())).thenReturn(topic);
+        when(discussionService.closeTopic(eq(1L), any())).thenReturn(topic);
         mockMvc.perform(post("/discussion/topic/1/close").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(discussionService).closeTopic(eq(1L), eq(1L), any());
+        verify(discussionService).closeTopic(eq(1L), any());
     }
 
     @Test
@@ -189,8 +189,10 @@ class DiscussionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /discussion/topic/1/close - 学生越权返回403")
+    @DisplayName("POST /discussion/topic/1/close - 非作者学生由服务层课程 ACL 拒绝 403")
     void closeTopic_student_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "学生无权管理课程内容"))
+                .when(discussionService).closeTopic(eq(1L), any());
         mockMvc.perform(post("/discussion/topic/1/close").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
@@ -200,12 +202,12 @@ class DiscussionControllerTest extends ControllerTestBase {
     void pinTopic_authorized_passes_security() throws Exception {
         DiscussionTopic topic = new DiscussionTopic();
         topic.setId(1L);
-        when(discussionService.pinTopic(eq(1L), eq(true), eq(1L), any())).thenReturn(topic);
+        when(discussionService.pinTopic(eq(1L), eq(true), any())).thenReturn(topic);
         mockMvc.perform(post("/discussion/topic/1/pin?pinned=true").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(discussionService).pinTopic(eq(1L), eq(true), eq(1L), any());
+        verify(discussionService).pinTopic(eq(1L), eq(true), any());
     }
 
     @Test
@@ -216,8 +218,10 @@ class DiscussionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /discussion/topic/1/pin - 学生越权返回403")
+    @DisplayName("POST /discussion/topic/1/pin - 非作者学生由服务层课程 ACL 拒绝 403")
     void pinTopic_student_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "学生无权管理课程内容"))
+                .when(discussionService).pinTopic(eq(1L), eq(true), any());
         mockMvc.perform(post("/discussion/topic/1/pin?pinned=true").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
@@ -227,12 +231,12 @@ class DiscussionControllerTest extends ControllerTestBase {
     void markEssence_authorized_passes_security() throws Exception {
         DiscussionTopic topic = new DiscussionTopic();
         topic.setId(1L);
-        when(discussionService.markEssence(eq(1L), eq(true), eq(1L), any())).thenReturn(topic);
+        when(discussionService.markEssence(eq(1L), eq(true), any())).thenReturn(topic);
         mockMvc.perform(post("/discussion/topic/1/essence?essence=true").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(discussionService).markEssence(eq(1L), eq(true), eq(1L), any());
+        verify(discussionService).markEssence(eq(1L), eq(true), any());
     }
 
     @Test
@@ -255,7 +259,7 @@ class DiscussionControllerTest extends ControllerTestBase {
         mockMvc.perform(delete("/discussion/post/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(discussionService).deletePost(eq(1L), eq(1L), any());
+        verify(discussionService).deletePost(eq(1L), any());
     }
 
     @Test

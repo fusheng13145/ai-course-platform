@@ -29,7 +29,10 @@ beforeEach(() => {
 
 describe('StudentPracticeTab', () => {
   it('教师未开放时显示空态且不请求题库', async () => {
-    courseApi.getCourseById.mockResolvedValue({ code: 200, data: { questionPracticeEnabled: false } })
+    courseApi.getCourseById.mockResolvedValue({
+      code: 200,
+      data: { questionPracticeEnabled: false },
+    })
     const wrapper = mountTab()
     await flushPromises()
 

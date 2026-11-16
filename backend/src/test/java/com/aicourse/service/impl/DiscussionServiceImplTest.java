@@ -7,6 +7,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.DiscussionPostLikeMapper;
 import com.aicourse.mapper.DiscussionPostMapper;
 import com.aicourse.mapper.DiscussionTopicMapper;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -20,6 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -41,6 +45,7 @@ class DiscussionServiceImplTest {
     @Mock private DiscussionPostMapper postMapper;
     @Mock private DiscussionPostLikeMapper postLikeMapper;
     @Mock private NotificationService notificationService;
+    @Mock private CourseAccessControl courseAccessControl;
     @InjectMocks private DiscussionServiceImpl service;
 
     @BeforeEach
@@ -68,6 +73,11 @@ class DiscussionServiceImplTest {
         p.setLikeCount(0);
         p.setFloor(1);
         return p;
+    }
+
+    private Authentication auth(Long userId, String role) {
+        return new UsernamePasswordAuthenticationToken(userId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
 
     @Test
@@ -165,7 +175,8 @@ class DiscussionServiceImplTest {
     void closeTopic_ok() {
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
         when(topicMapper.updateById(any(DiscussionTopic.class))).thenReturn(1);
-        assertEquals(DiscussionTopic.STATUS_CLOSED, service.closeTopic(1L, 1L, "ADMIN").getStatus());
+        assertEquals(DiscussionTopic.STATUS_CLOSED,
+                service.closeTopic(1L, auth(1L, "ADMIN")).getStatus());
     }
 
     @Test
@@ -173,7 +184,7 @@ class DiscussionServiceImplTest {
     void pinTopic_ok() {
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
         when(topicMapper.updateById(any(DiscussionTopic.class))).thenReturn(1);
-        service.pinTopic(1L, true, 1L, "ADMIN");
+        service.pinTopic(1L, true, auth(1L, "ADMIN"));
         verify(topicMapper).updateById(any(DiscussionTopic.class));
     }
 
@@ -182,7 +193,8 @@ class DiscussionServiceImplTest {
     void markEssence_teacherOk() {
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
         when(topicMapper.updateById(any(DiscussionTopic.class))).thenReturn(1);
-        service.markEssence(1L, true, 1L, "TEACHER");
+        service.markEssence(1L, true, auth(1L, "TEACHER"));
+        verify(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
         verify(topicMapper).updateById(any(DiscussionTopic.class));
     }
 
@@ -190,7 +202,9 @@ class DiscussionServiceImplTest {
     @DisplayName("标记精华-学生无权限抛异常")
     void markEssence_studentDenied() {
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
-        assertThrows(BusinessException.class, () -> service.markEssence(1L, true, 2L, "STUDENT"));
+        doThrow(new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "学生无权管理课程内容"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
+        assertThrows(BusinessException.class, () -> service.markEssence(1L, true, auth(2L, "STUDENT")));
     }
 
     @Test
@@ -202,7 +216,7 @@ class DiscussionServiceImplTest {
         when(postMapper.deleteById(1L)).thenReturn(1);
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
         when(topicMapper.updateById(any(DiscussionTopic.class))).thenReturn(1);
-        service.deletePost(1L, 2L, "STUDENT");
+        service.deletePost(1L, auth(2L, "STUDENT"));
         verify(postMapper).deleteById(1L);
     }
 
@@ -212,7 +226,10 @@ class DiscussionServiceImplTest {
         DiscussionPost p = post(1L);
         p.setAuthorId(2L);
         when(postMapper.selectById(1L)).thenReturn(p);
-        assertThrows(BusinessException.class, () -> service.deletePost(1L, 9L, "STUDENT"));
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        doThrow(new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "学生无权管理课程内容"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
+        assertThrows(BusinessException.class, () -> service.deletePost(1L, auth(9L, "STUDENT")));
     }
 
     @Test
@@ -224,7 +241,7 @@ class DiscussionServiceImplTest {
         when(postMapper.deleteBatchIds(any())).thenReturn(2);
         when(topicMapper.deleteById(1L)).thenReturn(1);
 
-        service.deleteTopic(1L, 1L, "STUDENT");
+        service.deleteTopic(1L, auth(1L, "STUDENT"));
 
         verify(postLikeMapper).delete(any());
         verify(postMapper).deleteBatchIds(argThat(ids -> ids != null && ids.size() == 2));
@@ -238,7 +255,7 @@ class DiscussionServiceImplTest {
         when(postMapper.selectList(any())).thenReturn(List.of());
         when(topicMapper.deleteById(1L)).thenReturn(1);
 
-        service.deleteTopic(1L, 1L, "STUDENT");
+        service.deleteTopic(1L, auth(1L, "STUDENT"));
 
         verify(postLikeMapper, never()).delete(any());
         verify(postMapper, never()).deleteBatchIds(any());
@@ -246,16 +263,68 @@ class DiscussionServiceImplTest {
     }
 
     @Test
+    @DisplayName("删除回复-本课程教师可删学生回复")
+    void deletePost_teacherCanDeleteStudentReply() {
+        DiscussionPost p = post(1L);
+        p.setAuthorId(2L);
+        when(postMapper.selectById(1L)).thenReturn(p);
+        when(postMapper.deleteById(1L)).thenReturn(1);
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        when(topicMapper.updateById(any(DiscussionTopic.class))).thenReturn(1);
+
+        service.deletePost(1L, auth(9L, "TEACHER"));
+
+        verify(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
+        verify(postMapper).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("关闭话题-本课程教师可管理他人的课程话题")
+    void closeTopic_teacherManagesCourseTopic() {
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        when(topicMapper.updateById(any(DiscussionTopic.class))).thenReturn(1);
+
+        service.closeTopic(1L, auth(9L, "TEACHER"));
+
+        verify(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
+        verify(topicMapper).updateById(any(DiscussionTopic.class));
+    }
+
+    @Test
+    @DisplayName("关闭话题-无课程归属的公共话题非作者 fail-closed")
+    void closeTopic_publicTopicNonAuthorDenied() {
+        DiscussionTopic publicTopic = topic(1L, "OPEN");
+        publicTopic.setCourseId(null);
+        when(topicMapper.selectById(1L)).thenReturn(publicTopic);
+
+        assertThrows(BusinessException.class, () -> service.closeTopic(1L, auth(9L, "TEACHER")));
+        verify(topicMapper, never()).updateById(any(DiscussionTopic.class));
+    }
+
+    @Test
+    @DisplayName("关闭话题-非本课程教师被课程 ACL 拒绝 403")
+    void closeTopic_teacherCrossCourseDenied() {
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        doThrow(new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
+
+        assertThrows(BusinessException.class, () -> service.closeTopic(1L, auth(9L, "TEACHER")));
+        verify(topicMapper, never()).updateById(any(DiscussionTopic.class));
+    }
+
+    @Test
     @DisplayName("删除话题-非作者抛异常")
     void deleteTopic_noPermission() {
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
-        assertThrows(BusinessException.class, () -> service.deleteTopic(1L, 9L, "STUDENT"));
+        doThrow(new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "学生无权管理课程内容"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any(Authentication.class));
+        assertThrows(BusinessException.class, () -> service.deleteTopic(1L, auth(9L, "STUDENT")));
     }
 
     @Test
     @DisplayName("删除话题-话题不存在抛异常")
     void deleteTopic_notFound() {
         when(topicMapper.selectById(1L)).thenReturn(null);
-        assertThrows(BusinessException.class, () -> service.deleteTopic(1L, 1L, "ADMIN"));
+        assertThrows(BusinessException.class, () -> service.deleteTopic(1L, auth(1L, "ADMIN")));
     }
 }

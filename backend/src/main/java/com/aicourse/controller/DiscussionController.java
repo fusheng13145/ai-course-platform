@@ -137,47 +137,44 @@ public class DiscussionController {
         return ApiResponse.success("操作成功", result);
     }
 
-    /** 关闭或重新开启某个话题（教师/管理员） */
+    /** 关闭或重新开启某个话题（作者本人 / 本课程教师 / 管理员） */
     @PostMapping("/topic/{id}/close")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<DiscussionTopic> closeTopic(@PathVariable Long id, Authentication auth) {
-        return ApiResponse.success("已关闭",
-                discussionService.closeTopic(id, (Long) auth.getPrincipal(), roleOf(auth)));
+        return ApiResponse.success("已关闭", discussionService.closeTopic(id, auth));
     }
 
-    /** 置顶或取消置顶某个话题（教师/管理员） */
+    /** 置顶或取消置顶某个话题（作者本人 / 本课程教师 / 管理员） */
     @PostMapping("/topic/{id}/pin")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<DiscussionTopic> pinTopic(@PathVariable Long id,
                                                  @RequestParam boolean pinned,
                                                  Authentication auth) {
-        return ApiResponse.success("已更新",
-                discussionService.pinTopic(id, pinned, (Long) auth.getPrincipal(), roleOf(auth)));
+        return ApiResponse.success("已更新", discussionService.pinTopic(id, pinned, auth));
     }
 
-    /** 标记或取消标记某个话题为精华（教师/管理员） */
+    /** 标记或取消标记某个话题为精华（本课程教师 / 管理员） */
     @PostMapping("/topic/{id}/essence")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<DiscussionTopic> markEssence(@PathVariable Long id,
                                                     @RequestParam boolean essence,
                                                     Authentication auth) {
-        return ApiResponse.success("已更新",
-                discussionService.markEssence(id, essence, (Long) auth.getPrincipal(), roleOf(auth)));
+        return ApiResponse.success("已更新", discussionService.markEssence(id, essence, auth));
     }
 
-    /** 删除某条回复，仅作者、教师或管理员可操作 */
+    /** 删除某条回复：作者本人、本课程教师或管理员 */
     @DeleteMapping("/post/{postId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<Void> deletePost(@PathVariable Long postId, Authentication auth) {
-        discussionService.deletePost(postId, (Long) auth.getPrincipal(), roleOf(auth));
+        discussionService.deletePost(postId, auth);
         return ApiResponse.success("已删除");
     }
 
-    /** 删除整个话题，仅作者或管理员可操作，级联清理回复与点赞 */
+    /** 删除整个话题：作者本人、本课程教师或管理员，级联清理回复与点赞 */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<Void> deleteTopic(@PathVariable Long id, Authentication auth) {
-        discussionService.deleteTopic(id, (Long) auth.getPrincipal(), roleOf(auth));
+        discussionService.deleteTopic(id, auth);
         return ApiResponse.success("已删除");
     }
 }

@@ -17,6 +17,10 @@
       </button>
     </div>
 
+    <p class="scope-note">
+      管理员处置按所属学院范围生效；校级管理员可治理全平台。处置动作写入操作日志。
+    </p>
+
     <section class="card table-card">
       <header class="card-head">
         <div>
@@ -330,5 +334,11 @@ onMounted(() => {
 .filter-select {
   width: 130px;
   height: 30px;
+}
+.scope-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-3);
 }
 </style>
