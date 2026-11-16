@@ -2,6 +2,7 @@ package com.aicourse.service;
 
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
+import com.aicourse.vo.MasteryVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
@@ -43,12 +44,27 @@ public interface KnowledgePointService extends IService<KnowledgePoint> {
     List<KnowledgePoint> getSubsequentPoints(Long pointId);
 
     /**
-     * 计算知识点掌握度（基于错题本和考试成绩）
+     * 计算知识点掌握度（内部兼容入口）。
+     * <p>只使用该课程题库、最近已阅卷考试得分与错题本的真实证据；没有任何作答证据时返回
+     * {@code null}，不再返回“无错题=100”。接口层应优先使用
+     * {@link #calculateMasteryDetail(Long, Long)} 以区分“0 分”和“未评估”。</p>
+     *
      * @param pointId 知识点ID
      * @param studentId 学生ID
-     * @return 掌握度百分比（0-100）
+     * @return 掌握度百分比（0-100）；无真实作答证据时为 null
      */
     BigDecimal calculateMastery(Long pointId, Long studentId);
+
+    /**
+     * 计算知识点掌握度明细（2026-11-16 P0-4）。
+     * <p>返回对象含 score、level、answered、关联题/已答题/答对题数量与说明；题目按课程过滤，
+     * 因此不会混入其他课程的同名知识点题目。</p>
+     *
+     * @param pointId 知识点ID
+     * @param studentId 学生ID
+     * @return 掌握度明细；无证据时 score=null、answered=false
+     */
+    MasteryVO calculateMasteryDetail(Long pointId, Long studentId);
 
     /**
      * 获取课程的根级知识点（parentId为null的）
@@ -105,14 +121,14 @@ public interface KnowledgePointService extends IService<KnowledgePoint> {
 
     /**
      * 学生知识点掌握度快照（2026-11-14 P2-1，红线②：薄弱点诊断必须基于图谱）。
-     * <p>按课程批量计算知识点掌握度（与 {@link #calculateMastery} 同公式：题库按知识点
-     * 名称精确关联 + 错题本已掌握占比），批量查询避免逐知识点 3 次 SQL 的放大。
-     * 结果按掌握度升序、截取最薄弱 {@code limit} 条。</p>
+     * <p>按课程批量计算知识点掌握度，复用 {@link #calculateMasteryDetail(Long, Long)} 的
+     * 真实证据口径（考试得分优先、错题本兜底）；只返回有作答证据的最薄弱 {@code limit} 条，
+     * 未作答/无证据的知识点不再以 0 或 100 的假值进入薄弱点列表。</p>
      *
      * @param studentId 学生ID
      * @param courseIds 课程ID集合（已在调用方按选课过滤；空集合返回空列表）
      * @param limit     返回条数上限
-     * @return [{courseId, kpId, name, mastery}]，mastery 为 0-100
+     * @return [{courseId, kpId, name, mastery, answeredQuestions, totalQuestions}]，mastery 为 0-100
      */
     java.util.List<java.util.Map<String, Object>> masterySnapshot(Long studentId, java.util.List<Long> courseIds, int limit);
 }

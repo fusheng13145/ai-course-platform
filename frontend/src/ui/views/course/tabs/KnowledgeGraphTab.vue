@@ -79,11 +79,7 @@
         </div>
         <footer v-if="selectedNode" class="card-foot">
           <span>{{ selectedNode.name }} · {{ categoryText(selectedNode.category) }}</span>
-          <span
-            v-if="isStudent"
-            class="chip chip-mute"
-            :title="masteryError || '按当前登录学生计算'"
-          >
+          <span v-if="isStudent" class="chip chip-mute" :title="masteryError || masteryHint">
             我的掌握度 {{ masteryText }}
           </span>
           <button class="text-btn" @click="select(null)">取消选中</button>
@@ -671,13 +667,31 @@ function select(id: number | string | null) {
   selectedId.value = id
 }
 
-const mastery = ref<{ score: number | null; level?: string } | null>(null)
+const mastery = ref<{
+  score: number | null
+  level?: string
+  answered?: boolean
+  answeredQuestions?: number
+  totalQuestions?: number
+  note?: string
+} | null>(null)
 const masteryLoading = ref(false)
 const masteryError = ref('')
+const masteryHint = computed(() => {
+  if (masteryLoading.value) return '正在读取掌握度…'
+  if (masteryError.value) return masteryError.value
+  if (!mastery.value) return '选择知识点后按当前登录学生读取'
+  if (!mastery.value.answered || mastery.value.score === null) {
+    return mastery.value.note || '该知识点暂无作答记录'
+  }
+  const total = mastery.value.totalQuestions ?? 0
+  const answered = mastery.value.answeredQuestions ?? 0
+  return total > 0 ? `基于 ${answered}/${total} 道关联题` : '基于真实作答记录'
+})
 const masteryText = computed(() => {
   if (masteryLoading.value) return '读取中…'
   if (masteryError.value) return '—'
-  if (!mastery.value || mastery.value.score === null) return '暂无数据'
+  if (!mastery.value || !mastery.value.answered || mastery.value.score === null) return '未评估'
   return `${Math.round(mastery.value.score)} 分${mastery.value.level ? ' · ' + mastery.value.level : ''}`
 })
 
@@ -685,14 +699,34 @@ async function loadMastery(pointId: number) {
   const userId = auth.userId
   if (!userId) return
   masteryLoading.value = true
+  masteryError.value = ''
   try {
-    const raw = unwrap(unwrap(await knowledgeApi.getMastery(pointId, userId))) as {
-      score?: number
-      masteryScore?: number
-      level?: string
-    } | null
+    const raw = unwrap(unwrap(await knowledgeApi.getMastery(pointId, userId))) as
+      | number
+      | {
+          score?: number | null
+          masteryScore?: number | null
+          level?: string
+          answered?: boolean
+          answeredQuestions?: number
+          totalQuestions?: number
+          note?: string
+        }
+      | null
+    if (typeof raw === 'number') {
+      // 兼容旧版后端：裸数值代表有证据的百分比，而不是“暂无数据”。
+      mastery.value = { score: raw, answered: true }
+      return
+    }
     const score = raw?.score ?? raw?.masteryScore ?? null
-    mastery.value = { score: typeof score === 'number' ? score : null, level: raw?.level }
+    mastery.value = {
+      score: typeof score === 'number' ? score : null,
+      level: raw?.level,
+      answered: raw?.answered ?? typeof score === 'number',
+      answeredQuestions: raw?.answeredQuestions ?? 0,
+      totalQuestions: raw?.totalQuestions ?? 0,
+      note: raw?.note,
+    }
   } catch (e) {
     masteryError.value = e instanceof Error ? e.message : '掌握度读取失败'
   } finally {

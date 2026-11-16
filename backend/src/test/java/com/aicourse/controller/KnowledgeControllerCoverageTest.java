@@ -8,10 +8,12 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.aicourse.service.AIService;
+import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.vo.KnowledgeGraphDataVO;
+import com.aicourse.vo.MasteryVO;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,6 +76,7 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     @MockitoBean private AIService aiService;
     @MockitoBean private KnowledgeGraphService knowledgeGraphService;
     @MockitoBean private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean private CourseEnrollmentService courseEnrollmentService;
 
     @BeforeEach
     void registerEntityMetadata() {
@@ -88,6 +91,7 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
         // 本类覆盖业务分支，不模拟课程作用域；按校级管理员口径（readableCourseIds=null）放行全量。
         // 学生/教师的课程集合过滤由 KnowledgeControllerScopeTest 专测。
         lenient().when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
+        lenient().when(courseEnrollmentService.hasApprovedEnrollment(anyLong(), anyLong())).thenReturn(true);
     }
 
     private static KnowledgePoint point(Long id, String name) {
@@ -298,13 +302,18 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /knowledge/points/{id}/mastery/{userId} - 学生查自己：SpEL 本人分支放行")
     void calculateMastery_studentSelfAllowedByPrincipalMatch() throws Exception {
-        when(knowledgePointService.calculateMastery(eq(11L), eq(2L))).thenReturn(new BigDecimal("0.72"));
+        MasteryVO mastery = new MasteryVO();
+        mastery.setScore(new BigDecimal("72"));
+        mastery.setLevel("良好");
+        mastery.setAnswered(true);
+        when(knowledgePointService.calculateMasteryDetail(eq(11L), eq(2L))).thenReturn(mastery);
 
         mockMvc.perform(get("/knowledge/points/11/mastery/2").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").value(0.72));
-        verify(knowledgePointService).calculateMastery(11L, 2L);
+                .andExpect(jsonPath("$.data.score").value(72))
+                .andExpect(jsonPath("$.data.answered").value(true));
+        verify(knowledgePointService).calculateMasteryDetail(11L, 2L);
     }
 
     @Test
@@ -313,7 +322,7 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
         mockMvc.perform(get("/knowledge/points/11/mastery/999").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
-        verify(knowledgePointService, never()).calculateMastery(anyLong(), anyLong());
+        verify(knowledgePointService, never()).calculateMasteryDetail(anyLong(), anyLong());
     }
 
     // ==================== GET /knowledge/points/{id}/relations：节点集合去重 ====================

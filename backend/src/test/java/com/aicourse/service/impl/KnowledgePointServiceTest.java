@@ -5,8 +5,7 @@ import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.KnowledgePointRelationService;
-import com.aicourse.service.QuestionService;
-import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.component.learning.KnowledgeMasteryComponent;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,8 +33,7 @@ class KnowledgePointServiceTest {
 
     @Mock private KnowledgePointMapper mapper;
     @Mock private KnowledgePointRelationService relationService;
-    @Mock private QuestionService questionService;
-    @Mock private WrongQuestionService wrongQuestionService;
+    @Mock private KnowledgeMasteryComponent masteryComponent;
 
     @InjectMocks private KnowledgePointServiceImpl service;
 

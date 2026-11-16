@@ -7,10 +7,12 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.AIService;
+import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.vo.KnowledgeGraphDataVO;
+import com.aicourse.vo.MasteryVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,8 @@ class KnowledgeControllerTest extends ControllerTestBase {
     private KnowledgeGraphService knowledgeGraphService;
     @MockitoBean
     private CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private CourseEnrollmentService courseEnrollmentService;
 
     private KnowledgePoint samplePoint() {
         KnowledgePoint p = new KnowledgePoint();
@@ -75,6 +78,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
             p.setId(id);
             return p;
         });
+        lenient().when(courseEnrollmentService.hasApprovedEnrollment(anyLong(), anyLong())).thenReturn(true);
     }
 
     @Test
@@ -265,14 +269,35 @@ class KnowledgeControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /knowledge/points/1/mastery/1 - 返回200且data透传掌握度")
+    @DisplayName("GET /knowledge/points/1/mastery/1 - 返回200且data透传掌握度对象")
     void calculateMastery_authorized_returns_success() throws Exception {
-        when(knowledgePointService.calculateMastery(any(), any())).thenReturn(BigDecimal.valueOf(0.85));
+        MasteryVO mastery = new MasteryVO();
+        mastery.setScore(java.math.BigDecimal.valueOf(85));
+        mastery.setLevel("优秀");
+        mastery.setAnswered(true);
+        mastery.setTotalQuestions(4);
+        mastery.setAnsweredQuestions(3);
+        mastery.setCorrectQuestions(3);
+        when(knowledgePointService.calculateMasteryDetail(eq(1L), eq(1L))).thenReturn(mastery);
         mockMvc.perform(get("/knowledge/points/1/mastery/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").value(0.85));
-        verify(knowledgePointService).calculateMastery(eq(1L), eq(1L));
+                .andExpect(jsonPath("$.data.score").value(85))
+                .andExpect(jsonPath("$.data.level").value("优秀"))
+                .andExpect(jsonPath("$.data.answered").value(true));
+        verify(knowledgePointService).calculateMasteryDetail(1L, 1L);
+        verify(courseEnrollmentService).hasApprovedEnrollment(1L, 1L);
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/points/1/mastery/2 - 教师查未选课学生：403，不进入计算")
+    void calculateMastery_teacherTargetNotEnrolled_returns_403() throws Exception {
+        when(courseEnrollmentService.hasApprovedEnrollment(2L, 1L)).thenReturn(false);
+
+        mockMvc.perform(get("/knowledge/points/1/mastery/2").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(knowledgePointService, never()).calculateMasteryDetail(anyLong(), anyLong());
     }
 
     @Test
