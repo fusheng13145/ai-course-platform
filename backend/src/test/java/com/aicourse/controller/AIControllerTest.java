@@ -15,6 +15,8 @@ import com.aicourse.vo.QaSourceVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.common.ApiCode;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -56,6 +58,8 @@ class AIControllerTest extends ControllerTestBase {
     private com.aicourse.service.KnowledgePointService knowledgePointService;
     @MockitoBean
     private com.aicourse.service.LearningRecommendationService learningRecommendationService;
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     // ==================== 智能问答 ====================
 
@@ -126,7 +130,93 @@ class AIControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /ai/qa/ask - STUDENT角色可访问（AI助教对学生开放）")
+    @DisplayName("POST /ai/qa/ask - 无课程 ACL 的 courseId：403 且不调用模型/RAG")
+    void qaAsk_courseAccessDenied_forbidden() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadCourse(eq(2L), any());
+
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}")
+                        .with(withUser(9L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(aiService, never()).ragAsk(anyString(), any());
+        verify(aiChatSessionService, never()).createSession(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /ai/recommendations/questions - 无课程 ACL：403，不生成题目")
+    void questionRecommendations_courseAccessDenied_forbidden() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadCourse(eq(8L), any());
+
+        mockMvc.perform(get("/ai/recommendations/questions?courseId=8")
+                        .with(withUser(9L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(aiService, never()).recommendQuestionsJson(any(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    @DisplayName("POST /ai/learning-path/generate - 无课程 ACL：403，不生成路径")
+    void generateLearningPath_courseAccessDenied_forbidden() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadCourse(eq(8L), any());
+
+        MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":\"8\"}")
+                        .with(withUser(9L, "TEACHER")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(learningPathService, never()).generatePathPersonalized(any(), any(), anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("POST /ai/qa/global/ask - 全局助手不读课程：无 courseId 正常返回")
+    void qaAskGlobal_withoutCourse_returnsAnswer() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setUserId(9L);
+        session.setSessionId("global-sess");
+        when(aiChatSessionService.createSession(9L, null, null)).thenReturn(session);
+        when(aiService.ragAsk("什么是TCP", null))
+                .thenReturn(new QaAnswerVO("通用回答", Collections.emptyList()));
+
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/global/ask")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"什么是TCP\"}")
+                        .with(withUser(9L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value("通用回答"));
+
+        verify(aiService).ragAsk(eq("什么是TCP"), isNull());
+    }
+
+    @Test
+    @DisplayName("POST /ai/qa/global/ask - 全局助手携带 courseId：400，防止借课程上下文读私有资料")
+    void qaAskGlobal_withCourse_rejected() throws Exception {
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/global/ask")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"什么是TCP\",\"courseId\":\"2\"}")
+                        .with(withUser(9L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(aiService, never()).ragAsk(anyString(), any());
+    }
+
+
     void qaAsk_student_authorized_200() throws Exception {
         AiChatSession session = new AiChatSession();
         session.setUserId(2L); // 库里 user_id NOT NULL：夹具必须带归属人

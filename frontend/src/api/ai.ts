@@ -5,6 +5,9 @@ import { type ApiEnvelope, type ApiData } from '@/utils/response'
 /** AI 问答提问 */
 export const qaAsk = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
   request.post('/ai/qa/ask', data) as Promise<ApiEnvelope<ApiData>>
+/** 全局 AI 助手提问（不读取课程知识库，不能携带 courseId） */
+export const qaAskGlobal = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/ai/qa/global/ask', data) as Promise<ApiEnvelope<ApiData>>
 /** AI 问答追问 */
 export const qaContinue = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
   request.post('/ai/qa/continue', data) as Promise<ApiEnvelope<ApiData>>
@@ -160,6 +163,7 @@ export function qaStream(
  */
 export default {
   qaAsk,
+  qaAskGlobal,
   qaContinue,
   getSessions,
   qaStream,

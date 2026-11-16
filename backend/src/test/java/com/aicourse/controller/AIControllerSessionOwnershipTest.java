@@ -55,6 +55,7 @@ class AIControllerSessionOwnershipTest {
     @Mock private AiChatSessionService aiChatSessionService;
     @Mock private LearningRecommendationService learningRecommendationService;
     @Mock private com.aicourse.service.KnowledgePointService knowledgePointService;
+    @Mock private com.aicourse.security.CourseAccessControl courseAccessControl;
     @Mock private Authentication auth;
 
     private AIController controller;
@@ -63,7 +64,7 @@ class AIControllerSessionOwnershipTest {
     void setUp() {
         controller = new AIController(aiService, analyticsService, learningPathService,
                 courseEnrollmentService, courseService, aiChatSessionService,
-                learningRecommendationService, knowledgePointService);
+                learningRecommendationService, knowledgePointService, courseAccessControl);
         when(auth.getPrincipal()).thenReturn(5001L);
     }
 
@@ -107,6 +108,27 @@ class AIControllerSessionOwnershipTest {
                 .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ApiCode.FORBIDDEN));
 
         verify(aiChatSessionService, never()).getMessages("foreign-sid");
+        verify(aiService, never()).chat(any(), any());
+    }
+
+    @Test
+    @DisplayName("qaContinue 课程会话在课程权限收回后：403，不得借旧会话绕过 ACL")
+    void qaContinueRechecksCourseAccess() {
+        AiChatSession session = sessionOf("course-sid", 5001L);
+        session.setCourseId(7L);
+        when(aiChatSessionService.getBySessionId("course-sid")).thenReturn(session);
+        org.mockito.Mockito.doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadCourse(eq(7L), eq(auth));
+
+        QaContinueDTO dto = new QaContinueDTO();
+        dto.setMessage("继续");
+        dto.setSessionId("course-sid");
+
+        assertThatThrownBy(() -> controller.qaContinue(dto, auth).call())
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ApiCode.FORBIDDEN));
+
+        verify(aiChatSessionService, never()).getMessages("course-sid");
         verify(aiService, never()).chat(any(), any());
     }
 
