@@ -224,13 +224,15 @@ async function load(resetPage = false) {
   if (resetPage) page.value = 1
   loading.value = true
   try {
-    const payload = unwrap(await listAllEnrollments({
-      page: page.value,
-      size: pageSize,
-      status: status.value || undefined,
-      courseId: courseId.value || undefined,
-      keyword: keyword.value.trim() || undefined,
-    }))
+    const payload = unwrap(
+      await listAllEnrollments({
+        page: page.value,
+        size: pageSize,
+        status: status.value || undefined,
+        courseId: courseId.value || undefined,
+        keyword: keyword.value.trim() || undefined,
+      }),
+    )
     rows.value = pickList<EnrollmentRow>(payload)
     total.value = readTotal(payload, rows.value.length)
     // 学生名缓存：后端按 keyword 返回的行已过姓名匹配；此处只对已出现的学生补名

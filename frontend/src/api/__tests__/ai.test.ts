@@ -26,13 +26,7 @@ vi.mock('@/api/request', () => ({
 /** 契约表：[导出名, HTTP 方法, 期望 URL, 调用实参, 期望传给 request 的完整实参] */
 const CONTRACT: Array<[keyof typeof aiApi, 'get' | 'post', string, unknown[], unknown[]]> = [
   ['qaAsk', 'post', '/ai/qa/ask', [{ q: '什么是栈' }], [{ q: '什么是栈' }]],
-  [
-    'qaAskGlobal',
-    'post',
-    '/ai/qa/global/ask',
-    [{ q: '什么是栈' }],
-    [{ q: '什么是栈' }],
-  ],
+  ['qaAskGlobal', 'post', '/ai/qa/global/ask', [{ q: '什么是栈' }], [{ q: '什么是栈' }]],
   ['qaContinue', 'post', '/ai/qa/continue', [{ sessionId: 1 }], [{ sessionId: 1 }]],
   ['getSessions', 'get', '/ai/qa/sessions', [], []],
   ['essayCorrect', 'post', '/ai/essay/correct', [{ text: '作文' }], [{ text: '作文' }]],
