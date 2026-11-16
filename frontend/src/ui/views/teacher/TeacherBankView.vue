@@ -1,10 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      v-if="!isCourseScope"
-      title="题库管理"
-      sub="课程题库的题目筛选、创建、审核、复制与 AI 出题；审核通过后才进入可用题库。"
-    >
+    <PageHead v-if="!isCourseScope" title="题库管理">
       <template #actions>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleExport">导出</button>

@@ -1,10 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      v-if="!isCourseScope"
-      title="试卷库"
-      sub="试卷的创建、编辑、题目明细、统计与提交审核；管理员审核通过后学生才可见。"
-    >
+    <PageHead v-if="!isCourseScope" title="试卷库">
       <template #actions>
         <button class="btn btn-primary" @click="openCreate">新建试卷</button>
       </template>

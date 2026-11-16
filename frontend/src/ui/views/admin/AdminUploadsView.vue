@@ -1,9 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      title="上传会话监控"
-      sub="最近 100 条上传会话的状态与磁盘分片进度：可合并已齐片的会话，或取消仍在进行的会话。"
-    >
+    <PageHead title="上传会话监控">
       <template #actions>
         <button class="btn btn-ghost" :disabled="loading" @click="refreshList">
           {{ loading ? '拉取中…' : '刷新列表' }}

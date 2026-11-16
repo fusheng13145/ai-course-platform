@@ -430,9 +430,13 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(text).toContain('计算机网络')
     expect(text).toContain('86.5')
     expect(text).toContain('实验一')
-    expect(text).toContain('88')
     expect(text).toContain('期中测验')
-    expect(text).toContain('76%')
+    expect(text).toContain('得分')
+    expect(text).toContain('满分')
+    // 得分 / 满分两列：考试得分由得分率折算到卷面分
+    const rows = wrapper.findAll('tbody tr').map((tr) => tr.findAll('td').map((td) => td.text()))
+    expect(rows[0]).toEqual(['实验一', '作业', '88', '100', '已批改', '2026-10-01 10:00'])
+    expect(rows[1]).toEqual(['期中测验', '考试', '76', '100', '已批改', '2026-10-20 09:00'])
     expect(text).toContain('已批改')
     expect(text).toContain('待出分')
     expect(text).toContain('学习中心')
@@ -448,8 +452,12 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(dataStructureChip).toBeTruthy()
     await dataStructureChip?.trigger('click')
     expect(wrapper.text()).toContain('单元测验')
-    expect(wrapper.text()).toContain('90%')
     expect(wrapper.text()).toContain('已提交')
+    const switched = wrapper
+      .findAll('tbody tr')
+      .map((tr) => tr.findAll('td').map((td) => td.text()))
+    // 考试行：90% × 卷面分 100 = 得分 90，满分即卷面总分
+    expect(switched[0]).toEqual(['单元测验', '考试', '90', '100', '已提交', '—'])
     expect(wrapper.text()).not.toContain('实验一')
     wrapper.unmount()
   })
@@ -474,8 +482,16 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(wrapper.find('.course-picker').exists()).toBe(false)
     expect(wrapper.text()).toContain('操作系统')
     expect(wrapper.text()).toContain('进程调度作业')
-    expect(wrapper.text()).toContain('80')
-    expect(wrapper.text()).toContain('已批改')
+    const flat = wrapper.findAll('tbody tr').map((tr) => tr.findAll('td').map((td) => td.text()))
+    expect(flat[0]).toEqual([
+      '操作系统',
+      '进程调度作业',
+      '作业',
+      '80',
+      '100',
+      '已批改',
+      '2026-10-03 08:30',
+    ])
     wrapper.unmount()
   })
 
@@ -534,7 +550,7 @@ describe('学生全局页 · 个人中心', () => {
     const text = wrapper.text()
     expect(text).toContain('基本资料')
     expect(text).toContain('编辑资料')
-    expect(text).toContain('外观主题')
+    expect(text).not.toContain('外观主题')
     expect(text).toContain('账号安全')
     expect(text).toContain('修改密码')
     expect(text).toContain('2023010101')
@@ -678,14 +694,13 @@ describe('学生全局页 · 个人中心', () => {
     wrapper.unmount()
   })
 
-  it('偏好主题跟随 现有开关', async () => {
+  it('个人中心不再提供外观主题开关（主题切换只保留在顶栏）', async () => {
     const wrapper = mountProfile()
     await settle()
 
-    await findButton(wrapper, '深色')?.trigger('click')
-    expect(uiState.setTheme).toHaveBeenCalledWith('dark')
-    await findButton(wrapper, '浅色')?.trigger('click')
-    expect(uiState.setTheme).toHaveBeenCalledWith('light')
+    expect(wrapper.text()).not.toContain('外观主题')
+    expect(wrapper.find('.theme-switch').exists()).toBe(false)
+    expect(uiState.setTheme).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

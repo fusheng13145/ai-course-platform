@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead title="知识管理" sub="维护课程知识点结构、层级与前置依赖，支持批量导入。">
+    <PageHead title="知识管理">
       <template #actions>
         <select v-model="courseId" class="input course-pick" aria-label="选择课程">
           <option :value="null">选择课程</option>

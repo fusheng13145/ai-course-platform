@@ -329,10 +329,71 @@ describe('学生课程 · 成绩页签', () => {
     expect(wrapper.text()).toContain('86.5')
     expect(wrapper.text()).toContain('实验一')
     expect(wrapper.text()).toContain('期中测验')
-    expect(wrapper.text()).toContain('76%')
+    // 表头：得分与满分两列（考试得分由得分率折算到卷面分）
+    const th = wrapper.findAll('thead th').map((node) => node.text())
+    expect(th).toEqual(['成绩项', '类型', '得分', '满分', '状态', '提交时间', '教师评语'])
+    // 作业行：得分 88 / 满分 100；考试行：76% × 100 = 得分 76 / 满分 100
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].findAll('td').map((td) => td.text())).toEqual([
+      '实验一',
+      '作业',
+      '88',
+      '100',
+      '已批改',
+      '2026-10-01 10:00',
+      '报告完整',
+    ])
+    expect(rows[1].findAll('td').map((td) => td.text())).toEqual([
+      '期中测验',
+      '考试',
+      '76',
+      '100',
+      '已批改',
+      '2026-10-20 09:00',
+      '—',
+    ])
     expect(wrapper.text()).toContain('报告完整')
     // 只看本课程：其它课程的数据不得混入
     expect(wrapper.text()).not.toContain('数据结构')
+    wrapper.unmount()
+  })
+
+  it('缺卷面分的考试行：满分与得分都给 —，不拿百分比冒充分数', async () => {
+    studentApi.getGrades.mockResolvedValue({
+      data: {
+        courses: [
+          {
+            courseId: COURSE_ID,
+            courseName: '计算机网络',
+            finalScore: null,
+            assignments: [],
+            exams: [
+              {
+                sessionId: 7,
+                title: '缺卷面分的测验',
+                score: 66.7,
+                status: 'GRADED',
+                submittedAt: '2026-10-01T10:00:00',
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountGrades()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('缺卷面分的测验')
+    const cells = wrapper
+      .findAll('tbody tr')[0]
+      .findAll('td')
+      .map((td) => td.text())
+    // 没有卷面分就没有可折算的满分，得分与满分都给 —
+    expect(cells[2]).toBe('—')
+    expect(cells[3]).toBe('—')
+    // 也不拿百分制得分率冒充分数
+    expect(wrapper.text()).not.toContain('66.7')
     wrapper.unmount()
   })
 
@@ -423,8 +484,13 @@ describe('学生课程 · 成绩页签', () => {
     await flushPromises()
 
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
-    expect(wrapper.text()).toContain('92')
-    expect(wrapper.text()).not.toContain('70')
+    // 表格不再显示得分列，用提交时间证明留下的是「最近一次」而不是旧的那次
+    const cells = wrapper
+      .findAll('tbody tr')[0]
+      .findAll('td')
+      .map((td) => td.text())
+    expect(cells[5]).toBe('2026-10-05 10:00')
+    expect(wrapper.text()).not.toContain('2026-10-01 10:00')
     wrapper.unmount()
   })
 

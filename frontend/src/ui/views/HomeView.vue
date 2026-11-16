@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :title="def.title" :sub="sub">
+    <PageHead :title="def.title">
       <template #actions>
         <button class="btn btn-ghost" @click="secondaryAction">{{ secondary.label }}</button>
         <button class="btn btn-primary" @click="primaryAction">
@@ -285,7 +285,7 @@ interface FeedRow {
 }
 
 const router = useRouter()
-const { role, displayName } = useUi()
+const { role } = useUi()
 const def = computed(() => pageDef(role.value as Role, 'home'))
 
 const studentData = ref<Dict | null>(null)
@@ -759,17 +759,6 @@ const feedRows = computed<FeedRow[]>(() =>
 )
 
 const unreadCount = computed(() => notifications.value.filter((item) => item.unread).length)
-
-const sub = computed(() => {
-  if (role.value === 'student') {
-    if (!studentData.value) return `${displayName.value}，课程与待办数据暂不可用。`
-    return `${displayName.value}，这里是你今天的课程进度与待办。${courses.value.length} 门课程。`
-  }
-  if (role.value === 'teacher') {
-    return `${displayName.value}，课程、待批阅与近期考试的单一入口。`
-  }
-  return '平台规模、审批队列与运行概览（校级）。'
-})
 
 const courseTitle = computed(() => (role.value === 'admin' ? '课程目录' : '课程'))
 const courseEmptyHint = computed(() =>

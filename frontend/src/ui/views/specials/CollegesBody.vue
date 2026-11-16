@@ -122,7 +122,6 @@
           </button>
         </div>
       </footer>
-      <p class="hint">行政班的学生归属在「行政班」页维护；本页只管 学校 → 学院 →专业 三层骨架。</p>
     </section>
 
     <Modal

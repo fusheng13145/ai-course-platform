@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :title="def.title" :sub="def.desc" />
+    <PageHead :title="def.title" />
 
     <div v-if="tabs.length" class="tabs page-tabs" role="tablist" :aria-label="def.title">
       <button

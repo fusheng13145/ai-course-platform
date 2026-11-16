@@ -27,16 +27,23 @@ const dataApi = vi.hoisted(() => ({
   getCourses: vi.fn(),
   getCourseCatalog: vi.fn(),
 }))
-const router = vi.hoisted(() => ({ push: vi.fn() }))
+const router = vi.hoisted(() => ({
+  push: vi.fn(),
+  // resolve 只用于拼新标签页 href；测试里原样返回路径
+  resolve: vi.fn((to: string) => ({ href: to })),
+}))
 
 const uiState = vi.hoisted(() => ({
   toast: vi.fn(),
   role: null as unknown as { value: string },
 }))
+// 课程卡在新标签页打开前会镜像登录态；单测里不需要真 pinia，替身即可
+const authStore = vi.hoisted(() => ({ mirrorUserForNewTab: vi.fn() }))
 
 vi.mock('@/api/student', () => ({ default: studentApi }))
 vi.mock('../data/api', () => dataApi)
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: router.push }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: router.push, resolve: router.resolve }) }))
 vi.mock('../composables/ui', async () => {
   const { ref } = await import('vue')
   uiState.role = ref('student')
@@ -127,6 +134,23 @@ beforeEach(() => {
 })
 
 describe('学生「加入课程」= 真实选课写口（非演示动作）', () => {
+  it('点课程卡在新标签页打开课程空间，不替换当前列表页', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = mountCourses()
+    await settle()
+
+    await wrapper.find('.course-tile-cover').trigger('click')
+
+    expect(router.resolve).toHaveBeenCalledWith('/student/courses/4008/overview')
+    // 打开前先把登录态镜像给新标签页，否则新页会被守卫弹回登录页
+    expect(authStore.mirrorUserForNewTab).toHaveBeenCalledTimes(1)
+    expect(openSpy).toHaveBeenCalledWith('/student/courses/4008/overview', '_blank', 'noopener')
+    // 当前页不跳转：筛选与滚动位置保留
+    expect(router.push).not.toHaveBeenCalled()
+    openSpy.mockRestore()
+    wrapper.unmount()
+  })
+
   it('点完按钮：按路径参数契约报名，且 GET /student/courses 读数出现这门课', async () => {
     const wrapper = mountCourses()
     await settle()

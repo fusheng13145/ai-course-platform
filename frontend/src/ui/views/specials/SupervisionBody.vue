@@ -55,10 +55,6 @@
       </div>
       <div v-else-if="loading" class="empty-state compact"><b>正在加载…</b></div>
       <div v-else class="empty-state compact"><b>暂无在册课程</b></div>
-      <p class="hint">
-        进行中考试 = STARTED 会话；待批阅 = SUBMITTED
-        未出分的提交。逐课治理动作在「考试治理」与「选课与名单」。
-      </p>
     </section>
   </section>
 </template>
