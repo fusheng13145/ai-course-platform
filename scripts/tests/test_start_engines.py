@@ -376,13 +376,20 @@ def test_effective_api_key_handles_missing_env_value(bad):
 
 
 def test_neo4j_is_launched_in_console_mode_not_start():
-    """`neo4j.bat start` 要求**已安装为 Windows 服务**（需管理员），zip 单机版直接报
+    """`neo4j start` 要求**已安装为服务**（需管理员权限），zip 单机版直接报
     "Neo4j service is not installed / Unable to start"（2026-10-10 真跑实测）。
-    一键路径只能用 `console`，在新窗口里前台跑，关窗即停。"""
-    cmd = eng.neo4j_launch_command(r"D:\neo4j-community-5.26.12")
-    assert cmd == [r"D:\neo4j-community-5.26.12\bin\neo4j.bat", "console"]
+    一键路径只能用 `console`，在前台跑，关窗即停。
+
+    启动脚本名随平台：Windows 是 `bin\\neo4j.bat`，Linux/macOS 是无扩展名的 `bin/neo4j`。
+    写死 `.bat` 会让 Linux 启动器在 spawn 前就找不到文件（E-01 残项，2026-11-16 修）——
+    本用例同时跑在 windows-latest 与 ubuntu-latest 上，故只钉语义与后缀，不钉反斜杠形态。"""
+    home = r"D:\neo4j-community-5.26.12"
+    cmd = eng.neo4j_launch_command(home)
+    expected_name = "neo4j.bat" if os.name == "nt" else "neo4j"
+    assert cmd[-1] == "console", "一键路径必须 console；start 在 zip 单机版必报服务未安装"
+    assert cmd[0].endswith(expected_name), f"平台 {os.name} 的启动脚本名不对：{cmd[0]}"
+    assert "bin" in cmd[0]
     assert "start" not in cmd
-    assert "console" in cmd
 
 
 def test_engine_ready_needs_the_port_and_an_answering_probe():

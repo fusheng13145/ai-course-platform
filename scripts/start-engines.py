@@ -47,7 +47,15 @@ PORTS = {"neo4j": 7687, "kg": 8001, "rag": 8002, "ft": 8003}
 
 # Neo4j 是仓库外的本机单机安装（§18.5）。首选 .env 的 NEO4J_HOME，其次本机已知路径；
 # 都不存在则只上报，不猜路径、不装东西。
-DEFAULT_NEO4J_HOMES = (r"D:\neo4j-community-5.26.12",)
+# 候选按平台排列：Windows 是本机 zip 单机版；Linux 只列常见安装位。
+# 生产/容器编排不经过这里（compose 的 neo4j 用镜像自带进程，见 docker-compose.yml）；
+# 都找不到时只上报，不猜路径、不装东西。
+DEFAULT_NEO4J_HOMES = (
+    r"D:\neo4j-community-5.26.12",  # Windows 本机（zip 单机版，必须 neo4j.bat console）
+    "/opt/neo4j",                   # Linux 官方 tarball 常见位
+    "/usr/local/neo4j",
+    "/var/lib/neo4j",
+)
 
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
 SERVICE_DIRS = {"kg": "kg_service", "rag": "rag_service", "ft": "fine_tune_service"}
@@ -277,11 +285,17 @@ def probe_url(service: str) -> str:
     return "http://127.0.0.1:7474"
 
 
+def neo4j_bin(home: str) -> Path:
+    """Neo4j 启动脚本：Windows 是 `bin\\neo4j.bat`，Linux/macOS 是无扩展名的 `bin/neo4j`。
+    写死 `.bat` 的旧版本在非 Windows 上必然找不到文件，Linux 启动器因此不可用（E-01 残项）。"""
+    return Path(home) / "bin" / ("neo4j.bat" if os.name == "nt" else "neo4j")
+
+
 def neo4j_launch_command(home: str) -> list:
-    """只能用 console：zip 单机版没装成 Windows 服务，`neo4j.bat start` 会直接报
+    """只能用 console：zip 单机版没装成服务，`neo4j start` 会直接报
     "Neo4j service is not installed / Unable to start"（2026-10-10 真跑实测）。
-    console 在新窗口里前台跑，关窗即停——与引擎窗口同一姿态。"""
-    return [str(Path(home) / "bin" / "neo4j.bat"), "console"]
+    console 在前台跑，关窗即停——与引擎窗口同一姿态。子命令两平台同名。"""
+    return [str(neo4j_bin(home)), "console"]
 
 
 def engine_ready(port_up: bool, health) -> bool:
@@ -341,9 +355,9 @@ def spawn_detached(cmd: list, cwd: Path, env: dict, log_path: Path | None = None
 
 
 def start_neo4j(home: str, env: dict) -> bool:
-    bat = Path(home) / "bin" / "neo4j.bat"
-    if not bat.exists():
-        print(f"[FAIL] 找不到 {bat}")
+    launcher = neo4j_bin(home)
+    if not launcher.exists():
+        print(f"[FAIL] 找不到 {launcher}（平台 {os.name}）")
         return False
     spawn_detached(neo4j_launch_command(home), Path(home), env)
     return wait_until(lambda: is_port_listening(PORTS["neo4j"]), timeout=NEO4J_START_TIMEOUT)
@@ -496,8 +510,8 @@ def main(argv=None) -> int:
     final = status_snapshot()
     if want["neo4j"] and not neo4j_home and "kg" in only:
         print(
-            "[WARN] 找不到 Neo4j 安装目录（.env 的 NEO4J_HOME 或 "
-            f"{DEFAULT_NEO4J_HOMES[0]}）。KG 会回落内存图，重启即丢。"
+            "[WARN] 找不到 Neo4j 安装目录（.env 的 NEO4J_HOME 或已知位："
+            f"{' / '.join(DEFAULT_NEO4J_HOMES)}）。KG 会回落内存图，重启即丢。"
             " 请把 NEO4J_HOME=<安装目录> 写进 .env；本机没有图库请回项目主，不要拉容器（§17）。"
         )
     provider = env.get("AI_PROVIDER") or os.getenv("AI_PROVIDER", "deepseek")
