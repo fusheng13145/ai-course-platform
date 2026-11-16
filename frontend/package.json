@@ -68,7 +68,7 @@
       "minimatch": "^9.0.7"
     },
     "glob": {
-      "minimatch": "^9.0.7"
+      "minimatch": "^10.2.2"
     },
     "test-exclude": {
       "glob": "^10.5.0"
