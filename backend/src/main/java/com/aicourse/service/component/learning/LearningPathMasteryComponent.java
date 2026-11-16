@@ -37,8 +37,8 @@ public class LearningPathMasteryComponent {
      * 从学生错题本自动推导知识点掌握度（0~100）。
      * 只采用与课程知识图谱节点同名匹配的错题分组，并复用
      * {@link KnowledgePointService#calculateMastery(Long, Long)} 的统计算法，保证学习路径与
-     * 知识点维度的掌握度口径一致。名称无法匹配图谱节点的分组直接跳过（记录 WARN），
-     * 不产出兜底分数；这些知识点由调用方按默认值 50 处理并标记为“未评估”。
+     * 知识点维度的掌握度口径一致（考试得分优先、错题本兜底）。名称无法匹配图谱节点的
+     * 分组直接跳过（记录 WARN），不产出兜底分数；调用方按“未评估”处理，不得写成 50 分。
      *
      * @param studentId 学生ID
      * @param courseId  课程ID
