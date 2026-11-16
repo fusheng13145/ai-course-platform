@@ -43,6 +43,8 @@ class PlagiarismCheckControllerAclTest extends ControllerTestBase {
     // 修复 B2 残留：控制器新增选课服务依赖（教师—学生归属判定），Web 切片需显式 mock 以满足装配。
     @MockitoBean
     private com.aicourse.service.CourseEnrollmentService courseEnrollmentService;
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     private PlagiarismCheck checkOf(Long id, Long submissionId) {
         PlagiarismCheck c = new PlagiarismCheck();

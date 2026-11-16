@@ -141,4 +141,35 @@ class ExamSessionAccessControlTest {
         // 教师开考不属于业务路径（收卷/阅卷走 force-submit / auto-grade），保持原放行行为不变
         assertDoesNotThrow(() -> accessControl.assertExamStartable(5L, auth(20L, "TEACHER")));
     }
+
+    // ===================== 读权限（报告/结果）不得对教师跨课程放行 =====================
+
+    @Test
+    void teacherReadsOwnCourseSession_ok() {
+        when(examSessionService.getById(1L)).thenReturn(session(1L, 5L, 10L));
+        when(examPaperService.getById(5L)).thenReturn(paper(5L, 7L));
+        when(courseService.getById(7L)).thenReturn(course(7L, 20L));
+        assertDoesNotThrow(() -> accessControl.assertReadable(1L, auth(20L, "TEACHER")));
+    }
+
+    @Test
+    void teacherReadsOtherCourseSession_rejected() {
+        when(examSessionService.getById(1L)).thenReturn(session(1L, 5L, 10L));
+        when(examPaperService.getById(5L)).thenReturn(paper(5L, 7L));
+        when(courseService.getById(7L)).thenReturn(course(7L, 20L));
+        assertThrows(BusinessException.class,
+                () -> accessControl.assertReadable(1L, auth(21L, "TEACHER")));
+    }
+
+    @Test
+    void studentReadsOwnSession_ok() {
+        when(examSessionService.getById(1L)).thenReturn(session(1L, 5L, 10L));
+        assertDoesNotThrow(() -> accessControl.assertReadable(1L, auth(10L, "STUDENT")));
+    }
+
+    @Test
+    void adminReadsAnySession_ok() {
+        when(examSessionService.getById(1L)).thenReturn(session(1L, 5L, 10L));
+        assertDoesNotThrow(() -> accessControl.assertReadable(1L, auth(9L, "ADMIN")));
+    }
 }

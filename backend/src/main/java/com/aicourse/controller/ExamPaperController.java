@@ -262,6 +262,8 @@ public class ExamPaperController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "新增试卷")
     public ApiResponse<ExamPaper> create(@Valid @RequestBody ExamPaper exam, Authentication auth) {
+        // 对象级授权：试卷必须归属当前教师（管理员按治理口径放行），防止甲课教师为乙课创建试卷。
+        examPaperAccessControl.assertCanCompose(exam.getCourseId(), auth);
         exam.setCreatorId((Long) auth.getPrincipal());
         String requestedVisibility = ActivityVisibility.normalizeOrNull(exam.getVisibility());
         if (ActivityVisibility.CLASSES.equals(requestedVisibility)

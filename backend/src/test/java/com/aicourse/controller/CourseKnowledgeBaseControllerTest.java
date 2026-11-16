@@ -22,8 +22,11 @@ class CourseKnowledgeBaseControllerTest extends ControllerTestBase {
     @MockitoBean
     private CourseKnowledgeBaseService courseKnowledgeBaseService;
 
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+
     @Test
-    @DisplayName("POST /rag/course/1/build - TEACHER 构建返回 code=200 且字段透传")
+    @DisplayName("POST /rag/course/1/build - 教师构建返回 code=200 且字段透传，并执行课程管理权校验")
     void build_teacher_returns_success() throws Exception {
         when(courseKnowledgeBaseService.buildFromCourse(1L))
                 .thenReturn("{\"courseId\":1,\"mode\":\"LOCAL\",\"total\":3,\"added\":0,\"skipped\":0}");
@@ -34,6 +37,7 @@ class CourseKnowledgeBaseControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.mode").value("LOCAL"))
                 .andExpect(jsonPath("$.data.total").value(3));
 
+        verify(courseAccessControl).assertCanManageCourse(eq(1L), any());
         verify(courseKnowledgeBaseService).buildFromCourse(eq(1L));
     }
 

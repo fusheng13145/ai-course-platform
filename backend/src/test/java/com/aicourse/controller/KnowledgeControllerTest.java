@@ -11,6 +11,7 @@ import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.vo.KnowledgeGraphDataVO;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -60,6 +61,20 @@ class KnowledgeControllerTest extends ControllerTestBase {
         r.setSourceId(1L);
         r.setTargetId(2L);
         return r;
+    }
+
+    /**
+     * 读端点现在先解析 pointId → courseId 再执行课程 ACL；默认给任意 pointId 一个同课程节点，
+     * 让原有用例继续聚焦在业务返回，跨课程 403 由 ScopeTest 专测。
+     */
+    @BeforeEach
+    void stubPointLookup() {
+        lenient().when(knowledgePointService.getById(anyLong())).thenAnswer(inv -> {
+            Long id = inv.getArgument(0);
+            KnowledgePoint p = samplePoint();
+            p.setId(id);
+            return p;
+        });
     }
 
     @Test
@@ -395,6 +410,76 @@ class KnowledgeControllerTest extends ControllerTestBase {
     void deleteRelation_student_forbidden_403() throws Exception {
         mockMvc.perform(delete("/knowledge/relations/1").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/points - 学生无课程时按可读课程集合过滤，不退化为全站")
+    void listPoints_studentScopedByReadableCourses() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(1L));
+
+        mockMvc.perform(get("/knowledge/points").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+
+        verify(knowledgePointService).list(org.mockito.ArgumentMatchers.any(
+                com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("GET /knowledge 读端点 - 他课 courseId/pointId 一律 403")
+    void readEndpoints_crossCourseRejected() throws Exception {
+        KnowledgePoint otherCoursePoint = samplePoint();
+        otherCoursePoint.setCourseId(2L);
+        when(knowledgePointService.getById(1L)).thenReturn(otherCoursePoint);
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权访问其他教师的课程"))
+                .when(courseAccessControl).assertCanReadCourse(eq(2L), any());
+
+        String[] paths = {
+                "/knowledge/points?courseId=2",
+                "/knowledge/points/page?courseId=2",
+                "/knowledge/points/1",
+                "/knowledge/points/1/relations",
+                "/knowledge/points/1/prerequisites",
+                "/knowledge/points/1/successors",
+                "/knowledge/points/1/children",
+                "/knowledge/points/1/mastery/1",
+                "/knowledge/points/tree/2",
+                "/knowledge/points/root/2",
+                "/knowledge/points/graph?courseId=2",
+                "/knowledge/relations?courseId=2",
+                "/knowledge/relations/point/1",
+                "/knowledge/relations/source/1",
+                "/knowledge/relations/target/1",
+                "/knowledge/relations/graph/2",
+                "/knowledge/search?keyword=TCP&courseId=2",
+                "/knowledge/overview?courseId=2"
+        };
+        for (String path : paths) {
+            mockMvc.perform(get(path).with(withUser(1L, "STUDENT")))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(403));
+        }
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/subgraph/{courseId} - 教师只能查看本人课程")
+    void subGraph_teacherOtherCourseRejected() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(2L), any());
+
+        mockMvc.perform(get("/knowledge/subgraph/2").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/relations - 学生不带 courseId：400，不落到全站关系查询")
+    void getRelationList_studentWithoutCourseRejected() throws Exception {
+        mockMvc.perform(get("/knowledge/relations").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(relationService, never()).getRelationList(org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(), any());
     }
 
     @Test

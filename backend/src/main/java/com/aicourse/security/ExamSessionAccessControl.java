@@ -93,9 +93,10 @@ public class ExamSessionAccessControl {
 
     /**
      * 读权限校验（questions / time-remaining / report / result）。
-     * 学生仅本人；教师/管理员放行。返回已加载的会话以便复用，避免重复查询。
+     * 学生仅本人；教师须为会话所属试卷对应课程的授课教师；管理员放行。
+     * 返回已加载的会话以便复用，避免重复查询。
      *
-     * @throws BusinessException 会话不存在时 code=404；学生越权访问时 code=403
+     * @throws BusinessException 会话不存在时 code=404；学生越权或教师跨课程时 code=403
      */
     public ExamSession assertReadable(Long sessionId, Authentication auth) {
         ExamSession session = requireSession(sessionId);
@@ -105,7 +106,12 @@ public class ExamSessionAccessControl {
                         sessionId, principalId(auth), session.getStudentId());
                 throw new BusinessException(ApiCode.FORBIDDEN, "无权访问该考试会话");
             }
+            return session;
         }
+        if (isAdmin(auth)) {
+            return session;
+        }
+        assertTeacherOwnsSessionCourse(session, principalId(auth));
         return session;
     }
 
@@ -134,15 +140,22 @@ public class ExamSessionAccessControl {
     public ExamSession assertManageable(Long sessionId, Authentication auth) {
         ExamSession session = requireSession(sessionId);
         Long userId = principalId(auth);
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_" + RoleConstants.ADMIN));
-        if (isAdmin) {
+        if (isAdmin(auth)) {
             return session;
         }
         if (RoleConstants.STUDENT.equals(roleOf(auth))) {
             log.warn("[ExamSessionAccess] 越权管理尝试（学生角色）：sessionId={}, userId={}", sessionId, userId);
             throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该考试会话");
         }
+        assertTeacherOwnsSessionCourse(session, userId);
+        return session;
+    }
+
+    /**
+     * 教师管理边界：会话所属试卷必须属于当前教师任教课程。
+     * 读、管两条路径共用，避免两处各写一份归属判定后分叉。
+     */
+    private void assertTeacherOwnsSessionCourse(ExamSession session, Long userId) {
         ExamPaper paper = examPaperService.getById(session.getExamPaperId());
         if (paper == null) {
             throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
@@ -152,11 +165,10 @@ public class ExamSessionAccessControl {
             throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         if (!userId.equals(course.getTeacherId())) {
-            log.warn("[ExamSessionAccess] 越权管理尝试（非授课教师）：sessionId={}, userId={}, courseId={}, teacherId={}",
-                    sessionId, userId, course.getId(), course.getTeacherId());
-            throw new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试");
+            log.warn("[ExamSessionAccess] 越权访问/管理尝试（非授课教师）：sessionId={}, userId={}, courseId={}, teacherId={}",
+                    session.getId(), userId, course.getId(), course.getTeacherId());
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权访问或管理其他教师的考试");
         }
-        return session;
     }
 
     // ===================== 内部工具 =====================
@@ -171,6 +183,11 @@ public class ExamSessionAccessControl {
 
     private Long principalId(Authentication auth) {
         return (Long) auth.getPrincipal();
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_" + RoleConstants.ADMIN));
     }
 
     private String roleOf(Authentication auth) {

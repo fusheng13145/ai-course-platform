@@ -20,6 +20,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -35,6 +37,8 @@ class SubmissionAccessControlTest {
     private TaskMapper taskMapper;
     @Mock
     private CourseMapper courseMapper;
+    @Mock
+    private CourseAccessControl courseAccessControl;
 
     @InjectMocks
     private SubmissionAccessControl accessControl;
@@ -135,5 +139,23 @@ class SubmissionAccessControlTest {
         when(courseMapper.selectById(7L)).thenReturn(course(7L, 20L));
         assertThrows(BusinessException.class,
                 () -> accessControl.assertCanListTask(5L, auth(21L, "TEACHER")));
+    }
+
+    // ===================== 提交前课程成员边界 =====================
+
+    @Test
+    void submitTask_studentMustPassCourseReadAcl() {
+        when(taskMapper.selectById(5L)).thenReturn(task(7L));
+
+        assertDoesNotThrow(() -> accessControl.assertCanSubmitTask(5L, auth(10L, "STUDENT")));
+
+        // 真正的选课/发布判定统一委托 CourseAccessControl，避免这里另写一套分叉规则。
+        verify(courseAccessControl).assertCanReadTask(any(Task.class), any(Authentication.class));
+    }
+
+    @Test
+    void submitTask_notFound_rejected() {
+        assertThrows(BusinessException.class,
+                () -> accessControl.assertCanSubmitTask(999L, auth(10L, "STUDENT")));
     }
 }

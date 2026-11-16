@@ -38,13 +38,16 @@ public class SubmissionAccessControl {
     private final SubmissionService submissionService;
     private final TaskMapper taskMapper;
     private final CourseMapper courseMapper;
+    private final CourseAccessControl courseAccessControl;
 
     public SubmissionAccessControl(SubmissionService submissionService,
                                    TaskMapper taskMapper,
-                                   CourseMapper courseMapper) {
+                                   CourseMapper courseMapper,
+                                   CourseAccessControl courseAccessControl) {
         this.submissionService = submissionService;
         this.taskMapper = taskMapper;
         this.courseMapper = courseMapper;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -88,6 +91,25 @@ public class SubmissionAccessControl {
             return;
         }
         assertOwnsCourse(taskId, principalId(auth));
+    }
+
+    /**
+     * 提交作业前的对象级校验：任务必须存在，且当前用户对该任务所属课程有读权限。
+     *
+     * <p>学生走 {@link CourseAccessControl#assertCanReadTask}：任务已发布 + 已通过审批的选课；
+     * 教师须为任务所属课程授课教师；管理员按课程作用域放行。原先两条提交入口
+     * （{@code SubmissionController#submit} 与 {@code StudentController#submitAssignment}）
+     * 都只校验任务发布/次数/截止，未校验课程成员关系，任意学生可向他人课程任务提交。</p>
+     *
+     * @throws BusinessException 任务不存在 404；未发布/未选课/跨教师课程 403
+     */
+    public Task assertCanSubmitTask(Long taskId, Authentication auth) {
+        Task task = taskId != null ? taskMapper.selectById(taskId) : null;
+        if (task == null) {
+            throw new BusinessException(404, "作业任务不存在");
+        }
+        courseAccessControl.assertCanReadTask(task, auth);
+        return task;
     }
 
     // ===================== 内部工具 =====================

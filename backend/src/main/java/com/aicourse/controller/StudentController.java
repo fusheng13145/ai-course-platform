@@ -246,6 +246,10 @@ public class StudentController {
             @Valid @RequestBody AssignmentSubmitDTO dto,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
+        // 提交前校验任务归属与选课关系：学生只能向自己已通过审批的课程任务提交。
+        // 与 SubmissionController 的 /submissions 入口同源，避免只修一条双轨路径。
+        Task task = taskService.getById(assignmentId);
+        courseAccessControl.assertCanReadTask(task, auth);
         Submission submission = submissionService.submitAssignment(assignmentId, userId, dto.getContent(), dto.getFileUrls());
         return ApiResponse.success("提交成功", submission);
     }
