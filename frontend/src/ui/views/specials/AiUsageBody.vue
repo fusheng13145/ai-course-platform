@@ -97,10 +97,6 @@
           }}
         </p>
       </div>
-
-      <p class="hint">
-        「未绑定课程」行必须保留：它统计的是通识问答、作文批改等没有课程归属的调用，丢掉它总量就对不上。
-      </p>
     </section>
 
     <section class="card">
@@ -129,9 +125,6 @@
         <b>{{ dayError ? '按日趋势加载失败' : `近 ${rangeDays} 天没有调用记录` }}</b>
         <p>{{ dayError ? dayError : '无调用时不画 0 高度柱，避免看起来像「统计过但为 0」。' }}</p>
       </div>
-      <p class="hint">
-        无调用的日期按 0 补齐区间横轴（峰值归一化）；柱高只反映调用次数，不反映 token 量。
-      </p>
     </section>
 
     <section class="card table-card">
@@ -174,9 +167,6 @@
         <span class="e-ico"><Icon name="sparkle" /></span>
         <b>{{ sceneError ? '按能力聚合加载失败' : `近 ${rangeDays} 天没有调用记录` }}</b>
       </div>
-      <p class="hint">
-        「能力」即调用场景：问答/追问/作文批改润色/学习建议/出题/知识点抽取等；未登记的新场景以原始代码展示，不猜测语义。
-      </p>
     </section>
 
     <section class="card table-card">
@@ -262,10 +252,6 @@
         <b>没有逐人限制</b>
         <p>总闸允许出题且名单为空＝全体教师可正常使用 AI 出题。</p>
       </div>
-      <p class="hint">
-        两层判定：总闸（是否允许教师使用 AI 出题）与逐人名单；生效点在教师出题入口，
-        管理员不受限。仅校级管理员可修改。
-      </p>
     </section>
   </section>
 </template>

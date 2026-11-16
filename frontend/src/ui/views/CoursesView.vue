@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :title="def.title" :sub="def.desc">
+    <PageHead :title="def.title">
       <template #actions>
         <select
           v-if="role === 'student'"
@@ -117,6 +117,7 @@ import studentApi from '@/api/student'
 import { pageDef, type Role } from '../nav'
 import { useUi } from '../composables/ui'
 import { getCourses, getCourseCatalog, type CourseCard } from '../data/api'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const { role, toast } = useUi()
@@ -147,8 +148,16 @@ const emptyHint = computed(() =>
     : '课程数据加载后会自动出现在这里。',
 )
 
+/**
+ * 课程卡在新标签页打开：列表页状态（筛选、滚动位置）不被覆盖，
+ * 也便于同时对照多门课。href 走 router.resolve，保留 base 与查询串。
+ */
 function open(id: number) {
-  router.push(`/${role.value}/courses/${id}/overview`)
+  const href = router.resolve(`/${role.value}/courses/${id}/overview`).href
+  // 新标签页是独立 JS 上下文、读不到本页的 sessionStorage：先把当前登录态
+  // （非敏感 user）镜像到 localStorage，否则新页会被守卫判成未登录弹回 /login。
+  useAuthStore().mirrorUserForNewTab()
+  window.open(href, '_blank', 'noopener')
 }
 
 /** 可加入课程 = 课程目录剔除已在修课程（按 id 去重，剔除 id<=0 的脏行）。 */

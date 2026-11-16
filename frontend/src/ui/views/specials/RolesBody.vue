@@ -35,10 +35,6 @@
             </button>
           </li>
         </ul>
-        <p class="hint">
-          角色取自平台角色常量 ADMIN / TEACHER / STUDENT；每行权限对应 role_permissions
-          表的一条真实配置。
-        </p>
       </section>
 
       <section class="card table-card">
@@ -98,8 +94,6 @@
             }}
           </p>
         </div>
-
-        <p class="hint">本页只维护资源级权限，不提供菜单或按钮级权限项。</p>
       </section>
     </div>
 

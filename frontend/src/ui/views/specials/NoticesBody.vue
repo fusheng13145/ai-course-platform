@@ -164,9 +164,6 @@
           </button>
         </div>
       </footer>
-      <p class="hint">
-        消费侧在消息中心（/notifications），已读与删除走既有通知通道；本页是发布与治理视图。
-      </p>
     </section>
   </section>
 </template>

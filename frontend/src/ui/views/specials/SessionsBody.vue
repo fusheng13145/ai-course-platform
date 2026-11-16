@@ -132,8 +132,6 @@
           </button>
         </div>
       </footer>
-
-      <p class="hint">列表与筛选在当前页面完成；仅管理员可强制下线。</p>
     </section>
 
     <Modal v-model:open="confirmOpen" title="强制下线" width="460px">

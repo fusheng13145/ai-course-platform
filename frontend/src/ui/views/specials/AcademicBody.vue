@@ -81,7 +81,7 @@
                     <th>成绩项</th>
                     <th class="w-140">类型</th>
                     <th class="w-140">得分</th>
-                    <th class="w-140">满分 / 卷面</th>
+                    <th class="w-140">满分</th>
                     <th class="w-140">状态</th>
                     <th class="w-220">提交时间</th>
                   </tr>
@@ -95,7 +95,7 @@
                       <span class="chip chip-info">{{ item.kind }}</span>
                     </td>
                     <td>{{ scoreText(item) }}</td>
-                    <td>{{ item.maxScore == null ? '—' : item.maxScore }}</td>
+                    <td>{{ fullScoreText(item.maxScore ?? item.totalScore) }}</td>
                     <td>
                       <span class="chip" :class="item.chip">{{ item.statusLabel }}</span>
                     </td>
@@ -126,7 +126,7 @@
                   <th>成绩项</th>
                   <th class="w-140">类型</th>
                   <th class="w-140">得分</th>
-                  <th class="w-140">满分 / 卷面</th>
+                  <th class="w-140">满分</th>
                   <th class="w-140">状态</th>
                   <th class="w-220">提交时间</th>
                 </tr>
@@ -141,7 +141,7 @@
                     <span class="chip chip-info">{{ row.kind }}</span>
                   </td>
                   <td>{{ scoreText(row) }}</td>
-                  <td>{{ row.maxScore == null ? '—' : row.maxScore }}</td>
+                  <td>{{ fullScoreText(row.maxScore ?? row.totalScore) }}</td>
                   <td>
                     <span class="chip" :class="row.chip">{{ row.statusLabel }}</span>
                   </td>
@@ -186,7 +186,10 @@ interface GradeItem {
   title: string
   kind: '作业' | '考试'
   score: number | null
+  /** 作业满分（后端 task.maxScore） */
   maxScore: number | null
+  /** 考试卷面分（后端 examPaper.totalScore）；考试行没有满分，作业行没有卷面分 */
+  totalScore: number | null
   percent: boolean
   statusLabel: string
   chip: string
@@ -290,9 +293,24 @@ function finalScoreText(value: number | null): string {
   return value == null ? '待出分' : String(value)
 }
 
+function fullScoreText(value: number | null): string {
+  return value == null ? '—' : String(value)
+}
+
+function trimNumber(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+}
+
+/**
+ * 得分：作业直接是批阅分数；考试后端只给百分制得分率，按「得分率 × 卷面分」换算成卷面得分。
+ * 缺卷面分时无法换算，给「—」而不拿百分比冒充分数。
+ */
 function scoreText(item: GradeItem): string {
   if (item.score == null) return '—'
-  return item.percent ? `${item.score}%` : String(item.score)
+  if (!item.percent) return trimNumber(item.score)
+  if (item.totalScore == null) return '—'
+  return trimNumber((item.score * item.totalScore) / 100)
 }
 
 function buildItem(raw: RawRow, kind: '作业' | '考试', key: string, percent: boolean): GradeItem {
@@ -302,7 +320,8 @@ function buildItem(raw: RawRow, kind: '作业' | '考试', key: string, percent:
     title: String(raw.title ?? raw.name ?? (kind === '作业' ? '作业' : '考试')),
     kind,
     score: numberOrNull(raw.score),
-    maxScore: numberOrNull(percent ? raw.totalScore : raw.maxScore),
+    maxScore: numberOrNull(raw.maxScore),
+    totalScore: numberOrNull(raw.totalScore),
     percent,
     statusLabel: STATUS_LABEL[status] || status || '—',
     chip: STATUS_CHIP[status] || 'chip-mute',

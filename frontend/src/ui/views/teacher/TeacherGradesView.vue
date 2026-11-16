@@ -1,9 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      title="成绩管理"
-      sub="按课程查看学情与正式总评；可导出成绩，或从待批阅任务直接进入批阅。"
-    >
+    <PageHead title="成绩管理">
       <template #actions>
         <button class="btn btn-ghost" :disabled="!filteredGradeList.length" @click="handleExport">
           导出成绩

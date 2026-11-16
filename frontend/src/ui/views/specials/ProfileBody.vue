@@ -63,28 +63,6 @@
         <div class="profile-divider"></div>
         <div class="settings-block">
           <div class="settings-row">
-            <span class="settings-label">外观主题</span>
-            <div class="theme-switch" role="group" aria-label="主题">
-              <button
-                type="button"
-                :class="{ 'is-active': theme === 'light' }"
-                :aria-pressed="theme === 'light'"
-                @click="setTheme('light')"
-              >
-                浅色
-              </button>
-              <button
-                type="button"
-                :class="{ 'is-active': theme === 'dark' }"
-                :aria-pressed="theme === 'dark'"
-                @click="setTheme('dark')"
-              >
-                深色
-              </button>
-            </div>
-            <span class="profile-meta">保存在本机浏览器</span>
-          </div>
-          <div class="settings-row">
             <span class="settings-label">账号安全</span>
             <span class="profile-meta">上次登录：{{ lastLoginText }}</span>
             <button type="button" class="btn btn-sm settings-action" @click="openPasswordModal">
@@ -329,7 +307,7 @@ interface ProfileUser {
 
 const ui = useUi()
 const router = useRouter()
-const { toast, theme, setTheme } = ui
+const { toast } = ui
 
 const cached = ((ui.auth?.user as ProfileUser | null) ?? {}) as ProfileUser
 const profile = ref<ProfileUser>({ ...cached })
@@ -838,27 +816,6 @@ onMounted(async () => {
 }
 .settings-action {
   margin-left: auto;
-}
-.theme-switch {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-ctl);
-  background: var(--surface);
-}
-.theme-switch button {
-  border: 0;
-  border-radius: var(--r-xs);
-  padding: 5px 12px;
-  background: none;
-  color: var(--ink-3);
-  font-size: 10px;
-}
-.theme-switch button.is-active {
-  background: var(--surface-2);
-  color: var(--ink);
-  font-weight: 600;
 }
 @media (max-width: 980px) {
   .basic-card,

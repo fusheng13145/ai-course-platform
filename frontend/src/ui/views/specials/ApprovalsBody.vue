@@ -71,8 +71,6 @@
           {{ listError ? '请查看上方提示后重试。' : '教师新提交的课程会以待审批状态进入这里。' }}
         </p>
       </div>
-
-      <p class="hint">通过或驳回后队列自动刷新；驳回的课程可修改后重新提交。</p>
     </section>
 
     <Modal v-model:open="approveOpen" title="通过课程审批" width="460px" :close-on-backdrop="false">

@@ -82,6 +82,22 @@ describe('AuthStore', () => {
     expect(store.token).toBe('jwt-token-123')
   })
 
+  it('未勾选「记住我」也把非敏感 user 镜像到 localStorage：新标签页要能恢复身份', async () => {
+    // 「我的课程」点课程卡是在新标签页打开的：新标签页拿不到 sessionStorage，
+    // 若不镜像，守卫会把它判成未登录、直接弹回 /login。
+    mockLogin.mockResolvedValue({
+      data: { token: 't', user: { id: 2, username: 'u', role: 'STUDENT' } },
+    })
+
+    const store = useAuthStore()
+    await store.login({ username: 'u', password: 'p', remember: false })
+
+    const mirrored = JSON.parse(String(localStorageMock.getItem('user')))
+    expect(mirrored).toMatchObject({ id: 2, role: 'STUDENT' })
+    // 令牌仍只走 HttpOnly Cookie，任何前端存储都不得出现
+    expect(localStorageMock.getItem('token')).toBeNull()
+  })
+
   it('login 失败不清除已有状态', async () => {
     mockLogin.mockRejectedValue(new Error('登录失败'))
 

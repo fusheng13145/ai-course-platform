@@ -116,9 +116,6 @@
       </div>
       <div v-else-if="loading" class="empty-state compact"><b>正在加载画像…</b></div>
       <div v-else class="empty-state compact"><b>请先在右上角选择班级</b></div>
-      <p class="hint">
-        6A 口径：画像只含聚合值；学生个人成绩在「学生预警」以线索形式给出，由班主任核实。
-      </p>
     </section>
 
     <!-- 学生预警 -->

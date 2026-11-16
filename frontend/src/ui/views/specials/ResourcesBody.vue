@@ -75,10 +75,6 @@
         <b>请先选择课程</b>
         <p>资源按课程组织，先在右上角选课。</p>
       </div>
-      <p class="hint">
-        课程空间 → 章节与资源 内的上传走同一后端；本页是跨课程汇总视图。受限资源直链受对象级 ACL
-        保护（WP7）。
-      </p>
     </section>
 
     <Modal v-model:open="deleteOpen" title="删除资源" width="460px" :close-on-backdrop="false">

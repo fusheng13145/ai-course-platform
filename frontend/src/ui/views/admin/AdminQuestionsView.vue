@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead title="题库管理" sub="全校题目库维护：筛选、编辑、AI 出题、统计与易错题榜单。">
+    <PageHead title="题库管理">
       <template #actions>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
         <button class="btn btn-ghost" :disabled="transferBusy" @click="handleExport">导出</button>

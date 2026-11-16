@@ -1,9 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      title="课堂互动"
-      sub="发起签到与投票，实时掌握课堂参与情况；签到支持发布、结束与手动补签。"
-    >
+    <PageHead title="课堂互动">
       <template #actions>
         <select v-model="courseId" class="input course-pick" aria-label="选择课程">
           <option value="">请选择课程</option>

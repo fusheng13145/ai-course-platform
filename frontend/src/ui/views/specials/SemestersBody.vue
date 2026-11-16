@@ -77,10 +77,6 @@
         <b>{{ emptyDescription() }}</b>
         <p>{{ listError ? '请查看上方提示后重试。' : '用右上角「新建学期」注册第一个学期。' }}</p>
       </div>
-
-      <p class="hint">
-        学期只支持新建与归档，不支持修改或删除；归档只改变学期状态，不冻结其下课程。
-      </p>
     </section>
 
     <Modal v-model:open="createOpen" title="新建学期" width="560px" :close-on-backdrop="false">

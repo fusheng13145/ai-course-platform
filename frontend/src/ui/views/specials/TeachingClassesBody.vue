@@ -98,12 +98,6 @@
         </div>
         <div v-else class="empty-state compact"><b>该教学班暂无成员</b></div>
       </div>
-
-      <p class="hint">
-        教学班的建班/换主讲/名单导入由课程主讲教师在课程空间内操作（WP9
-        只读矩阵：管理员只读监管，不代管教学数据）。
-        院系管理员仅能查看本院课程的教学班；跨院课程会明确提示无权访问。
-      </p>
     </section>
   </section>
 </template>

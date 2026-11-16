@@ -1,9 +1,6 @@
 <template>
   <section class="module">
-    <PageHead
-      title="创建课程"
-      sub="填写课程基本信息，提交后进入审核流程；审核通过后才对学生开放报名。"
-    />
+    <PageHead title="创建课程" />
 
     <section class="card form-card">
       <div class="form-grid">

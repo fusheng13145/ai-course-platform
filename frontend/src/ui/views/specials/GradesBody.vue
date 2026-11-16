@@ -90,10 +90,6 @@
       </div>
       <div v-else-if="loading" class="empty-state compact"><b>正在加载预警…</b></div>
       <div v-else class="empty-state compact"><b>暂无预警数据</b></div>
-      <p class="hint">
-        预警口径 = 进度 &lt; 40 或 总评 &lt;
-        60（与分析侧双口径一致）。改分只在教师批阅流，本页只读。
-      </p>
     </section>
   </section>
 </template>

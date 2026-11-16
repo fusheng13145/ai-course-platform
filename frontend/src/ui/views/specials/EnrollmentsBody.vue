@@ -116,11 +116,6 @@
           </button>
         </div>
       </footer>
-      <p class="hint">
-        审批通过 = 写 approved_by 并置
-        APPROVED；教学班在选课时已解析（未分班的记录来自教学班模型上线前的历史数据）。
-        院系管理员仅返回本院学生选课记录，校级管理员可见全平台。
-      </p>
     </section>
   </section>
 </template>

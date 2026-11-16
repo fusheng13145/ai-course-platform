@@ -38,10 +38,6 @@
           </span>
         </div>
       </div>
-      <p class="hint">
-        「未配置」只代表当前供应商缺少 API Key /
-        端点，不代表平台不可用——切换到已配置的供应商即可恢复。
-      </p>
     </section>
 
     <section class="card">
@@ -64,9 +60,6 @@
           <small>{{ option.desc }}</small>
         </button>
       </div>
-      <p class="hint">
-        切换写入 <code>ai.provider</code> 配置键；切换成功后下方可发一次最小补全验证连通性。
-      </p>
     </section>
 
     <section class="card">

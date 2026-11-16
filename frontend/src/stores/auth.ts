@@ -96,8 +96,34 @@ export const useAuthStore = defineStore('auth', () => {
   function saveToStorage(persistent: boolean) {
     // 仅持久化非敏感的 user / permissions；令牌（HttpOnly Cookie）绝不落前端存储
     const storage = persistent ? localStorage : sessionStorage
-    if (user.value) storage.setItem('user', JSON.stringify(user.value))
+    if (user.value) {
+      const raw = JSON.stringify(user.value)
+      storage.setItem('user', raw)
+      // 新标签页是独立 JS 上下文，sessionStorage 不共享 —— 「我的课程」点课程卡
+      // 在新标签页打开时，若只把 user 写进 sessionStorage，新页会被守卫判成未登录
+      // 直接弹回 /login。这里把非敏感 user 镜像到 localStorage，让新标签页能恢复
+      // 身份；permissions 仍按「记住我」决定介质，准入仍由 Cookie 会话 + 服务端
+      // /auth/permissions 结论把关（ADMIN 还额外要求本会话 permissionsLoaded）。
+      if (!persistent) localStorage.setItem('user', raw)
+    }
     if (permissions.value) storage.setItem('permissions', JSON.stringify(permissions.value))
+  }
+
+  /**
+   * 打开新标签页前调用：把当前标签页内存里的非敏感 user 镜像到 localStorage。
+   *
+   * 为什么要单独一个入口：登录写盘只发生在登录/注册那一刻。若用户是在本次改动
+   * 之前就已登录（user 只在 sessionStorage 里），或从别的入口拿到登录态，
+   * 新标签页仍然读不到 user，会被守卫判成未登录弹回 /login。
+   * 这里在真正需要跨标签页时补一次镜像，不依赖「用户重新登录」。
+   */
+  function mirrorUserForNewTab() {
+    if (!user.value) return
+    try {
+      localStorage.setItem('user', JSON.stringify(user.value))
+    } catch {
+      /* 隐私模式下 localStorage 可能抛错：新标签页会退化为需重新登录，不影响当前页 */
+    }
   }
 
   function clearAllStorage() {
@@ -389,6 +415,7 @@ export const useAuthStore = defineStore('auth', () => {
     resetAuthState,
     getDefaultRoute,
     fetchPermissions,
+    mirrorUserForNewTab,
     hasMenuPermission,
     hasButtonPermission,
   }

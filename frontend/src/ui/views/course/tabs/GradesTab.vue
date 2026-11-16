@@ -50,7 +50,9 @@
         </section>
         <section class="card">
           <h2>成绩口径</h2>
-          <p class="side-body">作业分来自教师批阅；考试分为答卷得分率，卷面总分单列。</p>
+          <p class="side-body">
+            作业分来自教师批阅；考试得分按得分率折算到卷面分，满分即卷面总分。
+          </p>
           <ul class="side-list">
             <li>成绩以教师提交批阅为准</li>
             <li>AI 建议分不直接写入成绩</li>
@@ -73,7 +75,7 @@
                 <th>成绩项</th>
                 <th class="w-140">类型</th>
                 <th class="w-140">得分</th>
-                <th class="w-140">满分 / 卷面</th>
+                <th class="w-140">满分</th>
                 <th class="w-140">状态</th>
                 <th class="w-220">提交时间</th>
                 <th>教师评语</th>
@@ -87,8 +89,8 @@
                 <td>
                   <span class="chip chip-info">{{ item.kind }}</span>
                 </td>
-                <td>{{ item.score == null ? '—' : `${item.score}${item.percent ? '%' : ''}` }}</td>
-                <td>{{ item.maxScore == null ? '—' : item.maxScore }}</td>
+                <td>{{ scoreText(item) }}</td>
+                <td>{{ fullScoreText(item.maxScore ?? item.totalScore) }}</td>
                 <td>
                   <span class="chip" :class="item.chip">{{ item.statusLabel }}</span>
                 </td>
@@ -168,7 +170,10 @@ interface GradeItem {
   kind: '作业' | '考试'
   /** 作业为实际得分，考试为得分率（后端 exam.score = ExamSession.percentage） */
   score: number | null
+  /** 作业满分（后端 task.maxScore） */
   maxScore: number | null
+  /** 考试卷面分（后端 examPaper.totalScore）；考试行没有满分，作业行没有卷面分 */
+  totalScore: number | null
   percent: boolean
   status: string
   statusLabel: string
@@ -245,6 +250,7 @@ const gradeItems = computed<GradeItem[]>(() => {
       kind: '作业',
       score: row.score == null ? null : Number(row.score),
       maxScore: row.maxScore == null ? null : Number(row.maxScore),
+      totalScore: null,
       percent: false,
       status,
       statusLabel: STATUS_LABEL[status] || status || '—',
@@ -260,7 +266,8 @@ const gradeItems = computed<GradeItem[]>(() => {
       title: row.title || '考试',
       kind: '考试',
       score: row.score == null ? null : Number(row.score),
-      maxScore: row.totalScore == null ? null : Number(row.totalScore),
+      maxScore: null,
+      totalScore: row.totalScore == null ? null : Number(row.totalScore),
       percent: true,
       status,
       statusLabel: STATUS_LABEL[status] || status || '—',
@@ -275,6 +282,26 @@ const gradeItems = computed<GradeItem[]>(() => {
 function fmtTime(value?: string): string {
   if (!value) return '—'
   return String(value).replace('T', ' ').slice(0, 16)
+}
+
+function fullScoreText(value: number | null): string {
+  return value == null ? '—' : String(value)
+}
+
+function trimNumber(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+}
+
+/**
+ * 得分：作业直接是批阅分数；考试后端只给百分制得分率，按「得分率 × 卷面分」换算成卷面得分。
+ * 缺卷面分时无法换算，给「—」而不拿百分比冒充分数。
+ */
+function scoreText(item: GradeItem): string {
+  if (item.score == null) return '—'
+  if (!item.percent) return trimNumber(item.score)
+  if (item.totalScore == null) return '—'
+  return trimNumber((item.score * item.totalScore) / 100)
 }
 
 async function loadFeedback() {

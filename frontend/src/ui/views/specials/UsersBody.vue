@@ -113,8 +113,6 @@
           </button>
         </div>
       </footer>
-
-      <p class="hint">角色与关键词筛选在服务端完成；停用前需二次确认。</p>
     </section>
 
     <Modal v-model:open="confirmOpen" title="停用账号" width="460px" :close-on-backdrop="false">
