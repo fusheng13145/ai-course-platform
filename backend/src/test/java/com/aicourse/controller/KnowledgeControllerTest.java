@@ -498,6 +498,35 @@ class KnowledgeControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /knowledge/relations - 校级管理员不带 courseId：全平台关系列表")
+    void getRelationList_schoolAdminWithoutCourse_all() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
+        when(relationService.getRelationList(eq(1), eq(10), isNull()))
+                .thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
+
+        mockMvc.perform(get("/knowledge/relations").with(withSchoolAdmin(9L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(relationService).getRelationList(eq(1), eq(10), isNull());
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/relations - 院系管理员不带 courseId：只查本学院可读课程")
+    void getRelationList_collegeAdminWithoutCourse_scoped() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(1L, 2L));
+        when(relationService.getRelationListByCourses(eq(1), eq(10), eq(List.of(1L, 2L))))
+                .thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
+
+        mockMvc.perform(get("/knowledge/relations").with(withCollegeAdmin(9L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(relationService).getRelationListByCourses(eq(1), eq(10), eq(List.of(1L, 2L)));
+        verify(relationService, never()).getRelationList(anyInt(), anyInt(), (Long) any());
+    }
+
+    @Test
     @DisplayName("GET /knowledge/relations - 学生不带 courseId：400，不落到全站关系查询")
     void getRelationList_studentWithoutCourseRejected() throws Exception {
         mockMvc.perform(get("/knowledge/relations").with(withUser(1L, "STUDENT")))

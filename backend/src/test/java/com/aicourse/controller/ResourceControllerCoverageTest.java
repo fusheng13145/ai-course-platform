@@ -93,6 +93,10 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private ResourceVersionService resourceVersionService;
     @MockitoBean
     private FileStorageService fileStorageService;
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     @BeforeEach
     void stubStorage() {
@@ -360,7 +364,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
         return new ResourceController(rs, cs, es,
-                mock(com.aicourse.service.ResourceVersionService.class), fileStorageService);
+                mock(com.aicourse.service.ResourceVersionService.class), fileStorageService,
+                adminScopeGuard, courseAccessControl);
     }
 
     private Authentication teacherAuth() {

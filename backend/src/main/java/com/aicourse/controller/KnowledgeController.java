@@ -368,14 +368,21 @@ public class KnowledgeController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
+        Page<KnowledgePointRelation> result;
         if (courseId != null) {
             courseAccessControl.assertCanReadCourse(courseId, auth);
+            result = relationService.getRelationList(page, size, courseId);
         } else if (!isAdmin(auth)) {
             // 关系表没有 course_id 列，无法在不指定课程时按「本人课程」过滤；
             // 非管理员必须显式指定课程，避免全站关系目录式读面。
             throw new BusinessException(ApiCode.BAD_REQUEST, "请指定课程ID后再查询知识点关系");
+        } else {
+            // 管理员无课程时按学院/校级作用域过滤：readableCourseIds 返回 null 表示校级全平台。
+            List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+            result = readableCourseIds == null
+                    ? relationService.getRelationList(page, size, (Long) null)
+                    : relationService.getRelationListByCourses(page, size, readableCourseIds);
         }
-        Page<KnowledgePointRelation> result = relationService.getRelationList(page, size, courseId);
         return ApiResponse.success(PagedResponse.of(result));
     }
 

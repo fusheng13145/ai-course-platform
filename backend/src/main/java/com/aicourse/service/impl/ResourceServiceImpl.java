@@ -78,6 +78,23 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
         return this.page(pageParam, queryWrapper);
     }
 
+    @Override
+    public Page<Resource> searchResourcesInCourses(String keyword, List<Long> readableCourseIds,
+                                                   int page, int size) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return Page.of(page, size);
+        }
+        Page<Resource> pageParam = new Page<>(page, size);
+        LambdaQueryWrapper<Resource> queryWrapper = new LambdaQueryWrapper<Resource>()
+                .and(w -> w.like(Resource::getFileName, keyword)
+                        .or()
+                        .like(Resource::getDescription, keyword))
+                .in(readableCourseIds != null, Resource::getCourseId, readableCourseIds)
+                .ne(Resource::getModerationStatus, Resource.MODERATION_HIDDEN)
+                .orderByDesc(Resource::getUploadTime);
+        return this.page(pageParam, queryWrapper);
+    }
+
     /**
      * 获取资源统计信息（类型分布、大小总计等）
      */

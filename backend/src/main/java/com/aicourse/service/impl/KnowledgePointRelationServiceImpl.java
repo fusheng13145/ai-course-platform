@@ -188,9 +188,34 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             wrapper.in(KnowledgePointRelation::getSourceId, pointIds)
-                    .or(w -> w.in(KnowledgePointRelation::getTargetId, pointIds));
+                    .in(KnowledgePointRelation::getTargetId, pointIds);
         }
         wrapper.orderByDesc(KnowledgePointRelation::getCreatedAt);
+        return this.page(Page.of(page, size), wrapper);
+    }
+
+    @Override
+    public Page<KnowledgePointRelation> getRelationListByCourses(int page, int size, List<Long> courseIds) {
+        if (courseIds == null) {
+            return getRelationList(page, size, (Long) null);
+        }
+        if (courseIds.isEmpty()) {
+            return Page.of(page, size);
+        }
+        List<KnowledgePoint> points = knowledgePointService.list(
+                new LambdaQueryWrapper<KnowledgePoint>().in(KnowledgePoint::getCourseId, courseIds)
+        );
+        if (points.isEmpty()) {
+            return Page.of(page, size);
+        }
+        Set<Long> pointIds = points.stream()
+                .map(KnowledgePoint::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
+                .in(KnowledgePointRelation::getSourceId, pointIds)
+                .in(KnowledgePointRelation::getTargetId, pointIds)
+                .orderByDesc(KnowledgePointRelation::getCreatedAt);
         return this.page(Page.of(page, size), wrapper);
     }
 

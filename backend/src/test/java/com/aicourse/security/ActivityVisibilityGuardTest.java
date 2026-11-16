@@ -47,6 +47,10 @@ class ActivityVisibilityGuardTest {
     private TaskTeachingClassMapper taskTeachingClassMapper;
     @Mock
     private ExamTeachingClassMapper examTeachingClassMapper;
+    @Mock
+    private AdminScopeGuard adminScopeGuard;
+    @Mock
+    private CourseAccessControl courseAccessControl;
     @InjectMocks
     private ActivityVisibilityGuard guard;
 

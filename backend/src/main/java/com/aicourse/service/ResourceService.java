@@ -37,6 +37,12 @@ public interface ResourceService extends IService<Resource> {
     Page<Resource> searchResources(String keyword, Long courseId, int page, int size);
 
     /**
+     * 按可读课程集合搜索（无显式 courseId 的管理员作用域读面）。
+     * @param readableCourseIds 允许的课程ID集合；null 表示校级全平台，空集合返回空页
+     */
+    Page<Resource> searchResourcesInCourses(String keyword, List<Long> readableCourseIds, int page, int size);
+
+    /**
      * 获取资源统计信息（类型分布、大小总计等）
      * @param courseId 课程ID
      * @return 统计数据Map

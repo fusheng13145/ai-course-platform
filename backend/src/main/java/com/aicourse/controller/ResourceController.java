@@ -15,6 +15,8 @@ import com.aicourse.service.CourseService;
 import com.aicourse.service.FileStorageService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.vo.ChapterResourceTreeVO;
 import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -23,6 +25,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -88,17 +91,23 @@ public class ResourceController {
     private final CourseEnrollmentService courseEnrollmentService;
     private final ResourceVersionService resourceVersionService;
     private final FileStorageService fileStorageService;
+    private final AdminScopeGuard adminScopeGuard;
+    private final CourseAccessControl courseAccessControl;
 
     public ResourceController(ResourceService resourceService,
                               CourseService courseService,
                               CourseEnrollmentService courseEnrollmentService,
                               ResourceVersionService resourceVersionService,
-                              FileStorageService fileStorageService) {
+                              FileStorageService fileStorageService,
+                              AdminScopeGuard adminScopeGuard,
+                              CourseAccessControl courseAccessControl) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
         this.resourceVersionService = resourceVersionService;
         this.fileStorageService = fileStorageService;
+        this.adminScopeGuard = adminScopeGuard;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -164,13 +173,18 @@ public class ResourceController {
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         if (courseId == null) {
-            // 跨课程搜索会枚举全站资源（含 /uploads 路径），属越权风险：仅 ADMIN 允许，
-            // 学生/教师必须指定 courseId 在本人有权访问的课程内搜索（DR-16）。
+            // 跨课程搜索会枚举全站资源（含 /uploads 路径），属越权风险：仅管理员允许，
+            // 院系管理员进一步收口到本学院可读课程（校级管理员 readableCourseIds=null 才全量）。
             if (auth == null || !(auth.getPrincipal() instanceof Long) || !isAdmin(auth)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ApiResponse.error(ApiCode.FORBIDDEN, "请指定课程ID进行资源搜索"));
             }
-        } else if (!canAccessCourse(courseId, auth)) {
+            List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+            Page<Resource> result = resourceService.searchResourcesInCourses(
+                    keyword, readableCourseIds, page, size);
+            return ResponseEntity.ok(ApiResponse.success(result));
+        }
+        if (!canAccessCourse(courseId, auth)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
         }
@@ -326,7 +340,7 @@ public class ResourceController {
 
     /**
      * 下载资源文件（修复 P1-6：下载必须校验资源访问权限——
-     * ADMIN 放行；教师仅限本课程；学生必须已选该课程，否则 403）
+     * 管理员按学院作用域；教师仅限本课程；学生必须已选该课程，否则 403）
      */
     @GetMapping("/download/{id}")
     public ResponseEntity<org.springframework.core.io.Resource> downloadResource(@PathVariable Long id,
@@ -377,7 +391,11 @@ public class ResourceController {
         }
         Long userId = (Long) auth.getPrincipal();
         if (isAdmin(auth)) {
-            return true;
+            if (resource.getCourseId() == null) {
+                // 全局资源保留既有「登录可读」口径；管理员可读，非管理员仍按下方课程成员规则拒绝。
+                return true;
+            }
+            return canAdminAccessCourse(resource.getCourseId());
         }
         if (isTeacher(auth)) {
             Course course = resource.getCourseId() != null ? courseService.getById(resource.getCourseId()) : null;
@@ -396,8 +414,8 @@ public class ResourceController {
      * <p>此前 listByCourse / tree / stats / chapter / search 等列表端点**无任何 ACL**，
      * 任意已登录用户可枚举任意课程的资源（含 {@code /uploads/<uuid>} 路径），再经
      * {@code /uploads/**}（已受登录保护）直链下载，构成跨课程越权读取。</p>
-     * 规则与 {@link #canAccessResource} 对齐：ADMIN 放行；教师须是该课程 teacherId；
-     * 学生须 {@code hasApprovedEnrollment}。返回 false 的调用方应返回 403。
+     * 规则与 {@link #canAccessResource} 对齐：管理员按学院作用域（校级全平台）；
+     * 教师须是该课程 teacherId；学生须 {@code hasApprovedEnrollment}。返回 false 的调用方应返回 403。
      */
     private boolean canAccessCourse(Long courseId, Authentication auth) {
         if (courseId == null) {
@@ -408,13 +426,26 @@ public class ResourceController {
         }
         Long userId = (Long) auth.getPrincipal();
         if (isAdmin(auth)) {
-            return true;
+            return canAdminAccessCourse(courseId);
         }
         if (isTeacher(auth)) {
             Course course = courseService.getById(courseId);
             return course != null && userId.equals(course.getTeacherId());
         }
         return courseEnrollmentService.hasApprovedEnrollment(userId, courseId);
+    }
+
+    /** 管理员课程作用域：院系管理员只能读本学院（含教师学院回退），校级全平台。 */
+    private boolean canAdminAccessCourse(Long courseId) {
+        if (courseId == null) {
+            return false;
+        }
+        try {
+            adminScopeGuard.assertCourseAccess(courseService.getById(courseId));
+            return true;
+        } catch (AccessDeniedException e) {
+            return false;
+        }
     }
 
     /**

@@ -159,6 +159,27 @@ class ResourceServiceTest {
     }
 
     @Test
+    @DisplayName("资源搜索-按可读课程集合：空集合直接返回空页，不触达 Mapper")
+    void testSearchResourcesInCourses_emptyScope() {
+        Page<Resource> result = service.searchResourcesInCourses("lecture", List.of(), 1, 10);
+        assertEquals(0, result.getTotal());
+        assertTrue(result.getRecords().isEmpty());
+        verify(mapper, never()).selectPage(any(Page.class), any());
+    }
+
+    @Test
+    @DisplayName("资源搜索-校级管理员可读集合为 null：保留全平台口径")
+    void testSearchResourcesInCourses_nullScope() {
+        Page<Resource> mockPage = new Page<>(1, 10);
+        mockPage.setRecords(Collections.singletonList(resource1));
+        when(mapper.selectPage(any(Page.class), any())).thenReturn(mockPage);
+
+        Page<Resource> result = service.searchResourcesInCourses("lecture", null, 1, 10);
+
+        assertEquals(1, result.getRecords().size());
+    }
+
+    @Test
     @DisplayName("切换可见性-成功")
     void testToggleVisibility() {
         when(mapper.selectById(1L)).thenReturn(resource1);

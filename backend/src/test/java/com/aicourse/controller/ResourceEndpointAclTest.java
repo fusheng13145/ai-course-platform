@@ -17,9 +17,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.AccessDeniedException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -46,6 +48,10 @@ class ResourceEndpointAclTest extends ControllerTestBase {
     private com.aicourse.service.ResourceVersionService resourceVersionService;
     @MockitoBean
     private com.aicourse.service.FileStorageService fileStorageService;
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     private static final Long COURSE_ID = 1L;
     private static final Long TEACHER_ID = 10L;
@@ -145,14 +151,38 @@ class ResourceEndpointAclTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("searchResources：未指定 courseId 的 ADMIN -> 200（允许全站搜索）")
+    @DisplayName("searchResources：未指定 courseId 的校级 ADMIN -> 200（允许全站搜索）")
     void search_noCourseId_admin_ok() throws Exception {
-        when(resourceService.searchResources(eq("ppt"), eq(null), eq(1), eq(10)))
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
+        when(resourceService.searchResourcesInCourses(eq("ppt"), eq(null), eq(1), eq(10)))
                 .thenReturn(new Page<>());
 
         mockMvc.perform(get("/resources/search").param("keyword", "ppt")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("searchResources：院系 ADMIN 未指定课程 -> 只查本学院可读课程")
+    void search_noCourseId_collegeAdmin_scoped() throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(COURSE_ID));
+        when(resourceService.searchResourcesInCourses(eq("ppt"), eq(List.of(COURSE_ID)), eq(1), eq(10)))
+                .thenReturn(new Page<>());
+
+        mockMvc.perform(get("/resources/search").param("keyword", "ppt")
+                        .with(withCollegeAdmin(9L)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("listByCourse：院系 ADMIN 读他院课程 -> 403（不因 ADMIN 角色直通）")
+    void listByCourse_collegeAdminOtherCollege_forbidden() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(TEACHER_ID));
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(any());
+
+        mockMvc.perform(get("/resources/course/{id}", COURSE_ID).with(withCollegeAdmin(9L)))
+                .andExpect(status().isForbidden());
     }
 
     @Test

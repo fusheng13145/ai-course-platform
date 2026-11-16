@@ -51,6 +51,10 @@ class ResourceControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private FileStorageService fileStorageService;
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     @BeforeEach
     void stubStorage() {

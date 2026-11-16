@@ -186,6 +186,20 @@ class KnowledgePointRelationServiceImplTest {
         assertTrue(r.getRecords().isEmpty());
     }
 
+    @Test
+    @DisplayName("getRelationListByCourses：null 退回全平台分页，空集合返回空页")
+    void listByCourses_nullAndEmpty() {
+        assertFalse(service.getRelationListByCourses(1, 10, null).getRecords().isEmpty());
+        assertTrue(service.getRelationListByCourses(1, 10, List.of()).getRecords().isEmpty());
+    }
+
+    @Test
+    @DisplayName("getRelationListByCourses：按课程集合过滤后仍有知识点则分页")
+    void listByCourses_withPoints() {
+        Page<KnowledgePointRelation> r = service.getRelationListByCourses(1, 10, List.of(10L));
+        assertEquals(1, r.getRecords().size());
+    }
+
     // ===================== source/target relations =====================
 
     @Test
