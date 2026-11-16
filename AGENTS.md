@@ -45,7 +45,10 @@ start.bat frontend     :: 只起 Vite
 start.bat status       :: 只报五进程状态，不起进程
 ```
 
-判定逻辑在 `scripts/start-all.py`；`start.bat` 只是薄壳。
+Linux / macOS 用同目录的 `start.sh`，子命令与开关完全一致
+（`./start.sh` / `backend` / `frontend` / `status`；`--no-color`）。
+
+判定逻辑在 `scripts/start-all.py`；`start.bat` 与 `start.sh` 都只是薄壳。
 
 ### 2.2 验证（改什么跑什么）
 
