@@ -85,6 +85,9 @@ spring:
         - classpath:db/migration/V19__purge_stress_test_data.sql
         # V20（2026-11-14）：exam_sessions 人工阅卷评语列（纯加列）—— 结构迁移，非演示数据
         - classpath:db/migration/V20__exam_session_question_comments.sql
+        # V21（2026-11-14）：resources/resource_versions.file_type 扩容 100（docx/xlsx MIME
+        # 最长 71 字符，varchar(50) 必截断 400）—— 结构迁移，非演示数据
+        - classpath:db/migration/V21__resources_file_type_len.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

@@ -92,6 +92,10 @@ class RagSource(BaseModel):
     document_name: Optional[str] = None
     relevance_score: Optional[float] = None
     snippet: Optional[str] = None
+    # B4 检索增强链的附加字段：`rag_engine.search()` 已写入 retrieval=HYDE|QUERY 与 rerank_score，
+    # 但响应模型不声明就会被 Pydantic 静默裁掉（2026-11-15 B5 实测发现，Java 侧因此读不到重排分）
+    retrieval: Optional[str] = None
+    rerank_score: Optional[float] = None
 
 
 class RagQueryResult(BaseModel):
@@ -143,6 +147,9 @@ def health():
             "functional": rag_engine.engine_functional(),
             "dep_errors": rag_engine.dep_errors(),
             "embed_model": rag_engine.embed_model_name(),
+            "version": rag_engine.ENGINE_VERSION,
+            "hyde": rag_engine.hyde_status(),
+            "rerank": rag_engine.rerank_status(),
         },
     }
 
@@ -229,13 +236,16 @@ def retrieve(req: RetrieveRequest):
             mode="PLACEHOLDER",
             code=200,
         )
-    # 引擎未接入或该课程无索引：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE
-    return RagRetrievalResult(
+    # 引擎未接入或该课程无索引：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE。
+    # I-1 契约化（2026-11-15）：不再用「HTTP 200 + body{code:503}」承载失败——
+    # 那要求调用方读完并解析 body 才知道请求失败，空/被截断的 body 会被误判成「检索成功但为空」。
+    # 现直接以 503 返回，状态码即契约；body 仍保留同形字段供日志与人工排查。
+    return JSONResponse(status_code=503, content=RagRetrievalResult(
         results=[],
         mode="UNAVAILABLE",
         error=_degrade_error(req.course_id),
         code=503,
-    )
+    ).model_dump())
 
 
 @app.post("/api/v1/rag/ask", response_model=RagQueryResult)
@@ -276,14 +286,14 @@ def ask(req: AskRequest):
             code=200,
         )
     # 引擎未接入：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE；
-    # Java 端 RAG_ENABLED=false 或收到降级时回退纯 LLM。
-    return RagQueryResult(
+    # Java 端 RAG_ENABLED=false 或收到 503 时回退纯 LLM。I-1 契约化同上：状态码即契约。
+    return JSONResponse(status_code=503, content=RagQueryResult(
         answer=None,
         sources=[],
         mode="UNAVAILABLE",
         error=_degrade_error(req.course_id),
         code=503,
-    )
+    ).model_dump())
 
 
 @app.post("/api/v1/rag/index/build/{course_id}", response_model=IndexResult)

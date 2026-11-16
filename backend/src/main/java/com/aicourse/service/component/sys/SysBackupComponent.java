@@ -46,6 +46,80 @@ public class SysBackupComponent {
         this.environment = environment;
     }
 
+    /** 连接要素（从 spring.datasource + DataSource 元数据解析），供备份/恢复共用。 */
+    private record ConnectionInfo(String host, String port, String database, String username, String password) {
+    }
+
+    /**
+     * 解析数据库连接要素（原 createBackup 内联逻辑抽取，2026-11-14 P0-2B 恢复实现共用）。
+     * 凭据一律取 Spring 配置 + DataSource 元数据兜底；密码缺失直接拒绝（fail-closed）。
+     */
+    private ConnectionInfo resolveConnection() {
+        String jdbcUrl = environment.getProperty("spring.datasource.url");
+        String username = environment.getProperty("spring.datasource.username");
+        String password = environment.getProperty("spring.datasource.password");
+
+        if (jdbcUrl == null || username == null) {
+            try (Connection metaConn = dataSource.getConnection()) {
+                if (jdbcUrl == null) {
+                    jdbcUrl = metaConn.getMetaData().getURL();
+                }
+                if (username == null) {
+                    String metaUser = metaConn.getMetaData().getUserName();
+                    if (metaUser != null && metaUser.contains("@")) {
+                        metaUser = metaUser.substring(0, metaUser.indexOf('@'));
+                    }
+                    username = metaUser;
+                }
+            } catch (Exception metaEx) {
+                log.warn("从 DataSource 获取连接元数据失败: {}", metaEx.getMessage());
+            }
+        }
+        if (jdbcUrl == null || username == null || password == null || password.isEmpty()) {
+            throw new BusinessException("数据库备份/恢复需要配置 spring.datasource 的 url/username/password"
+                    + "（可通过环境变量 SPRING_DATASOURCE_URL/USERNAME/PASSWORD 或 MYSQL_ROOT_PASSWORD 注入），已取消执行");
+        }
+
+        String host = "localhost";
+        String port = "3306";
+        String database = "ai_course_platform";
+        String urlPart = jdbcUrl.replace("jdbc:mysql://", "");
+        int paramsIndex = urlPart.indexOf('?');
+        if (paramsIndex > 0) {
+            urlPart = urlPart.substring(0, paramsIndex);
+        }
+        int slashIndex = urlPart.indexOf('/');
+        if (slashIndex > 0) {
+            database = urlPart.substring(slashIndex + 1);
+            String hostPort = urlPart.substring(0, slashIndex);
+            int colonIndex = hostPort.indexOf(':');
+            if (colonIndex > 0) {
+                host = hostPort.substring(0, colonIndex);
+                port = hostPort.substring(colonIndex + 1);
+            } else {
+                host = hostPort;
+            }
+        }
+        return new ConnectionInfo(host, port, database, username, password);
+    }
+
+    /** 写临时凭据文件（0600 + finally 删除由调用方负责），返回绝对路径。 */
+    private File writeTempCnf(ConnectionInfo conn) {
+        try {
+            File tempConfig = File.createTempFile("aicourse-mysql-", ".cnf");
+            tempConfig.setReadable(false, false);
+            tempConfig.setWritable(false, false);
+            tempConfig.setReadable(true, true);
+            tempConfig.setWritable(true, true);
+            Files.writeString(tempConfig.toPath(),
+                    "[client]\nhost=" + conn.host() + "\nport=" + conn.port()
+                            + "\nuser=" + conn.username() + "\npassword=" + conn.password() + "\n");
+            return tempConfig;
+        } catch (IOException e) {
+            throw new BusinessException("临时凭据文件创建失败，已取消执行: " + e.getMessage());
+        }
+    }
+
     /**
      * 创建数据库备份：mysqldump 真实备份（安全加固：--defaults-extra-file 传递凭据、0600 权限、
      * 凭据缺失拒绝执行），失败回退为仅文件名方式。
@@ -61,79 +135,17 @@ public class SysBackupComponent {
 
         // 尝试使用 mysqldump 执行真实备份
         try {
-            // 【安全加固】数据库凭据一律从 Spring 配置读取（环境变量注入，见 application.yaml），
-            // 不再从 system_configs 表读取、也不允许回退到硬编码的 root/空密码默认值。
-            String jdbcUrl = environment.getProperty("spring.datasource.url");
-            String username = environment.getProperty("spring.datasource.username");
-            String password = environment.getProperty("spring.datasource.password");
-
-            // 兜底：从已注入的 DataSource 元数据获取 url/username（与连接池必然一致）
-            if (jdbcUrl == null || username == null) {
-                try (Connection metaConn = dataSource.getConnection()) {
-                    if (jdbcUrl == null) {
-                        jdbcUrl = metaConn.getMetaData().getURL();
-                    }
-                    if (username == null) {
-                        String metaUser = metaConn.getMetaData().getUserName();
-                        // MySQL 驱动可能返回 "user@host"，只需保留用户名部分
-                        if (metaUser != null && metaUser.contains("@")) {
-                            metaUser = metaUser.substring(0, metaUser.indexOf('@'));
-                        }
-                        username = metaUser;
-                    }
-                } catch (Exception metaEx) {
-                    log.warn("从 DataSource 获取连接元数据失败: {}", metaEx.getMessage());
-                }
-            }
-
-            // 密码缺失时拒绝执行，避免使用空密码等不安全默认值
-            if (jdbcUrl == null || username == null || password == null || password.isEmpty()) {
-                throw new BusinessException("数据库备份需要配置 spring.datasource 的 url/username/password"
-                        + "（可通过环境变量 SPRING_DATASOURCE_URL/USERNAME/PASSWORD 或 MYSQL_ROOT_PASSWORD 注入），已取消备份");
-            }
-
-            // 解析 JDBC URL: jdbc:mysql://host:port/database?params
-            String host = "localhost";
-            String port = "3306";
-            String database = "ai_course_platform";
-
-            String urlPart = jdbcUrl.replace("jdbc:mysql://", "");
-            int paramsIndex = urlPart.indexOf('?');
-            if (paramsIndex > 0) {
-                urlPart = urlPart.substring(0, paramsIndex);
-            }
-            int slashIndex = urlPart.indexOf('/');
-            if (slashIndex > 0) {
-                database = urlPart.substring(slashIndex + 1);
-                String hostPort = urlPart.substring(0, slashIndex);
-                int colonIndex = hostPort.indexOf(':');
-                if (colonIndex > 0) {
-                    host = hostPort.substring(0, colonIndex);
-                    port = hostPort.substring(colonIndex + 1);
-                } else {
-                    host = hostPort;
-                }
-            }
+            ConnectionInfo conn = resolveConnection();
+            String host = conn.host();
+            String port = conn.port();
+            String database = conn.database();
 
             // 【安全加固】使用 --defaults-extra-file 临时配置文件传递密码，
             // 避免 -p密码/MYSQL_PWD 被 ps aux、/proc/PID/environ 等系统接口暴露数据库凭据。
             // 临时文件设置 0600 权限且在 finally 块中立即删除。
             File tempConfig = null;
             try {
-                tempConfig = File.createTempFile("mysqldump-backup-", ".cnf");
-                // MySQL 5.6+ 安全要求：凭证文件必须仅 owner 可读写，否则报 "World-writable... ignored"
-                if (!tempConfig.setReadable(false, false)) {
-                    log.debug("tmp cnf setReadable");
-                }
-                if (!tempConfig.setWritable(false, false)) {
-                    log.debug("tmp cnf setWritable");
-                }
-                tempConfig.setReadable(true, true);
-                tempConfig.setWritable(true, true);
-
-                Files.writeString(tempConfig.toPath(),
-                        "[client]\nhost=" + host + "\nport=" + port
-                                + "\nuser=" + username + "\npassword=" + password + "\n");
+                tempConfig = writeTempCnf(conn);
 
                 ProcessBuilder pb = new ProcessBuilder(
                         "mysqldump",
@@ -208,30 +220,217 @@ public class SysBackupComponent {
         return SysFileUtil.getFileInfoList(BACKUP_DIR, SQL_SUFFIX);
     }
 
-    /** 恢复备份（当前仅做路径防穿越与存在性校验） */
-    public void restoreBackup(String fileName) {
-        // ---- 路径遍历防护 ----
-        // 1. 禁止目录分隔符（含 Unix / 与 Windows \）
+    /** 隔离恢复目标库的合法前缀（与 scripts/restore-mysql.sh 同口径）。 */
+    private static final List<String> RESTORE_ISOLATION_PREFIXES = List.of("aicourse_restore_", "restore_");
+
+    /**
+     * 恢复备份（2026-11-14 P0-2B/Q2=B 真实现，替换原「仅校验不执行」的假实现）。
+     *
+     * <p>执行路径与 createBackup 对称：凭据经 --defaults-extra-file 临时文件传递（0600 +
+     * finally 删除）；目标库必须显式指定，且分两类——</p>
+     * <ul>
+     *   <li>{@code targetDb} 缺省/空白：<b>直接拒绝（400）</b>，不存在「省略即恢复到当前应用库」
+     *       的隐式破坏路径；</li>
+     *   <li>隔离演练库：必须带 {@code aicourse_restore_}/{@code restore_} 前缀（与 shell
+     *       恢复脚本同款隔离护栏，杜绝把任意库名当恢复靶子）；</li>
+     *   <li>当前应用库：仅当显式传 {@code targetDb=<当前库名>} 且
+     *       {@code confirmCurrentDb=true} 时允许——这是明确的破坏性动作，调用方（管理端）
+     *       须在维护窗口执行；恢复后应用连接池内的既有连接见到的是恢复后的表结构，
+     *       无需重启（MySQL schema 级切换）。</li>
+     * </ul>
+     * <p>.gz 备份经 gunzip 子进程管道喂给 mysql stdin（数组式进程管道，不经 shell）；
+     * 退出码非零抛出并携带 stderr 尾部（可操作报错，不再「恢复成功」假成功）；恢复后
+     * 回读 information_schema 表数作为可核验读数。</p>
+     *
+     * @param fileName 备份目录内的文件名（沿用原路径防穿越五道校验）
+     * @param targetDb 恢复目标库；<b>必填</b>，缺省直接拒绝
+     * @param confirmCurrentDb 目标库等于当前应用库时必须为 true 才允许执行
+     * @return 可核验读数：targetDb / tableCount / durationMs / backupFile
+     */
+    public Map<String, Object> restoreBackup(String fileName, String targetDb, boolean confirmCurrentDb) {
+        // ---- 路径遍历防护（原五道校验原样保留）----
         if (fileName.contains("/") || fileName.contains("\\")) {
             throw new BusinessException("非法文件名：禁止路径分隔符");
         }
-        // 2. 禁止父目录引用
         if (fileName.contains("..")) {
             throw new BusinessException("非法文件名：禁止父目录引用");
         }
-        // 3. 禁止绝对路径
         if (new File(fileName).isAbsolute()) {
             throw new BusinessException("非法文件名：禁止绝对路径");
         }
-        // 4. Path.normalize() + startsWith 校验（防止符号链接等方法绕过）
         Path backupDir = Paths.get(BACKUP_DIR).toAbsolutePath().normalize();
         Path filePath = backupDir.resolve(fileName).normalize();
         if (!filePath.startsWith(backupDir)) {
             throw new BusinessException("非法文件路径：文件不在备份目录内");
         }
-        // 5. 文件存在性校验
         if (!Files.exists(filePath)) {
             throw new BusinessException("备份文件不存在");
+        }
+
+        // ---- 目标库解析与隔离护栏（先于凭据解析：安全护栏 fail-fast，与凭据无关）----
+        if (targetDb == null || targetDb.isBlank()) {
+            throw new BusinessException("必须显式指定恢复目标库 targetDb：隔离演练库须带"
+                    + " aicourse_restore_/restore_ 前缀；恢复当前应用库须显式传 targetDb=<当前库名>"
+                    + " 并附 confirmCurrentDb=true（该操作会覆盖线上数据）");
+        }
+        ConnectionInfo conn = resolveConnection();
+        String resolvedDb = targetDb;
+        if (resolvedDb.equals(conn.database())) {
+            if (!confirmCurrentDb) {
+                throw new BusinessException("目标库 " + resolvedDb + " 即当前应用库，恢复将覆盖线上数据，"
+                        + "必须显式传 confirmCurrentDb=true 确认后再执行");
+            }
+        } else if (RESTORE_ISOLATION_PREFIXES.stream().noneMatch(resolvedDb::startsWith)) {
+            throw new BusinessException("恢复目标库须带 aicourse_restore_/restore_ 前缀"
+                    + "（隔离演练口径，与 scripts/restore-mysql.sh 一致），或显式指定当前应用库并确认");
+        }
+
+        boolean gzipped = fileName.endsWith(".gz");
+        long started = System.currentTimeMillis();
+        File tempConfig = null;
+        try {
+            tempConfig = writeTempCnf(conn);
+
+            // 先建隔离目标库（当前应用库由备份文件内的 CREATE TABLE 自建；隔离库需先 CREATE DATABASE）
+            if (!resolvedDb.equals(conn.database())) {
+                execMysql(tempConfig, "CREATE DATABASE IF NOT EXISTS `" + resolvedDb
+                        + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+            }
+
+            List<String> mysqlCmd = List.of(
+                    "mysql",
+                    "--defaults-extra-file=" + tempConfig.getAbsolutePath(),
+                    resolvedDb);
+
+            Process mysqlProc;
+            Process producer;
+            Thread pump = null;
+            if (gzipped) {
+                // .gz：gunzip 子进程管道喂 mysql stdin；泵线程并发（stderr 由下方同步消费，
+                // 不写满缓冲则无死锁）。数组式进程管道，不经 shell、无注入面。
+                Process gunzip = new ProcessBuilder("gunzip", "-c", filePath.toAbsolutePath().toString()).start();
+                mysqlProc = new ProcessBuilder(mysqlCmd).start();
+                producer = gunzip;
+                pump = new Thread(() -> {
+                    try (var out = mysqlProc.getOutputStream()) {
+                        gunzip.getInputStream().transferTo(out);
+                    } catch (IOException ignored) {
+                        // mysql 提前退出导致管道断开：退出码检查兜底报错
+                    }
+                });
+                pump.start();
+            } else {
+                // 纯 SQL：直接以备份文件作为 mysql stdin
+                mysqlProc = new ProcessBuilder(mysqlCmd)
+                        .redirectInput(filePath.toFile())
+                        .start();
+                producer = null;
+            }
+
+            String stderr;
+            try (BufferedReader err = new BufferedReader(
+                    new InputStreamReader(mysqlProc.getErrorStream(), StandardCharsets.UTF_8))) {
+                stderr = err.lines().reduce((a, b) -> a + "\n" + b).orElse("");
+            }
+
+            boolean finished = mysqlProc.waitFor(10, TimeUnit.MINUTES);
+            if (!finished) {
+                mysqlProc.destroyForcibly();
+                throw new BusinessException("恢复超时（mysql 10 分钟内未完成），已中止");
+            }
+            int exitCode = mysqlProc.exitValue();
+            if (producer != null) {
+                try {
+                    if (!producer.waitFor(1, TimeUnit.MINUTES)) {
+                        producer.destroyForcibly();
+                    }
+                } catch (InterruptedException ie) {
+                    producer.destroyForcibly();
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (exitCode != 0) {
+                String tail = stderr.length() > 400 ? "…" + stderr.substring(stderr.length() - 400) : stderr;
+                throw new BusinessException("恢复失败（mysql 退出码 " + exitCode + "）："
+                        + (tail.isBlank() ? "无 stderr 输出" : tail));
+            }
+            if (pump != null) {
+                pump.join(60000);
+            }
+
+            long tableCount = countTables(tempConfig, resolvedDb);
+            long durationMs = System.currentTimeMillis() - started;
+            log.info("数据库恢复完成: backup={}, targetDb={}, tableCount={}, durationMs={}",
+                    fileName, resolvedDb, tableCount, durationMs);
+            Map<String, Object> report = new java.util.LinkedHashMap<>();
+            report.put("backupFile", fileName);
+            report.put("targetDb", resolvedDb);
+            report.put("tableCount", tableCount);
+            report.put("durationMs", durationMs);
+            return report;
+        } catch (IOException e) {
+            throw new BusinessException("恢复执行失败: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("恢复被中断，已中止");
+        } finally {
+            if (tempConfig != null && tempConfig.exists()) {
+                tempConfig.delete();
+            }
+        }
+    }
+
+    /** 执行单条管理 SQL（建库等），非零退出即抛。 */
+    private void execMysql(File tempConfig, String sql) {
+        try {
+            Process p = new ProcessBuilder("mysql",
+                    "--defaults-extra-file=" + tempConfig.getAbsolutePath(),
+                    "-e", sql).redirectErrorStream(true).start();
+            boolean done = p.waitFor(1, TimeUnit.MINUTES);
+            if (!done) {
+                p.destroyForcibly();
+                throw new BusinessException("建库 SQL 超时，已中止恢复");
+            }
+            if (p.exitValue() != 0) {
+                StringBuilder out = new StringBuilder();
+                try (BufferedReader r = new BufferedReader(
+                        new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) {
+                        out.append(line).append("\n");
+                    }
+                }
+                throw new BusinessException("建库失败：" + out);
+            }
+        } catch (IOException e) {
+            throw new BusinessException("建库执行失败: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("建库被中断");
+        }
+    }
+
+    /** 回读 information_schema 表数（恢复可核验读数）。 */
+    private long countTables(File tempConfig, String db) {
+        try {
+            Process p = new ProcessBuilder("mysql",
+                    "--defaults-extra-file=" + tempConfig.getAbsolutePath(),
+                    "-N", "-B", "-e",
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='" + db + "';")
+                    .redirectErrorStream(true).start();
+            boolean done = p.waitFor(1, TimeUnit.MINUTES);
+            if (!done) {
+                p.destroyForcibly();
+                return -1;
+            }
+            try (BufferedReader r = new BufferedReader(
+                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                String line = r.readLine();
+                return line != null ? Long.parseLong(line.trim()) : -1;
+            }
+        } catch (Exception e) {
+            log.warn("恢复后表数回读失败（不影响恢复本身）: {}", e.getMessage());
+            return -1;
         }
     }
 }

@@ -192,7 +192,7 @@ public class HttpRagProvider implements RagContract {
             // 修复 D7（跨语言契约）：Python 侧引擎不可用时返回 HTTP 200 + body{code:503, mode:"UNAVAILABLE", error}，
             // 原实现把 mode 硬编码成 ENGINE、忽略 code/error，导致「引擎不可用」被误判为「检索成功但结果为空」，
             // 上层降级回退（AIServiceImpl / AiRagComponent 靠 code:503 嗅探）永不触发。现真实解析三字段。
-            if (isEngineUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root)) {
                 return unavailableQuery();
             }
             String answer = root.has(ContractPaths.R_ANSWER) ? root.get(ContractPaths.R_ANSWER).asText() : null;
@@ -214,7 +214,7 @@ public class HttpRagProvider implements RagContract {
             JsonNode root = OM.readTree(raw);
             // 修复 D7：同 parseAsk，检索路径同样须识别 body 的 503/UNAVAILABLE 降级语义，
             // 否则「引擎不可用」被当作「检索成功但结果为空」，上层降级永不触发。
-            if (isEngineUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root)) {
                 return unavailableRetrieve();
             }
             List<RagSource> sources = parseSources(root.get(ContractPaths.R_RESULTS));
@@ -226,21 +226,6 @@ public class HttpRagProvider implements RagContract {
             log.debug("RAG 检索返回解析失败：{}", e.getMessage());
             return unavailableRetrieve();
         }
-    }
-
-    /**
-     * 判断 Python RAG 响应体是否声明「引擎不可用」：body.code==503 或 body.mode==UNAVAILABLE。
-     * 复用 {@link ContractPaths} 的常量，不引入字符串字面量。
-     */
-    private boolean isEngineUnavailable(JsonNode root) {
-        if (root == null || !root.isObject()) {
-            return false;
-        }
-        if (root.has(ContractPaths.R_CODE)
-                && root.get(ContractPaths.R_CODE).asInt() == ContractPaths.CODE_UNAVAILABLE) {
-            return true;
-        }
-        return ContractPaths.MODE_UNAVAILABLE.equals(textOrNull(root, ContractPaths.R_MODE));
     }
 
     /** 读取字符串字段，缺失或为 null 时返回 null。 */
@@ -386,9 +371,11 @@ public class HttpRagProvider implements RagContract {
                     return call.execute();
                 } catch (Exception e) {
                     lastException = e;
-                    if (isReadTimeout(e)) {
-                        // 读超时（含经 RestClient 包装为 ResourceAccessException 的情况）不重试：
-                        // 直接降级，避免无效等待放大雪崩
+                    if (isReadTimeout(e) || isConnectFailure(e) || isServiceUnavailable(e)) {
+                        // 读超时 / 连接拒绝 / HTTP 503：不重试，直接降级。
+                        // 读超时避免无效等待放大雪崩；连接拒绝说明 8002 未启动，
+                        // 503 说明引擎明确宣告不可用（I-1 契约化后由状态码直接表达）；
+                        // 三者重试都只会把问答端到端拖长 1+2 秒（破坏 <5s 指标）。
                         break;
                     }
                     if (i < maxRetries) {
@@ -419,5 +406,37 @@ public class HttpRagProvider implements RagContract {
     private static boolean isReadTimeout(Exception e) {
         return e instanceof SocketTimeoutException
                 || (e.getCause() instanceof SocketTimeoutException);
+    }
+
+    /**
+     * 是否为连接失败（8002 未启动最常见）。
+     * <p>RestClient 通常把 {@link java.net.ConnectException} 包成 ResourceAccessException，
+     * 需沿 cause 链判断，不能只看顶层类型。</p>
+     */
+    /**
+     * 是否为「引擎明确宣告不可用」（HTTP 503，I-1 契约化后由状态码表达）。
+     * <p>RestClient 会把 5xx 包成 {@link org.springframework.web.client.HttpServerErrorException}，
+     * 且可能再被上层包装，因此沿 cause 链找。</p>
+     */
+    private static boolean isServiceUnavailable(Exception e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof org.springframework.web.client.HttpServerErrorException hse) {
+                return hse.getStatusCode().value() == ContractPaths.CODE_UNAVAILABLE;
+            }
+            t = t.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isConnectFailure(Exception e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof java.net.ConnectException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 }

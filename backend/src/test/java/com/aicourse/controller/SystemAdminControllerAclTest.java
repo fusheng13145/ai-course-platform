@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -170,12 +172,29 @@ class SystemAdminControllerAclTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /admin/system/backup/{file}/restore - 管理员恢复备份 200，委托 restoreBackup")
+    @DisplayName("POST /admin/system/backup/{file}/restore - 隔离库恢复 200，targetDb/confirmCurrentDb 透传")
     void restoreBackup_admin_ok() throws Exception {
-        mockMvc.perform(post("/admin/system/backup/backup.sql/restore").with(withUser(1L, "ADMIN")))
+        when(systemService.restoreBackup(eq("backup.sql"), eq("aicourse_restore_drill"), eq(false)))
+                .thenReturn(Map.of("targetDb", "aicourse_restore_drill"));
+        mockMvc.perform(post("/admin/system/backup/backup.sql/restore")
+                        .param("targetDb", "aicourse_restore_drill").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-        verify(systemService).restoreBackup(eq("backup.sql"));
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.targetDb").value("aicourse_restore_drill"));
+        verify(systemService).restoreBackup(eq("backup.sql"), eq("aicourse_restore_drill"), eq(false));
+    }
+
+    @Test
+    @DisplayName("POST /admin/system/backup/{file}/restore - 缺省 targetDb 由服务端拒绝 → 400（不再隐式覆盖当前应用库）")
+    void restoreBackup_missingTargetDb_400() throws Exception {
+        String hint = "必须显式指定恢复目标库 targetDb";
+        when(systemService.restoreBackup(eq("backup.sql"), isNull(), eq(false)))
+                .thenThrow(new BusinessException(hint));
+        mockMvc.perform(post("/admin/system/backup/backup.sql/restore").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(hint));
+        verify(systemService).restoreBackup(eq("backup.sql"), isNull(), eq(false));
     }
 
     @Test

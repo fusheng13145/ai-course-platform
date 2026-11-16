@@ -15,6 +15,8 @@ const paletteOpen = ref(false)
 const paletteQuery = ref('')
 const notifOpen = ref(false)
 const assistantOpen = ref(false)
+/** 顶栏账号菜单（个人中心 / 退出登录）的展开态 */
+const userMenuOpen = ref(false)
 const unread = ref(0)
 const toasts = ref<Toast[]>([])
 const courseContext = reactive<{
@@ -115,6 +117,7 @@ export function useUi() {
     paletteQuery,
     notifOpen,
     assistantOpen,
+    userMenuOpen,
     unread,
     toasts,
     toast,

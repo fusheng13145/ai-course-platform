@@ -10,9 +10,7 @@ import com.aicourse.service.ResourceVersionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -79,7 +77,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 的 IOException（无法在不改生产代码前提下稳定注入磁盘故障）。所有落盘文件在用例内清理。</p>
  */
 @WebMvcTest(ResourceController.class)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ResourceControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean
@@ -170,7 +167,6 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @Order(1)
     @DisplayName("上传（pdf）：uploads 目录不存在时 mkdirs 创建成功并落盘")
     void upload_createsUploadDirWhenAbsent() throws Exception {
         // 尽力清空目录以稳定走到 !dir.exists() && dir.mkdirs() 分支；目录非空删除失败时不影响其余断言。
@@ -191,7 +187,6 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @Order(2)
     @DisplayName("上传：PNG/JPEG/GIF 魔数逐一命中 detectMagicType 与后缀映射（目录已存在的 exists 分支）")
     void upload_imageMagicTypes_succeed() throws Exception {
         uploadAndAssert("图.png", "image/png", PNG_BYTES, ".png");
@@ -200,7 +195,6 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @Order(3)
     @DisplayName("上传：doc(OLE2)/docx(ZIP)/xls(OLE2) 办公文档魔数逐一命中")
     void upload_officeMagicTypes_succeed() throws Exception {
         uploadAndAssert("旧文档.doc", "application/msword", OLE2_BYTES, ".doc");
@@ -210,7 +204,6 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @Order(4)
     @DisplayName("上传：mp4(ftyp) 魔数与 mp3 声明类型放行（audio/mpeg 免魔数）")
     void upload_mediaMagicTypes_succeed() throws Exception {
         uploadAndAssert("视频.mp4", "video/mp4", MP4_BYTES, ".mp4");
@@ -219,7 +212,6 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @Order(5)
     @DisplayName("上传：原始文件名缺失回退 unknown（StringUtils.hasText 假侧）")
     void upload_nullOriginalFilename_fallsBackToUnknown() throws Exception {
         when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));

@@ -429,12 +429,15 @@ knowledge-graph:
     max-hops: ${KG_RAG_MAX_HOPS:2}
 
 # ===================== Python RAG 服务配置 =====================
-# 注意（职责边界）：RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）由团队另一成员负责，
-# 本端不再内置引擎实现，仅保留 RAGService 标准化接口 + 本 HTTP 代理；rag.enabled=true 时调用 Python 端
-# /api/v1/rag/* 契约（权威单一事实来源见 docs/系统架构设计.md 的集成契约章节），未启用或不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
+# 职责边界（2026-11-15 基线）：检索能力（BM25 / 向量 / embedding / 融合 / 图谱）由 Python 引擎承担，
+# 本端不内置引擎实现，仅保留 RAGService 标准化接口 + HTTP 代理；默认调用 Python 端 /api/v1/rag/*
+# 契约（权威单一事实来源见 docs/系统架构设计.md 的集成契约章节），不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
 rag:
-  # 是否启用 Python RAG 服务（默认关闭）
-  enabled: ${RAG_ENABLED:false}
+  # 引擎选择：python（默认，Python 8002 优先）| java（不调 Python，问答走纯 LLM 兜底）
+  # 临时回退无需改代码：RAG_PROVIDER=java；或 provider 置空 + RAG_ENABLED=false
+  provider: ${RAG_PROVIDER:python}
+  # 兼容开关：仅当 provider 未显式配置时生效（默认 true）
+  enabled: ${RAG_ENABLED:true}
   # Python RAG服务地址（独立端口，与知识图谱服务隔离）
   base-url: ${RAG_BASE_URL:http://localhost:8002}
   # HTTP 连接超时（秒）

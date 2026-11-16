@@ -22,6 +22,7 @@
     </div>
 
     <div class="kg-grid">
+      <!-- ==================== 关系图 ==================== -->
       <section class="card">
         <header class="card-head">
           <div>
@@ -30,7 +31,7 @@
               <span class="chip chip-mute">{{ nodes.length }} 点 · {{ links.length }} 边</span>
             </h2>
           </div>
-          <span class="head-hint">点击节点查看它的直接关系</span>
+          <span class="head-hint">点击节点查看详情与先修/后继关系</span>
         </header>
         <svg v-if="layoutNodes.length" class="kg-svg" :viewBox="`0 0 ${SVG_W} ${SVG_H}`" role="img">
           <line
@@ -41,6 +42,7 @@
             :x2="link.x2"
             :y2="link.y2"
             :class="{
+              'is-related': isRelatedLink(link),
               'is-dim':
                 (selectedId !== null && !link.touchesSelected) || (hasPath && !isPathLink(link)),
               'is-path': hasPath && isPathLink(link),
@@ -60,7 +62,7 @@
             @click="select(node.id)"
           >
             <circle :cx="node.x" :cy="node.y" :r="node.r" />
-            <text :x="node.x" :y="node.y - node.r - 5">{{ node.name }}</text>
+            <text :x="node.lx" :y="node.ly" :text-anchor="node.anchor">{{ node.name }}</text>
           </g>
         </svg>
         <div v-else-if="graphLoading" class="empty-state compact"><b>正在加载图谱…</b></div>
@@ -88,23 +90,112 @@
         </footer>
       </section>
 
-      <section class="card">
-        <header class="card-head">
-          <div>
-            <h2>直接关系</h2>
+      <!-- ==================== 选中节点详情 / 图谱导读 ==================== -->
+      <section class="card kg-side">
+        <!-- 未选中：图例与导读 -->
+        <template v-if="!selectedNode">
+          <header class="card-head">
+            <div>
+              <h2>图谱导读</h2>
+            </div>
+          </header>
+          <div class="legend">
+            <div class="legend-row">
+              <svg viewBox="0 0 64 10" class="legend-line">
+                <line x1="2" y1="5" x2="62" y2="5" />
+              </svg>
+              <span>前置依赖（先修 → 后继）</span>
+            </div>
+            <div class="legend-row">
+              <svg viewBox="0 0 64 10" class="legend-line legend-related">
+                <line x1="2" y1="5" x2="62" y2="5" />
+              </svg>
+              <span>相关（同一主题的横向关联）</span>
+            </div>
           </div>
-        </header>
-        <p v-if="!selectedNode" class="modal-hint">未选中节点。</p>
-        <ul v-else-if="neighbours.length" class="nb-list">
-          <li v-for="(item, index) in neighbours" :key="index">
-            <span class="chip" :class="item.direction === 'out' ? 'chip-accent' : 'chip-info'">
-              {{ item.direction === 'out' ? '指向' : '来自' }}
+          <ol class="kg-guide">
+            <li>点击图中任意节点：右侧会给出它的学习价值与先修 / 后继清单。</li>
+            <li>先修没有掌握时，可把节点设为路径规划的终点，由图谱引擎给出学习顺序。</li>
+            <li>路径找到后，图上会以高亮标出整条学习路径。</li>
+            <li v-if="!isStudent">
+              教师可在下方「图谱引擎」把课程图谱同步到 Neo4j 引擎，由引擎执行多跳推理。
+            </li>
+          </ol>
+        </template>
+
+        <!-- 选中：节点详情 + 先修/后继分组 -->
+        <template v-else>
+          <header class="card-head">
+            <div>
+              <h2 class="kg-detail-name">{{ selectedNode.name }}</h2>
+            </div>
+            <button class="text-btn" @click="select(null)">取消选中</button>
+          </header>
+
+          <div class="kg-chips">
+            <span
+              class="chip"
+              :class="selectedNode.category === 'SKILL' ? 'chip-accent' : 'chip-info'"
+            >
+              {{ categoryText(selectedNode.category) }}
             </span>
-            <span class="nb-name">{{ item.name }}</span>
-            <span class="nb-rel">{{ relationText(item.relationType) }}</span>
-          </li>
-        </ul>
-        <div v-else class="empty-state compact"><b>该节点暂无直接关系</b></div>
+            <span v-if="selectedNode.difficultyLevel" class="chip chip-mute">
+              难度 · {{ selectedNode.difficultyLevel }}
+            </span>
+            <span class="chip chip-mute"
+              >重要性 {{ stars(Number(selectedNode.importance ?? 0)) }}</span
+            >
+            <span v-if="nodeDetail?.estimatedTime" class="chip chip-mute">
+              约 {{ nodeDetail.estimatedTime }} 分钟
+            </span>
+          </div>
+
+          <p class="kg-desc">
+            {{ nodeDetail?.description || (detailLoading ? '正在加载详情…' : '暂无知识点描述。') }}
+          </p>
+
+          <div class="kg-rel-groups">
+            <div v-if="relationGroups.prereqIn.length" class="kg-rel-group">
+              <h3>先修 · 需要先掌握（{{ relationGroups.prereqIn.length }}）</h3>
+              <ul>
+                <li v-for="item in relationGroups.prereqIn" :key="`in${item.id}`">
+                  <button class="text-btn" @click="select(item.id)">{{ item.name }}</button>
+                </li>
+              </ul>
+            </div>
+            <div v-if="relationGroups.prereqOut.length" class="kg-rel-group">
+              <h3>后继 · 学完它再学（{{ relationGroups.prereqOut.length }}）</h3>
+              <ul>
+                <li v-for="item in relationGroups.prereqOut" :key="`out${item.id}`">
+                  <button class="text-btn" @click="select(item.id)">{{ item.name }}</button>
+                </li>
+              </ul>
+            </div>
+            <div v-if="relationGroups.related.length" class="kg-rel-group">
+              <h3>相关 · 同一主题（{{ relationGroups.related.length }}）</h3>
+              <ul>
+                <li v-for="item in relationGroups.related" :key="`rel${item.id}`">
+                  <button class="text-btn" @click="select(item.id)">{{ item.name }}</button>
+                </li>
+              </ul>
+            </div>
+            <p
+              v-if="
+                !relationGroups.prereqIn.length &&
+                !relationGroups.prereqOut.length &&
+                !relationGroups.related.length
+              "
+              class="modal-hint"
+            >
+              该节点暂无直接关系。
+            </p>
+          </div>
+
+          <div v-if="!isStudent" class="kg-actions">
+            <button class="btn btn-ghost" @click="setPathEndpoint('source')">设为路径起点</button>
+            <button class="btn btn-ghost" @click="setPathEndpoint('target')">设为路径终点</button>
+          </div>
+        </template>
       </section>
     </div>
 
@@ -117,6 +208,7 @@
           <div>
             <h2>学习路径规划</h2>
           </div>
+          <span class="head-hint">由图谱引擎按先修关系给出学习顺序</span>
         </header>
         <div class="form-grid">
           <label class="field">
@@ -230,6 +322,7 @@ interface KgNode {
   id: number | string
   name?: string
   category?: string
+  difficultyLevel?: string
   importance?: number
 }
 
@@ -243,6 +336,9 @@ interface LayoutNode extends KgNode {
   x: number
   y: number
   r: number
+  lx: number
+  ly: number
+  anchor: 'start' | 'end' | 'middle'
 }
 
 interface LayoutLink extends KgLink {
@@ -251,6 +347,11 @@ interface LayoutLink extends KgLink {
   x2: number
   y2: number
   touchesSelected: boolean
+}
+
+interface KgNodeDetail extends KgNode {
+  description?: string
+  estimatedTime?: number
 }
 
 interface PathStep {
@@ -271,8 +372,13 @@ interface SubGraph {
   edges: { source_id?: number | string; target_id?: number | string }[]
 }
 
-const SVG_W = 640
-const SVG_H = 420
+const SVG_W = 900
+const SVG_H = 640
+const CX = SVG_W / 2
+const CY = SVG_H / 2
+// 交错双环：外环约 6 成节点、内环其余并错开半步，弧间距比单环大一倍，标签不再成团
+const R_OUT = Math.min(CX, CY) - 78
+const R_IN = Math.min(CX, CY) - 170
 
 const MODE_TEXT: Record<string, string> = {
   ENGINE: '引擎计算',
@@ -359,20 +465,39 @@ const metrics = computed<Metric[]>(() => [
 ])
 
 const layoutNodes = computed<LayoutNode[]>(() => {
-  const count = nodes.value.length
+  const list = nodes.value
+  const count = list.length
   if (!count) return []
-  const cx = SVG_W / 2
-  const cy = SVG_H / 2
-  const radius = Math.min(cx, cy) - 62
-  return nodes.value.map((node, index) => {
-    const angle = (Math.PI * 2 * index) / count - Math.PI / 2
-    const importance = Number(node.importance ?? 3)
-    return {
-      ...node,
-      x: cx + radius * Math.cos(angle),
-      y: cy + radius * Math.sin(angle),
-      r: 9 + Math.max(0, Math.min(10, importance)) * 1.1,
+  const outerCount = Math.ceil(count / 2)
+  return list.map((node, index) => {
+    const isOuter = index % 2 === 0
+    const ringTotal = isOuter ? outerCount : count - outerCount
+    const ringIndex = Math.floor(index / 2)
+    const angle = (Math.PI * 2 * ringIndex) / ringTotal + (isOuter ? 0 : Math.PI / ringTotal)
+    const radius = isOuter ? R_OUT : R_IN
+    const r = 8 + Math.max(0, Math.min(10, Number(node.importance ?? 3))) * 0.9
+    const x = CX + radius * Math.cos(angle)
+    const y = CY + radius * Math.sin(angle)
+    // 标签避让：左半圆标签放左侧（右对齐），右半圆放右侧，顶/底放上下
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    let lx = x
+    let ly = y
+    let anchor: 'start' | 'end' | 'middle' = 'middle'
+    if (cos > 0.35) {
+      lx = x + 15
+      ly = y + 4
+      anchor = 'start'
+    } else if (cos < -0.35) {
+      lx = x - 15
+      ly = y + 4
+      anchor = 'end'
+    } else if (sin < 0) {
+      ly = y - r - 9
+    } else {
+      ly = y + r + 16
     }
+    return { ...node, x, y, r, lx, ly, anchor }
   })
 })
 
@@ -414,6 +539,10 @@ function isPathLink(link: KgLink): boolean {
   return pathEdgeKeys.value.has(`${String(link.source)}-${String(link.target)}`)
 }
 
+function isRelatedLink(link: KgLink): boolean {
+  return link.relationType === 'RELATED'
+}
+
 const layoutLinks = computed<LayoutLink[]>(() => {
   const byId = new Map(layoutNodes.value.map((node) => [String(node.id), node]))
   return links.value.flatMap((link) => {
@@ -442,23 +571,70 @@ const selectedNode = computed(() =>
     : nodes.value.find((node) => String(node.id) === String(selectedId.value)) || null,
 )
 
-const neighbours = computed(() => {
-  if (selectedId.value === null) return []
+/**
+ * 选中节点的直接关系按学习语义分组：先修（谁在我前面）/ 后继（学完它再学什么）/ 相关（横向关联）。
+ * 旧版「来自/指向」不区分关系类型，用户需要脑补方向，是本次重设计的直接动因。
+ */
+const relationGroups = computed(() => {
+  const prereqIn: { id: number | string; name: string }[] = []
+  const prereqOut: { id: number | string; name: string }[] = []
+  const related: { id: number | string; name: string }[] = []
+  if (selectedId.value === null) return { prereqIn, prereqOut, related }
   const byId = new Map(nodes.value.map((node) => [String(node.id), node]))
-  return links.value.flatMap((link) => {
+  const seen = new Set<string>()
+  for (const link of links.value) {
     const isSource = String(link.source) === String(selectedId.value)
     const isTarget = String(link.target) === String(selectedId.value)
-    if (!isSource && !isTarget) return []
-    const peer = byId.get(String(isSource ? link.target : link.source))
-    return [
-      {
-        direction: isSource ? ('out' as const) : ('in' as const),
-        name: peer?.name || '未知节点',
-        relationType: link.relationType || '',
-      },
-    ]
-  })
+    if (!isSource && !isTarget) continue
+    const peerId = String(isSource ? link.target : link.source)
+    const peer = byId.get(peerId)
+    if (!peer) continue
+    const dedupe = `${link.relationType ?? ''}-${peerId}`
+    if (seen.has(dedupe)) continue
+    seen.add(dedupe)
+    const item = { id: peerId, name: peer.name || '未知节点' }
+    if (link.relationType === 'RELATED') related.push(item)
+    else if (isSource) prereqOut.push(item)
+    else prereqIn.push(item)
+  }
+  return { prereqIn, prereqOut, related }
 })
+
+/** 选中节点的描述/时长不在图负载里，按需拉取一次并缓存 */
+const nodeDetail = ref<KgNodeDetail | null>(null)
+const detailLoading = ref(false)
+const detailCache = new Map<string, KgNodeDetail>()
+
+watch(selectedId, async (id) => {
+  nodeDetail.value = null
+  mastery.value = null
+  masteryError.value = ''
+  if (id === null) return
+  const key = String(id)
+  if (detailCache.has(key)) {
+    nodeDetail.value = detailCache.get(key) ?? null
+    if (isStudent.value) void loadMastery(Number(id))
+    return
+  }
+  detailLoading.value = true
+  try {
+    const raw = unwrap(await knowledgeApi.getKnowledgePointById(id)) as KgNodeDetail | null
+    if (raw) {
+      detailCache.set(key, raw)
+      if (selectedId.value !== null && String(selectedId.value) === key) nodeDetail.value = raw
+    }
+  } catch (error) {
+    logger.error('知识点详情加载失败', error)
+  } finally {
+    detailLoading.value = false
+  }
+  if (isStudent.value) void loadMastery(Number(id))
+})
+
+function stars(value: number): string {
+  const clamped = Math.max(0, Math.min(5, value))
+  return '★'.repeat(clamped) + '☆'.repeat(5 - clamped)
+}
 
 function display(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -481,20 +657,18 @@ function categoryText(value?: string): string {
   return CATEGORY_TEXT[String(value || '')] || String(value || '概念')
 }
 
-function relationText(value?: string): string {
-  const map: Record<string, string> = {
-    PREREQUISITE: '前置依赖',
-    RELATED: '相关',
-    CONTAINS: '包含',
-  }
-  return map[String(value || '')] || String(value || '关联')
+/** 把选中节点一键填进下方路径规划的起点/终点 */
+function setPathEndpoint(which: 'source' | 'target') {
+  if (selectedId.value === null) return
+  const id = Number(selectedId.value)
+  if (!id) return
+  if (which === 'source') pathSource.value = id
+  else pathTarget.value = id
+  toast('已填入路径规划表单，调整跳数后点击「规划路径」', 'info')
 }
 
 function select(id: number | string | null) {
   selectedId.value = id
-  mastery.value = null
-  masteryError.value = ''
-  if (isStudent.value && id !== null) void loadMastery(Number(id))
 }
 
 const mastery = ref<{ score: number | null; level?: string } | null>(null)
@@ -684,7 +858,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
 }
 .kg-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
+  grid-template-columns: 1.6fr 1fr;
   gap: 14px;
   align-items: start;
 }
@@ -698,16 +872,23 @@ watch(() => props.courseId, loadAll, { immediate: true })
   display: block;
 }
 .kg-svg line {
-  stroke: var(--line);
-  stroke-width: 1.2;
+  stroke: var(--line-strong, var(--line));
+  stroke-width: 1.3;
+  transition:
+    stroke-opacity 0.2s,
+    stroke 0.2s;
+}
+.kg-svg line.is-related {
+  stroke-dasharray: 5 4;
+  stroke: var(--ink-3);
 }
 .kg-svg line.is-dim {
-  stroke-opacity: 0.25;
+  stroke-opacity: 0.08;
 }
 /* 路径高亮：命中的边加粗提色，未命中的边压暗，让"从哪走到哪"一眼可读 */
 .kg-svg line.is-path {
   stroke: var(--accent);
-  stroke-width: 2.4;
+  stroke-width: 2.6;
   stroke-opacity: 1;
 }
 .kg-node {
@@ -717,16 +898,25 @@ watch(() => props.courseId, loadAll, { immediate: true })
   fill: var(--surface-3);
   stroke: var(--accent);
   stroke-width: 1.4;
+  transition:
+    stroke-width 0.15s,
+    fill 0.15s;
+}
+.kg-node:hover circle {
+  stroke-width: 2.4;
 }
 .kg-node text {
-  font-size: 10px;
+  font-size: 11px;
   fill: var(--ink-2);
-  text-anchor: middle;
   pointer-events: none;
 }
 .kg-node.is-selected circle {
   fill: var(--accent-soft);
-  stroke-width: 2.4;
+  stroke-width: 2.6;
+}
+.kg-node.is-selected text {
+  fill: var(--accent);
+  font-weight: 600;
 }
 .kg-node.is-path circle {
   fill: var(--accent);
@@ -738,7 +928,103 @@ watch(() => props.courseId, loadAll, { immediate: true })
   font-weight: 600;
 }
 .kg-node.is-dim {
-  opacity: 0.4;
+  opacity: 0.35;
+}
+
+/* ---- 右侧：详情 / 导读 ---- */
+.kg-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kg-detail-name {
+  word-break: break-all;
+}
+.kg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kg-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-radius: var(--r-ctl);
+  padding: 10px 12px;
+}
+.kg-rel-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kg-rel-group h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.kg-rel-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kg-rel-group li {
+  display: flex;
+}
+.kg-rel-group .text-btn {
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  padding: 3px 10px;
+  font-size: 11.5px;
+  background: var(--surface);
+}
+.kg-rel-group .text-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.kg-actions {
+  display: flex;
+  gap: 8px;
+}
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.legend-line {
+  width: 64px;
+  height: 10px;
+  flex: none;
+}
+.legend-line line {
+  stroke: var(--line-strong, var(--line));
+  stroke-width: 1.6;
+}
+.legend-related line {
+  stroke-dasharray: 5 4;
+  stroke: var(--ink-3);
+}
+.kg-guide {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
 }
 .nb-list,
 .path-list {

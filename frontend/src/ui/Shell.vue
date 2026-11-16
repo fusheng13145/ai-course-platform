@@ -36,7 +36,15 @@ import { useUi } from './composables/ui'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
-const { theme, sidebarCollapsed, mobileNavOpen, paletteOpen, notifOpen, setCourseContext } = useUi()
+const {
+  theme,
+  sidebarCollapsed,
+  mobileNavOpen,
+  paletteOpen,
+  notifOpen,
+  userMenuOpen,
+  setCourseContext,
+} = useUi()
 const auth = useAuthStore()
 
 const BODY_CLASSES = ['is-collapsed', 'nav-open', 'course-mode', 'overlay-open']
@@ -80,6 +88,7 @@ watch(
     mobileNavOpen.value = false
     paletteOpen.value = false
     notifOpen.value = false
+    userMenuOpen.value = false
     if (!route.meta.courseSpace) setCourseContext(null)
     window.scrollTo({ top: 0 })
     syncChrome()

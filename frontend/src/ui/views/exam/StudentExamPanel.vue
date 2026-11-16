@@ -215,7 +215,7 @@ import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import { useStudentExams } from '@/composables/useStudentExams'
 import { buildDangerMessage, type DangerConfirmOptions } from '@/utils/dangerMessage'
-import { getAllMyCourses } from '@/api/course'
+import studentApi from '@/api/student'
 
 const props = defineProps<{ courseId?: number | null }>()
 const { toast } = useUi()
@@ -356,7 +356,7 @@ onMounted(async () => {
   if (props.courseId != null) return
   try {
     const map = new Map<number, string>()
-    for (const row of (await getAllMyCourses()) as Record<string, unknown>[]) {
+    for (const row of (await studentApi.getAllMyCourses()) as Record<string, unknown>[]) {
       const id = Number(row?.courseId ?? row?.id)
       const name = String(row?.name ?? row?.courseName ?? '').trim()
       if (Number.isFinite(id) && id > 0 && name) map.set(id, name)

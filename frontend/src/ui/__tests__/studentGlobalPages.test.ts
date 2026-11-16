@@ -69,7 +69,16 @@ function mountAcademic(): VueWrapper {
   return mount(AcademicBody)
 }
 function mountProfile(): VueWrapper {
-  return mount(ProfileBody)
+  return mount(ProfileBody, {
+    global: {
+      stubs: {
+        Modal: {
+          props: ['open', 'title'],
+          template: '<div v-if="open" class="modal-stub"><slot /><slot name="footer" /></div>',
+        },
+      },
+    },
+  })
 }
 
 function findButton(wrapper: VueWrapper, label: string) {
@@ -516,26 +525,31 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
 })
 
 describe('学生全局页 · 个人中心', () => {
-  it('渲染基本资料 / 安全 / 偏好三面，并扩展数据概览 / 我的课程 / 学习动态三面', async () => {
+  it('渲染基本资料 / 设置（外观与安全）与按角色收敛的扩展区', async () => {
     const wrapper = mountProfile()
     await settle()
 
     expect(userApi.getProfile).toHaveBeenCalledWith(11)
-    expect(wrapper.findAll('.profile-card')).toHaveLength(6)
+    expect(wrapper.findAll('.profile-card')).toHaveLength(4)
     const text = wrapper.text()
     expect(text).toContain('基本资料')
-    expect(text).toContain('安全')
-    expect(text).toContain('偏好')
+    expect(text).toContain('编辑资料')
+    expect(text).toContain('外观主题')
+    expect(text).toContain('账号安全')
+    expect(text).toContain('修改密码')
     expect(text).toContain('2023010101')
     expect(text).toContain('计算机科学与技术')
     expect(text).toContain('2023')
     expect(text).toContain('林知远')
     expect(text).toContain('2026-10-20 10:00')
-    // M-06 扩展三面（数据概览 / 我的课程 / 学习动态）
+    // M-06 扩展区：学生保留数据概览 / 我的课程 / 学习动态
     expect(text).toContain('数据概览')
     expect(text).toContain('我的课程')
     expect(text).toContain('学习动态')
     expect(text).not.toContain('示例数据')
+
+    await findButton(wrapper, '编辑资料')?.trigger('click')
+    await settle()
 
     const fullName = wrapper.find('[data-field="fullName"]').element as HTMLInputElement
     const email = wrapper.find('[data-field="email"]').element as HTMLInputElement
@@ -550,8 +564,11 @@ describe('学生全局页 · 个人中心', () => {
     const wrapper = mountProfile()
     await settle()
 
+    await findButton(wrapper, '编辑资料')?.trigger('click')
+    await settle()
+
     await wrapper.find('[data-field="email"]').setValue('new@example.com')
-    await findButton(wrapper, '保存修改')?.trigger('click')
+    await findButton(wrapper, '保存')?.trigger('click')
     await settle()
 
     expect(authApi.updateCurrentUser).toHaveBeenCalledTimes(1)
@@ -568,8 +585,11 @@ describe('学生全局页 · 个人中心', () => {
     const wrapper = mountProfile()
     await settle()
 
+    await findButton(wrapper, '编辑资料')?.trigger('click')
+    await settle()
+
     await wrapper.find('[data-field="email"]').setValue('')
-    await findButton(wrapper, '保存修改')?.trigger('click')
+    await findButton(wrapper, '保存')?.trigger('click')
     await settle()
 
     expect(authApi.updateCurrentUser).toHaveBeenCalledTimes(1)
@@ -595,10 +615,16 @@ describe('学生全局页 · 个人中心', () => {
     const wrapper = mountProfile()
     await settle()
 
-    expect(wrapper.text()).not.toContain('学号')
-    expect(wrapper.text()).not.toContain('用户名、学号由管理员维护')
-    expect(wrapper.text()).toContain('用户名由管理员维护')
-    expect(wrapper.text()).toContain('王老师')
+    const text = wrapper.text()
+    expect(text).not.toContain('学号')
+    expect(text).not.toContain('用户名、学号由管理员维护')
+    expect(text).toContain('用户名由管理员维护')
+    expect(text).toContain('王老师')
+    // 教师端不再渲染学生式概览/动态，也不再发起 /student/** 请求
+    expect(text).not.toContain('数据概览')
+    expect(text).toContain('最近通知')
+    expect(studentApi.getPendingAssignments).not.toHaveBeenCalled()
+    expect(studentApi.getCompletedAssignments).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -607,8 +633,11 @@ describe('学生全局页 · 个人中心', () => {
     const wrapper = mountProfile()
     await settle()
 
+    await findButton(wrapper, '编辑资料')?.trigger('click')
+    await settle()
+
     await wrapper.find('[data-field="fullName"]').setValue('林知远')
-    await findButton(wrapper, '保存修改')?.trigger('click')
+    await findButton(wrapper, '保存')?.trigger('click')
     await settle()
 
     expect(wrapper.find('.form-error').text()).toContain('保存失败')
@@ -620,17 +649,20 @@ describe('学生全局页 · 个人中心', () => {
     const wrapper = mountProfile()
     await settle()
 
+    await findButton(wrapper, '修改密码')?.trigger('click')
+    await settle()
+
     await wrapper.find('[data-field="oldPassword"]').setValue('oldpass1')
     await wrapper.find('[data-field="newPassword"]').setValue('Abc12345!')
     await wrapper.find('[data-field="confirmPassword"]').setValue('Abc12345?')
-    await findButton(wrapper, '修改密码')?.trigger('click')
+    await findButton(wrapper, '确认修改')?.trigger('click')
     await settle()
 
     expect(authApi.changePassword).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('两次输入的新密码不一致')
 
     await wrapper.find('[data-field="confirmPassword"]').setValue('Abc12345!')
-    await findButton(wrapper, '修改密码')?.trigger('click')
+    await findButton(wrapper, '确认修改')?.trigger('click')
     await settle()
 
     expect(authApi.changePassword).toHaveBeenCalledTimes(1)
@@ -667,8 +699,10 @@ describe('学生全局页 · 个人中心', () => {
     expect(wrapper.text()).toContain('用户名')
     expect(wrapper.text()).toContain('学号')
     expect(wrapper.text()).toContain('—')
+    await findButton(wrapper, '编辑资料')?.trigger('click')
+    await settle()
     expect(wrapper.find('[data-field="fullName"]').element).toHaveProperty('value', '')
-    expect(wrapper.findAll('.profile-card')).toHaveLength(6)
+    expect(wrapper.findAll('.profile-card')).toHaveLength(4)
     expect(wrapper.text()).not.toContain('示例数据')
     wrapper.unmount()
   })
@@ -682,11 +716,13 @@ describe('学生全局页 · 个人中心', () => {
     expect(callout.exists(), '资料加载失败必须是危险提示而非普通状态条').toBe(true)
     expect(callout.text()).toContain('详细资料未能加载')
     expect(wrapper.text()).toContain('林知远')
+    await findButton(wrapper, '编辑资料')?.trigger('click')
+    await settle()
     const email = wrapper.find('[data-field="email"]').element as HTMLInputElement
     const phone = wrapper.find('[data-field="phone"]').element as HTMLInputElement
     expect(email.value).toBe('lin@example.com')
     expect(phone.value).toBe('13800138000')
-    expect(wrapper.findAll('.profile-card')).toHaveLength(6)
+    expect(wrapper.findAll('.profile-card')).toHaveLength(4)
     expect(wrapper.text()).not.toContain('示例数据')
     wrapper.unmount()
   })

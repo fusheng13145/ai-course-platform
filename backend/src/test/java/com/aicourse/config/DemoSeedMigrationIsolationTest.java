@@ -73,7 +73,9 @@ class DemoSeedMigrationIsolationTest {
             // V19（2026-11-13）：压测残留数据清理（纯 DELETE，无建表不产演示数据）—— 结构迁移
             "V19__purge_stress_test_data.sql",
             // V20（2026-11-14）：exam_sessions 人工阅卷评语列（纯加列）—— 结构迁移，非演示数据
-            "V20__exam_session_question_comments.sql");
+            "V20__exam_session_question_comments.sql",
+            // V21（2026-11-14）：file_type 列扩容 100（对齐上传 MIME 白名单）—— 结构迁移
+            "V21__resources_file_type_len.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

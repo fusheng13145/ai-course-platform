@@ -18,14 +18,16 @@
           <div>
             <h2>基本资料</h2>
           </div>
-          <span v-if="roleLabel" class="chip chip-mute">{{ roleLabel }}</span>
+          <button type="button" class="btn btn-sm btn-primary" @click="openProfileModal">
+            编辑资料
+          </button>
         </header>
 
         <div class="profile-identity">
           <span class="profile-avatar" aria-hidden="true">{{ avatarText }}</span>
           <div class="profile-identity-main">
             <b>{{ displayName }}</b>
-            <p>{{ profile.username || '—' }}</p>
+            <span v-if="roleLabel" class="chip chip-mute">{{ roleLabel }}</span>
           </div>
         </div>
 
@@ -55,135 +57,44 @@
         <p class="profile-hint">
           <template v-if="isStudent">用户名、学号由管理员维护；</template>
           <template v-else>用户名由管理员维护；</template>
-          姓名、邮箱、手机号可自助修改，留空表示不修改。
+          点击「编辑资料」可修改姓名、邮箱、手机号。
         </p>
 
-        <div class="form-grid">
-          <label class="field">
-            <span>姓名</span>
-            <input
-              v-model="form.fullName"
-              class="input"
-              data-field="fullName"
-              maxlength="50"
-              autocomplete="name"
-            />
-          </label>
-          <label class="field">
-            <span>邮箱</span>
-            <input
-              v-model="form.email"
-              class="input"
-              data-field="email"
-              type="email"
-              autocomplete="email"
-            />
-          </label>
-          <label class="field span-2">
-            <span>手机号</span>
-            <input
-              v-model="form.phone"
-              class="input"
-              data-field="phone"
-              maxlength="11"
-              autocomplete="tel"
-              placeholder="11 位手机号"
-            />
-          </label>
-        </div>
-        <p v-if="saveError" class="form-error" role="alert">{{ saveError }}</p>
-        <div class="profile-actions">
-          <button class="btn btn-primary" :disabled="saving" @click="save">
-            {{ saving ? '保存中…' : '保存修改' }}
-          </button>
+        <div class="profile-divider"></div>
+        <div class="settings-block">
+          <div class="settings-row">
+            <span class="settings-label">外观主题</span>
+            <div class="theme-switch" role="group" aria-label="主题">
+              <button
+                type="button"
+                :class="{ 'is-active': theme === 'light' }"
+                :aria-pressed="theme === 'light'"
+                @click="setTheme('light')"
+              >
+                浅色
+              </button>
+              <button
+                type="button"
+                :class="{ 'is-active': theme === 'dark' }"
+                :aria-pressed="theme === 'dark'"
+                @click="setTheme('dark')"
+              >
+                深色
+              </button>
+            </div>
+            <span class="profile-meta">保存在本机浏览器</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">账号安全</span>
+            <span class="profile-meta">上次登录：{{ lastLoginText }}</span>
+            <button type="button" class="btn btn-sm settings-action" @click="openPasswordModal">
+              修改密码
+            </button>
+          </div>
         </div>
       </section>
 
-      <div class="profile-col">
-        <section class="card profile-card security-card">
-          <header class="card-head">
-            <div>
-              <h2>安全</h2>
-            </div>
-          </header>
-          <p class="profile-hint">
-            修改密码需验证当前密码；新密码 8–32 位且同时包含大写字母、小写字母、数字和特殊字符。
-            修改成功后当前会话会失效，需要重新登录。
-          </p>
-          <div class="form-grid">
-            <label class="field span-2">
-              <span>当前密码</span>
-              <input
-                v-model="password.oldPassword"
-                class="input"
-                data-field="oldPassword"
-                type="password"
-                autocomplete="current-password"
-              />
-            </label>
-            <label class="field">
-              <span>新密码</span>
-              <input
-                v-model="password.newPassword"
-                class="input"
-                data-field="newPassword"
-                type="password"
-                autocomplete="new-password"
-              />
-            </label>
-            <label class="field">
-              <span>确认新密码</span>
-              <input
-                v-model="password.confirmPassword"
-                class="input"
-                data-field="confirmPassword"
-                type="password"
-                autocomplete="new-password"
-              />
-            </label>
-          </div>
-          <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
-          <div class="profile-actions">
-            <button class="btn btn-primary" :disabled="changing" @click="changePassword">
-              {{ changing ? '提交中…' : '修改密码' }}
-            </button>
-          </div>
-          <p class="profile-meta">上次登录：{{ lastLoginText }}</p>
-        </section>
-
-        <section class="card profile-card preference-card">
-          <header class="card-head">
-            <div>
-              <h2>偏好</h2>
-            </div>
-          </header>
-          <p class="profile-hint">主题跟随新版界面的主题开关，保存在本机浏览器。</p>
-          <div class="theme-switch" role="group" aria-label="主题">
-            <button
-              type="button"
-              :class="{ 'is-active': theme === 'light' }"
-              :aria-pressed="theme === 'light'"
-              @click="setTheme('light')"
-            >
-              浅色
-            </button>
-            <button
-              type="button"
-              :class="{ 'is-active': theme === 'dark' }"
-              :aria-pressed="theme === 'dark'"
-              @click="setTheme('dark')"
-            >
-              深色
-            </button>
-          </div>
-          <p class="profile-meta">当前主题：{{ theme === 'dark' ? '深色' : '浅色' }}</p>
-        </section>
-      </div>
-    </div>
-
-    <!-- 扩展三面（M-06）：数据概览 / 我的课程 / 学习动态 -->
-    <div class="profile-extra">
-      <section class="card profile-card stats-card">
+      <section v-if="isStudent" class="card profile-card stats-card">
         <header class="card-head">
           <div>
             <h2>数据概览</h2>
@@ -209,51 +120,22 @@
         </div>
       </section>
 
-      <section class="card profile-card courses-card">
-        <header class="card-head">
-          <div>
-            <h2>我的课程</h2>
-          </div>
-          <button type="button" class="btn btn-sm" @click="openCourses">查看全部</button>
-        </header>
-        <div v-if="coursesLoading" class="profile-loading">加载中…</div>
-        <p v-else-if="courseList.length === 0" class="profile-empty">还没有在学课程</p>
-        <ul v-else class="profile-course-list">
-          <li
-            v-for="c in courseList"
-            :key="c.id"
-            class="profile-course-item"
-            role="button"
-            tabindex="0"
-            @click="openCourse(c)"
-            @keyup.enter="openCourse(c)"
-          >
-            <span class="course-cover" :data-tone="c.tone">{{ c.short }}</span>
-            <div class="profile-course-info">
-              <div class="course-name">{{ c.name }}</div>
-              <span class="course-bar"
-                ><i
-                  :style="{
-                    width: clampPct(c.progress) + '%',
-                    background: progressColor(c.progress),
-                  }"
-                ></i
-              ></span>
-            </div>
-            <span class="course-progress">{{ clampPct(c.progress) }}<small>%</small></span>
-          </li>
-        </ul>
-      </section>
-
       <section class="card profile-card activity-card">
         <header class="card-head">
           <div>
-            <h2>学习动态</h2>
+            <h2>{{ activityTitle }}</h2>
           </div>
-          <button type="button" class="btn btn-sm" @click="openAssignments">全部待办</button>
+          <button v-if="isStudent" type="button" class="btn btn-sm" @click="openAssignments">
+            全部待办
+          </button>
+          <button v-else-if="isTeacher" type="button" class="btn btn-sm" @click="openMessages">
+            全部消息
+          </button>
         </header>
         <div v-if="feedLoading" class="profile-loading">加载中…</div>
-        <p v-else-if="activityFeed.length === 0" class="profile-empty">暂无学习动态</p>
+        <p v-else-if="activityFeed.length === 0" class="profile-empty">
+          {{ isStudent ? '暂无学习动态' : '暂无通知' }}
+        </p>
         <ul v-else class="profile-feed-list">
           <li
             v-for="(a, i) in activityFeed"
@@ -271,18 +153,156 @@
                 <span class="chip" :class="'chip-' + a.color">{{ a.type }}</span>
                 <span class="profile-feed-name">{{ a.title }}</span>
               </div>
-              <div v-if="a.due" class="profile-feed-due">截止 {{ a.due }}</div>
+              <div v-if="a.due" class="profile-feed-due">{{ a.metaLabel }} {{ a.due }}</div>
             </div>
           </li>
         </ul>
       </section>
+
+      <section class="card profile-card courses-card" :class="{ 'is-full': !isStudent }">
+        <header class="card-head">
+          <div>
+            <h2>{{ coursesTitle }}</h2>
+          </div>
+          <button type="button" class="btn btn-sm" @click="openCourses">查看全部</button>
+        </header>
+        <div v-if="coursesLoading" class="profile-loading">加载中…</div>
+        <p v-else-if="courseList.length === 0" class="profile-empty">
+          {{ isAdmin ? '课程库暂无课程' : '还没有在学课程' }}
+        </p>
+        <ul v-else class="profile-course-list">
+          <li
+            v-for="c in courseList"
+            :key="c.id"
+            class="profile-course-item"
+            role="button"
+            tabindex="0"
+            @click="openCourse(c)"
+            @keyup.enter="openCourse(c)"
+          >
+            <span class="course-cover" :data-tone="c.tone">{{ c.short }}</span>
+            <div class="profile-course-info">
+              <div class="course-name">{{ c.name }}</div>
+              <span class="course-bar"
+                ><i
+                  :style="{
+                    '--p': clampPct(c.progress) + '%',
+                    width: clampPct(c.progress) + '%',
+                    background: progressColor(c.progress),
+                  }"
+                ></i
+              ></span>
+            </div>
+            <span class="course-progress">{{ clampPct(c.progress) }}<small>%</small></span>
+          </li>
+        </ul>
+      </section>
     </div>
+
+    <Modal v-model:open="profileOpen" title="编辑资料" width="480px" @close="closeProfileModal">
+      <div class="form-grid">
+        <label class="field">
+          <span>姓名</span>
+          <input
+            v-model="form.fullName"
+            class="input"
+            data-field="fullName"
+            maxlength="50"
+            autocomplete="name"
+          />
+        </label>
+        <label class="field">
+          <span>邮箱</span>
+          <input
+            v-model="form.email"
+            class="input"
+            data-field="email"
+            type="email"
+            autocomplete="email"
+          />
+        </label>
+        <label class="field span-2">
+          <span>手机号</span>
+          <input
+            v-model="form.phone"
+            class="input"
+            data-field="phone"
+            maxlength="11"
+            autocomplete="tel"
+            placeholder="11 位手机号"
+          />
+        </label>
+      </div>
+      <p v-if="saveError" class="form-error" role="alert">{{ saveError }}</p>
+      <template #footer>
+        <button type="button" class="btn btn-ghost" :disabled="saving" @click="closeProfileModal">
+          取消
+        </button>
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
+          {{ saving ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </Modal>
+
+    <Modal v-model:open="passwordOpen" title="修改密码" width="480px" @close="resetPasswordForm">
+      <p class="profile-hint">
+        修改密码需验证当前密码；新密码 8–32 位且同时包含大写字母、小写字母、数字和特殊字符。
+        修改成功后当前会话会失效，需要重新登录。
+      </p>
+      <div class="form-grid">
+        <label class="field span-2">
+          <span>当前密码</span>
+          <input
+            v-model="password.oldPassword"
+            class="input"
+            data-field="oldPassword"
+            type="password"
+            autocomplete="current-password"
+          />
+        </label>
+        <label class="field">
+          <span>新密码</span>
+          <input
+            v-model="password.newPassword"
+            class="input"
+            data-field="newPassword"
+            type="password"
+            autocomplete="new-password"
+          />
+        </label>
+        <label class="field">
+          <span>确认新密码</span>
+          <input
+            v-model="password.confirmPassword"
+            class="input"
+            data-field="confirmPassword"
+            type="password"
+            autocomplete="new-password"
+          />
+        </label>
+      </div>
+      <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
+      <template #footer>
+        <button
+          type="button"
+          class="btn btn-ghost"
+          :disabled="changing"
+          @click="closePasswordModal"
+        >
+          取消
+        </button>
+        <button type="button" class="btn btn-primary" :disabled="changing" @click="changePassword">
+          {{ changing ? '提交中…' : '确认修改' }}
+        </button>
+      </template>
+    </Modal>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import authApi from '@/api/auth'
 import userApi from '@/api/user'
@@ -290,7 +310,6 @@ import studentApi from '@/api/student'
 import { unwrap, pickList } from '@/utils/response'
 import logger from '@/utils/logger'
 import { loadCourses, loadNotifications, type CourseCard, type Notification } from '../../data/api'
-import type { Role } from '../../nav'
 
 interface ProfileUser {
   id?: number | string | null
@@ -324,6 +343,8 @@ const password = reactive({ oldPassword: '', newPassword: '', confirmPassword: '
 const saving = ref(false)
 const changing = ref(false)
 const profileLoading = ref(false)
+const profileOpen = ref(false)
+const passwordOpen = ref(false)
 const saveError = ref('')
 const passwordError = ref('')
 const notice = ref('')
@@ -346,17 +367,35 @@ interface Task {
   status?: string
 }
 
-const roleText = computed(() => String(profile.value.role ?? '').toUpperCase())
-const isStudent = computed(() => roleText.value === '' || roleText.value === 'STUDENT')
+const uiRole = computed(() => {
+  // useUi 暴露的 role 可能是 ref，也可能已解包成字符串：两种形态都要取到值。
+  // 直接 String(ref) 会得到 "[object Object]"，导致角色判定这一层永远失效。
+  const raw = ui.role as unknown
+  const val =
+    raw !== null && typeof raw === 'object' && 'value' in (raw as Record<string, unknown>)
+      ? (raw as { value: unknown }).value
+      : raw
+  return String(val ?? '').toLowerCase()
+})
+const profileRole = computed(() => String(profile.value.role ?? '').toUpperCase())
+const roleKey = computed<'student' | 'teacher' | 'admin'>(() => {
+  if (uiRole.value === 'teacher' || uiRole.value === 'admin') return uiRole.value
+  if (profileRole.value === 'TEACHER') return 'teacher'
+  if (profileRole.value === 'ADMIN') return 'admin'
+  return 'student'
+})
+const isStudent = computed(() => roleKey.value === 'student')
+const isTeacher = computed(() => roleKey.value === 'teacher')
+const isAdmin = computed(() => roleKey.value === 'admin')
 const displayName = computed(() => profile.value.fullName || profile.value.username || '未登录')
 const avatarText = computed(() => displayName.value.trim().slice(0, 1) || '云')
 const roleLabel = computed(() => {
-  const raw = roleText.value
-  if (raw === 'ADMIN') return '管理员'
-  if (raw === 'TEACHER') return '教师'
-  if (raw === 'STUDENT') return '学生'
-  return ''
+  if (roleKey.value === 'admin') return '管理员'
+  if (roleKey.value === 'teacher') return '教师'
+  return '学生'
 })
+const activityTitle = computed(() => (isStudent.value ? '学习动态' : '最近通知'))
+const coursesTitle = computed(() => (isAdmin.value ? '课程概览' : '我的课程'))
 const lastLoginText = computed(() => fmtTime(profile.value.lastLogin))
 
 function fmtTime(value: unknown): string {
@@ -414,6 +453,22 @@ async function loadProfile() {
   }
 }
 
+function openProfileModal() {
+  saveError.value = ''
+  form.fullName = profile.value.fullName ?? ''
+  form.email = profile.value.email ?? ''
+  form.phone = profile.value.phone ?? ''
+  profileOpen.value = true
+}
+
+function closeProfileModal() {
+  profileOpen.value = false
+  saveError.value = ''
+  form.fullName = profile.value.fullName ?? ''
+  form.email = profile.value.email ?? ''
+  form.phone = profile.value.phone ?? ''
+}
+
 async function save() {
   saveError.value = ''
   const fullName = form.fullName.trim()
@@ -450,6 +505,7 @@ async function save() {
     profile.value = merged
     form.email = merged.email ?? ''
     syncAuthUser(merged)
+    profileOpen.value = false
     toast('资料已更新', 'ok')
   } catch (reason) {
     logger.error('保存个人信息失败', reason)
@@ -457,6 +513,23 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+function openPasswordModal() {
+  resetPasswordForm()
+  passwordOpen.value = true
+}
+
+function resetPasswordForm() {
+  passwordError.value = ''
+  password.oldPassword = ''
+  password.newPassword = ''
+  password.confirmPassword = ''
+}
+
+function closePasswordModal() {
+  passwordOpen.value = false
+  resetPasswordForm()
 }
 
 async function changePassword() {
@@ -495,6 +568,7 @@ async function changePassword() {
     password.oldPassword = ''
     password.newPassword = ''
     password.confirmPassword = ''
+    passwordOpen.value = false
     toast('密码已修改，请重新登录', 'ok')
     // 后端改密成功即吊销全部会话：本地登录态必须同步清空，否则页面仍显示已登录。
     ui.auth?.resetAuthState?.()
@@ -556,20 +630,24 @@ interface ActivityItem {
   type: string
   title: string
   due: string
+  metaLabel: string
 }
 
 const unreadCount = computed(() => notifications.value.filter((n) => n.unread).length)
 
 const activityFeed = computed<ActivityItem[]>(() => {
   const items: ActivityItem[] = []
-  for (const a of pendingAssignments.value.slice(0, 6)) {
-    items.push({
-      courseId: a.courseId != null ? Number(a.courseId) : null,
-      color: 'warning',
-      type: '待办作业',
-      title: a.title || '未命名作业',
-      due: fmtTime(a.dueDate),
-    })
+  if (isStudent.value) {
+    for (const a of pendingAssignments.value.slice(0, 6)) {
+      items.push({
+        courseId: a.courseId != null ? Number(a.courseId) : null,
+        color: 'warning',
+        type: '待办作业',
+        title: a.title || '未命名作业',
+        due: fmtTime(a.dueDate),
+        metaLabel: '截止',
+      })
+    }
   }
   for (const n of notifications.value.slice(0, 6)) {
     items.push({
@@ -578,19 +656,20 @@ const activityFeed = computed<ActivityItem[]>(() => {
       type: n.kind || '通知',
       title: n.title,
       due: fmtTime(n.time),
+      metaLabel: '时间',
     })
   }
   return items.slice(0, 8)
 })
 
 function openCourses() {
-  router.push('/student/courses')
+  router.push(`/${roleKey.value}/courses`)
 }
 function openCourse(c: CourseCard) {
-  router.push(`/student/courses/${c.id}`)
+  router.push(`/${roleKey.value}/courses/${c.id}`)
 }
 function openCourseById(id: number) {
-  router.push(`/student/courses/${id}`)
+  router.push(`/${roleKey.value}/courses/${id}`)
 }
 function openAssignments() {
   router.push('/student/tasks')
@@ -598,48 +677,52 @@ function openAssignments() {
 function openNotifications() {
   router.push('/student/messages')
 }
+function openMessages() {
+  router.push('/teacher/messages')
+}
 
 async function loadExtra() {
-  const roleForCourses: Role = isStudent.value
-    ? 'student'
-    : roleText.value === 'TEACHER'
-      ? 'teacher'
-      : 'admin'
   coursesLoading.value = true
   feedLoading.value = true
   try {
-    const rows = await loadCourses(roleForCourses)
+    const rows = await loadCourses(roleKey.value)
     courseList.value = rows.slice(0, 6)
   } catch {
     courseList.value = []
   } finally {
     coursesLoading.value = false
   }
-  const [pending, completed, notes] = await Promise.allSettled([
-    studentApi.getPendingAssignments(),
-    studentApi.getCompletedAssignments(),
-    loadNotifications(),
-  ])
-  // 分路归因：单路失败不应把其它路也清成空（与 loadAdminOverview 同判据）
-  if (pending.status === 'fulfilled') {
-    pendingAssignments.value = pickList<Record<string, unknown>>(unwrap(pending.value)).map(
-      normalizeTask,
-    )
-  }
-  if (completed.status === 'fulfilled') {
-    completedAssignments.value = pickList<Record<string, unknown>>(unwrap(completed.value)).map(
-      normalizeTask,
-    )
-  }
+  const [notes] = await Promise.allSettled([loadNotifications()])
   if (notes.status === 'fulfilled') {
     notifications.value = notes.value as Notification[]
+  }
+  // 学生专属作业数据：教师/管理员调用 /student/** 会 403，不再发起
+  if (isStudent.value) {
+    const [pending, completed] = await Promise.allSettled([
+      studentApi.getPendingAssignments(),
+      studentApi.getCompletedAssignments(),
+    ])
+    // 分路归因：单路失败不应把其它路也清成空（与 loadAdminOverview 同判据）
+    if (pending.status === 'fulfilled') {
+      pendingAssignments.value = pickList<Record<string, unknown>>(unwrap(pending.value)).map(
+        normalizeTask,
+      )
+    }
+    if (completed.status === 'fulfilled') {
+      completedAssignments.value = pickList<Record<string, unknown>>(unwrap(completed.value)).map(
+        normalizeTask,
+      )
+    }
   }
   feedLoading.value = false
 }
 
-onMounted(() => {
-  loadProfile()
-  loadExtra()
+onMounted(async () => {
+  // 角色判定依赖 profile 返回：profile 未就绪时 roleKey 会按 profileRole 为空回落到
+  // student，导致教师/管理员也发一次 /student/** 请求（CI 慢环境必现）。
+  // 先等 profile 定稿，再决定 loadExtra 是否发起学生专属请求。
+  await loadProfile()
+  await loadExtra()
 })
 </script>
 
@@ -656,44 +739,50 @@ onMounted(() => {
 }
 .profile-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
-.profile-col {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
+.basic-card {
+  grid-column: span 7;
+}
+.stats-card {
+  grid-column: span 5;
+}
+.activity-card {
+  grid-column: span 5;
+}
+.courses-card {
+  grid-column: span 7;
+}
+.courses-card.is-full {
+  grid-column: 1 / -1;
 }
 .profile-identity {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 .profile-avatar {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 64px;
+  height: 64px;
   border-radius: var(--r-circle);
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-family: 'Noto Serif SC', Georgia, serif;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 600;
 }
 .profile-identity-main b {
   display: block;
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 650;
 }
-.profile-identity-main p {
-  margin: 3px 0 0;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: var(--ink-3);
+.profile-identity-main .chip {
+  margin-top: 5px;
 }
 .profile-static {
   display: grid;
@@ -718,15 +807,37 @@ onMounted(() => {
   line-height: 1.7;
   color: var(--ink-3);
 }
-.profile-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
-}
 .profile-meta {
   margin: 10px 0 0;
   font-size: 9.5px;
   color: var(--ink-3);
+}
+.profile-divider {
+  margin: 16px 0 12px;
+  border-top: 1px solid var(--line);
+}
+.settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.settings-label {
+  min-width: 52px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.settings-row .profile-meta {
+  margin: 0;
+}
+.settings-action {
+  margin-left: auto;
 }
 .theme-switch {
   display: inline-flex;
@@ -750,19 +861,16 @@ onMounted(() => {
   font-weight: 600;
 }
 @media (max-width: 980px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
+  .basic-card,
+  .stats-card,
+  .activity-card,
+  .courses-card {
+    grid-column: 1 / -1;
   }
 }
 
 /* —— M-06 扩展三面 —— */
-.profile-extra {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.4fr);
-  gap: 14px;
-  align-items: start;
-}
-.stat-grid {
+.stats-card .stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -880,17 +988,9 @@ onMounted(() => {
   font-size: 9.5px;
   color: var(--ink-3);
 }
-@media (max-width: 1180px) {
-  .profile-extra {
-    grid-template-columns: 1fr 1fr;
-  }
-  .stats-card {
-    grid-column: 1 / -1;
-  }
-}
 @media (max-width: 760px) {
-  .profile-extra {
-    grid-template-columns: 1fr;
+  .settings-row .settings-action {
+    margin-left: 0;
   }
 }
 </style>

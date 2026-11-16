@@ -21,13 +21,15 @@ WORKDIR /app
 
 # requirements.txt = 契约运行依赖（CI 契约护栏同款）；requirements-engine.txt = 真实 PEFT 训练重依赖。
 # 先从 CPU 源装 torch，再装其余锁定依赖（pip 见 torch==2.11.0 已满足即跳过）。
-# 【2026-11-10 实构建发现（V6 批存档，待 Docker 环境修复验证）】：Linux 上 torch==2.11.0 的
-# CPU 索引 wheel 疑似缺位/标签不匹配 → requirements-engine.txt 安装阶段回落 PyPI 拉取 CUDA 系
-# 依赖（nvidia_cudnn 519MB 等），FT 镜像构建未完成（构建机引擎同时 EOF 退出，交叉因素未定案）。
-# 修复候选（届时二选一并实测）：① 显式 `torch==2.11.0+cpu` 本地版本号；② constraints 文件把
-# torch 钉到 CPU 索引后再装其余依赖。backend/kg/frontend 三镜像同轮构建成功（kg/frontend 命名落盘在案）。
+# 【2026-11-10 实构建发现（V6 批存档）】：Linux 上 torch==2.11.0 的 CPU 索引 wheel 疑似
+# 缺位/标签不匹配 → requirements-engine.txt 安装阶段回落 PyPI 拉取 CUDA 系依赖
+# （nvidia_cudnn 519MB 等），FT 镜像构建未完成。
+# 【2026-11-14 U5b 修复（候选①落地）】：显式 `torch==2.11.0+cpu` 本地版本号——PEP 440 下
+# 2.11.0+cpu 满足 torch==2.11.0 规约，后续 requirements 安装阶段 pip 见 torch 已满足即跳过，
+# 从机制上阻断回落 PyPI 拉 CUDA 系（候选② constraints 留作 wheel 缺位假说不成立时的备选）。
+# 实机验证位：ci.yml docker 作业新增 FT 构建步骤 + release.yml ft 镜像推送。
 COPY requirements.txt requirements-engine.txt ./
-RUN pip install --no-cache-dir torch==2.11.0 --index-url ${TORCH_CPU_INDEX} \
+RUN pip install --no-cache-dir "torch==2.11.0+cpu" --index-url ${TORCH_CPU_INDEX} \
     && pip install --no-cache-dir -r requirements.txt -r requirements-engine.txt
 
 COPY lora_engine.py lora_service.py ft_llm.py ./

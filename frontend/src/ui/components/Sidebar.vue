@@ -1,27 +1,22 @@
 <template>
   <aside class="sidenav" aria-label="主导航">
-    <div class="side-brand-row">
-      <button class="side-brand brand" @click="go(ROLE_HOME[role])">
-        <span class="brand-mark">枢</span>
-        <span class="brand-text">
-          <b>云枢 AI 助教</b>
-        </span>
-      </button>
-    </div>
-    <!-- 课程空间里这块与下方 .course-nav-card 完全重复（课程名/代码/状态都在那儿，还多了切换课程），
-         且点击只是弹一句「请用下方下拉框」，没有实际作用，故在课程模式下不再渲染。 -->
-    <button v-if="!isCourse" class="workspace" @click="onWorkspace">
+    <!-- 折叠手柄：骑跨在侧栏右缘上（原位于顶栏左侧，因顶栏改版迁移至此） -->
+    <button
+      class="side-collapse"
+      :aria-label="sidebarCollapsed ? '展开导航' : '收起导航'"
+      :aria-expanded="sidebarCollapsed ? 'false' : 'true'"
+      @click="sidebarCollapsed = !sidebarCollapsed"
+    >
+      <Icon name="chevron" />
+    </button>
+    <!-- 当前空间标识（纯展示）：切院系/跳转的动作并不存在，原「点击弹 toast」的伪按钮
+         会误导用户，故去掉交互语义；课程空间里信息与 .course-nav-card 重复，不渲染。 -->
+    <div v-if="!isCourse" class="workspace">
       <span class="ws-mark">{{ workspace.mark }}</span>
       <span class="ws-text">
         <b>{{ workspace.title }}</b>
         <small>{{ workspace.sub }}</small>
       </span>
-      <Icon name="chevron" />
-    </button>
-
-    <div class="nav-head">
-      <span class="nav-eyebrow">{{ isCourse ? '课程空间' : '页面' }}</span>
-      <span class="nav-count">{{ String(navCount).padStart(2, '0') }}</span>
     </div>
 
     <div class="nav-scroll">
@@ -70,7 +65,6 @@
         </div>
         <div class="nav-group-label nav-group-label--course">
           <span>课程页签</span>
-          <span>{{ String(tabs.length).padStart(2, '0') }}</span>
         </div>
         <div class="nav-group course-tabs">
           <button
@@ -92,7 +86,6 @@
         <div v-for="group in groups" :key="group.label" class="nav-group">
           <div class="nav-group-label">
             <span>{{ group.label }}</span>
-            <span>{{ String(group.items.length).padStart(2, '0') }}</span>
           </div>
           <button
             v-for="item in group.items"
@@ -112,25 +105,6 @@
         </div>
       </template>
     </div>
-
-    <div class="nav-foot">
-      <button
-        class="side-user"
-        :aria-label="`打开个人中心：${avatar} ${displayName} ${roleLabel}`"
-        @click="go(profilePath)"
-      >
-        <span class="user-avatar">{{ avatar }}</span>
-        <span class="user-text">
-          <b>{{ displayName }}</b>
-          <small>{{ roleLabel }}</small>
-        </span>
-        <Icon name="settings" />
-      </button>
-      <button class="nav-logout" aria-label="退出登录" @click="logout">
-        <Icon name="logout" />
-        <span>退出登录</span>
-      </button>
-    </div>
   </aside>
 </template>
 
@@ -139,27 +113,25 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from './Icon.vue'
 import { useUi } from '../composables/ui'
-import { ROLE_HOME, courseTabs, navGroups, type Role } from '../nav'
-import { clearCourses, getCourses, type CourseCard } from '../data/api'
+import { courseTabs, navGroups, type Role } from '../nav'
+import { getCourses, type CourseCard } from '../data/api'
 
 const route = useRoute()
 const router = useRouter()
-const { auth, role, roleLabel, displayName, avatar, unread, courseContext, mobileNavOpen, toast } =
-  useUi()
+const { auth, role, unread, courseContext, mobileNavOpen, sidebarCollapsed } = useUi()
 
 const courses = ref<CourseCard[]>([])
 const isCourse = computed(() => Boolean(route.meta.courseSpace))
 const courseId = computed(() => Number(route.params.id) || courseContext.id || 0)
 const activeTab = computed(() => String(route.params.tab || 'overview'))
 const tabs = computed(() => courseTabs(role.value as Role))
-const groups = computed(() => navGroups(role.value as Role))
-const coursesPath = computed(() => `/${role.value}/courses`)
-const profilePath = computed(() => `/${role.value}/profile`)
-const navCount = computed(() =>
-  isCourse.value
-    ? tabs.value.length
-    : groups.value.reduce((sum, group) => sum + group.items.length, 0),
+// 「个人中心」入口已上移至顶栏右上角的账号菜单，侧栏不再重复（Palette 搜索仍可直达该页）
+const groups = computed(() =>
+  navGroups(role.value as Role)
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.id !== 'profile') }))
+    .filter((group) => group.items.length > 0),
 )
+const coursesPath = computed(() => `/${role.value}/courses`)
 
 const courseLabel = computed(
   () => courseContext.name || courses.value.find((c) => c.id === courseId.value)?.name || '课程',
@@ -222,22 +194,5 @@ function switchCourse(value: string) {
   if (!id || id === courseId.value) return
   mobileNavOpen.value = false
   router.push(`/${role.value}/courses/${id}/${activeTab.value}`)
-}
-
-function onWorkspace() {
-  if (isCourse.value) {
-    toast('课程信息：切换课程请使用下方下拉框', 'info')
-    return
-  }
-  toast(
-    role.value === 'admin' ? '院系切换暂不开放，当前按校级展示' : '请在左侧导航切换页面',
-    'info',
-  )
-}
-
-async function logout() {
-  clearCourses()
-  await auth.logout()
-  router.push('/login')
 }
 </script>

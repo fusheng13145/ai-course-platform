@@ -71,7 +71,7 @@ public class ActivityTargetServiceImpl implements ActivityTargetService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void replaceTaskTargets(Long taskId, String visibility, List<Long> classIds) {
         String normalized = ActivityVisibility.normalize(visibility);
         List<Long> effective = ActivityVisibility.CLASSES.equals(normalized)
@@ -88,7 +88,7 @@ public class ActivityTargetServiceImpl implements ActivityTargetService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void replaceExamPaperTargets(Long examPaperId, String visibility, List<Long> classIds) {
         String normalized = ActivityVisibility.normalize(visibility);
         List<Long> effective = ActivityVisibility.CLASSES.equals(normalized)

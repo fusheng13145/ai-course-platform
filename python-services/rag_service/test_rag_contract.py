@@ -39,11 +39,19 @@ def test_health():
         # 只断言 200 等于把「端口活着但检索永远降级」当成健康。引擎侧能力必须可见。
         assert body["status"] == "ok"
         engine = body["engine"]
-        assert set(engine) == {"available", "functional", "dep_errors", "embed_model"}
+        # B4（2026-11-15）：engine 增 version/hyde/rerank —— 检索增强能力同样必须可观测，
+        # 否则"HyDE 关着 / 重排模型没下载"会像过去"检索恒降级"一样无声。
+        assert set(engine) == {"available", "functional", "dep_errors", "embed_model",
+                               "version", "hyde", "rerank"}
         assert isinstance(engine["available"], bool)
         assert isinstance(engine["functional"], bool)
         assert isinstance(engine["dep_errors"], list)
         assert engine["embed_model"]
+        assert engine["version"]
+        assert set(engine["hyde"]) == {"enabled", "llm_ready", "timeout_sec", "provider"}
+        assert set(engine["rerank"]) == {"enabled", "model", "cached", "loaded", "failed"}
+        assert isinstance(engine["rerank"]["cached"], bool)
+        assert isinstance(engine["rerank"]["failed"], bool)
         # functional 蕴含 available（模型缓存检查以依赖可 import 为前提）
         assert not engine["functional"] or engine["available"]
 
@@ -85,7 +93,8 @@ def test_retrieve_returns_degraded_503():
             "/api/v1/rag/retrieve",
             json={"query": "OSI", "course_id": 2, "top_k": 5},
         )
-        assert resp.status_code == 200
+        # I-1 契约化（2026-11-15）：降级用 HTTP 503 表达，不再靠 200 + body.code 传递失败
+        assert resp.status_code == 503
         body = resp.json()
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
@@ -99,7 +108,8 @@ def test_ask_returns_degraded_503():
             "/api/v1/rag/ask",
             json={"question": "什么是 TCP？", "course_id": 2, "top_k": 5},
         )
-        assert resp.status_code == 200
+        # I-1 契约化（2026-11-15）：降级用 HTTP 503 表达，不再靠 200 + body.code 传递失败
+        assert resp.status_code == 503
         body = resp.json()
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
@@ -120,7 +130,7 @@ def test_ask_returns_degraded_503():
 def test_unavailable_contract_shape(endpoint, payload, result_field):
     with TestClient(app) as c:
         resp = c.post(endpoint, json=payload)
-        assert resp.status_code == 200, "降级仍走 HTTP 200，业务码在 body.code"
+        assert resp.status_code == 503, "降级以 HTTP 503 表达（I-1 契约化），业务码同时保留在 body.code"
         body = resp.json()
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
@@ -343,6 +353,9 @@ def test_real_engine_build_index_and_hybrid_retrieve():
         top = body["results"][0]
         assert top["document_name"] == "TCP 三次握手"
         assert 0 < top["relevance_score"] <= 1.0
+        # B4 检索增强链字段必须经 HTTP 透出：`rag_engine.search()` 会写 retrieval/rerank_score，
+        # 但响应模型不声明时 Pydantic 会静默裁掉（2026-11-15 B5 实测发现并修复）
+        assert top.get("retrieval") in ("HYDE", "QUERY"), top
 
 
 @requires_engine

@@ -74,7 +74,16 @@ beforeEach(() => {
 })
 
 function mountBody() {
-  return mount(ProfileBody)
+  return mount(ProfileBody, {
+    global: {
+      stubs: {
+        Modal: {
+          props: ['open', 'title'],
+          template: '<div v-if="open" class="modal-stub"><slot /><slot name="footer" /></div>',
+        },
+      },
+    },
+  })
 }
 
 describe('M-06 个人中心扩展三面', () => {

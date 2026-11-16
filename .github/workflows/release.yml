@@ -1,7 +1,9 @@
 name: Release
 
 # 触发条件：main 分支打 v* 标签（如 v1.5.0）
-# 流程：全量质量门禁 → 构建 Docker 镜像（tag 化）→ 生成 GitHub Release（含 Release Notes）
+# 流程：安全门禁 → 全量质量门禁 → 构建 Docker 镜像（tag 化）→ 生成 GitHub Release（含 Release Notes）
+# 2026-11-14 P2-6（U5 收口）：此前 tag 触发的发布链不含 gitleaks/Trivy 门禁——
+# 「tag 可绕过密钥门禁出镜像」（审计 U5）。现补 security-guards 作业前置拦截。
 on:
   push:
     tags:
@@ -14,10 +16,99 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------
+  # 安全门禁（与 ci.yml secret-scan / trivy-scan 同口径，2026-11-14 P2-6 补齐）：
+  #   · gitleaks HEAD 内容扫描——tag 交付物里的真实密钥是最后防线；
+  #   · Trivy vuln + misconfig 双门（m2 预填 + 版本钉版逐字复制 ci.yml，
+  #     否则 Maven Central 429 会让扫描器自身报错点红，豁免口径见 .trivyignore 头部）。
+  # OSV-Scanner（SBOM 口径）全量仍在 ci.yml 常驻跑：发布门禁以 trivy 覆盖
+  # pom + package-lock 的 CVE 面，避免整段 CycloneDX 生成逻辑重复两处漂移。
+  # ------------------------------------------------------------------
+  security-guards:
+    name: Security Guards (gitleaks + trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gitleaks HEAD 内容扫描（交付物密钥主门禁）
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            "$GITLEAKS_IMAGE" detect --no-git \
+              --source=/repo \
+              --config=/repo/.gitleaks.toml \
+              --report-format sarif --report-path /repo/gitleaks-head.sarif \
+              --redact --no-banner --exit-code 1
+
+      - name: Upload gitleaks 报告（失败时用于定位）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gitleaks-report
+          path: gitleaks-head.sarif
+          retention-days: 14
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # 与 ci.yml trivy-scan 同款 m2 预填：trivy 解析 backend/pom.xml 会联网取父 POM，
+      # Maven Central 429 时扫描器自身报错点红（非漏洞命中）——先经镜像预解析填 ~/.m2。
+      - name: Populate local Maven cache (via mirror) before Trivy resolves POMs
+        working-directory: backend
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'SETTINGS_EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          SETTINGS_EOF
+          mvn -B -q dependency:resolve -DincludeScope=runtime
+
+      - name: Trivy vuln gate（HIGH/CRITICAL 阻断发布）
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          trivyignores: ".trivyignore"
+          version: "v0.69.3"
+          exit-code: "1"
+
+      - name: Trivy misconfig gate（按路径豁免口径 .trivyignore.yaml）
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "misconfig"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          trivyignores: ".trivyignore.yaml"
+          version: "v0.69.3"
+          exit-code: "1"
+
+  # ------------------------------------------------------------------
   # 质量门禁：后端 verify + 前端 lint/vitest/build（复用 ci.yml 关键步骤的精简版）
   # ------------------------------------------------------------------
   quality:
     name: Quality Gate (backend + frontend)
+    needs: security-guards
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -141,6 +232,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2026-11-14 P2-6（U5 收口）：与 ci.yml docker 作业同款磁盘腾挪——CI #238 实测
+      # rag-service 的 torch 层曾把 runner 盘撑爆（no space left on device），发布构建
+      # 构的是同一批镜像，不腾挪必复现。
+      - name: 腾出磁盘（预装 SDK 占 ~20-30 GB）
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune -af || true
+          df -h /
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -198,6 +300,21 @@ jobs:
           build-args: |
             HF_ENDPOINT=https://hf-mirror.com
             RAG_EMBED_MODEL=BAAI/bge-small-zh-v1.5
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # FT 引擎镜像（profile: ft，2026-11-14 P2-6/U5b 补齐）：此前发布链不含 ft——
+      # compose `--profile ft up` 必拉取失败。置于最后：前四镜像已推送，ft 失败仍可见
+      # 且不回滚已交付镜像。Dockerfile 已按修复候选①（torch==2.11.0+cpu 本地版本号）
+      # 改写阻断 CUDA 回落；本步即该修复的实机验证位。
+      - name: Build & push fine-tune-service image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./python-services/fine_tune_service
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/fine-tune-service:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/fine-tune-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

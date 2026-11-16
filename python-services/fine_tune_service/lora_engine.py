@@ -82,6 +82,16 @@ def _record_dep_error(name: str, exc: Exception) -> None:
 # "改开关必须重启"。正解见 `base_model_snapshot()`：缓存命中就按**本地目录**加载，
 # 根本不走 Hub 解析，实测零网络请求，`FT_ALLOW_DOWNLOAD` 也因此可以按次生效。
 
+# Windows 下 torch(cu126) 与 pyarrow 的 DLL 冲突：必须在 torch / transformers / datasets
+# 之前预加载 `pyarrow.dataset`，否则进程直接以 0xC0000005（exit -1073741819）退出——
+# **不走 Python 异常**，下面的 try/except 兜不住。2026-11-16 实测：裸 import
+# `torch, transformers, peft, datasets, pyarrow` 崩，前置 `pyarrow.dataset` 后 exit=0。
+# rag_engine 侧早已内置同款预加载（见 AGENTS.md §6 陷阱表），此处补齐。
+try:
+    import pyarrow.dataset as _pyarrow_dataset  # noqa: F401 —— 顺序敏感，勿移
+except Exception:  # pragma: no cover - 无 pyarrow 时由 datasets 自行报错
+    pass
+
 try:
     import torch as _torch
 except Exception as e:  # pragma: no cover - 环境相关

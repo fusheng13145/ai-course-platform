@@ -339,10 +339,12 @@ def test_real_lora_training_produces_true_artifacts(tmp_path, monkeypatch):
     """
     monkeypatch.setenv("FT_TRAIN_STEPS", "6")
     monkeypatch.setenv("FT_ALLOW_DOWNLOAD", "0")
-    built = le.build_course_dataset(4007)   # 唯一有足够讲义正文的课（其余课语料 <20 条）
+    # B5（2026-11-15）起样例语料的 course_id 由 4007 迁到 4178（《计算机网络》，10 篇/49 chunks）；
+    # 4007 已无可派生讲义语料，继续钉旧号会让本用例恒红（2026-11-16 实测）。
+    built = le.build_course_dataset(4178)   # 当前唯一有足够讲义正文的样例课
     assert built["success"], built
     cfg = le.normalize_config({"epochs": 1, "lora_rank": 4, "dataset_id": built["dataset_id"]})
-    done = le.run_training(le.create_task(4007, "qwen-7b", cfg)["task_id"])
+    done = le.run_training(le.create_task(4178, "qwen-7b", cfg)["task_id"])
     assert done["status"] == "completed", done
 
     hist = done["loss_history"]

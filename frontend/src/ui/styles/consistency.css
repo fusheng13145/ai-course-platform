@@ -50,20 +50,9 @@ body[data-app='ui'][data-style='record'] .icon-btn .icon {
   height: 17px;
 }
 
-/* ---------- 侧栏：导航密度与账户区 ---------- */
+/* ---------- 侧栏：导航密度（账户区已上移顶栏） ---------- */
 body[data-app='ui'][data-style='record'] .sidenav {
   padding: 16px 12px 12px;
-}
-body[data-app='ui'][data-style='record'] .side-brand-row {
-  padding: 2px 6px 14px;
-}
-body[data-app='ui'][data-style='record'] .side-brand .brand-text b {
-  font-size: 13.5px;
-}
-body[data-app='ui'][data-style='record'] .side-brand .brand-text small {
-  margin-top: 3px;
-  font-size: 8.5px;
-  letter-spacing: 0.1em;
 }
 body[data-app='ui'][data-style='record'] .workspace {
   padding: 9px 10px;
@@ -80,17 +69,6 @@ body[data-app='ui'][data-style='record'] .ws-text b {
 }
 body[data-app='ui'][data-style='record'] .ws-text small {
   margin-top: 3px;
-  font-size: 9.5px;
-}
-body[data-app='ui'][data-style='record'] .nav-head {
-  padding: 0 8px 9px;
-  margin-bottom: 9px;
-}
-body[data-app='ui'][data-style='record'] .nav-eyebrow {
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-}
-body[data-app='ui'][data-style='record'] .nav-count {
   font-size: 9.5px;
 }
 body[data-app='ui'][data-style='record'] .nav-group {
@@ -116,67 +94,8 @@ body[data-app='ui'][data-style='record'] .nav-badge {
   padding: 2px 6px;
   font-size: 9px;
 }
-body[data-app='ui'][data-style='record'] .nav-foot {
-  padding-top: 10px;
-  margin-top: 10px;
-}
-body[data-app='ui'][data-style='record'] .side-user {
-  padding: 8px 6px;
-  gap: 9px;
-}
-body[data-app='ui'][data-style='record'] .side-user .user-avatar {
-  width: 32px;
-  height: 32px;
-  font-size: 11px;
-}
-body[data-app='ui'][data-style='record'] .side-user .user-text b {
-  font-size: 12px;
-}
-body[data-app='ui'][data-style='record'] .side-user .user-text small {
-  margin-top: 3px;
-  font-size: 10px;
-}
-body[data-app='ui'][data-style='record'] .side-user > .icon {
-  width: 15px;
-  height: 15px;
-}
 
-/* 退出登录：从 8px 纯文字改为可点击的整行按钮，保留低饱和外框，不与主操作抢层级 */
-body[data-app='ui'][data-style='record'] .nav-logout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 38px;
-  margin-top: 10px;
-  padding: 0 12px;
-  border: 1px solid var(--side-line);
-  border-radius: var(--r-ctl);
-  background: transparent;
-  color: var(--side-ink);
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1;
-  text-align: center;
-}
-body[data-app='ui'][data-style='record'] .nav-logout .icon {
-  width: 16px;
-  height: 16px;
-  color: var(--side-ink-2);
-}
-body[data-app='ui'][data-style='record'] .nav-logout:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: var(--focus);
-}
-body[data-app='ui'].is-collapsed[data-style='record'] .nav-logout {
-  padding: 0;
-}
-body[data-app='ui'].is-collapsed[data-style='record'] .nav-logout span {
-  display: none;
-}
+/* 退出登录按钮已移除：入口收敛到顶栏右上角账号菜单（.user-dropdown） */
 
 /* ---------- 页面标题体系 ---------- */
 body[data-app='ui'][data-style='record'] .page-head,
@@ -541,8 +460,10 @@ body[data-app='ui'][data-style='record'] .icon-btn:hover {
   background: var(--surface);
   color: var(--ink-2);
 }
+/* 用户胶囊现已是账号菜单触发器（下拉），保留轻量 hover 表达可点性 */
 body[data-app='ui'][data-style='record'] .user-chip:hover {
-  background: none;
+  background: var(--surface-2);
+  border-color: var(--line-strong);
 }
 body[data-app='ui'][data-style='record'] .role-switch button:not(.is-active):hover {
   color: var(--ink-3);
@@ -550,12 +471,6 @@ body[data-app='ui'][data-style='record'] .role-switch button:not(.is-active):hov
 body[data-app='ui'][data-style='record'] .nav-item:not(.is-active):hover {
   background: transparent;
   color: var(--side-ink);
-}
-body[data-app='ui'][data-style='record'] .workspace:hover {
-  background: var(--side-hover);
-}
-body[data-app='ui'][data-style='record'] .side-user:hover {
-  background: none;
 }
 body[data-app='ui'][data-style='record'] .btn:hover {
   border-color: var(--line-strong);
@@ -625,12 +540,6 @@ body[data-app='ui'][data-style='record'] .option:hover {
   body[data-app='ui'][data-style='record'] .course-title-line h1 {
     font-size: 25px;
   }
-  body[data-app='ui'].is-collapsed[data-style='record'] .nav-logout {
-    padding: 0 12px;
-  }
-  body[data-app='ui'].is-collapsed[data-style='record'] .nav-logout span {
-    display: inline;
-  }
   body[data-app='ui'][data-style='record'] .course-mobile-tabs {
     flex-wrap: wrap;
     gap: 6px;
@@ -648,11 +557,5 @@ body[data-app='ui'][data-style='record'] .option:hover {
   }
   body[data-app='ui'][data-style='record'] .card {
     padding: 16px;
-  }
-  body[data-app='ui'].is-collapsed[data-style='record'] .nav-logout {
-    padding: 0 12px;
-  }
-  body[data-app='ui'].is-collapsed[data-style='record'] .nav-logout span {
-    display: inline;
   }
 }

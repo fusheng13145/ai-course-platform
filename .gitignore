@@ -35,6 +35,9 @@ evaluation/results/
 *.log
 *.out
 
+# 全栈启动器的五路日志目录（scripts/start-all.py 自建，运行期产物不入库）
+logs/
+
 # Python 缓存/字节码（构建产物，切勿提交）
 # .pytest_cache 由任何一次 `pytest` 重新生成（含 `python -m pytest scripts/tests`），之前不在忽略清单里，
 # 于是清理完又冒出来变成未跟踪噪声——2026-10-27 补上。

@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,31 +26,37 @@ public class CourseAccessControl {
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
+    private final AdminScopeGuard adminScopeGuard;
 
     public CourseAccessControl(CourseService courseService,
-                               CourseEnrollmentService enrollmentService) {
+                               CourseEnrollmentService enrollmentService,
+                               AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     public void assertCanManageCourse(Long courseId, Authentication auth) {
-        if (isAdmin(auth)) {
-            return;
-        }
+        // 角色判定先于课程查询：学生无论课程是否存在都只得到 403，不泄露课程存在性。
         if (isStudent(auth)) {
             throw new BusinessException(ApiCode.FORBIDDEN, "学生无权管理课程内容");
         }
         Course course = requireCourse(courseId);
+        if (isAdmin(auth)) {
+            adminScopeGuard.assertCourseAccess(course);
+            return;
+        }
         if (!principalId(auth).equals(course.getTeacherId())) {
             throw new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程");
         }
     }
 
     public void assertCanReadCourse(Long courseId, Authentication auth) {
+        Course course = requireCourse(courseId);
         if (isAdmin(auth)) {
+            adminScopeGuard.assertCourseAccess(course);
             return;
         }
-        Course course = requireCourse(courseId);
         Long userId = principalId(auth);
         if (isStudent(auth)) {
             if (!enrollmentService.hasApprovedEnrollment(userId, course.getId())) {
@@ -67,6 +74,7 @@ public class CourseAccessControl {
             throw new BusinessException(ApiCode.NOT_FOUND, "任务不存在");
         }
         if (isAdmin(auth)) {
+            adminScopeGuard.assertCourseAccess(requireCourse(task.getCourseId()));
             return;
         }
         if (isStudent(auth)) {
@@ -83,7 +91,27 @@ public class CourseAccessControl {
 
     public List<Long> readableCourseIds(Authentication auth) {
         if (isAdmin(auth)) {
-            return null;
+            Long adminCollegeId = adminScopeGuard.currentCollegeFilter();
+            if (adminCollegeId == null) {
+                return null;
+            }
+            List<Long> ids = new ArrayList<>(courseService.list(new LambdaQueryWrapper<Course>()
+                            .eq(Course::getCollegeId, adminCollegeId))
+                    .stream()
+                    .map(Course::getId)
+                    .filter(Objects::nonNull)
+                    .toList());
+            List<Long> collegeMembers = adminScopeGuard.currentCollegeUserIds();
+            if (collegeMembers != null && !collegeMembers.isEmpty()) {
+                courseService.list(new LambdaQueryWrapper<Course>()
+                                .isNull(Course::getCollegeId)
+                                .in(Course::getTeacherId, collegeMembers))
+                        .stream()
+                        .map(Course::getId)
+                        .filter(Objects::nonNull)
+                        .forEach(ids::add);
+            }
+            return ids.stream().distinct().toList();
         }
         Long userId = principalId(auth);
         if (isStudent(auth)) {

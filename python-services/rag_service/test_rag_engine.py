@@ -739,3 +739,72 @@ def test_graph_sources_no_keyword_hit_returns_empty(monkeypatch):
     import httpx
     monkeypatch.setattr(httpx, "get", lambda url, **kw: _Resp())
     assert rag_engine.graph_sources(2, "完全无关的问题") == []
+
+
+# ---------------------------------------------------------------- B4：HyDE / Rerank
+
+
+def test_hyde_llm_ready_requires_deepseek_key(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("RAG_HYDE_ENABLED", "true")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert rag_engine.hyde_llm_ready() is False
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    assert rag_engine.hyde_llm_ready() is True
+
+
+def test_hyde_disabled_flag_wins(monkeypatch):
+    monkeypatch.setenv("RAG_HYDE_ENABLED", "false")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    assert rag_engine.hyde_llm_ready() is False
+
+
+def test_hyde_ollama_requires_explicit_allow(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "ollama")
+    monkeypatch.setenv("RAG_HYDE_ENABLED", "true")
+    monkeypatch.delenv("RAG_HYDE_ALLOW_OLLAMA", raising=False)
+    assert rag_engine.hyde_llm_ready() is False
+    monkeypatch.setenv("RAG_HYDE_ALLOW_OLLAMA", "true")
+    assert rag_engine.hyde_llm_ready() is True
+
+
+def test_hyde_generate_returns_none_when_llm_fails(monkeypatch):
+    """LLM 故障必须回退 None，不得抛到检索链路。"""
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    monkeypatch.setenv("RAG_HYDE_ENABLED", "true")
+
+    def _boom(*a, **kw):
+        raise RuntimeError("upstream 500")
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", _boom)
+    assert rag_engine._hyde_generate("三次握手") is None
+
+
+def test_rerank_disabled_keeps_original_order(monkeypatch):
+    monkeypatch.setenv("RAG_RERANK_ENABLED", "false")
+    cands = [{"snippet": "a"}, {"snippet": "b"}, {"snippet": "c"}]
+    assert [c["snippet"] for c in rag_engine.rerank_candidates("q", cands, 2)] == ["a", "b"]
+
+
+def test_rerank_uses_model_scores(monkeypatch):
+    """重排按模型分排序，并写入 rerank_score（附加字段）。"""
+    monkeypatch.setenv("RAG_RERANK_ENABLED", "true")
+
+    class _Stub:
+        def predict(self, pairs, batch_size=16, show_progress_bar=False):
+            return [0.1] * (len(pairs) - 1) + [0.9]
+
+    monkeypatch.setattr(rag_engine, "_get_reranker", lambda: _Stub())
+    cands = [{"snippet": "a"}, {"snippet": "b"}, {"snippet": "c"}]
+    out = rag_engine.rerank_candidates("q", cands, 2)
+    assert [c["snippet"] for c in out] == ["c", "a"]
+    assert out[0]["rerank_score"] == 0.9
+
+
+def test_rerank_pool_env_clamped(monkeypatch):
+    monkeypatch.setenv("RAG_RERANK_POOL", "999")
+    assert rag_engine.rerank_pool() == 50
+    monkeypatch.setenv("RAG_RERANK_POOL", "abc")
+    assert rag_engine.rerank_pool() == 20

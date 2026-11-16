@@ -455,7 +455,7 @@ CREATE TABLE course_enrollments (
 CREATE TABLE resources (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '资源ID，主键自增',
   file_name VARCHAR(255) NOT NULL COMMENT '文件名称',
-  file_type VARCHAR(50) NULL COMMENT '文件类型：video-视频，document-文档，image-图片，other-其他',
+  file_type VARCHAR(100) NULL COMMENT '文件类型：video-视频，document-文档，image-图片，other-其他（V20 扩容对齐 MIME 白名单）',
   url VARCHAR(500) NOT NULL COMMENT '资源访问URL',
   course_id BIGINT NULL COMMENT '课程ID，关联courses表',
   chapter_id BIGINT NULL COMMENT '章节ID，关联course_chapters表',
@@ -482,7 +482,7 @@ CREATE TABLE resource_versions (
   resource_id BIGINT NOT NULL COMMENT '资源ID，关联resources表',
   version_number INT NOT NULL COMMENT '版本号（从1开始递增）',
   file_name VARCHAR(255) NOT NULL COMMENT '文件名称',
-  file_type VARCHAR(50) NULL COMMENT '文件类型',
+  file_type VARCHAR(100) NULL COMMENT '文件类型（V20 扩容对齐 MIME 白名单）',
   url VARCHAR(500) NOT NULL COMMENT '资源访问URL',
   description TEXT NULL COMMENT '版本更新说明',
   file_size BIGINT NULL COMMENT '文件大小（字节）',

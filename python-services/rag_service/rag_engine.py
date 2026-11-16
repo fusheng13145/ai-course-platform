@@ -33,9 +33,16 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-ENGINE_VERSION = "1.0"
+ENGINE_VERSION = "1.1"   # 1.0 → 1.1：新增 HyDE 查询扩展与 Cross-Encoder 重排
 
 _LOCK = threading.RLock()
+
+# 项目统一口径：HuggingFace 走镜像（docker-compose / deploy/env.production.template /
+# rag_service/Dockerfile 均设 hf-mirror）。本地开发若未设，transformers 5.x 的
+# AutoProcessor 会向官方站取 model info——本机实测官方站超时，重排模型加载因此报
+# "Unrecognized processing class"（表现为模型损坏，实为网络不可达）。
+# setdefault：部署方仍可用环境变量覆盖。
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 
 class StoreCorruptedError(RuntimeError):
@@ -77,11 +84,28 @@ except Exception as e:  # pragma: no cover
     _faiss = None
     _record_dep_error("faiss", e)
 
+# Windows 实测坑（2026-11-15）：torch(cu126) 就绪后，首次加载 pyarrow.dataset 的 C 扩展会
+# 触发 access violation（0xC0000005，进程直接死亡，Python 层 catch 不到正常异常）。
+# 在 sentence_transformers 之前预加载即可规避——datasets 内部 `import pyarrow.dataset`
+# 会命中 sys.modules，不再二次加载。CI 只装轻依赖时这里静默跳过（ImportError），
+# 与"重依赖缺失"的既有语义一致。
+try:
+    import pyarrow.dataset as _pa_dataset  # noqa: F401
+except Exception as e:  # pragma: no cover
+    _pa_dataset = None
+    _record_dep_error("pyarrow.dataset", e)
+
 try:
     from sentence_transformers import SentenceTransformer as _SentenceTransformer
 except Exception as e:  # pragma: no cover
     _SentenceTransformer = None
     _record_dep_error("sentence-transformers", e)
+
+try:
+    from sentence_transformers import CrossEncoder as _CrossEncoder
+except Exception as e:  # pragma: no cover
+    _CrossEncoder = None
+    _record_dep_error("cross-encoder", e)
 
 
 def engine_available() -> bool:
@@ -130,6 +154,72 @@ def embed_model_cached(model_name: Optional[str] = None) -> bool:
                                       for p in cache.rglob("*") if p.is_file()):
                 return True
         return False
+
+
+def _hf_cached(model_name: str, probe_file: str = "config.json") -> bool:
+    """通用 HF 缓存探测（**不联网**）。
+
+    与 `embed_model_cached` 的区别：后者探 `config_sentence_transformers.json`，
+    只有 SentenceTransformer 形态的仓库才有；CrossEncoder 仓库（如 bge-reranker-base）
+    不含该文件，复用它会被误判成"未缓存"从而发起联网探测。
+    """
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        # 命中返回本地路径(str)；确定不存在返回 _CACHED_NO_EXIST；不在缓存返回 None
+        return isinstance(try_to_load_from_cache(model_name, probe_file), str)
+    except Exception:
+        pass
+    norm = model_name.replace("/", "--")
+    for base in (
+        os.path.join(os.getenv("HF_HUB_CACHE", ""), "hub") if os.getenv("HF_HUB_CACHE") else "",
+        os.path.join(os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub"),
+    ):
+        snap = Path(base) / f"models--{norm}" / "snapshots"
+        if snap.exists() and any(p.name == probe_file for p in snap.rglob("*") if p.is_file()):
+            return True
+    return False
+
+
+def rerank_enabled() -> bool:
+    """Cross-Encoder 重排开关。默认开启；模型不可用/加载失败时自动降级为不重排。"""
+    return os.getenv("RAG_RERANK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
+def rerank_model_name() -> str:
+    return os.getenv("RAG_RERANK_MODEL", "BAAI/bge-reranker-base")
+
+
+def rerank_pool() -> int:
+    """进入重排的候选数（RRF 融合后池大小）。"""
+    try:
+        return max(1, min(int(os.getenv("RAG_RERANK_POOL", "20")), 50))
+    except ValueError:
+        return 20
+
+
+def rerank_max_length() -> int:
+    try:
+        return max(64, min(int(os.getenv("RAG_RERANK_MAX_LENGTH", "512")), 1024))
+    except ValueError:
+        return 512
+
+
+def hyde_enabled() -> bool:
+    """HyDE 查询扩展开关。默认开启；LLM 不可用/超时/无密钥时自动回退原 query。"""
+    return os.getenv("RAG_HYDE_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
+def hyde_timeout() -> float:
+    try:
+        return max(1.0, float(os.getenv("RAG_HYDE_TIMEOUT", "8")))
+    except ValueError:
+        return 8.0
+
+
+def hyde_allow_ollama() -> bool:
+    """Ollama 是否参与 HyDE。默认 False：本地 7B/8B 单次生成常 5–15s，
+    在 /ask 上再叠一次会把端到端推到不可用；需要时显式置 true。"""
+    return os.getenv("RAG_HYDE_ALLOW_OLLAMA", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
 def engine_functional() -> bool:
@@ -253,7 +343,13 @@ def _save_store() -> None:
 
 
 def reset_store() -> None:
-    """清空进程内存储并重建（契约测试隔离用）。"""
+    """清空<b>进程内</b>存储（契约测试隔离用）。
+
+    <p><b>不删磁盘</b>（2026-11-15 修正：原注释写「清空并重建」，实际既不删盘也不重建）。
+    落盘快照由 docs / index / faiss 多份文件组成，按名字猜测删除存在误删索引的风险，
+    因此重建不在此处实现——正确流程是「停 RAG 服务 → 清空 ``RAG_DATA_DIR`` → 重启 → 重新灌库」。
+    调用本函数后 ``_loaded=False``，下次访问会重新从磁盘加载现有快照。</p>
+    """
     global _NEXT_ID, _loaded
     with _LOCK:
         _DOCS.clear()
@@ -477,6 +573,76 @@ def rrf_fuse(*rank_lists, top_k: int, k: float = RRF_K) -> list[tuple[int, float
     return sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
 
 
+# ---------------------------------------------------------------- Cross-Encoder 重排
+
+_reranker_holder: dict = {"model": None, "failed": False}
+
+
+def _get_reranker():
+    """懒加载 CrossEncoder。失败一次即置 failed，后续请求直接降级——不在热路径反复重试。"""
+    if _reranker_holder["failed"]:
+        return None
+    if _reranker_holder["model"] is None:
+        if _CrossEncoder is None:
+            _reranker_holder["failed"] = True
+            return None
+        name = rerank_model_name()
+        # transformers 5.x 对 XLMRoberta **slow** tokenizer 的 AutoProcessor 识别失败
+        # （实测 bge-reranker-base 报 "Unrecognized processing class"），强制 fast 可正常加载。
+        kwargs: dict = {"max_length": rerank_max_length(),
+                        "tokenizer_args": {"use_fast": True}}
+        if _hf_cached(name):
+            kwargs["local_files_only"] = True
+        try:
+            _reranker_holder["model"] = _CrossEncoder(name, **kwargs)
+        except Exception as e:  # pragma: no cover - 环境相关
+            _record_dep_error("cross-encoder-load", e)
+            logger.warning("Cross-Encoder 加载失败，本次退回 RRF 排序：%s", e)
+            _reranker_holder["failed"] = True
+            return None
+    return _reranker_holder["model"]
+
+
+def rerank_candidates(query: str, candidates: list[dict], top_k: int) -> list[dict]:
+    """对 RRF 候选做 Cross-Encoder 重排，取前 `top_k`。
+
+    契约：模型不可用 / 打分异常 / 候选不足 2 条 → **原样截断**返回，不改变原有排序语义。
+    重排分写入附加字段 `rerank_score`（Java 侧 parse 只读已知字段，不受影响）。
+    """
+    if not candidates:
+        return []
+    if not rerank_enabled() or len(candidates) <= 1:
+        return candidates[:top_k]
+    model = _get_reranker()
+    if model is None:
+        return candidates[:top_k]
+    try:
+        pairs = [(query, c.get("snippet", "")) for c in candidates]
+        scores = model.predict(pairs, batch_size=16, show_progress_bar=False)
+        order = sorted(range(len(candidates)), key=lambda i: float(scores[i]), reverse=True)
+        out: list[dict] = []
+        for i in order[:top_k]:
+            item = dict(candidates[i])
+            item["rerank_score"] = round(float(scores[i]), 4)
+            out.append(item)
+        return out
+    except Exception as e:  # pragma: no cover - 环境相关
+        _record_dep_error("cross-encoder-predict", e)
+        logger.warning("Cross-Encoder 打分失败，退回 RRF 排序：%s", e)
+        return candidates[:top_k]
+
+
+def rerank_status() -> dict:
+    """health 用：如实上报重排能力（未加载 ≠ 不可用，只有失败才写 failed）。"""
+    return {
+        "enabled": rerank_enabled(),
+        "model": rerank_model_name(),
+        "cached": _hf_cached(rerank_model_name()),
+        "loaded": _reranker_holder["model"] is not None,
+        "failed": _reranker_holder["failed"],
+    }
+
+
 def build_course_index(course_id: int) -> dict:
     """为该课程全部文档建混合索引（BM25 + FAISS 向量），落盘持久化。
 
@@ -571,11 +737,16 @@ def search(query: str, course_id: Optional[int], top_k: int) -> Optional[list[di
         return None
 
     top_k = max(1, min(top_k or 5, 50))
-    pool = max(top_k * 4, 20)
+    # 召回池：兼顾 top_k×4、重排池与下限 20 —— 重排要有比 top_k 更宽的候选面才有意义
+    pool = max(top_k * 4, rerank_pool() if rerank_enabled() else 20, 20)
 
-    # --- BM25 支路 ---
+    # --- BM25 支路（始终用原 query：假设答案只在向量空间生效）---
     corpus_tokens = [tokenize(c["text"]) for c in chunks]
     bm25_scores = bm25_rank(corpus_tokens, tokenize(query), pool)
+
+    # --- HyDE：生成假设答案，仅替换向量支路的查询文本 ---
+    hyde_text = _hyde_generate(query)
+    vec_query = hyde_text or query
 
     # --- 向量支路 ---
     vec_scores: list[tuple[int, float]] = []
@@ -583,28 +754,104 @@ def search(query: str, course_id: Optional[int], top_k: int) -> Optional[list[di
     if index_path.exists():
         raw = _np.frombuffer(index_path.read_bytes(), dtype=_np.uint8)
         index = _faiss.deserialize_index(raw)
-        qv = _embed([query])
+        qv = _embed([vec_query])
         vec_scores = vector_rank_from_index(index, qv, pool)
 
     if not bm25_scores and not vec_scores:
         return []
 
-    # --- RRF 融合 ---
-    ordered = rrf_fuse(bm25_scores, vec_scores, top_k=top_k)
+    # --- RRF 融合（先取重排池，重排后再截 top_k）---
+    ordered = rrf_fuse(bm25_scores, vec_scores, top_k=pool)
     if not ordered:
         return []
     max_rrf = ordered[0][1] or 1.0
 
-    results = []
+    candidates = []
     for i, rrf in ordered:
         c = chunks[i]
-        results.append({
+        candidates.append({
             "document_id": c["doc_id"],
             "document_name": c["doc_name"],
             "relevance_score": round(min(1.0, rrf / max_rrf), 4),
             "snippet": c["text"][:500],
+            "retrieval": "HYDE" if hyde_text else "QUERY",
         })
-    return results
+
+    return rerank_candidates(query, candidates, top_k)
+
+
+# ---------------------------------------------------------------- HyDE（查询扩展）
+
+_HYDE_PROMPT = (
+    "以课程教材的口吻，写一段不超过 150 字的解释段落，直接回答下面的问题。"
+    "只输出段落正文：不要分点、不要复述问题、不要写“根据资料”这类开场。"
+)
+
+
+def hyde_llm_ready() -> bool:
+    """HyDE 能否真调 LLM。DeepSeek 看密钥；Ollama 需显式放行（见 `hyde_allow_ollama`）。"""
+    if not hyde_enabled():
+        return False
+    if llm_provider() == "deepseek":
+        return bool(os.getenv("DEEPSEEK_API_KEY", "").strip())
+    return hyde_allow_ollama()
+
+
+def _hyde_generate(query: str) -> Optional[str]:
+    """生成假设答案（Hypothetical Document Embeddings）。
+
+    返回 None 表示未启用或生成失败——调用方必须原样退回原 query，不得把空串当查询，
+    否则向量支路会检出一个"语义空"的向量、把排名悄悄拉偏。
+    """
+    text = (query or "").strip()
+    if not text or not hyde_llm_ready():
+        return None
+    try:
+        import httpx
+
+        if llm_provider() == "deepseek":
+            payload = {
+                "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+                "messages": [
+                    {"role": "system", "content": _HYDE_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 256,
+            }
+            resp = httpx.post(
+                llm_chat_url(),
+                headers={"Authorization": f"Bearer {os.getenv('DEEPSEEK_API_KEY', '').strip()}"},
+                json=payload,
+                timeout=hyde_timeout(),
+            )
+            resp.raise_for_status()
+            content = (resp.json()["choices"][0]["message"]["content"] or "").strip()
+        else:
+            payload = {
+                "model": os.getenv("OLLAMA_MODEL", "deepseek-r1:8b"),
+                "stream": False,
+                "messages": [
+                    {"role": "system", "content": _HYDE_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+                "options": {"temperature": 0.3, "num_predict": 256},
+            }
+            resp = httpx.post(ollama_chat_url(), json=payload,
+                              timeout=hyde_timeout(), trust_env=ollama_trust_env())
+            resp.raise_for_status()
+            # 思考内容不进假设答案（与生成链路同口径）
+            content = ((resp.json().get("message") or {}).get("content") or "").strip()
+        return content[:600] or None
+    except Exception as e:
+        # 不记 dep_error：HyDE 是增强项，单次失败不代表引擎故障
+        logger.debug("HyDE 生成失败，回退原 query：%s: %s", type(e).__name__, e)
+        return None
+
+
+def hyde_status() -> dict:
+    return {"enabled": hyde_enabled(), "llm_ready": hyde_llm_ready(),
+            "timeout_sec": hyde_timeout(), "provider": llm_provider()}
 
 
 # ---------------------------------------------------------------- LLM 生成

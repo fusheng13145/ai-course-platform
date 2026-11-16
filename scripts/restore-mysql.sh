@@ -103,9 +103,11 @@ fi
 
 if printf '%s' "$BACKUP" | grep -q '.gz$'; then
     gzip -t "$BACKUP" || { echo "[ERROR] gzip 完整性检查失败：$BACKUP" >&2; exit 1; }
-    restore_cmd="gunzip -c '$BACKUP'"
+    # 2026-11-14 P2-7（U6 收口）：不再 eval 拼接命令——路径含单引号即破坏拼接，且 eval 对
+    # 操作者可控参数有注入面。改用数组按字面量传参（bash 数组不经二次解析）。
+    RESTORE_PIPE=(gunzip -c "$BACKUP")
 else
-    restore_cmd="cat '$BACKUP'"
+    RESTORE_PIPE=(cat "$BACKUP")
 fi
 
 running=$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || true)
@@ -135,7 +137,7 @@ CREATE DATABASE \`${TARGET_DB}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 
 echo "[2/5] 恢复备份：$BACKUP（sha256=${BACKUP_SHA}）"
 set +e
-eval "$restore_cmd" | docker exec -e MYSQL_PWD="$ROOT_PASS" -i "$CONTAINER" mysql -uroot "$TARGET_DB"
+"${RESTORE_PIPE[@]}" | docker exec -e MYSQL_PWD="$ROOT_PASS" -i "$CONTAINER" mysql -uroot "$TARGET_DB"
 rc=${PIPESTATUS[0]}
 set -e
 if [ "$rc" -ne 0 ]; then

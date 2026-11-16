@@ -66,7 +66,7 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
     private final ResourceService resourceService;
 
     public CourseKnowledgeBaseServiceImpl(
-            @Value("${rag.enabled:false}") boolean ragEnabled,
+            @Value("${rag.enabled:true}") boolean ragEnabled,
             RAGService ragService,
             CourseService courseService,
             CourseChapterService courseChapterService,
