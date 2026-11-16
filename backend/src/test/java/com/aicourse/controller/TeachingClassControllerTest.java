@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.RosterService;
 import com.aicourse.service.TeachingClassService;
 import com.aicourse.vo.RosterSyncResultVO;
@@ -17,6 +18,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -38,6 +40,9 @@ class TeachingClassControllerTest extends ControllerTestBase {
     @MockitoBean
     private AdminScopeGuard adminScopeGuard;
 
+    @MockitoBean
+    private TeachingClassAccessControl teachingClassAccessControl;
+
     @Test
     @DisplayName("未登录访问教学班列表返回 401")
     void anonymousIsUnauthorized() throws Exception {
@@ -57,6 +62,10 @@ class TeachingClassControllerTest extends ControllerTestBase {
     void teacherCanList() throws Exception {
         TeachingClass teachingClass = new TeachingClass();
         teachingClass.setId(30L);
+        com.aicourse.entity.Course course = new com.aicourse.entity.Course();
+        course.setId(1L);
+        course.setTeacherId(100L);
+        when(teachingClassAccessControl.assertCanViewCourseClasses(eq(1L), any())).thenReturn(course);
         when(teachingClassService.listByCourse(1L)).thenReturn(List.of(teachingClass));
 
         mockMvc.perform(withUser(get("/teaching-classes/course/1"), 100L, "TEACHER"))

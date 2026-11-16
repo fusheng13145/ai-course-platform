@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 import com.aicourse.controller.CourseEnrollmentController;
 import com.aicourse.entity.Course;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.entity.CourseEnrollment;
@@ -37,6 +38,9 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     /** 全量选课列表的 keyword 过滤需要按姓名/用户名解析学生（2026-11-07 全量实现批） */
     @MockitoBean
     private com.aicourse.service.UserService userService;
+
+    @MockitoBean
+    private AdminScopeGuard adminScopeGuard;
 
     private Course course(Long id, Long teacherId) {
         Course c = new Course();
@@ -290,6 +294,35 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
         // 姓名解析到的学生 ID 必须进入 SQL 条件（而非分页后当页过滤）
         org.assertj.core.api.Assertions.assertThat(captor.getValue().getSqlSegment())
                 .contains("IN").contains("student_id");
+    }
+
+    @Test
+    @DisplayName("GET /enrollments - 院系管理员按本院学生集合过滤")
+    void listAll_collegeAdmin_filtersCollegeStudents() throws Exception {
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        when(adminScopeGuard.currentCollegeUserIds()).thenReturn(List.of(2L));
+        Page<CourseEnrollment> p = new Page<>(1, 10);
+        p.setRecords(List.of(sampleEnrollment(7026197L, 2L, 4030L)));
+        p.setTotal(1);
+        when(enrollmentService.page(any(), any())).thenReturn(p);
+
+        mockMvc.perform(get("/enrollments").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+        verify(adminScopeGuard).currentCollegeUserIds();
+        verify(enrollmentService).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /enrollments - 院系管理员本院无用户时返回空页，不退化为全校查询")
+    void listAll_collegeAdmin_emptyCollege_returnsEmpty() throws Exception {
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        when(adminScopeGuard.currentCollegeUserIds()).thenReturn(List.of());
+
+        mockMvc.perform(get("/enrollments").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+        verify(enrollmentService, never()).page(any(), any());
     }
 
     private CourseEnrollment sampleEnrollment2(Long id, Long studentId, Long courseId) {

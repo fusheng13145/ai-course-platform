@@ -119,6 +119,7 @@
       <p class="hint">
         审批通过 = 写 approved_by 并置
         APPROVED；教学班在选课时已解析（未分班的记录来自教学班模型上线前的历史数据）。
+        院系管理员仅返回本院学生选课记录，校级管理员可见全平台。
       </p>
     </section>
   </section>
@@ -130,7 +131,7 @@ import Stat from '../../components/Stat.vue'
 import { useUi } from '../../composables/ui'
 import { getAllUsers, listAllEnrollments } from '@/api/admin'
 import { approveEnrollment, rejectEnrollment } from '@/api/enrollment'
-import { unwrap } from '@/utils/response'
+import { pickList, readTotal, unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
 
 interface EnrollmentRow {
@@ -223,18 +224,15 @@ async function load(resetPage = false) {
   if (resetPage) page.value = 1
   loading.value = true
   try {
-    const payload = unwrap(
-      await listAllEnrollments({
-        page: page.value,
-        size: pageSize,
-        status: status.value || undefined,
-        courseId: courseId.value || undefined,
-        keyword: keyword.value.trim() || undefined,
-      }),
-    )
-    const envelope = payload as { records?: EnrollmentRow[]; total?: number }
-    rows.value = (envelope?.records || []) as EnrollmentRow[]
-    total.value = Number(envelope?.total ?? rows.value.length)
+    const payload = unwrap(await listAllEnrollments({
+      page: page.value,
+      size: pageSize,
+      status: status.value || undefined,
+      courseId: courseId.value || undefined,
+      keyword: keyword.value.trim() || undefined,
+    }))
+    rows.value = pickList<EnrollmentRow>(payload)
+    total.value = readTotal(payload, rows.value.length)
     // 学生名缓存：后端按 keyword 返回的行已过姓名匹配；此处只对已出现的学生补名
     for (const row of rows.value) {
       const key = `${row.studentId}`

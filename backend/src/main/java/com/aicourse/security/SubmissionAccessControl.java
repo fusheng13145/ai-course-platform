@@ -65,7 +65,7 @@ public class SubmissionAccessControl {
             }
             return;
         }
-        assertOwnsCourse(submission.getTaskId(), userId);
+        assertCanAccessTaskCourse(submission.getTaskId(), auth, false);
     }
 
     /**
@@ -78,8 +78,13 @@ public class SubmissionAccessControl {
             log.warn("[SubmissionAccess] 越权管理尝试（学生角色）：submissionId={}, userId={}", submissionId, userId);
             throw new BusinessException(403, "学生无权执行该操作");
         }
+        // 教学写面不替代教师：管理员只读本院提交/成绩，评分/退回/查重仍须课程负责人本人。
+        if (isAdmin(auth)) {
+            log.warn("[SubmissionAccess] 拒绝管理员代教师管理提交：submissionId={}, userId={}", submissionId, userId);
+            throw new BusinessException(403, "管理员仅可查看提交记录，不能代教师评分或退回");
+        }
         Submission submission = requireSubmission(submissionId);
-        assertOwnsCourse(submission.getTaskId(), userId);
+        assertCanAccessTaskCourse(submission.getTaskId(), auth, true);
     }
 
     /**
@@ -90,7 +95,7 @@ public class SubmissionAccessControl {
         if (RoleConstants.STUDENT.equals(role)) {
             return;
         }
-        assertOwnsCourse(taskId, principalId(auth));
+        assertCanAccessTaskCourse(taskId, auth, false);
     }
 
     /**
@@ -122,7 +127,14 @@ public class SubmissionAccessControl {
         return submission;
     }
 
-    private void assertOwnsCourse(Long taskId, Long userId) {
+    /**
+     * 课程边界：管理员按学院作用域只读/治理；教师仍须为课程负责人。
+     *
+     * <p>2026-11-16 P0-2：原实现对 ADMIN 也走 {@code assertOwnsCourse}，导致校级管理员
+     * 反而被 403；现改为管理员走 {@link CourseAccessControl}（其内部已接
+     * {@link AdminScopeGuard}），教学写面不因此获得代教师权限。</p>
+     */
+    private void assertCanAccessTaskCourse(Long taskId, Authentication auth, boolean manage) {
         Task task = taskMapper.selectById(taskId);
         if (task == null) {
             throw new BusinessException(404, "关联任务不存在");
@@ -131,11 +143,25 @@ public class SubmissionAccessControl {
         if (course == null) {
             throw new BusinessException(404, "关联课程不存在");
         }
+        if (isAdmin(auth)) {
+            if (manage) {
+                courseAccessControl.assertCanManageCourse(course.getId(), auth);
+            } else {
+                courseAccessControl.assertCanReadCourse(course.getId(), auth);
+            }
+            return;
+        }
+        Long userId = principalId(auth);
         if (!userId.equals(course.getTeacherId())) {
             log.warn("[SubmissionAccess] 越权管理尝试（非授课教师）：submissionId/taskId={}, userId={}, courseId={}, teacherId={}",
                     taskId, userId, course.getId(), course.getTeacherId());
             throw new BusinessException(403, "无权操作非本人课程的提交记录");
         }
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_" + RoleConstants.ADMIN));
     }
 
     private Long principalId(Authentication auth) {

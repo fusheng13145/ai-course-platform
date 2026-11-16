@@ -21,6 +21,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +100,24 @@ class SubmissionAccessControlTest {
         when(courseMapper.selectById(7L)).thenReturn(course(7L, 20L));
         assertThrows(BusinessException.class,
                 () -> accessControl.assertReadable(1L, auth(21L, "TEACHER")));
+    }
+
+    @Test
+    void adminReadsCourseSubmission_usesCourseReadAcl() {
+        when(submissionService.getById(1L)).thenReturn(submission(1L, 99L, 5L));
+        when(taskMapper.selectById(5L)).thenReturn(task(7L));
+        when(courseMapper.selectById(7L)).thenReturn(course(7L, 20L));
+
+        assertDoesNotThrow(() -> accessControl.assertReadable(1L, auth(1L, "ADMIN")));
+        verify(courseAccessControl).assertCanReadCourse(eq(7L), any(Authentication.class));
+    }
+
+    @Test
+    void adminCannotManageCourseSubmission() {
+        assertThrows(BusinessException.class,
+                () -> accessControl.assertManageable(1L, auth(1L, "ADMIN")));
+        verify(courseAccessControl, org.mockito.Mockito.never())
+                .assertCanManageCourse(any(), any(Authentication.class));
     }
 
     // ===================== 管理（评分/查重/退回）权限 =====================

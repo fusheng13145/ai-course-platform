@@ -12,6 +12,7 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.UserService;
@@ -23,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,12 +40,14 @@ public class CourseEnrollmentController {
     private final CourseEnrollmentService enrollmentService;
     private final CourseService courseService;
     private final UserService userService;
+    private final AdminScopeGuard adminScopeGuard;
 
     public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService,
-                                      UserService userService) {
+                                      UserService userService, AdminScopeGuard adminScopeGuard) {
         this.enrollmentService = enrollmentService;
         this.courseService = courseService;
         this.userService = userService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -72,25 +76,59 @@ public class CourseEnrollmentController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            Authentication auth) {
         LambdaQueryWrapper<CourseEnrollment> qw = new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(status != null && !status.isBlank(), CourseEnrollment::getApprovalStatus, status)
                 .eq(courseId != null, CourseEnrollment::getCourseId, courseId);
+        // 院系管理员只能看本院课程；显式传 courseId 时先按课程学院收口，避免跨院枚举。
+        boolean collegeScoped = adminScopeGuard.isCollegeAdmin();
+        if (courseId != null && collegeScoped) {
+            Course course = courseService.getById(courseId);
+            if (course == null) {
+                throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+            }
+            adminScopeGuard.assertCourseAccess(course);
+        }
         // keyword 按学生姓名/用户名过滤：先解析学生ID集再入 SQL（不得分页后当页二次过滤）
+        List<Long> matched = null;
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
-            java.util.List<Long> matched = userService.list(new LambdaQueryWrapper<User>()
+            matched = userService.list(new LambdaQueryWrapper<User>()
                             .and(w -> w.like(User::getFullName, kw).or().like(User::getUsername, kw))
                             .last("LIMIT 500"))
                     .stream().map(User::getId).toList();
+        }
+        if (collegeScoped) {
+            List<Long> collegeStudentIds = adminScopeGuard.currentCollegeUserIds();
+            if (collegeStudentIds == null || collegeStudentIds.isEmpty()) {
+                return emptyEnrollmentPage(page, size);
+            }
+            if (matched != null) {
+                matched = matched.stream().filter(collegeStudentIds::contains).toList();
+                if (matched.isEmpty()) {
+                    return emptyEnrollmentPage(page, size);
+                }
+                qw.in(CourseEnrollment::getStudentId, matched);
+            } else {
+                qw.in(CourseEnrollment::getStudentId, collegeStudentIds);
+            }
+        } else if (matched != null) {
             if (matched.isEmpty()) {
-                return ApiResponse.success(PagedResponse.of(new Page<>(page, size)));
+                return emptyEnrollmentPage(page, size);
             }
             qw.in(CourseEnrollment::getStudentId, matched);
         }
         qw.orderByDesc(CourseEnrollment::getId);
         Page<CourseEnrollment> result = enrollmentService.page(Page.of(page, size), qw);
         return ApiResponse.success(PagedResponse.of(result));
+    }
+
+    private ApiResponse<PagedResponse<CourseEnrollment>> emptyEnrollmentPage(int page, int size) {
+        Page<CourseEnrollment> empty = new Page<>(page, size);
+        empty.setRecords(List.of());
+        empty.setTotal(0);
+        return ApiResponse.success(PagedResponse.of(empty));
     }
 
     /**
@@ -189,7 +227,16 @@ public class CourseEnrollmentController {
         Long userId = (Long) auth.getPrincipal();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) return;
+        if (isAdmin) {
+            if (adminScopeGuard.isCollegeAdmin()) {
+                Course adminCourse = courseService.getById(enrollment.getCourseId());
+                if (adminCourse == null) {
+                    throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+                }
+                adminScopeGuard.assertCourseAccess(adminCourse);
+            }
+            return;
+        }
         Course course = courseService.getById(enrollment.getCourseId());
         if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权审批该课程的选课记录");

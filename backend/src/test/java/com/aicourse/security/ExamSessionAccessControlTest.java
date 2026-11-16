@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
@@ -22,6 +23,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -40,6 +43,8 @@ class ExamSessionAccessControlTest {
     private CourseService courseService;
     @Mock
     private CourseEnrollmentService courseEnrollmentService;
+    @Mock
+    private AdminScopeGuard adminScopeGuard;
 
     @InjectMocks
     private ExamSessionAccessControl accessControl;
@@ -171,5 +176,35 @@ class ExamSessionAccessControlTest {
     void adminReadsAnySession_ok() {
         when(examSessionService.getById(1L)).thenReturn(session(1L, 5L, 10L));
         assertDoesNotThrow(() -> accessControl.assertReadable(1L, auth(9L, "ADMIN")));
+    }
+
+    @Test
+    void collegeAdminReadsOwnCollegeSession_ok() {
+        ExamSession session = session(1L, 5L, 10L);
+        Course c = course(7L, 20L);
+        c.setCollegeId(3L);
+        when(examSessionService.getById(1L)).thenReturn(session);
+        when(examPaperService.getById(5L)).thenReturn(paper(5L, 7L));
+        when(courseService.getById(7L)).thenReturn(c);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+
+        assertDoesNotThrow(() -> accessControl.assertReadable(1L, auth(1L, "ADMIN")));
+        verify(adminScopeGuard).assertCourseAccess(c);
+    }
+
+    @Test
+    void collegeAdminReadsOtherCollegeSession_rejected() {
+        ExamSession session = session(1L, 5L, 10L);
+        Course c = course(7L, 20L);
+        c.setCollegeId(3L);
+        when(examSessionService.getById(1L)).thenReturn(session);
+        when(examPaperService.getById(5L)).thenReturn(paper(5L, 7L));
+        when(courseService.getById(7L)).thenReturn(c);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(c);
+
+        assertThrows(AccessDeniedException.class,
+                () -> accessControl.assertReadable(1L, auth(1L, "ADMIN")));
     }
 }

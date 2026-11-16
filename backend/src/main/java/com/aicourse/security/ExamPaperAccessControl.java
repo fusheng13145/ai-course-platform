@@ -33,11 +33,14 @@ public class ExamPaperAccessControl {
 
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
+    private final AdminScopeGuard adminScopeGuard;
 
     public ExamPaperAccessControl(CourseService courseService,
-                                  CourseEnrollmentService courseEnrollmentService) {
+                                  CourseEnrollmentService courseEnrollmentService,
+                                  AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -50,6 +53,7 @@ public class ExamPaperAccessControl {
             throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
         }
         if (isAdmin(auth)) {
+            assertAdminCourseAccess(paper.getCourseId());
             return;
         }
         String role = roleOf(auth);
@@ -70,6 +74,7 @@ public class ExamPaperAccessControl {
             throw new BusinessException(ApiCode.BAD_REQUEST, "请指定课程");
         }
         if (isAdmin(auth)) {
+            assertAdminCourseAccess(courseId);
             return;
         }
         if (RoleConstants.STUDENT.equals(roleOf(auth))) {
@@ -97,6 +102,7 @@ public class ExamPaperAccessControl {
             throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
         }
         if (isAdmin(auth)) {
+            assertAdminCourseAccess(paper.getCourseId());
             return;
         }
         String role = roleOf(auth);
@@ -116,6 +122,21 @@ public class ExamPaperAccessControl {
     }
 
     // ===================== 内部工具 =====================
+
+    /**
+     * 管理员作用域：校级管理员保持全平台；院系管理员只能落在本院课程。
+     * 校级管理员不额外查询课程，保持改造前的治理读行为。
+     */
+    private void assertAdminCourseAccess(Long courseId) {
+        if (!adminScopeGuard.isCollegeAdmin()) {
+            return;
+        }
+        Course course = courseId != null ? courseService.getById(courseId) : null;
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        adminScopeGuard.assertCourseAccess(course);
+    }
 
     private void assertCourseOwnedBy(Long courseId, Authentication auth, String message) {
         Course course = courseId != null ? courseService.getById(courseId) : null;

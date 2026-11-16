@@ -9,6 +9,8 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.UserService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -29,13 +31,16 @@ public class TeachingClassAccessControl {
     private final CourseService courseService;
     private final UserService userService;
     private final TeachingClassMapper teachingClassMapper;
+    private final AdminScopeGuard adminScopeGuard;
 
     public TeachingClassAccessControl(CourseService courseService,
                                       UserService userService,
-                                      TeachingClassMapper teachingClassMapper) {
+                                      TeachingClassMapper teachingClassMapper,
+                                      AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.userService = userService;
         this.teachingClassMapper = teachingClassMapper;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -78,6 +83,7 @@ public class TeachingClassAccessControl {
         TeachingClass teachingClass = requireTeachingClass(teachingClassId);
         User operator = operatorId == null ? null : userService.getById(operatorId);
         if (operator != null && RoleConstants.ADMIN.equals(operator.getRole())) {
+            assertAdminCourseScope(teachingClass);
             return teachingClass;
         }
         if (!Objects.equals(teachingClass.getLeadTeacherId(), operatorId)) {
@@ -109,6 +115,7 @@ public class TeachingClassAccessControl {
         TeachingClass teachingClass = requireTeachingClass(teachingClassId);
         User operator = operatorId == null ? null : userService.getById(operatorId);
         if (operator != null && RoleConstants.ADMIN.equals(operator.getRole())) {
+            assertAdminCourseScope(teachingClass);
             return teachingClass;
         }
         if (Objects.equals(teachingClass.getLeadTeacherId(), operatorId)) {
@@ -119,6 +126,68 @@ public class TeachingClassAccessControl {
             throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人或该教学班主讲可查看名单来源");
         }
         return teachingClass;
+    }
+
+    /**
+     * 教学班详情/列表读权限（Q-04：仅本人教学班或课程负责人可见；管理员按学院只读）。
+     */
+    public TeachingClass assertReadable(Long teachingClassId, Authentication auth) {
+        TeachingClass teachingClass = requireTeachingClass(teachingClassId);
+        if (isAdmin(auth)) {
+            assertAdminCourseScope(teachingClass);
+            return teachingClass;
+        }
+        Long operatorId = principalId(auth);
+        if (Objects.equals(teachingClass.getLeadTeacherId(), operatorId)) {
+            return teachingClass;
+        }
+        Course course = requireCourse(teachingClass.getCourseId());
+        if (!Objects.equals(course.getTeacherId(), operatorId)) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人或该教学班主讲可查看教学班");
+        }
+        return teachingClass;
+    }
+
+    /**
+     * 课程下教学班列表的读权限：课程负责人、该课程任一教学班主讲，或按学院收口的管理员。
+     */
+    public Course assertCanViewCourseClasses(Long courseId, Authentication auth) {
+        Course course = requireCourse(courseId);
+        if (isAdmin(auth)) {
+            adminScopeGuard.assertCourseAccess(course);
+            return course;
+        }
+        Long operatorId = principalId(auth);
+        if (Objects.equals(course.getTeacherId(), operatorId)) {
+            return course;
+        }
+        Long leadCount = teachingClassMapper.selectCount(new LambdaQueryWrapper<TeachingClass>()
+                .eq(TeachingClass::getCourseId, courseId)
+                .eq(TeachingClass::getLeadTeacherId, operatorId));
+        if (leadCount != null && leadCount > 0) {
+            return course;
+        }
+        throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人或该课程教学班主讲可查看教学班");
+    }
+
+    /**
+     * 管理员只读作用域：校级放行；院系管理员只允许本院课程下的教学班。
+     */
+    private void assertAdminCourseScope(TeachingClass teachingClass) {
+        if (!adminScopeGuard.isCollegeAdmin()) {
+            return;
+        }
+        adminScopeGuard.assertCourseAccess(requireCourse(teachingClass.getCourseId()));
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities() != null
+                && auth.getAuthorities().stream()
+                .anyMatch(g -> ("ROLE_" + RoleConstants.ADMIN).equals(g.getAuthority()));
+    }
+
+    private Long principalId(Authentication auth) {
+        return (Long) auth.getPrincipal();
     }
 
     /**

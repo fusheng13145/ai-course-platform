@@ -2,13 +2,17 @@ package com.aicourse.controller;
 import com.aicourse.controller.ClassroomController;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.ClassroomService;
+import com.aicourse.service.UserService;
 import com.aicourse.vo.ClassroomStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +31,15 @@ class ClassroomControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.ClassroomService classroomService;
+
+    @MockitoBean
+    private UserService userService;
+
+    @MockitoBean
+    private AdminScopeGuard adminScopeGuard;
+
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
 
     @Test
     @DisplayName("GET /classrooms - 班级列表查询返回200，数组与字段透传")
@@ -63,6 +76,73 @@ class ClassroomControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /classrooms - 院系管理员只看到本院班主任的班级")
+    void list_collegeAdmin_filtersByAdvisorCollege() throws Exception {
+        Classroom own = new Classroom();
+        own.setId(1L);
+        own.setAdvisorId(10L);
+        Classroom other = new Classroom();
+        other.setId(2L);
+        other.setAdvisorId(20L);
+        when(classroomService.searchClassrooms(any(), any(), any())).thenReturn(List.of(own, other));
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        when(adminScopeGuard.currentCollegeUserIds()).thenReturn(List.of(10L));
+
+        mockMvc.perform(get("/classrooms").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /classrooms/1 - 院系管理员访问其他学院班主任的班级返回403")
+    void getById_collegeAdmin_otherCollege_forbidden() throws Exception {
+        Classroom c = new Classroom();
+        c.setId(1L);
+        c.setAdvisorId(20L);
+        when(classroomService.getById(1L)).thenReturn(c);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        doThrow(new AccessDeniedException("无权访问其他学院的用户"))
+                .when(adminScopeGuard).assertUserAccessById(20L);
+
+        mockMvc.perform(get("/classrooms/1").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("GET /classrooms/1 - 学生只能查看本人班级")
+    void getById_student_ownClass_ok() throws Exception {
+        Classroom c = new Classroom();
+        c.setId(1L);
+        when(classroomService.getById(1L)).thenReturn(c);
+        User student = new User();
+        student.setId(2L);
+        student.setClassId(1L);
+        when(userService.getById(2L)).thenReturn(student);
+
+        mockMvc.perform(get("/classrooms/1").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /classrooms/2 - 学生查看其他班级返回403")
+    void getById_student_otherClass_forbidden() throws Exception {
+        Classroom c = new Classroom();
+        c.setId(2L);
+        when(classroomService.getById(2L)).thenReturn(c);
+        User student = new User();
+        student.setId(2L);
+        student.setClassId(1L);
+        when(userService.getById(2L)).thenReturn(student);
+
+        mockMvc.perform(get("/classrooms/2").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
     @DisplayName("GET /classrooms/1 - 未认证返回401")
     void getById_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/classrooms/1"))
@@ -73,7 +153,9 @@ class ClassroomControllerTest extends ControllerTestBase {
     @DisplayName("GET /classrooms/1/detail - 查询班级详情统计返回200，字段透传")
     void getDetail_authorized_passes_security() throws Exception {
         com.aicourse.entity.Classroom cls = new com.aicourse.entity.Classroom();
+        cls.setId(1L);
         cls.setName("一班");
+        when(classroomService.getById(eq(1L))).thenReturn(cls);
         when(classroomService.getClassroomDetail(eq(1L))).thenReturn(new com.aicourse.vo.ClassroomDetailVO(cls, 30, 50));
         mockMvc.perform(get("/classrooms/1/detail").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -146,6 +228,9 @@ class ClassroomControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /classrooms/1 - 管理员删除班级返回200")
     void delete_authorized_passes_security() throws Exception {
+        Classroom c = new Classroom();
+        c.setId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(c);
         mockMvc.perform(delete("/classrooms/1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
@@ -335,6 +420,9 @@ class ClassroomControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /classrooms/1/stats - 查询班级统计返回200，字段透传")
     void getStats_authorized_passes_security() throws Exception {
+        Classroom c = new Classroom();
+        c.setId(1L);
+        when(classroomService.getById(eq(1L))).thenReturn(c);
         when(classroomService.getClassroomStats(eq(1L))).thenReturn(
                 new ClassroomStatsVO(20, 15, 5, 50, 20, Map.of("计算机", 20L)));
         mockMvc.perform(get("/classrooms/1/stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))

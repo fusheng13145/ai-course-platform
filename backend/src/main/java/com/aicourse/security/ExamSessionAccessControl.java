@@ -47,15 +47,18 @@ public class ExamSessionAccessControl {
     private final ExamPaperService examPaperService;
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
+    private final AdminScopeGuard adminScopeGuard;
 
     public ExamSessionAccessControl(ExamSessionService examSessionService,
                                     ExamPaperService examPaperService,
                                     CourseService courseService,
-                                    CourseEnrollmentService courseEnrollmentService) {
+                                    CourseEnrollmentService courseEnrollmentService,
+                                    AdminScopeGuard adminScopeGuard) {
         this.examSessionService = examSessionService;
         this.examPaperService = examPaperService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -109,6 +112,7 @@ public class ExamSessionAccessControl {
             return session;
         }
         if (isAdmin(auth)) {
+            assertAdminSessionCourse(session);
             return session;
         }
         assertTeacherOwnsSessionCourse(session, principalId(auth));
@@ -141,6 +145,7 @@ public class ExamSessionAccessControl {
         ExamSession session = requireSession(sessionId);
         Long userId = principalId(auth);
         if (isAdmin(auth)) {
+            assertAdminSessionCourse(session);
             return session;
         }
         if (RoleConstants.STUDENT.equals(roleOf(auth))) {
@@ -149,6 +154,24 @@ public class ExamSessionAccessControl {
         }
         assertTeacherOwnsSessionCourse(session, userId);
         return session;
+    }
+
+    /**
+     * 管理员作用域：校级管理员保持全平台；院系管理员只能访问本院课程下的考试会话。
+     */
+    private void assertAdminSessionCourse(ExamSession session) {
+        if (!adminScopeGuard.isCollegeAdmin()) {
+            return;
+        }
+        ExamPaper paper = examPaperService.getById(session.getExamPaperId());
+        if (paper == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
+        }
+        Course course = paper.getCourseId() != null ? courseService.getById(paper.getCourseId()) : null;
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        adminScopeGuard.assertCourseAccess(course);
     }
 
     /**

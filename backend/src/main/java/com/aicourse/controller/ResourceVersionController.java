@@ -7,6 +7,8 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Resource;
 import com.aicourse.entity.ResourceVersion;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
@@ -35,13 +37,19 @@ public class ResourceVersionController {
     private final ResourceVersionService resourceVersionService;
     private final ResourceService resourceService;
     private final CourseService courseService;
+    private final AdminScopeGuard adminScopeGuard;
+    private final CourseAccessControl courseAccessControl;
 
     public ResourceVersionController(ResourceVersionService resourceVersionService,
                                      ResourceService resourceService,
-                                     CourseService courseService) {
+                                     CourseService courseService,
+                                     AdminScopeGuard adminScopeGuard,
+                                     CourseAccessControl courseAccessControl) {
         this.resourceVersionService = resourceVersionService;
         this.resourceService = resourceService;
         this.courseService = courseService;
+        this.adminScopeGuard = adminScopeGuard;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -50,7 +58,9 @@ public class ResourceVersionController {
      * @return 版本列表（按版本号降序）
      */
     @GetMapping("/resource/{resourceId}")
-    public ApiResponse<List<ResourceVersion>> getVersionHistory(@PathVariable Long resourceId) {
+    public ApiResponse<List<ResourceVersion>> getVersionHistory(@PathVariable Long resourceId,
+                                                                Authentication auth) {
+        assertResourceReadable(resourceId, auth);
         List<ResourceVersion> versions = resourceVersionService.getVersionHistory(resourceId);
         return ApiResponse.success(versions);
     }
@@ -121,7 +131,8 @@ public class ResourceVersionController {
      * @return 当前激活的版本
      */
     @GetMapping("/active/{resourceId}")
-    public ApiResponse<ResourceVersion> getActiveVersion(@PathVariable Long resourceId) {
+    public ApiResponse<ResourceVersion> getActiveVersion(@PathVariable Long resourceId, Authentication auth) {
+        assertResourceReadable(resourceId, auth);
         ResourceVersion activeVersion = resourceVersionService.getActiveVersion(resourceId);
         return ApiResponse.success(activeVersion);
     }
@@ -132,27 +143,50 @@ public class ResourceVersionController {
      * 资源归属校验：管理员放行；教师须为资源所属课程的授课教师。
      * 与 ExamPaperAccessControl / SubmissionAccessControl 同一模式（防 IDOR/水平越权）。
      */
+    /**
+     * 资源读面校验：资源不存在 404；课程资源走课程 ACL（含管理员学院作用域）；
+     * 无课程归属的全局资源对登录用户保持可读。
+     */
+    private void assertResourceReadable(Long resourceId, Authentication auth) {
+        Resource resource = resourceService.getById(resourceId);
+        if (resource == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "资源不存在");
+        }
+        if (resource.getCourseId() != null) {
+            courseAccessControl.assertCanReadCourse(resource.getCourseId(), auth);
+        }
+    }
+
+    /**
+     * 资源归属校验：校级管理员保持治理写；院系管理员只可操作本院课程资源；
+     * 教师须为资源所属课程的授课教师。
+     */
     private void assertResourceManageable(Long resourceId, Authentication auth) {
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(g -> "ROLE_ADMIN".equals(g.getAuthority()));
-        if (isAdmin) {
+        if (isAdmin && !adminScopeGuard.isCollegeAdmin()) {
             return;
         }
         Resource resource = resourceService.getById(resourceId);
         if (resource == null) {
             throw new BusinessException(ApiCode.NOT_FOUND, "资源不存在");
         }
-        if (resource.getCourseId() != null) {
-            var course = courseService.getById(resource.getCourseId());
-            if (course == null) {
-                throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-            }
-            Long userId = (Long) auth.getPrincipal();
-            if (!userId.equals(course.getTeacherId())) {
-                log.warn("[ResourceVersion] 越权尝试：resourceId={}, userId={}, courseId={}, teacherId={}",
-                        resourceId, userId, course.getId(), course.getTeacherId());
-                throw new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师课程的资源版本");
-            }
+        if (resource.getCourseId() == null) {
+            return;
+        }
+        var course = courseService.getById(resource.getCourseId());
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (isAdmin) {
+            adminScopeGuard.assertCourseAccess(course);
+            return;
+        }
+        Long userId = (Long) auth.getPrincipal();
+        if (!userId.equals(course.getTeacherId())) {
+            log.warn("[ResourceVersion] 越权尝试：resourceId={}, userId={}, courseId={}, teacherId={}",
+                    resourceId, userId, course.getId(), course.getTeacherId());
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师课程的资源版本");
         }
     }
 }

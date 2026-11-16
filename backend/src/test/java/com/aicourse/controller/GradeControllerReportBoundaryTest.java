@@ -68,6 +68,8 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
     @MockitoBean private com.aicourse.service.component.org.TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     /** 真实成绩服务需要它来解析学生姓名；默认返回空名单，姓名退回「学生 #id」 */
     @MockitoBean private UserService userService;
+    /** P0-2：GradeController 的院系管理员课程作用域守卫；报表边界用例不触碰管理员分支 */
+    @MockitoBean private com.aicourse.security.AdminScopeGuard adminScopeGuard;
 
     @Autowired private GradeServiceImpl gradeService;
 
