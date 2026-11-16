@@ -202,7 +202,7 @@ test.describe.serial('核心链路（真栈）', () => {
     const page = await context.newPage()
     await page.goto('/admin/users', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.users-body')).toBeVisible()
-    await expect(page.locator('.page-kicker .chip')).toHaveText('接口数据')
+    await expect(page.locator('.page-kicker')).toHaveCount(0)
     await expect(page.locator('.users-body tbody tr').first()).toBeVisible()
     expect(await page.locator('.users-body tbody tr').count()).toBeGreaterThan(0)
     await expect(page.locator('body')).not.toContainText('示例数据')
@@ -215,7 +215,7 @@ test.describe.serial('核心链路（真栈）', () => {
     await page.goto('/teacher/inbox', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.inbox-body')).toBeVisible()
     await expect(page.locator('[data-block]')).toHaveCount(3)
-    await expect(page.locator('.page-kicker .chip')).toHaveText('接口数据')
+    await expect(page.locator('.page-kicker')).toHaveCount(0)
 
     await page.goto('/teacher/bank', { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('button', { name: '导入', exact: true })).toBeVisible()
@@ -229,7 +229,7 @@ test.describe.serial('核心链路（真栈）', () => {
     const page = await context.newPage()
     await page.goto('/student/tasks', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.tasks-body')).toBeVisible()
-    await expect(page.locator('.page-kicker .chip')).toHaveText('接口数据')
+    await expect(page.locator('.page-kicker')).toHaveCount(0)
 
     await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.messages-body')).toBeVisible()
@@ -250,7 +250,7 @@ test.describe.serial('核心链路（真栈）', () => {
     await adminPage.goto('/admin/ai-usage', { waitUntil: 'domcontentloaded' })
     await expect(adminPage.locator('.ai-usage-body')).toBeVisible()
     await expect(adminPage.locator('[data-testid="page-not-provided"]')).toHaveCount(0)
-    await expect(adminPage.getByText('数据源', { exact: false }).first()).toBeVisible()
+    await expect(adminPage.getByText('口径边界', { exact: true }).first()).toBeVisible()
     await expect(adminPage.locator('body')).not.toContainText('示例数据')
     await admin.close()
 

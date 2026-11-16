@@ -458,9 +458,16 @@ test.describe.serial('题库导入导出（真栈）', () => {
     await expect(courseSelect, '题库页没有课程筛选下拉').toBeVisible()
     await courseSelect.selectOption(String(target.courseId))
 
+    const exportRespWaiter = page.waitForResponse(
+      (res) =>
+        res.request().method() === 'GET' &&
+        /\/api\/teacher\/questions\/export$/.test(new URL(res.url()).pathname),
+      { timeout: 30000 },
+    )
     const downloadWaiter = page.waitForEvent('download', { timeout: 30000 })
     await page.getByRole('button', { name: '导出', exact: true }).click()
-    const download = await downloadWaiter
+    const [exportResp, download] = await Promise.all([exportRespWaiter, downloadWaiter])
+    expect(exportResp.status(), '导出接口应返回 200').toBe(200)
     workspace.templatePath = join(workspace.dir, 'template.xlsx')
     await download.saveAs(workspace.templatePath)
 
@@ -470,15 +477,19 @@ test.describe.serial('题库导入导出（真栈）', () => {
     ).toMatch(/\.xlsx$/i)
     const header = (sheetRows(workspace.templatePath)[0] ?? []).map((item) => String(item).trim())
     expect(header, '导出件首行不是导入契约的 8 列表头').toEqual([...TEMPLATE_HEADERS])
-    expect(
-      calls.some(
-        (item) =>
-          item.method === 'GET' &&
-          /\/api\/teacher\/questions\/export$/.test(item.path) &&
-          item.status === 200,
-      ),
-      `导出接口未被真实调用：同类调用观测=${lastCall(calls, 'GET', /export$/)}；近期 API=${tailCalls(calls)}`,
-    ).toBeTruthy()
+    // watchApi 的 response 记录要等 res.text() 才入列，直接读 calls 会与下载完成形成竞态。
+    await expect
+      .poll(
+        () =>
+          calls.some(
+            (item) =>
+              item.method === 'GET' &&
+              /\/api\/teacher\/questions\/export$/.test(item.path) &&
+              item.status === 200,
+          ),
+        { timeout: 10000 },
+      )
+      .toBeTruthy()
     await context.close()
   })
 

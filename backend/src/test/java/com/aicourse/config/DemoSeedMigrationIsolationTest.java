@@ -82,7 +82,9 @@ class DemoSeedMigrationIsolationTest {
             "V5__rich_seed_data.sql",
             "V6__computer_network_showcase.sql",
             "V7__fix_showcase_seed_self_description.sql",
-            "V12_1__demo_college_admins.sql");
+            "V12_1__demo_college_admins.sql",
+            // V22（2026-11-16）：课程 1 的 Python 知识图谱演示种子；仅 seed-demo 加载
+            "V22__seed_course1_knowledge_graph.sql");
 
     private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
 
@@ -107,7 +109,9 @@ class DemoSeedMigrationIsolationTest {
                         // 故库内示范课简介的规模数字只能由新迁移改写。
                         "V7__fix_showcase_seed_self_description.sql",
                         // V12.1（WP2）：院系管理员演示种子，晚于 V12、不占 V13–V16 预留号。
-                        "V12_1__demo_college_admins.sql");
+                        "V12_1__demo_college_admins.sql",
+                        // V22（2026-11-16）：课程 1 知识图谱演示种子；E2E 需要真实节点/边。
+                        "V22__seed_course1_knowledge_graph.sql");
     }
 
     @Test

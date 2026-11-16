@@ -1,11 +1,7 @@
 <template>
   <header class="topbar">
-    <button
-      class="topbar-brand brand"
-      aria-label="云枢 AI 助教：返回首页"
-      @click="go(ROLE_HOME[roleValue])"
-    >
-      <span class="brand-mark">枢</span>
+    <button class="topbar-brand brand" @click="go(ROLE_HOME[roleValue])">
+      <span class="brand-mark" aria-hidden="true">枢</span>
       <span class="brand-text">
         <b>云枢 AI 助教</b>
       </span>
