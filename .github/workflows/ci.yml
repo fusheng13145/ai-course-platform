@@ -137,6 +137,11 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
+          # 应用默认账号是 aicourse_app（application.yaml），必须在服务容器里显式创建。
+          # 只设 MYSQL_ROOT_PASSWORD 时镜像只建 root，Flyway 启动即报
+          # `Access denied for user 'aicourse_app'@'172.18.0.1'`（2026-11-16 CI #378）。
+          MYSQL_USER: aicourse_app
+          MYSQL_PASSWORD: ci-test-password-8f3k
         ports:
           - 3306:3306
         options: >-
@@ -816,6 +821,11 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
+          # 应用默认账号是 aicourse_app（application.yaml），必须在服务容器里显式创建。
+          # 只设 MYSQL_ROOT_PASSWORD 时镜像只建 root，Flyway 启动即报
+          # `Access denied for user 'aicourse_app'@'172.18.0.1'`（2026-11-16 CI #378）。
+          MYSQL_USER: aicourse_app
+          MYSQL_PASSWORD: ci-test-password-8f3k
         ports:
           - 3306:3306
         options: >-
@@ -885,6 +895,7 @@ jobs:
       - name: Start backend (background) + run Playwright
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/ai_course_platform_test?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+          SPRING_DATASOURCE_USERNAME: aicourse_app
           SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
           JWT_SECRET: ci-e2e-jwt-secret-0123456789abcdef0123456789abcdef
           COOKIE_SECURE: "false"
