@@ -48,6 +48,7 @@ test('课程图谱：点数/边数与接口一致，点节点能看到它的直�
   const nodes = graph.nodes || []
   const links = graph.links || []
   expect(nodes.length, '本课程图谱没有节点，巡检无从谈起').toBeGreaterThan(0)
+  expect(links.length, '本课程图谱没有边，路径规划无从谈起').toBeGreaterThan(0)
 
   const kg = page.locator('.kg')
   await expect(kg).toBeVisible({ timeout: 25000 })
@@ -93,22 +94,31 @@ test('课程图谱：点数/边数与接口一致，点节点能看到它的直�
 
 test('教师端路径规划：步骤/跳数与接口一致，高亮只落在路径上', async ({ page }) => {
   test.setTimeout(180000)
-  // 课程 1 是 ts01 任教的 Python 课，知识点 1→3 有直达前置关系（实测 hops=1）
+  // 课程 1 的图谱节点/边由 db/seed-demo/V22 播种；不把具体 ID 写死，
+  // 从接口返回的真实边里取一组 source→target，避免种子顺序变化把用例变成假红。
   const courseId = 1
-  const sourceId = 1
-  const targetId = 3
 
   await loginAs(page, 'TEACHER')
   await page.goto(`/teacher/courses/${courseId}/graph`, { waitUntil: 'domcontentloaded' })
   const kg = page.locator('.kg')
   await expect(kg).toBeVisible({ timeout: 25000 })
 
+  const graphResp = await page.request.get(`/api/knowledge/relations/graph/${courseId}`)
+  expect(graphResp.status(), '教师读取课程图谱应为 200').toBe(200)
+  const graph = ((await graphResp.json()) as GraphBody).data
+  const edge = (graph.links || []).find((link) =>
+    (graph.nodes || []).some((node) => Number(node.id) === Number(link.source)),
+  )
+  expect(edge, '课程 1 图谱没有可用边，路径规划无从谈起').toBeTruthy()
+  const sourceId = Number(edge!.source)
+  const targetId = Number(edge!.target)
+
   const planResp = await page.request.post('/api/knowledge/path/plan', {
     data: { sourceId, targetId, maxHops: 5 },
   })
   expect(planResp.status(), '教师调用路径规划应为 200').toBe(200)
   const plan = (await planResp.json()).data as PathPlan
-  expect(plan.found, '课程 1 的 1→3 应有可达路径').toBe(true)
+  expect(plan.found, `课程 1 的 ${sourceId}→${targetId} 应有可达路径`).toBe(true)
 
   const selects = kg.locator('.form-grid select')
   await selects.nth(0).selectOption(String(sourceId))

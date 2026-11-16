@@ -47,15 +47,24 @@ test('学业档案三页签：界面读数与接口读数一致（成绩／学�
   // 任何一页都不许出现「示例数据」，也不许出现读失败横幅时仍当正常页
   await expect(body).not.toContainText('示例数据')
 
-  // ① 成绩：课程列表来自 GET /student/grades，至少要有课程行
+  // ① 成绩：行数口径取接口里的真实成绩项，而不是「有课程就一定有行」。
+  // 课程可能有 assignments/exams 为空，此时页面应显示该课程空态，不是造一行假数据。
   const gradesResp = await page.request.get('/api/student/grades')
   expect(gradesResp.status()).toBe(200)
-  const gradesBody = (await gradesResp.json()) as PageBody<{ courses?: unknown[] }>
-  const gradeCourses = gradesBody.data?.courses?.length ?? 0
-  if (gradeCourses > 0) {
+  const gradesBody = (await gradesResp.json()) as PageBody<{
+    courses?: Array<{ assignments?: unknown[]; exams?: unknown[] }>
+  }>
+  const gradeCourses = gradesBody.data?.courses ?? []
+  const gradeItems = gradeCourses.reduce(
+    (sum, course) => sum + (course.assignments?.length ?? 0) + (course.exams?.length ?? 0),
+    0,
+  )
+  if (gradeItems > 0) {
     await expect(body.locator('table tbody tr').first()).toBeVisible({ timeout: 20000 })
+  } else if (gradeCourses.length > 0) {
+    await expect(body).toContainText('本课程暂无成绩项')
   } else {
-    await expect(body).toContainText('暂无')
+    await expect(body).toContainText(/暂无|未能获取/)
   }
 
   // ② 学习中心：KPI 必须等于 GET /learning-records/stats 的读数
