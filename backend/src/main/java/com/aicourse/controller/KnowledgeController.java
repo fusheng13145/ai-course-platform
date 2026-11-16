@@ -12,6 +12,7 @@ import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.dto.KnowledgePathPlanDTO;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
+import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
@@ -21,6 +22,7 @@ import com.aicourse.vo.KnowledgeGraphVO;
 import com.aicourse.vo.KnowledgeOverviewVO;
 import com.aicourse.vo.KnowledgePointRelationsVO;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
+import com.aicourse.vo.MasteryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -33,7 +35,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -60,6 +61,7 @@ public class KnowledgeController {
     private final AIService aiService;
     private final KnowledgeGraphService knowledgeGraphService;
     private final CourseAccessControl courseAccessControl;
+    private final CourseEnrollmentService courseEnrollmentService;
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
     /** 核心知识点判定阈值：重要度不低于该值 */
@@ -69,12 +71,14 @@ public class KnowledgeController {
                                KnowledgePointRelationService relationService,
                                AIService aiService,
                                KnowledgeGraphService knowledgeGraphService,
-                               CourseAccessControl courseAccessControl) {
+                               CourseAccessControl courseAccessControl,
+                               CourseEnrollmentService courseEnrollmentService) {
         this.knowledgePointService = knowledgePointService;
         this.relationService = relationService;
         this.aiService = aiService;
         this.knowledgeGraphService = knowledgeGraphService;
         this.courseAccessControl = courseAccessControl;
+        this.courseEnrollmentService = courseEnrollmentService;
     }
 
     // ==================== 知识点 CRUD / 列表（/knowledge/points） ====================
@@ -249,16 +253,21 @@ public class KnowledgeController {
     }
 
     /**
-     * 计算学生对某知识点的掌握度
+     * 计算学生对某知识点的掌握度。
      * GET /api/knowledge/points/{id}/mastery/{userId}
+     * <p>2026-11-16 P0-4：返回结构化对象（score/level/answered/关联题统计），不再返回裸数值；
+     * 教师/管理员查询时必须确认目标学生确实在该课程中有有效选课，避免学情隐私越权。</p>
      */
     @GetMapping("/points/{id}/mastery/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER') or #userId == authentication.principal")
-    public ApiResponse<BigDecimal> calculateMastery(@PathVariable Long id, @PathVariable Long userId,
-                                                    Authentication auth) {
+    public ApiResponse<MasteryVO> calculateMastery(@PathVariable Long id, @PathVariable Long userId,
+                                                   Authentication auth) {
         KnowledgePoint point = requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(knowledgePointService.calculateMastery(id, userId));
+        if (userId == null || !courseEnrollmentService.hasApprovedEnrollment(userId, point.getCourseId())) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "该学生不在此课程，无法读取掌握度");
+        }
+        return ApiResponse.success(knowledgePointService.calculateMasteryDetail(id, userId));
     }
 
     /**

@@ -5,15 +5,13 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
-import com.aicourse.entity.Question;
-import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
-import com.aicourse.service.QuestionService;
+import com.aicourse.service.component.learning.KnowledgeMasteryComponent;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
-import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.MasteryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.cache.annotation.CacheEvict;
@@ -24,12 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import com.aicourse.common.JsonUtils;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -45,15 +41,12 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     private static final String CACHE_NAME = "knowledgePoints";
 
     private final KnowledgePointRelationService relationService;
-    private final QuestionService questionService;
-    private final WrongQuestionService wrongQuestionService;
+    private final KnowledgeMasteryComponent masteryComponent;
 
     public KnowledgePointServiceImpl(@Lazy KnowledgePointRelationService relationService,
-                                     QuestionService questionService,
-                                     WrongQuestionService wrongQuestionService) {
+                                     KnowledgeMasteryComponent masteryComponent) {
         this.relationService = relationService;
-        this.questionService = questionService;
-        this.wrongQuestionService = wrongQuestionService;
+        this.masteryComponent = masteryComponent;
     }
 
     /**
@@ -252,55 +245,27 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     }
 
     /**
-     * 计算知识点掌握度（基于错题本中该知识点的掌握情况）
+     * 计算知识点掌握度（内部兼容入口，返回百分比；无真实作答证据时返回 null）。
+     * <p>业务与接口应优先使用 {@link #calculateMasteryDetail(Long, Long)}，以便前端区分
+     * “0 分”和“未评估”。</p>
      */
     @Override
     public BigDecimal calculateMastery(Long pointId, Long studentId) {
-        // question.knowledgePoints 字段存储「逗号分隔的知识点名称列表」。
-        // 须先取知识点名称再按名称匹配：原实现用 pointId 做 LIKE，既匹配不到名称（ID 数字 vs 中文名），
-        // 又存在子串误匹配（如 1 命中 12/11），导致掌握度计算失真。
+        MasteryVO detail = calculateMasteryDetail(pointId, studentId);
+        return detail == null ? null : detail.getScore();
+    }
+
+    /**
+     * 计算知识点掌握度明细（2026-11-16 P0-4）：按课程题库 + 最近考试得分 + 错题本
+     * 的真实证据计算，不再“无错题=100”，也不再跨课程统计同名题目。
+     */
+    @Override
+    public MasteryVO calculateMasteryDetail(Long pointId, Long studentId) {
         KnowledgePoint point = this.getById(pointId);
-        if (point == null || point.getName() == null || point.getName().isBlank()) {
-            // 知识点不存在或无名称：视同无关联题目
-            return BigDecimal.valueOf(0).setScale(2, RoundingMode.HALF_UP);
+        if (point == null) {
+            return MasteryVO.unknown(0, "知识点不存在");
         }
-        // 精确匹配：FIND_IN_SET 判定名称是否为 knowledge_points 的独立逗号分隔项；
-        // 兼容中英文逗号/分号分隔符，避免 LIKE '%名称%' 误匹配「函数」命中「三角函数」。
-        LambdaQueryWrapper<Question> questionWrapper = new LambdaQueryWrapper<Question>()
-                .apply("FIND_IN_SET({0}, REPLACE(REPLACE(IFNULL(knowledge_points, ''), '，', ','), ';', ',')) > 0",
-                        point.getName());
-        List<Question> relatedQuestions = questionService.list(questionWrapper);
-
-        if (relatedQuestions.isEmpty()) {
-            // 无关联题目，返回默认值
-            return BigDecimal.valueOf(0).setScale(2, RoundingMode.HALF_UP);
-        }
-
-        List<Long> questionIds = relatedQuestions.stream()
-                .map(Question::getId)
-                .collect(Collectors.toList());
-
-        // 查询学生针对这些题目的错题记录
-        LambdaQueryWrapper<WrongQuestion> wrongWrapper = new LambdaQueryWrapper<WrongQuestion>()
-                .eq(WrongQuestion::getStudentId, studentId)
-                .in(WrongQuestion::getQuestionId, questionIds);
-        List<WrongQuestion> wrongRecords = wrongQuestionService.list(wrongWrapper);
-
-        int totalQuestions = questionIds.size();
-        if (wrongRecords.isEmpty()) {
-            // 无错题记录，视为全部正确
-            return BigDecimal.valueOf(100.00).setScale(2, RoundingMode.HALF_UP);
-        }
-
-        // 统计已掌握的错题数量（mastered=true）
-        long masteredCount = wrongRecords.stream()
-                .filter(wr -> Boolean.TRUE.equals(wr.getMastered()))
-                .count();
-
-        // 计算掌握比例：(已掌握数 + 未出错数) / 总题数 * 100
-        int notWrongCount = totalQuestions - wrongRecords.size();
-        double masteryRate = ((double) masteredCount + notWrongCount) / totalQuestions * 100;
-        return BigDecimal.valueOf(masteryRate).setScale(2, RoundingMode.HALF_UP);
+        return masteryComponent.evaluate(point, studentId);
     }
 
     /**
@@ -463,7 +428,6 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
         if (courseIds == null || courseIds.isEmpty() || limit <= 0) {
             return List.of();
         }
-        // 1) 课程知识点（一次 in 查询；按重要度降序）
         List<KnowledgePoint> points = list(new LambdaQueryWrapper<KnowledgePoint>()
                 .in(KnowledgePoint::getCourseId, courseIds)
                 .orderByDesc(KnowledgePoint::getImportance));
@@ -471,68 +435,25 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
             return List.of();
         }
 
-        // 2) 课程题库（一次查询），按知识点名称精确切分建索引（与 calculateMastery 的
-        //    FIND_IN_SET 语义一致：名称必须命中独立逗号/分号分隔项，防子串误匹配）
-        List<Question> courseQuestions = questionService.list(new LambdaQueryWrapper<Question>()
-                .in(Question::getCourseId, courseIds)
-                .select(Question::getId, Question::getKnowledgePoints));
-        Map<String, List<Long>> questionsByKpName = new HashMap<>();
-        for (Question q : courseQuestions) {
-            for (String name : splitKpNames(q.getKnowledgePoints())) {
-                questionsByKpName.computeIfAbsent(name, k -> new ArrayList<>()).add(q.getId());
-            }
-        }
-
-        // 3) 学生错题记录（一次查询），按题聚合已掌握状态
-        List<Long> allQuestionIds = courseQuestions.stream().map(Question::getId).toList();
-        Map<Long, Boolean> wrongByQuestion = new HashMap<>();
-        if (!allQuestionIds.isEmpty()) {
-            for (WrongQuestion wq : wrongQuestionService.list(new LambdaQueryWrapper<WrongQuestion>()
-                    .eq(WrongQuestion::getStudentId, studentId)
-                    .in(WrongQuestion::getQuestionId, allQuestionIds))) {
-                wrongByQuestion.put(wq.getQuestionId(), Boolean.TRUE.equals(wq.getMastered()));
-            }
-        }
-
-        // 4) 按同一公式内存计算：(已掌握 + 未出错) / 总关联题数 * 100
+        // 2026-11-16 P0-4：与单点掌握度共用同一套证据口径；未作答/无证据的点不进入
+        // “薄弱点”列表，避免旧实现把“无错题”当成 100 或把缺失数据当成 0 的假信号。
+        Map<Long, MasteryVO> evaluated = masteryComponent.evaluate(points, studentId);
         List<Map<String, Object>> snapshot = new ArrayList<>();
         for (KnowledgePoint point : points) {
-            if (point.getName() == null || point.getName().isBlank()) {
+            MasteryVO vo = evaluated.get(point.getId());
+            if (vo == null || !vo.isAnswered() || vo.getScore() == null) {
                 continue;
             }
-            List<Long> related = questionsByKpName.getOrDefault(point.getName().trim(), List.of());
-            long mastered = related.stream().filter(id -> Boolean.TRUE.equals(wrongByQuestion.get(id))).count();
-            long wrong = related.stream().filter(wrongByQuestion::containsKey).count();
-            long notWrong = related.size() - wrong;
-            double masteryRate = related.isEmpty() ? 0d
-                    : (mastered + notWrong) / (double) related.size() * 100;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("courseId", point.getCourseId());
             row.put("kpId", point.getId());
             row.put("name", point.getName());
-            row.put("mastery", BigDecimal.valueOf(masteryRate).setScale(2, RoundingMode.HALF_UP));
+            row.put("mastery", vo.getScore());
+            row.put("answeredQuestions", vo.getAnsweredQuestions());
+            row.put("totalQuestions", vo.getTotalQuestions());
             snapshot.add(row);
         }
         snapshot.sort(Comparator.comparingDouble(m -> ((Number) m.get("mastery")).doubleValue()));
         return snapshot.subList(0, Math.min(limit, snapshot.size()));
-    }
-
-    /** 拆分题目知识点名称（兼容 JSON 数组与中英文逗号/分号形态，与题库写入口径一致）。 */
-    private static List<String> splitKpNames(String knowledgePoints) {
-        if (knowledgePoints == null || knowledgePoints.isBlank()) {
-            return List.of();
-        }
-        String trimmed = knowledgePoints.trim();
-        if (trimmed.startsWith("[")) {
-            try {
-                List<String> names = EXTRACT_OM.readValue(trimmed, new TypeReference<List<String>>() {});
-                return names.stream().filter(n -> n != null && !n.isBlank())
-                        .map(String::trim).collect(Collectors.toList());
-            } catch (Exception e) {
-                // 非法 JSON 退回分隔符拆分
-            }
-        }
-        return Arrays.stream(trimmed.split("[,，;；]"))
-                .map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList());
     }
 }

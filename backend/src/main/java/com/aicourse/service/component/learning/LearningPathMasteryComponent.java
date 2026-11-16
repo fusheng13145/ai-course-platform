@@ -37,8 +37,8 @@ public class LearningPathMasteryComponent {
      * 从学生错题本自动推导知识点掌握度（0~100）。
      * 只采用与课程知识图谱节点同名匹配的错题分组，并复用
      * {@link KnowledgePointService#calculateMastery(Long, Long)} 的统计算法，保证学习路径与
-     * 知识点维度的掌握度口径一致。名称无法匹配图谱节点的分组直接跳过（记录 WARN），
-     * 不产出兜底分数；这些知识点由调用方按默认值 50 处理并标记为“未评估”。
+     * 知识点维度的掌握度口径一致（考试得分优先、错题本兜底）。名称无法匹配图谱节点的
+     * 分组直接跳过（记录 WARN），不产出兜底分数；调用方按“未评估”处理，不得写成 50 分。
      *
      * @param studentId 学生ID
      * @param courseId  课程ID
@@ -69,9 +69,12 @@ public class LearningPathMasteryComponent {
                 if (kpName == null || kpName.isBlank()) continue;
                 KnowledgePoint point = pointByName.get(kpName);
                 if (point != null) {
-                    // 与 KnowledgePointServiceImpl.calculateMastery 统一口径
+                    // 与 KnowledgePointServiceImpl.calculateMastery 统一口径；无真实作答证据
+                    // 时不写 50 分这种伪掌握度，保持“未评估”语义。
                     BigDecimal rate = knowledgePointService.calculateMastery(point.getId(), studentId);
-                    mastery.put(kpName, rate != null ? rate.doubleValue() : 50.0);
+                    if (rate != null) {
+                        mastery.put(kpName, rate.doubleValue());
+                    }
                 } else {
                     // 名称无法映射到图谱节点：不写兜底分数（那会把“无依据”伪装成学情诊断）。
                     // 由调用方按未评估默认值处理，这里只留可排查的告警，样例最多 3 个避免刷屏。

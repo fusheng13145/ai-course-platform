@@ -98,6 +98,22 @@ class LearningPathServiceImplTest {
     }
 
     @Test
+    @DisplayName("derive mastery 无作答证据不写 50 分伪掌握度")
+    void deriveMastery_noEvidenceDoesNotWritePlaceholderScore() {
+        WrongQuestion wq = new WrongQuestion();
+        wq.setMastered(false);
+        when(wrongQuestionService.getByKnowledgePoints(1L, 1L))
+                .thenReturn(List.of(new WrongQuestionGroupVO(null, "函数", List.of(wq))));
+        when(knowledgePointService.list(any(Wrapper.class)))
+                .thenReturn(List.of(kp(1L, "函数", 5, 60, "CONCEPT")));
+        when(knowledgePointService.calculateMastery(1L, 1L)).thenReturn(null);
+
+        Map<String, Double> result = service.deriveMastery(1L, 1L);
+
+        assertFalse(result.containsKey("函数"), "无证据时不得伪造 50 分，实际=" + result);
+    }
+
+    @Test
     @DisplayName("deriveMastery 未命中不写兜底分数，交由调用方按未评估处理")
     void deriveMastery_unmatchedPointIsNotScored() {
         WrongQuestion wq = new WrongQuestion(); wq.setMastered(false);

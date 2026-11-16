@@ -14,6 +14,7 @@ const knowledgeApi = vi.hoisted(() => ({
   getRelationGraphData: vi.fn(),
   getKnowledgeOverview: vi.fn(),
   getMastery: vi.fn(),
+  getKnowledgePointById: vi.fn(),
   planLearningPath: vi.fn(),
   getKnowledgeSubGraph: vi.fn(),
   ingestKnowledgeGraph: vi.fn(),
@@ -50,6 +51,7 @@ beforeEach(() => {
     },
   })
   knowledgeApi.getKnowledgeOverview.mockResolvedValue({ data: {} })
+  knowledgeApi.getKnowledgePointById.mockResolvedValue({ data: null })
   knowledgeApi.getMastery.mockResolvedValue({ data: { score: 78, level: '熟练' } })
 })
 
@@ -96,6 +98,27 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     expect(knowledgeApi.getMastery).toHaveBeenCalledWith(1, 42)
     expect(wrapper.text()).toContain('我的掌握度')
     expect(wrapper.text()).toContain('78 分')
+  })
+
+  it('无作答证据：显示未评估并说明原因，不用“暂无数据”占位', async () => {
+    knowledgeApi.getMastery.mockResolvedValue({
+      data: {
+        score: null,
+        level: '未评估',
+        answered: false,
+        totalQuestions: 2,
+        answeredQuestions: 0,
+        note: '该知识点暂无作答记录',
+      },
+    })
+    const wrapper = mount(KnowledgeGraphTab, { props: { courseId: COURSE_ID, mode: 'student' } })
+    await flushPromises()
+    await wrapper.findAll('.kg-node')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('我的掌握度 未评估')
+    const chip = wrapper.findAll('.chip').find((node) => node.text().includes('我的掌握度'))
+    expect(chip?.attributes('title')).toContain('该知识点暂无作答记录')
+    expect(wrapper.text()).not.toContain('暂无数据')
   })
 
   it('教师模式不拉掌握度（该读数只面向学生本人）', async () => {

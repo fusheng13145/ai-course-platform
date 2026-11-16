@@ -4,8 +4,7 @@ import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.service.KnowledgePointRelationService;
-import com.aicourse.service.QuestionService;
-import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.component.learning.KnowledgeMasteryComponent;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -41,15 +40,14 @@ class KnowledgePointServiceImplExtractGraphTest {
 
     @Mock private KnowledgePointMapper kpMapper;
     @Mock private KnowledgePointRelationService relationService;
-    @Mock private QuestionService questionService;
-    @Mock private WrongQuestionService wrongQuestionService;
+    @Mock private KnowledgeMasteryComponent masteryComponent;
 
     private KnowledgePointServiceImpl service;
 
     @BeforeEach
     void setUp() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), KnowledgePoint.class);
-        service = new KnowledgePointServiceImpl(relationService, questionService, wrongQuestionService);
+        service = new KnowledgePointServiceImpl(relationService, masteryComponent);
         ReflectionTestUtils.setField(service, "baseMapper", kpMapper);
     }
 

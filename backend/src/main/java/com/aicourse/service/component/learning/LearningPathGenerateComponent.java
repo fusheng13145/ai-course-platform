@@ -70,7 +70,9 @@ public class LearningPathGenerateComponent {
                         .last("LIMIT 16")));
 
         points.sort(Comparator
-                .comparingDouble((KnowledgePoint p) -> mastery.getOrDefault(p.getName(), 50.0))
+                // 有真实学情证据的知识点优先；无证据的保持“未评估”，不伪造 50 分参与薄弱排序
+                .comparingInt((KnowledgePoint p) -> mastery.containsKey(p.getName()) ? 0 : 1)
+                .thenComparingDouble(p -> mastery.getOrDefault(p.getName(), 0.0))
                 .thenComparing(p -> p.getImportance() == null ? 0 : -p.getImportance()));
         if (points.size() > 8) {
             points = points.subList(0, 8);
@@ -84,10 +86,12 @@ public class LearningPathGenerateComponent {
             node.setNodeType("study");
             node.setStatus("PENDING");
             node.setOrderIndex(i);
-            // 掌握度加权时长：mastery=0 → 2.0x，mastery=100 → 1.0x，未评估默认 1.5x
-            double m = mastery.getOrDefault(p.getName(), 50.0);
+            // 掌握度加权时长：已知 mastery=0 → 2.0x、100 → 1.0x；未评估用基准时长，不套 1.5x 假系数
+            Double knownMastery = mastery.get(p.getName());
+            double m = knownMastery == null ? 0.0 : knownMastery;
             int baseTime = p.getEstimatedTime() != null ? p.getEstimatedTime() : 60;
-            node.setEstimatedTime(Math.max(15, (int) (baseTime * (2.0 - m / 100.0))));
+            double factor = knownMastery == null ? 1.0 : 2.0 - m / 100.0;
+            node.setEstimatedTime(Math.max(15, (int) (baseTime * factor)));
             String desc = p.getDescription();
             if (mastery.containsKey(p.getName())) {
                 desc = (desc == null ? "" : desc + " ")
