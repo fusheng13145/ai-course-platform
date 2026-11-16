@@ -49,6 +49,8 @@ class QuestionControllerTest extends ControllerTestBase {
     private com.aicourse.service.component.ai.AiGenerationPolicy aiGenerationPolicy;
     @MockitoBean
     private CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.QuestionPracticeService questionPracticeService;
 
     /**
      * 治理开关缺省即「允许」（与 {@code AiGenerationPolicy} 口径一致，缺省必须等于现状）：
@@ -57,6 +59,9 @@ class QuestionControllerTest extends ControllerTestBase {
     @BeforeEach
     void allowAiGenerationByDefault() {
         lenient().when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(true);
+        // Mockito 对 List 返回值默认给空集合；本测试统一按「校级/不限制」口径处理，
+        // 课程收口用例在各自测试内单独打桩。
+        lenient().when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
         // LambdaQueryWrapper 的列名与参数在 getSqlSegment() 时才落地，先注册实体元数据
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Question.class);
     }
@@ -310,7 +315,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("GET /questions/random - 未选课学生跨课程取题403且不触达查询（U2 收口）")
     void randomSelect_studentNotEnrolled_forbidden_403() throws Exception {
         doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程"))
-                .when(courseAccessControl).assertCanReadCourse(eq(1L), any());
+                .when(questionPracticeService).assertPracticeAllowed(eq(1L), any());
         mockMvc.perform(get("/questions/random?courseId=1&count=1").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
         verify(questionService, never()).randomSelect(any(), any(), any(), anyInt());
@@ -356,6 +361,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /questions/1/stats - 返回200且data透传统计")
     void getStats_authorized_returns_success() throws Exception {
+        when(questionService.getById(any())).thenReturn(sampleQuestion());
         when(questionService.getQuestionStats(any())).thenReturn(
                 new QuestionStatsVO(1L, 5, null, "MEDIUM", "SINGLE", null, true, null));
         mockMvc.perform(get("/questions/1/stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))

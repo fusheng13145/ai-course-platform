@@ -4,8 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.JsonUtils;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
@@ -38,12 +40,15 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     private final AIService aiService;
     private final ObjectMapper objectMapper;
+    /** 知识点查询按名称匹配题库 JSON 列；只依赖 Mapper，避免与 KnowledgePointService 形成构造期环。 */
+    private final KnowledgePointMapper knowledgePointMapper;
 
     // @Lazy 打破与 AIServiceImpl 的构造期循环依赖：
     // AIServiceImpl -> RAGServiceImpl -> KnowledgePointServiceImpl -> QuestionServiceImpl -> AIServiceImpl
     // 本类仅在运行时方法（generateQuestion）中使用 AIService，构造期无需立即就绪。
-    public QuestionServiceImpl(@Lazy AIService aiService) {
+    public QuestionServiceImpl(@Lazy AIService aiService, KnowledgePointMapper knowledgePointMapper) {
         this.aiService = aiService;
+        this.knowledgePointMapper = knowledgePointMapper;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -386,6 +391,27 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     }
 
     /**
+     * 智能搜索（按可读课程集合收口）。此路径不缓存：课程集合是请求级 ACL 结果，
+     * 不能与公开搜索共用同一个 {@code questionSearch} key。
+     */
+    @Override
+    public Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword,
+                                          int page, int size, List<Long> readableCourseIds) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return new Page<>(page, size, 0);
+        }
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(courseId != null, Question::getCourseId, courseId)
+                .eq(type != null && !type.isEmpty(), Question::getType, type)
+                .eq(difficulty != null && !difficulty.isEmpty(), Question::getDifficulty, difficulty)
+                .like(keyword != null && !keyword.isEmpty(), Question::getContent, keyword)
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
+                .orderByDesc(Question::getCreatedAt);
+
+        return this.page(Page.of(page, size), queryWrapper);
+    }
+
+    /**
      * 获取题目详情（含选项解析后的结构化数据）
      * 返回题目基本信息及解析后的选项列表
      */
@@ -465,10 +491,17 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     public List<Question> getByKnowledgePoint(Long knowledgePointId) {
-        // 知识点存储为JSON/逗号分隔ID，使用LIKE模糊匹配
-        String kpIdStr = knowledgePointId.toString();
+        if (knowledgePointId == null) {
+            return Collections.emptyList();
+        }
+        KnowledgePoint kp = knowledgePointMapper.selectById(knowledgePointId);
+        if (kp == null || kp.getName() == null || kp.getName().isBlank()) {
+            return Collections.emptyList();
+        }
+        // P0-A1 修正：题目 JSON 列存的是知识点名称，原实现 LIKE(kpId) 只能命中数字 ID，
+        // 读路径与掌握度（按名称归一）口径分叉。这里按名称做 JSON 精确包含匹配。
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
-                .like(Question::getKnowledgePoints, kpIdStr)
+                .apply("JSON_CONTAINS(knowledge_points, JSON_QUOTE({0}))", kp.getName())
                 .eq(Question::getIsActive, true)
                 .orderByDesc(Question::getCreatedAt);
 
@@ -544,6 +577,19 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         return new QuestionBankStatisticsVO(total, today);
     }
 
+    @Override
+    public QuestionBankStatisticsVO getBankStatistics(List<Long> readableCourseIds) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return new QuestionBankStatisticsVO(0L, 0L);
+        }
+        LambdaQueryWrapper<Question> totalWrapper = new LambdaQueryWrapper<Question>()
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds);
+        LambdaQueryWrapper<Question> todayWrapper = new LambdaQueryWrapper<Question>()
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
+                .ge(Question::getCreatedAt, LocalDate.now().atStartOfDay());
+        return new QuestionBankStatisticsVO(this.count(totalWrapper), this.count(todayWrapper));
+    }
+
     /**
      * 获取易错题TOP N
      * 按正确率升序、使用次数降序排序取前N条
@@ -558,6 +604,24 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 .gt(Question::getUsageCount, 0)  // 至少被使用过
                 .orderByAsc(Question::getCorrectRate)   // 正确率低的排前面
                 .orderByDesc(Question::getUsageCount)   // 使用次数多的优先
+                .last("LIMIT " + safeLimit);
+
+        return this.list(queryWrapper);
+    }
+
+    @Override
+    public List<Question> getErrorProneQuestions(Long courseId, int limit, List<Long> readableCourseIds) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(courseId != null, Question::getCourseId, courseId)
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
+                .eq(Question::getIsActive, true)
+                .gt(Question::getUsageCount, 0)
+                .orderByAsc(Question::getCorrectRate)
+                .orderByDesc(Question::getUsageCount)
                 .last("LIMIT " + safeLimit);
 
         return this.list(queryWrapper);

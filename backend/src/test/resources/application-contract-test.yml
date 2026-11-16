@@ -88,6 +88,8 @@ spring:
         # V21（2026-11-14）：resources/resource_versions.file_type 扩容 100（docx/xlsx MIME
         # 最长 71 字符，varchar(50) 必截断 400）—— 结构迁移，非演示数据
         - classpath:db/migration/V21__resources_file_type_len.sql
+        # V23（2026-11-17）：courses.question_practice_enabled 课程级学生刷题开关（纯加列）
+        - classpath:db/migration/V23__course_question_practice.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

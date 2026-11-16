@@ -1,6 +1,7 @@
 package com.aicourse.vo;
 
 import com.aicourse.entity.Question;
+import com.aicourse.util.JsonColumnNormalizer;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -47,6 +48,9 @@ public class QuestionVO {
     @Schema(description = "关联知识点ID列表", example = "[101, 102]")
     private List<Long> knowledgePointIds;
 
+    @Schema(description = "关联知识点名称列表（题库当前按名称存储）", example = "[\"函数\",\"闭包\"]")
+    private List<String> knowledgePoints;
+
     @Schema(description = "标签列表，逗号分隔", example = "基础语法,常考")
     private List<String> tags;
 
@@ -89,6 +93,8 @@ public class QuestionVO {
     public void setAnalysis(String analysis) { this.analysis = analysis; }
     public List<Long> getKnowledgePointIds() { return knowledgePointIds; }
     public void setKnowledgePointIds(List<Long> knowledgePointIds) { this.knowledgePointIds = knowledgePointIds; }
+    public List<String> getKnowledgePoints() { return knowledgePoints; }
+    public void setKnowledgePoints(List<String> knowledgePoints) { this.knowledgePoints = knowledgePoints; }
     public List<String> getTags() { return tags; }
     public void setTags(List<String> tags) { this.tags = tags; }
     public String getSource() { return source; }
@@ -125,11 +131,9 @@ public class QuestionVO {
         // 导致管理端题库的星级恒显示 1 星（中等/困难均显示「简单」），编辑表单难度回填亦失效。
         vo.setDifficulty(q.getDifficulty());
         // 选项 JSON 字符串 → List
-        String opts = q.getOptions();
-        if (opts != null && opts.startsWith("[")) {
-            vo.setOptions(java.util.Arrays.stream(opts.replaceAll("[\\[\\]\"]", "")
-                .split("\\s*,\\s*")).filter(s -> !s.isEmpty()).toList());
-        }
+        vo.setOptions(JsonColumnNormalizer.toStringList(q.getOptions()));
+        // 题库当前按知识点名称存储；学生 VO 只暴露名称，不猜测/回填不存在的 ID。
+        vo.setKnowledgePoints(JsonColumnNormalizer.toStringList(q.getKnowledgePoints()));
         return vo;
     }
 }

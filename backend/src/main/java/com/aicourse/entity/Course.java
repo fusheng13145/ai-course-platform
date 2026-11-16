@@ -163,6 +163,13 @@ public class Course {
      */
     private Long semesterId;
 
+    /**
+     * 学生题库刷题开关（P0-A1，V23）。
+     * 默认关闭；教师可在课程设置中开放，学生课程「刷题」页签只在开启后可用。
+     */
+    @TableField("question_practice_enabled")
+    private Boolean questionPracticeEnabled;
+
     public void setIsActive(Boolean active) {
         isActive = active;
     }

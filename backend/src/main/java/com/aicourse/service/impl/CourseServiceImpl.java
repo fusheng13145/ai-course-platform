@@ -156,6 +156,9 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (course.getMaxStudents() == null) {
             course.setMaxStudents(100);
         }
+        if (course.getQuestionPracticeEnabled() == null) {
+            course.setQuestionPracticeEnabled(false);
+        }
         this.save(course);
         return course;
     }

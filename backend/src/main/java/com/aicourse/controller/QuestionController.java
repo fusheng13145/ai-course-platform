@@ -17,6 +17,7 @@ import com.aicourse.security.RoleUtil;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.service.QuestionPracticeService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.component.ai.AiCallContext;
 import com.aicourse.service.component.ai.AiGenerationPolicy;
@@ -53,16 +54,19 @@ public class QuestionController {
     /** 角色矩阵「限制教师出题权限」的判定：平台级治理开关（ADMIN 不受限）。 */
     private final AiGenerationPolicy aiGenerationPolicy;
     private final CourseAccessControl courseAccessControl;
+    private final QuestionPracticeService questionPracticeService;
 
     public QuestionController(QuestionService questionService, AIService aiService,
                               KnowledgePointService knowledgePointService,
                               AiGenerationPolicy aiGenerationPolicy,
-                              CourseAccessControl courseAccessControl) {
+                              CourseAccessControl courseAccessControl,
+                              QuestionPracticeService questionPracticeService) {
         this.questionService = questionService;
         this.aiService = aiService;
         this.knowledgePointService = knowledgePointService;
         this.aiGenerationPolicy = aiGenerationPolicy;
         this.courseAccessControl = courseAccessControl;
+        this.questionPracticeService = questionPracticeService;
     }
 
     /**
@@ -114,6 +118,10 @@ public class QuestionController {
             @RequestParam(required = false) String difficulty,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
         boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId)
@@ -121,8 +129,11 @@ public class QuestionController {
                 .eq(difficulty != null, Question::getDifficulty, difficulty)
                 .like(keyword != null && !keyword.isBlank(), Question::getContent,
                         keyword == null ? null : keyword.trim())
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
                 .orderByDesc(Question::getCreatedAt);
-        Page<Question> questionPage = questionService.page(Page.of(page, size), queryWrapper);
+        Page<Question> questionPage = readableCourseIds != null && readableCourseIds.isEmpty()
+                ? new Page<>(page, size, 0)
+                : questionService.page(Page.of(page, size), queryWrapper);
         if (questionPage == null) {
             questionPage = Page.of(page, size);
         }
@@ -144,7 +155,10 @@ public class QuestionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "根据ID查询题目详情")
     public ApiResponse<?> getById(@PathVariable Long id, Authentication auth) {
-        Question question = questionService.getById(id);
+        Question question = requireQuestion(id);
+        if (question.getCourseId() != null) {
+            courseAccessControl.assertCanReadCourse(question.getCourseId(), auth);
+        }
         if (RoleUtil.isTeacherOrAdmin(auth)) {
             return ApiResponse.success(question);
         }
@@ -252,11 +266,17 @@ public class QuestionController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
-        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
-        Page<Question> result = questionService.searchQuestions(courseId, type, difficulty, keyword, page, size);
-        if (result == null) {
-            result = new Page<>();
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
         }
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+        Page<Question> result = readableCourseIds != null
+                ? questionService.searchQuestions(courseId, type, difficulty, keyword, page, size, readableCourseIds)
+                : questionService.searchQuestions(courseId, type, difficulty, keyword, page, size);
+        if (result == null) {
+            result = new Page<>(page, size, 0);
+        }
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         if (privileged) {
             return ApiResponse.success(PagedResponse.of(result));
         }
@@ -281,8 +301,8 @@ public class QuestionController {
             @RequestParam(defaultValue = "10") int count,
             Authentication auth) {
         // 对象级 ACL（2026-11-14 审计 U2）：随堂测取题虽走 VO 脱敏，但题干本身是课程内容——
-        // 未选课学生不得跨课程捞题。与资源/章节读面同一成员关系判定（管理员放行、教师须授课、学生须已选课）。
-        courseAccessControl.assertCanReadCourse(courseId, auth);
+        // 未选课学生不得跨课程捞题。P0-A1 起同时要求本课程教师已开放学生刷题。
+        questionPracticeService.assertPracticeAllowed(courseId, auth);
         boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         List<Question> questions = questionService.randomSelect(courseId, type, difficulty, count);
         if (questions == null) {
@@ -303,12 +323,24 @@ public class QuestionController {
     @GetMapping("/kp/{kpId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "按知识点查询题目")
-    public ApiResponse<?> getByKnowledgePoint(@PathVariable Long kpId, Authentication auth) {
-        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
+    public ApiResponse<?> getByKnowledgePoint(@PathVariable Long kpId,
+                                               @RequestParam(required = false) Long courseId,
+                                               Authentication auth) {
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
         List<Question> questions = questionService.getByKnowledgePoint(kpId);
         if (questions == null) {
             questions = java.util.Collections.emptyList();
         }
+        final Long filterCourseId = courseId;
+        final List<Long> readable = readableCourseIds;
+        questions = questions.stream()
+                .filter(q -> filterCourseId == null || filterCourseId.equals(q.getCourseId()))
+                .filter(q -> readable == null || (q.getCourseId() != null && readable.contains(q.getCourseId())))
+                .toList();
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         if (privileged) {
             return ApiResponse.success(questions);
         }
@@ -323,8 +355,12 @@ public class QuestionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "题库总览统计",
             description = "totalCount 含 courseId 为空的历史题；todayCount 按 created_at 本机时区当日 00:00 起算")
-    public ApiResponse<QuestionBankStatisticsVO> getBankStatistics() {
-        return ApiResponse.success(questionService.getBankStatistics());
+    public ApiResponse<QuestionBankStatisticsVO> getBankStatistics(Authentication auth) {
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+        QuestionBankStatisticsVO statistics = readableCourseIds != null
+                ? questionService.getBankStatistics(readableCourseIds)
+                : questionService.getBankStatistics();
+        return ApiResponse.success(statistics);
     }
 
     /**
@@ -336,7 +372,11 @@ public class QuestionController {
     @GetMapping("/{id}/stats")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取题目使用统计")
-    public ApiResponse<QuestionStatsVO> getStats(@PathVariable Long id) {
+    public ApiResponse<QuestionStatsVO> getStats(@PathVariable Long id, Authentication auth) {
+        Question question = requireQuestion(id);
+        if (question.getCourseId() != null) {
+            courseAccessControl.assertCanReadCourse(question.getCourseId(), auth);
+        }
         QuestionStatsVO stats = questionService.getQuestionStats(id);
         return ApiResponse.success(stats);
     }
@@ -355,8 +395,14 @@ public class QuestionController {
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "20") int limit,
             Authentication auth) {
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
         boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
-        List<Question> questions = questionService.getErrorProneQuestions(courseId, limit);
+        List<Question> questions = readableCourseIds != null
+                ? questionService.getErrorProneQuestions(courseId, limit, readableCourseIds)
+                : questionService.getErrorProneQuestions(courseId, limit);
         if (questions == null) {
             questions = java.util.Collections.emptyList();
         }

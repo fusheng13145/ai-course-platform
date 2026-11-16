@@ -1,7 +1,9 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.vo.QuestionBankStatisticsVO;
@@ -43,6 +45,7 @@ class QuestionServiceImplTest {
 
     @Mock private AIService aiService;
     @Mock private QuestionMapper questionMapper;
+    @Mock private KnowledgePointMapper knowledgePointMapper;
 
     @InjectMocks
     private QuestionServiceImpl service;
@@ -53,7 +56,7 @@ class QuestionServiceImplTest {
     void setUp() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Question.class);
 
-        service = new QuestionServiceImpl(aiService);
+        service = new QuestionServiceImpl(aiService, knowledgePointMapper);
         ReflectionTestUtils.setField(service, "baseMapper", questionMapper);
 
         sample = q(100L, "SINGLE", new BigDecimal("5"), "函数");
@@ -457,8 +460,12 @@ class QuestionServiceImplTest {
     // ===================== getByKnowledgePoint =====================
 
     @Test
-    @DisplayName("getByKnowledgePoint like 命中返回列表")
+    @DisplayName("getByKnowledgePoint 按知识点名称 JSON 精确命中")
     void byKp_ok() {
+        KnowledgePoint kp = new KnowledgePoint();
+        kp.setId(7L);
+        kp.setName("函数");
+        when(knowledgePointMapper.selectById(7L)).thenReturn(kp);
         Question a = q(1L, "SINGLE", new BigDecimal("5"), "函数");
         when(questionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(a));
         List<Question> r = service.getByKnowledgePoint(7L);
@@ -466,8 +473,19 @@ class QuestionServiceImplTest {
     }
 
     @Test
+    @DisplayName("getByKnowledgePoint 知识点不存在返回空")
+    void byKp_missingKpReturnsEmpty() {
+        when(knowledgePointMapper.selectById(7L)).thenReturn(null);
+        assertTrue(service.getByKnowledgePoint(7L).isEmpty());
+    }
+
+    @Test
     @DisplayName("getByKnowledgePoint 无命中返回空")
     void byKp_none() {
+        KnowledgePoint kp = new KnowledgePoint();
+        kp.setId(7L);
+        kp.setName("函数");
+        when(knowledgePointMapper.selectById(7L)).thenReturn(kp);
         when(questionMapper.selectList(any(Wrapper.class))).thenReturn(new ArrayList<>());
         assertTrue(service.getByKnowledgePoint(7L).isEmpty());
     }

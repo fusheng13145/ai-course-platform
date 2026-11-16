@@ -57,6 +57,13 @@ public interface QuestionService extends com.baomidou.mybatisplus.extension.serv
     Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword, int page, int size);
 
     /**
+     * 智能搜索（按可读课程集合收口）。
+     * @param readableCourseIds null 表示不限制（校级管理员）；空集合表示无可见课程
+     */
+    Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword,
+                                   int page, int size, List<Long> readableCourseIds);
+
+    /**
      * 获取题目详情（含选项解析后的结构化数据）
      * @param questionId 题目ID
      * @return 题目详情Map
@@ -101,12 +108,22 @@ public interface QuestionService extends com.baomidou.mybatisplus.extension.serv
     QuestionBankStatisticsVO getBankStatistics();
 
     /**
+     * 题库总览统计（按可读课程集合收口）；null 表示不限制（校级管理员）。
+     */
+    QuestionBankStatisticsVO getBankStatistics(List<Long> readableCourseIds);
+
+    /**
      * 获取易错题TOP N
      * @param courseId 课程ID
      * @param limit 返回数量
      * @return 易错题列表
      */
     List<Question> getErrorProneQuestions(Long courseId, int limit);
+
+    /**
+     * 获取易错题TOP N（按可读课程集合收口）；null 表示不限制（校级管理员）。
+     */
+    List<Question> getErrorProneQuestions(Long courseId, int limit, List<Long> readableCourseIds);
 
     /**
      * AI批量生成题目

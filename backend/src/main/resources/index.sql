@@ -337,6 +337,7 @@ CREATE TABLE courses (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   semester_id BIGINT NOT NULL COMMENT '所属学期（4A）：创建时解析 ACTIVE 学期，编号学期内唯一（V17）',
+  question_practice_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '学生题库刷题开关：0-关闭 1-开放（V23）',
   PRIMARY KEY (id),
   UNIQUE KEY uk_courses_semester_code (semester_id, code) COMMENT '学期内课程编号唯一（4A，V17）',
   KEY idx_courses_teacher_id (teacher_id) COMMENT '教师ID索引，用于查询教师教授的课程',

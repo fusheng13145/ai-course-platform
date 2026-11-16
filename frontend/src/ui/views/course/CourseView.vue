@@ -70,6 +70,10 @@
         v-else-if="currentTab === 'exams' && role === 'student'"
         :course-id="courseId"
       />
+      <StudentPracticeTab
+        v-else-if="currentTab === 'practice' && role === 'student'"
+        :course-id="courseId"
+      />
       <SettingsTab
         v-else-if="currentTab === 'settings' || currentTab === 'approval'"
         :role="role"
@@ -119,6 +123,7 @@ import DiscussionTab from './tabs/DiscussionTab.vue'
 import KnowledgeGraphTab from './tabs/KnowledgeGraphTab.vue'
 import AiCenterTab from './tabs/AiCenterTab.vue'
 import StudentExamPanel from '../exam/StudentExamPanel.vue'
+import StudentPracticeTab from './tabs/StudentPracticeTab.vue'
 import { courseTabs, type Role } from '../../nav'
 import { useUi } from '../../composables/ui'
 import { loadCourse, getCourses, type CourseDetail } from '../../data/api'
