@@ -69,9 +69,12 @@ public class LearningPathMasteryComponent {
                 if (kpName == null || kpName.isBlank()) continue;
                 KnowledgePoint point = pointByName.get(kpName);
                 if (point != null) {
-                    // 与 KnowledgePointServiceImpl.calculateMastery 统一口径
+                    // 与 KnowledgePointServiceImpl.calculateMastery 统一口径；无真实作答证据
+                    // 时不写 50 分这种伪掌握度，保持“未评估”语义。
                     BigDecimal rate = knowledgePointService.calculateMastery(point.getId(), studentId);
-                    mastery.put(kpName, rate != null ? rate.doubleValue() : 50.0);
+                    if (rate != null) {
+                        mastery.put(kpName, rate.doubleValue());
+                    }
                 } else {
                     // 名称无法映射到图谱节点：不写兜底分数（那会把“无依据”伪装成学情诊断）。
                     // 由调用方按未评估默认值处理，这里只留可排查的告警，样例最多 3 个避免刷屏。
