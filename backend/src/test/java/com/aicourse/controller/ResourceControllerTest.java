@@ -1,5 +1,7 @@
 package com.aicourse.controller;
+import com.aicourse.common.StorageLayout;
 import com.aicourse.controller.ResourceController;
+import com.aicourse.service.FileStorageService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.Resource;
@@ -7,6 +9,7 @@ import com.aicourse.vo.ChapterResourceTreeVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -14,9 +17,9 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +48,30 @@ class ResourceControllerTest extends ControllerTestBase {
     // B-13㉑：上传成功后需落首版 resource_versions，@WebMvcTest 需显式 mock
     @MockitoBean
     private com.aicourse.service.ResourceVersionService resourceVersionService;
+
+    @MockitoBean
+    private FileStorageService fileStorageService;
+
+    @BeforeEach
+    void stubStorage() {
+        org.mockito.Mockito.when(fileStorageService.upload(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(InputStream.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    byte[] bytes = ((InputStream) inv.getArgument(1)).readAllBytes();
+                    StorageLayout.writeBytes(key, bytes);
+                    return key;
+                });
+        org.mockito.Mockito.when(fileStorageService.downloadByUrl(
+                        org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> StorageLayout.openRead((String) inv.getArgument(0)));
+        org.mockito.Mockito.when(fileStorageService.deleteByUrl(
+                        org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> StorageLayout.deleteByUrl((String) inv.getArgument(0)));
+    }
 
     private Resource sampleResource(Long id, String fileName) {
         Resource r = new Resource();
@@ -264,7 +291,7 @@ class ResourceControllerTest extends ControllerTestBase {
         JsonNode node = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
         String url = node.path("data").path("url").asText();
         if (url.startsWith("/uploads/")) {
-            Files.deleteIfExists(Paths.get("uploads", url.substring("/uploads/".length())));
+            Files.deleteIfExists(StorageLayout.resolveUrl(url));
         }
     }
 

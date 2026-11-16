@@ -269,9 +269,11 @@ services:
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       QWEN_MODEL: ${QWEN_MODEL:-qwen-plus}
-      # 分片上传的中间态目录：application.yaml:465 读 FILE_CHUNK_DIR，默认 upload-chunks/。
+      # 上传文件根：默认不落仓库 uploads/，容器内固定到持久卷；对外仍经 /uploads/** 映射。
+      FILE_UPLOAD_DIR: ${FILE_UPLOAD_DIR:-/app/storage}
+      # 分片上传的中间态目录：application.yaml 读 FILE_CHUNK_DIR。
       # 改前该目录不在任何卷上，容器重建即丢全部断点续传进度（与 uploads 同类的旧缺陷）。
-      FILE_CHUNK_DIR: ${FILE_CHUNK_DIR:-/app/upload-chunks}
+      FILE_CHUNK_DIR: ${FILE_CHUNK_DIR:-/app/chunks}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
       # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由本机启动器经 local profile 放宽」，
       #   该句仅覆盖 start.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
@@ -360,11 +362,10 @@ services:
       retries: 12
       start_period: 60s
     volumes:
-      # 上传文件持久化（修复：原未挂卷，容器重建后 uploads/ 下所有教学资源/附件丢失；
-      # 与 UploadResourceConfig 静态映射及 ResourceController 落盘目录 /app/uploads 对齐）
-      - uploads-data:/app/uploads
+      # 上传文件持久化（默认写入仓库外 /app/storage，经 FILE_UPLOAD_DIR 指向该卷）
+      - uploads-data:/app/storage
       # 分片上传中间态（FILE_CHUNK_DIR）：容器重建不丢续传进度（2026-11-06 补件）
-      - upload-chunks-data:/app/upload-chunks
+      - upload-chunks-data:/app/chunks
       # 数据库备份持久化：应用内「系统管理→备份」生成的 backups/ 目录落盘到卷，
       # 容器重建不丢失（配合 mysql-backup 服务的定时全量备份构成双保险）
       - backups-data:/app/backups
@@ -863,8 +864,9 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  # 上传文件持久卷（backend FILE_UPLOAD_DIR=/app/storage）
   uploads-data:
-  # 分片上传中间态（backend FILE_CHUNK_DIR，2026-11-06 补件）
+  # 分片上传中间态（backend FILE_CHUNK_DIR=/app/chunks，2026-11-06 补件）
   upload-chunks-data:
   # 定时备份卷（mysql-backup 服务写入）
   mysql-backups:

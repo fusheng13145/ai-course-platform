@@ -49,12 +49,15 @@ class ModerationServiceImplTest {
     private UserService userService;
     @Mock
     private com.aicourse.service.OperationLogService operationLogService;
+    @Mock
+    private com.aicourse.service.FileStorageService fileStorageService;
 
     private ModerationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ModerationServiceImpl(discussionPostMapper, resourceMapper, userService, operationLogService);
+        service = new ModerationServiceImpl(discussionPostMapper, resourceMapper, userService,
+                operationLogService, fileStorageService);
     }
 
     private DiscussionPost post(Long id, Long authorId) {

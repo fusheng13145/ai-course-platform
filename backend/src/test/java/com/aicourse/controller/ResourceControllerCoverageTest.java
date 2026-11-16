@@ -1,13 +1,16 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.StorageLayout;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.Resource;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.FileStorageService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Test;
@@ -88,6 +91,29 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     // B-13㉑：ResourceController 新增的版本服务依赖，@WebMvcTest 需显式 mock
     @MockitoBean
     private ResourceVersionService resourceVersionService;
+    @MockitoBean
+    private FileStorageService fileStorageService;
+
+    @BeforeEach
+    void stubStorage() {
+        org.mockito.Mockito.when(fileStorageService.upload(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(java.io.InputStream.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    byte[] bytes = ((java.io.InputStream) inv.getArgument(1)).readAllBytes();
+                    StorageLayout.writeBytes(key, bytes);
+                    return key;
+                });
+        org.mockito.Mockito.when(fileStorageService.downloadByUrl(
+                        org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> StorageLayout.openRead((String) inv.getArgument(0)));
+        org.mockito.Mockito.when(fileStorageService.deleteByUrl(
+                        org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> StorageLayout.deleteByUrl((String) inv.getArgument(0)));
+    }
 
     private static final long COURSE_ID = 1L;
     private static final long OWNER_TEACHER = 100L;
@@ -156,12 +182,14 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         assertTrue(url.startsWith("/uploads/") && url.endsWith(expectedSuffix),
                 "url 应为 /uploads/<uuid>" + expectedSuffix + "，实际：" + url);
         assertEquals(fileName, data.path("fileName").asText());
-        Path written = Paths.get(url.substring(1));
+        Path written = StorageLayout.resolveUrl(url);
         try {
-            assertTrue(Files.exists(written), "文件应真实落盘：" + written);
+            assertTrue(written != null && Files.exists(written), "文件应真实落盘：" + written);
             assertEquals(bytes.length, Files.size(written));
         } finally {
-            Files.deleteIfExists(written);
+            if (written != null) {
+                Files.deleteIfExists(written);
+            }
         }
         verify(resourceService, atLeastOnce()).save(any(Resource.class));
     }
@@ -228,11 +256,13 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         JsonNode data = objectMapper.readTree(
                 result.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
         assertEquals("unknown", data.path("fileName").asText());
-        Path written = Paths.get(data.path("url").asText().substring(1));
+        Path written = StorageLayout.resolveUrl(data.path("url").asText());
         try {
-            assertTrue(Files.exists(written));
+            assertTrue(written != null && Files.exists(written));
         } finally {
-            Files.deleteIfExists(written);
+            if (written != null) {
+                Files.deleteIfExists(written);
+            }
         }
     }
 
@@ -329,7 +359,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
 
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
-        return new ResourceController(rs, cs, es, mock(com.aicourse.service.ResourceVersionService.class));
+        return new ResourceController(rs, cs, es,
+                mock(com.aicourse.service.ResourceVersionService.class), fileStorageService);
     }
 
     private Authentication teacherAuth() {

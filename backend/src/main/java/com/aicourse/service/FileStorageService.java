@@ -1,5 +1,7 @@
 package com.aicourse.service;
 
+import com.aicourse.common.StorageLayout;
+
 import java.io.InputStream;
 
 /**
@@ -37,4 +39,32 @@ public interface FileStorageService {
      * @return true 删除成功；false 文件不存在或删除失败
      */
     boolean delete(String objectName);
+
+    /**
+     * 按落库 URL 下载（默认实现把 {@code /uploads/<key>} 反解成 key 后委托 download）。
+     *
+     * @param storedUrl 落库 URL，如 {@code /uploads/resources/1/a.pdf}
+     * @return 文件输入流；URL 非法或文件不存在返回 null
+     */
+    default InputStream downloadByUrl(String storedUrl) {
+        String key = StorageLayout.objectKey(storedUrl);
+        if (key == null) {
+            return null;
+        }
+        return download(key);
+    }
+
+    /**
+     * 按落库 URL 删除（默认实现把 {@code /uploads/<key>} 反解成 key 后委托 delete）。
+     *
+     * @param storedUrl 落库 URL
+     * @return true 真实删除成功
+     */
+    default boolean deleteByUrl(String storedUrl) {
+        String key = StorageLayout.objectKey(storedUrl);
+        if (key == null) {
+            return false;
+        }
+        return delete(key);
+    }
 }
