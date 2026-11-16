@@ -47,7 +47,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
-import { qaAsk } from '@/api/ai'
+import { qaAskGlobal } from '@/api/ai'
 import { unwrap } from '@/utils/response'
 
 interface ChatMsg {
@@ -82,8 +82,8 @@ async function send() {
   chatError.value = ''
   void scrollLog()
   try {
-    // 全局助手不带 courseId：不接课程知识库，模型直接作答（课程内的精准问答走课程空间 AI 页签）
-    const payload = unwrap(await qaAsk({ question: text }))
+    // 全局助手走独立端点：不接课程知识库，模型直接作答；课程内的精准问答走课程空间 AI 页签
+    const payload = unwrap(await qaAskGlobal({ question: text }))
     messages.value.push({ role: 'assistant', text: answerOf(payload) })
   } catch (error) {
     const err = error as {

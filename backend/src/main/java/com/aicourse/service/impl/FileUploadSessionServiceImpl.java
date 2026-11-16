@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.StorageLayout;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.FileUploadSessionMapper;
@@ -60,13 +61,23 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
     /** 分片暂存文件后缀，文件名为 {0基索引}.part */
     private static final String CHUNK_SUFFIX = ".part";
 
-    /** 最终文件落盘根目录（与静态映射 {@code /uploads/**} 同根，口径见 §13） */
-    @Value("${file.upload-dir:uploads/}")
+    /** 最终文件落盘根目录：默认仓库外 ~/.aicourse-platform/storage，与静态映射同根 */
+    @Value("${file.upload-dir:}")
     private String uploadDir;
 
-    /** 分片暂存目录，刻意放在静态映射根目录之外，防未完成产物被 /uploads/** 直链取到 */
-    @Value("${file.chunk-dir:upload-chunks/}")
+    /** 分片暂存目录：默认仓库外 ~/.aicourse-platform/chunks，刻意不放在静态映射根下 */
+    @Value("${file.chunk-dir:}")
     private String chunkDir;
+
+    /** 当前生效的分片根：Spring 配置优先，空值由 StorageLayout 解析到仓库外默认目录。 */
+    private Path chunkRoot() {
+        return StorageLayout.chunkRoot(chunkDir);
+    }
+
+    /** 当前生效的最终文件根。 */
+    private Path uploadRoot() {
+        return StorageLayout.uploadRoot(uploadDir);
+    }
 
     /** 允许上传的文件扩展名白名单（小写） */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
@@ -185,7 +196,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             throw new BusinessException("分片累计字节超过会话声明的文件大小：声明 " + declaredSize
                     + " 字节，已落盘 " + storedBytes + " 字节，本片 " + size + " 字节");
         }
-        Path chunkFile = Paths.get(chunkDir, String.valueOf(sessionId), chunkIndex + CHUNK_SUFFIX);
+        Path chunkFile = chunkRoot().resolve(String.valueOf(sessionId)).resolve(chunkIndex + CHUNK_SUFFIX);
         try {
             Files.createDirectories(chunkFile.getParent());
             MessageDigest digest = MessageDigest.getInstance("MD5");
@@ -211,7 +222,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     /** 会话已落盘的分片文件（磁盘是进度、配额与合并的唯一真值） */
     private List<Path> storedChunkFiles(Long sessionId) {
-        Path dir = Paths.get(chunkDir, String.valueOf(sessionId));
+        Path dir = chunkRoot().resolve(String.valueOf(sessionId));
         if (!Files.isDirectory(dir)) {
             return List.of();
         }
@@ -342,9 +353,9 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         if (objectName == null || objectName.isBlank()) {
             throw new BusinessException("会话未记录有效的存储路径");
         }
-        Path root = Paths.get(uploadDir).toAbsolutePath().normalize();
-        Path target = root.resolve(objectName).normalize();
-        if (!target.startsWith(root)) {
+        Path root = uploadRoot();
+        Path target = StorageLayout.resolveKey(root, objectName);
+        if (target == null) {
             throw new BusinessException("会话存储路径越出上传根目录，已拒绝合并");
         }
         return target;
@@ -352,7 +363,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     /** 回收会话的分片暂存目录；最终文件已提交，故回收失败只告警不回滚 */
     private void deleteChunkDir(Long sessionId) {
-        Path dir = Paths.get(chunkDir, String.valueOf(sessionId));
+        Path dir = chunkRoot().resolve(String.valueOf(sessionId));
         if (!Files.isDirectory(dir)) {
             return;
         }
@@ -462,7 +473,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
      */
     @Override
     public int sweepOrphanChunkDirs() {
-        Path root = Paths.get(chunkDir);
+        Path root = chunkRoot();
         if (!Files.isDirectory(root)) {
             return 0;
         }

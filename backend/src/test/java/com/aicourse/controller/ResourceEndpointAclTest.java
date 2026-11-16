@@ -44,6 +44,8 @@ class ResourceEndpointAclTest extends ControllerTestBase {
     // B-13㉑：ResourceController 新增的版本服务依赖，@WebMvcTest 需显式 mock
     @MockitoBean
     private com.aicourse.service.ResourceVersionService resourceVersionService;
+    @MockitoBean
+    private com.aicourse.service.FileStorageService fileStorageService;
 
     private static final Long COURSE_ID = 1L;
     private static final Long TEACHER_ID = 10L;

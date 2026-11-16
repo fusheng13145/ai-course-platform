@@ -78,6 +78,9 @@ class RosterRealDbIT {
     private CourseService courseService;
     @MockitoBean
     private UserService userService;
+    /** P0-2：TeachingClassAccessControl 构造器新增的院系作用域守卫；本 IT 只测名单导入 */
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
 
     @Test
     @DisplayName("真实库：行政班导入幂等 + 重同步仅软移除导入名单")

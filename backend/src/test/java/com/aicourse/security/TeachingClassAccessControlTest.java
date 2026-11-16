@@ -14,9 +14,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 /**
@@ -32,12 +40,15 @@ class TeachingClassAccessControlTest {
     private UserService userService;
     @Mock
     private TeachingClassMapper teachingClassMapper;
+    @Mock
+    private AdminScopeGuard adminScopeGuard;
 
     private TeachingClassAccessControl accessControl;
 
     @BeforeEach
     void setUp() {
-        accessControl = new TeachingClassAccessControl(courseService, userService, teachingClassMapper);
+        accessControl = new TeachingClassAccessControl(courseService, userService, teachingClassMapper,
+                adminScopeGuard);
     }
 
     @Test
@@ -85,6 +96,60 @@ class TeachingClassAccessControlTest {
         when(userService.getById(1L)).thenReturn(admin);
 
         assertEquals(30L, accessControl.assertTeachingClassLead(30L, 1L).getId());
+    }
+
+    @Test
+    @DisplayName("院系管理员按学院读取教学班")
+    void collegeAdminReadsOwnCollegeClass() {
+        TeachingClass teachingClass = teachingClass(30L, 10L, 100L);
+        Course course = course(10L, 100L, 1L);
+        when(teachingClassMapper.selectById(30L)).thenReturn(teachingClass);
+        when(courseService.getById(10L)).thenReturn(course);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+
+        assertEquals(30L, accessControl.assertReadable(30L, auth(1L, "ADMIN")).getId());
+    }
+
+    @Test
+    @DisplayName("院系管理员读取其他学院教学班返回 403")
+    void collegeAdminCannotReadOtherCollegeClass() {
+        TeachingClass teachingClass = teachingClass(30L, 10L, 100L);
+        Course course = course(10L, 100L, 2L);
+        when(teachingClassMapper.selectById(30L)).thenReturn(teachingClass);
+        when(courseService.getById(10L)).thenReturn(course);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(course);
+
+        assertThrows(AccessDeniedException.class, () -> accessControl.assertReadable(30L, auth(1L, "ADMIN")));
+    }
+
+    @Test
+    @DisplayName("课程主讲可查看本课程教学班列表")
+    void courseLeadCanViewCourseClasses() {
+        Course course = course(10L, 100L, 1L);
+        when(courseService.getById(10L)).thenReturn(course);
+        when(teachingClassMapper.selectCount(any())).thenReturn(1L);
+
+        assertEquals(10L, accessControl.assertCanViewCourseClasses(10L, auth(200L, "TEACHER")).getId());
+    }
+
+    @Test
+    @DisplayName("管理员不代教师管理教学班名单")
+    void adminCannotManageRoster() {
+        TeachingClass teachingClass = teachingClass(30L, 10L, 100L);
+        Course course = course(10L, 100L, 1L);
+        when(teachingClassMapper.selectById(30L)).thenReturn(teachingClass);
+        when(courseService.getById(10L)).thenReturn(course);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> accessControl.assertRosterManage(30L, 1L));
+        assertEquals(ApiCode.FORBIDDEN, ex.getCode());
+    }
+
+    private static Authentication auth(Long userId, String role) {
+        return new UsernamePasswordAuthenticationToken(userId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
     }
 
     private static Course course(Long id, Long teacherId, Long collegeId) {

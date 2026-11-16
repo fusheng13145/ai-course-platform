@@ -5,12 +5,14 @@ import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.GradeService;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.vo.FinalGradeVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.math.BigDecimal;
 import java.util.List;
@@ -35,6 +37,9 @@ class GradeControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private CourseService courseService;
+
+    @MockitoBean
+    private AdminScopeGuard adminScopeGuard;
 
     private Course course(Long id, Long teacherId) {
         Course c = new Course();
@@ -347,5 +352,36 @@ class GradeControllerTest extends ControllerTestBase {
     void courseReport_student_forbidden_403() throws Exception {
         mockMvc.perform(get("/grade/report/course/1").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("院系管理员查询本院课程成绩报告返回200")
+    void courseReport_collegeAdmin_ownCollege_ok() throws Exception {
+        Course c = course(7L, 20L);
+        c.setCollegeId(3L);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        when(courseService.getById(7L)).thenReturn(c);
+        when(gradeService.courseReport(7L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/grade/report/course/7").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(adminScopeGuard).assertCourseAccess(c);
+    }
+
+    @Test
+    @DisplayName("院系管理员查询其他学院课程成绩报告返回403")
+    void courseReport_collegeAdmin_otherCollege_forbidden() throws Exception {
+        Course c = course(7L, 20L);
+        c.setCollegeId(3L);
+        when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
+        when(courseService.getById(7L)).thenReturn(c);
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(c);
+
+        mockMvc.perform(get("/grade/report/course/7").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(gradeService, never()).courseReport(anyLong());
     }
 }

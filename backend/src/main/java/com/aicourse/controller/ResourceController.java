@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.StorageLayout;
 import com.aicourse.dto.ResourceVisibilityDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
@@ -11,13 +12,14 @@ import com.aicourse.entity.Resource;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.FileStorageService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
 import com.aicourse.vo.ChapterResourceTreeVO;
 import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -27,11 +29,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -51,8 +51,7 @@ public class ResourceController {
 
     private static final Logger log = LoggerFactory.getLogger(ResourceController.class);
 
-    // 全局常量：上传目录、文件大小限制(50MB)、允许的文件类型
-    private static final String UPLOAD_BASE_DIR = com.aicourse.common.UploadPaths.BASE_DIR;
+    // 文件大小限制(50MB)、允许的文件类型
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
     private static final String[] ALLOWED_MIME_TYPES = {
             "application/pdf", "application/msword",
@@ -88,15 +87,18 @@ public class ResourceController {
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
     private final ResourceVersionService resourceVersionService;
+    private final FileStorageService fileStorageService;
 
     public ResourceController(ResourceService resourceService,
                               CourseService courseService,
                               CourseEnrollmentService courseEnrollmentService,
-                              ResourceVersionService resourceVersionService) {
+                              ResourceVersionService resourceVersionService,
+                              FileStorageService fileStorageService) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
         this.resourceVersionService = resourceVersionService;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
@@ -280,11 +282,6 @@ public class ResourceController {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "文件内容与声明类型不符，已拒绝上传");
         }
 
-        File dir = new File(UPLOAD_BASE_DIR);
-        if (!dir.exists() && !dir.mkdirs()) {
-            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传目录创建失败");
-        }
-
         String originalFilename = file.getOriginalFilename();
         String safeFileName = StringUtils.hasText(originalFilename) ? originalFilename : "unknown";
 
@@ -294,21 +291,20 @@ public class ResourceController {
         if (suffix == null) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持该文件格式上传");
         }
-        String uniqueFileName = UUID.randomUUID() + suffix;
-        Path uploadBase = Paths.get(UPLOAD_BASE_DIR).normalize();
-        Path targetPath = uploadBase.resolve(uniqueFileName).normalize();
-        // 路径穿越防护：确保落盘路径始终位于上传目录内
-        if (!targetPath.startsWith(uploadBase)) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "非法文件路径");
-        }
+        // 新文件按课程分组写入仓库外存储根；对外仍用 /uploads/<key> 兼容旧前缀。
+        String objectKey = "resources/" + courseId + "/" + UUID.randomUUID() + suffix;
 
         try {
-            Files.write(targetPath, bytes);
+            String stored = fileStorageService.upload(objectKey, new ByteArrayInputStream(bytes),
+                    contentType, bytes.length);
+            if (stored == null || stored.isBlank()) {
+                return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件存储失败");
+            }
 
             Resource resource = new Resource();
             resource.setFileName(safeFileName);
             resource.setFileType(contentType);
-            resource.setUrl("/uploads/" + uniqueFileName);
+            resource.setUrl(StorageLayout.publicUrl(objectKey));
             resource.setCourseId(courseId);
             resource.setUploadTime(LocalDateTime.now());
             resource.setDescription(description);
@@ -322,8 +318,8 @@ public class ResourceController {
                     resource.getUrl(), "初始上传", (Long) auth.getPrincipal(), file.getSize());
 
             return ApiResponse.success("文件上传成功", resource);
-        } catch (IOException e) {
-            log.error("写入上传文件失败: {}", e.getMessage(), e);
+        } catch (RuntimeException e) {
+            log.error("存储服务写入失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件上传异常：" + e.getMessage());
         }
     }
@@ -344,17 +340,14 @@ public class ResourceController {
         }
 
         try {
-            String fileRelativePath = resource.getUrl().substring(1);
-            Path filePath = Paths.get(fileRelativePath);
-            UrlResource fileResource = new UrlResource(filePath.toUri());
-
-            if (fileResource.exists() && fileResource.isFile()) {
+            InputStream inputStream = fileStorageService.downloadByUrl(resource.getUrl());
+            if (inputStream != null) {
                 // 修复 P1-6：文件名中的 CRLF/引号会污染 Content-Disposition 头（头注入），统一清洗
                 String safeFileName = sanitizeHeaderValue(resource.getFileName());
                 return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .header("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"")
-                        .body(fileResource);
+                        .body(new InputStreamResource(inputStream));
             }
         } catch (Exception e) {
             // 捕获路径、IO 异常，统一返回404
@@ -496,18 +489,13 @@ public class ResourceController {
             return ApiResponse.error(ApiCode.FORBIDDEN, "无权删除该课程资源");
         }
 
-        String fileRelativePath = resource.getUrl().substring(1);
-        Path filePath = Paths.get(fileRelativePath);
-        try {
-            if (Files.exists(filePath)) {
-                Files.delete(filePath);
-            }
-        } catch (IOException e) {
-            log.error("删除资源文件失败: {}", e.getMessage(), e);
-            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件删除失败：" + e.getMessage());
-        }
-
+        // 先删库行再删物理文件：库行删除失败时文件仍在，可人工恢复；反过来会留下不可达的孤儿库行。
         resourceService.removeById(id);
+        boolean fileDeleted = fileStorageService.deleteByUrl(resource.getUrl());
+        if (!fileDeleted) {
+            // 文件已不存在或路径非法不阻断主流程，但留日志供清理任务核对。
+            log.warn("资源文件未删除（可能已不存在）: id={}, url={}", id, resource.getUrl());
+        }
         return ApiResponse.success("资源删除成功", null);
     }
 }

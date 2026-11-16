@@ -1,11 +1,15 @@
 package com.aicourse.controller;
 import com.aicourse.controller.ResourceVersionController;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.ResourceVersionService;
 import com.aicourse.entity.ResourceVersion;
+import com.aicourse.entity.Resource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,6 +33,12 @@ class ResourceVersionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.CourseService courseService;
 
+    @MockitoBean
+    private AdminScopeGuard adminScopeGuard;
+
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
+
     private ResourceVersion sampleVersion(Long id, Integer versionNumber) {
         ResourceVersion v = new ResourceVersion();
         v.setId(id);
@@ -38,9 +48,17 @@ class ResourceVersionControllerTest extends ControllerTestBase {
         return v;
     }
 
+    private Resource resource(Long courseId) {
+        Resource r = new Resource();
+        r.setId(1L);
+        r.setCourseId(courseId);
+        return r;
+    }
+
     @Test
     @DisplayName("GET /resource-versions/resource/1 - 返回200且版本历史透传")
     void getVersionHistory_authorized_returns_200() throws Exception {
+        when(resourceService.getById(1L)).thenReturn(resource(null));
         when(resourceVersionService.getVersionHistory(1L)).thenReturn(List.of(sampleVersion(1L, 2)));
         mockMvc.perform(get("/resource-versions/resource/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -125,6 +143,7 @@ class ResourceVersionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /resource-versions/active/1 - 返回200且当前版本透传")
     void getActiveVersion_authorized_returns_200() throws Exception {
+        when(resourceService.getById(1L)).thenReturn(resource(null));
         when(resourceVersionService.getActiveVersion(1L)).thenReturn(sampleVersion(1L, 1));
         mockMvc.perform(get("/resource-versions/active/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -134,6 +153,31 @@ class ResourceVersionControllerTest extends ControllerTestBase {
         verify(resourceVersionService).getActiveVersion(eq(1L));
     }
 
+
+    @Test
+    @DisplayName("GET /resource-versions/resource/1 - 课程资源读面走课程 ACL，越权返回403")
+    void getVersionHistory_courseResource_forbidden() throws Exception {
+        when(resourceService.getById(1L)).thenReturn(resource(7L));
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(courseAccessControl).assertCanReadCourse(eq(7L), any());
+
+        mockMvc.perform(get("/resource-versions/resource/1").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(resourceVersionService, never()).getVersionHistory(anyLong());
+    }
+
+    @Test
+    @DisplayName("GET /resource-versions/active/1 - 课程资源读面通过后返回当前版本")
+    void getActiveVersion_courseResource_ok() throws Exception {
+        when(resourceService.getById(1L)).thenReturn(resource(7L));
+        when(resourceVersionService.getActiveVersion(1L)).thenReturn(sampleVersion(1L, 1));
+
+        mockMvc.perform(get("/resource-versions/active/1").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.versionNumber").value(1));
+        verify(courseAccessControl).assertCanReadCourse(eq(7L), any());
+    }
 
     @Test
     @DisplayName("GET /resource-versions/active/1 - 未认证返回401")

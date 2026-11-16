@@ -11,6 +11,7 @@ import com.aicourse.dto.QaAskDTO;
 import com.aicourse.dto.QaContinueDTO;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
 import com.aicourse.service.AnalyticsService;
@@ -70,6 +71,7 @@ public class AIController {
     private final AiChatSessionService aiChatSessionService;
     private final LearningRecommendationService learningRecommendationService;
     private final KnowledgePointService knowledgePointService;
+    private final CourseAccessControl courseAccessControl;
 
     public AIController(AIService aiService,
                         AnalyticsService analyticsService,
@@ -78,7 +80,8 @@ public class AIController {
                         CourseService courseService,
                         AiChatSessionService aiChatSessionService,
                         LearningRecommendationService learningRecommendationService,
-                        KnowledgePointService knowledgePointService) {
+                        KnowledgePointService knowledgePointService,
+                        CourseAccessControl courseAccessControl) {
         this.aiService = aiService;
         this.analyticsService = analyticsService;
         this.learningPathService = learningPathService;
@@ -87,6 +90,7 @@ public class AIController {
         this.aiChatSessionService = aiChatSessionService;
         this.learningRecommendationService = learningRecommendationService;
         this.knowledgePointService = knowledgePointService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     // ==================== 智能问答（3个接口） ====================
@@ -102,21 +106,58 @@ public class AIController {
     @PostMapping("/qa/ask")
     public Callable<ApiResponse<Map<String, Object>>> qaAsk(@Valid @RequestBody QaAskDTO body,
                                                             Authentication auth) {
+        return qaAskInternal(body, auth, false);
+    }
+
+    /**
+     * 全局 AI 助手：跨课程通用问答，不读取任何课程知识库/课程私有资料。
+     * <p>与 {@link #qaAsk} 显式分离，避免“课程内问答”和“全局助手”共用同一入口后，
+     * 调用方误以为不传 courseId 仍会命中课程 RAG。全局会话以 courseId=null 落库。</p>
+     * <p>如果请求携带 courseId 则拒绝：全局助手不得借课程上下文读取私有资料。</p>
+     */
+    @PostMapping("/qa/global/ask")
+    public Callable<ApiResponse<Map<String, Object>>> qaAskGlobal(@Valid @RequestBody QaAskDTO body,
+                                                                  Authentication auth) {
+        return qaAskInternal(body, auth, true);
+    }
+
+    private Callable<ApiResponse<Map<String, Object>>> qaAskInternal(QaAskDTO body,
+                                                                    Authentication auth,
+                                                                    boolean globalOnly) {
         // 在 Tomcat 线程提取所需参数，避免异步线程读取 SecurityContext
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String question = body.getQuestion();
-        final String courseId = body.getCourseId();
+        final Long cid = parseCourseId(body.getCourseId());
         final String providedSid = body.getSessionId();
         return () -> {
-            Long cid = courseId != null ? Long.valueOf(courseId) : null;
+            if (globalOnly && cid != null) {
+                throw new BusinessException(ApiCode.BAD_REQUEST, "全局 AI 助手不能指定课程");
+            }
+            if (!globalOnly && cid != null && userId != null) {
+                assertCourseReadable(cid, auth);
+            }
             AiChatSession session = (providedSid != null) ? aiChatSessionService.getBySessionId(providedSid) : null;
             assertSessionOwned(session, userId);
+            if (session != null) {
+                // 全局助手、课程问答、课程继续对话三种上下文不得互相串用：
+                // 课程会话可能已包含课程私有资料，不能在全局入口继续读取；课程入口也不得切换课程。
+                if (globalOnly && session.getCourseId() != null) {
+                    throw new BusinessException(ApiCode.BAD_REQUEST, "全局 AI 助手不能继续课程会话");
+                }
+                if (cid == null && session.getCourseId() != null) {
+                    throw new BusinessException(ApiCode.BAD_REQUEST, "课程会话必须携带课程ID");
+                }
+                if (cid != null && session.getCourseId() != null && !cid.equals(session.getCourseId())) {
+                    throw new BusinessException(ApiCode.BAD_REQUEST, "会话所属课程与本次请求不一致");
+                }
+            }
             if (session == null) {
                 // ★ 2026-10-13 修复：不再丢弃入口已收到的 courseId（原先固定传 null，会话无法归属课程）
                 session = aiChatSessionService.createSession(userId, null, cid);
             }
             final String sessionId = session.getSessionId();
-            return AiCallContext.run(userId, cid, "QA_ASK", () -> {
+            final String scene = cid == null ? "QA_GLOBAL" : "QA_ASK";
+            return AiCallContext.run(userId, cid, scene, () -> {
                 // 纯文本契约：用户输入与 AI 回答均按原文落库、原文下发，不做 HTML 转义
                 aiChatSessionService.appendMessage(sessionId, "user", question);
                 QaAnswerVO qa = aiService.ragAsk(question, cid);
@@ -154,6 +195,11 @@ public class AIController {
             }
             final String sessionId = session.getSessionId();
             final Long sessionCourseId = session.getCourseId();
+            // 会话归属只解决“不能读别人的会话”；课程权限是另一层：课程权限被收回后，
+            // 已存在的课程会话不能继续成为绕过 ACL 的通道。全局会话（courseId=null）不受影响。
+            if (sessionCourseId != null) {
+                assertCourseReadable(sessionCourseId, auth);
+            }
             return AiCallContext.run(userId, sessionCourseId, "QA_CONTINUE", () -> {
                 // 纯文本契约：历史消息、用户输入与 AI 回答均按原文传递，不做 HTML 转义
                 List<Map<String, String>> history = new ArrayList<>();
@@ -229,6 +275,11 @@ public class AIController {
                                    @RequestParam(required = false) Long courseId,
                                    Authentication auth) {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+        // courseId 可选：null 表示全局助手流式通道（不读课程资料）；非空必须先过课程 ACL，
+        // 否则任何登录用户都能借流式端点读取他课知识库。
+        if (courseId != null) {
+            assertCourseReadable(courseId, auth);
+        }
         // 作用域仅覆盖 Tomcat 线程内的服务编排：AiDialogueComponent 在其中捕获归属快照供流式落库
         QaStreamVO stream = AiCallContext.run(userId, courseId, "QA_STREAM",
                 () -> aiService.streamChat(question, courseId));
@@ -252,6 +303,30 @@ public class AIController {
         }
         if (userId == null || !userId.equals(session.getUserId())) {
             throw new BusinessException(ApiCode.FORBIDDEN, "无权访问他人的 AI 会话");
+        }
+    }
+
+    /**
+     * 课程对象级 ACL：学生要求有效选课；教师要求本人课程；管理员按学院作用域。
+     * <p>{@code CourseAccessControl#assertCanReadCourse} 面向已认证主体，这里补上
+     * 异步/单测中 Authentication 为空时的 401 语义，避免 NPE 变成 500。</p>
+     */
+    private void assertCourseReadable(Long courseId, Authentication auth) {
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new BusinessException(ApiCode.UNAUTHORIZED, "未登录");
+        }
+        courseAccessControl.assertCanReadCourse(courseId, auth);
+    }
+
+    /** DTO 的课程 ID 是字符串；非法数字按业务 400 处理，不让 NumberFormatException 冒成 500。 */
+    private Long parseCourseId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "课程ID格式不正确");
         }
     }
 
@@ -332,6 +407,10 @@ public class AIController {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final Long cid = courseId;
         final String diff = difficulty;
+        // 推荐内容来自课程题库/知识点；非空课程必须先过对象级 ACL。
+        if (cid != null) {
+            assertCourseReadable(cid, auth);
+        }
         return () -> AiCallContext.run(userId, cid, "QUESTION_RECOMMEND", () -> {
             Map<String, Object> result = new HashMap<>();
             result.put("courseId", cid);
@@ -435,10 +514,14 @@ public class AIController {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String courseId = body.getCourseId();
         final String goal = body.getGoal() != null ? body.getGoal() : "掌握课程核心知识";
-        final Long cid = courseId != null ? Long.valueOf(courseId) : null;
+        final Long cid = parseCourseId(courseId);
+        if (cid == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "课程ID不能为空");
+        }
         return () -> AiCallContext.run(userId, cid, "LEARNING_PATH", () -> {
             Map<String, Object> result = new HashMap<>();
             if (cid != null && userId != null) {
+                assertCourseReadable(cid, auth);
                 try {
                     String pathName = "AI学习路径";
                     // 传 null 掌握度 → 服务层自动从错题学情推导；无学情时退化为标准路径
@@ -471,7 +554,10 @@ public class AIController {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String courseId = body.getCourseId();
         final String goal = body.getGoal() != null ? body.getGoal() : "针对性补强薄弱点";
-        final Long cid = courseId != null ? Long.valueOf(courseId) : null;
+        final Long cid = parseCourseId(courseId);
+        if (cid == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "课程ID不能为空");
+        }
         // 掌握度数据：{知识点名称: 掌握度(0-100)}
         final Map<String, Double> mastery;
         if (body.getMasteryData() != null && !body.getMasteryData().isEmpty()) {
@@ -487,6 +573,7 @@ public class AIController {
         return () -> AiCallContext.run(userId, cid, "PERSONALIZED_PATH", () -> {
             Map<String, Object> result = new HashMap<>();
             if (cid != null && userId != null) {
+                assertCourseReadable(cid, auth);
                 try {
                     String pathName = mastery != null && !mastery.isEmpty()
                             ? "个性化学习路径（掌握度驱动）" : "AI学习路径";

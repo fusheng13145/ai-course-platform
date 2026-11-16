@@ -9,8 +9,11 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.RoleUtil;
 import com.aicourse.service.ClassroomService;
+import com.aicourse.service.UserService;
 import com.aicourse.vo.ClassroomDetailVO;
 import com.aicourse.vo.ClassroomStudentVO;
 import com.aicourse.vo.ClassroomPendingCountVO;
@@ -35,9 +38,16 @@ public class ClassroomController {
     private static final Logger log = LoggerFactory.getLogger(ClassroomController.class);
 
     private final ClassroomService classroomService;
+    private final UserService userService;
+    private final AdminScopeGuard adminScopeGuard;
+    private final CourseAccessControl courseAccessControl;
 
-    public ClassroomController(ClassroomService classroomService) {
+    public ClassroomController(ClassroomService classroomService, UserService userService,
+                               AdminScopeGuard adminScopeGuard, CourseAccessControl courseAccessControl) {
         this.classroomService = classroomService;
+        this.userService = userService;
+        this.adminScopeGuard = adminScopeGuard;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -46,8 +56,9 @@ public class ClassroomController {
      * @return 班级集合
      */
     @GetMapping
-    public ApiResponse<List<Classroom>> list(@RequestParam(required = false) String keyword) {
-        List<Classroom> classroomList = classroomService.searchClassrooms(keyword, null, null);
+    public ApiResponse<List<Classroom>> list(@RequestParam(required = false) String keyword,
+                                             Authentication auth) {
+        List<Classroom> classroomList = visibleClassrooms(keyword, null, null, auth);
         return ApiResponse.success(classroomList);
     }
 
@@ -57,8 +68,9 @@ public class ClassroomController {
      * @return 班级信息
      */
     @GetMapping("/{id}")
-    public ApiResponse<Classroom> getById(@PathVariable Long id) {
+    public ApiResponse<Classroom> getById(@PathVariable Long id, Authentication auth) {
         Classroom classroom = classroomService.getById(id);
+        assertClassroomReadable(classroom, auth);
         return ApiResponse.success(classroom);
     }
 
@@ -68,7 +80,8 @@ public class ClassroomController {
      * @return 班级详情信息
      */
     @GetMapping("/{id}/detail")
-    public ApiResponse<ClassroomDetailVO> getDetail(@PathVariable Long id) {
+    public ApiResponse<ClassroomDetailVO> getDetail(@PathVariable Long id, Authentication auth) {
+        assertClassroomReadable(classroomService.getById(id), auth);
         ClassroomDetailVO detail = classroomService.getClassroomDetail(id);
         return ApiResponse.success(detail);
     }
@@ -80,7 +93,8 @@ public class ClassroomController {
      */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Classroom> create(@Valid @RequestBody Classroom classroom) {
+    public ApiResponse<Classroom> create(@Valid @RequestBody Classroom classroom, Authentication auth) {
+        assertAdminClassroomScope(classroom);
         classroomService.save(classroom);
         return ApiResponse.success("创建成功", classroom);
     }
@@ -93,7 +107,14 @@ public class ClassroomController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Classroom> update(@PathVariable Long id, @Valid @RequestBody Classroom classroom) {
+    public ApiResponse<Classroom> update(@PathVariable Long id, @Valid @RequestBody Classroom classroom,
+                                         Authentication auth) {
+        Classroom existing = classroomService.getById(id);
+        assertClassroomReadable(existing, auth);
+        // 只改班级信息时无需重复带归属教师；若改归属教师，则新教师也必须在管理员学院范围内。
+        if (classroom.getAdvisorId() != null) {
+            assertAdminClassroomScope(classroom);
+        }
         classroom.setId(id);
         classroomService.updateById(classroom);
         Classroom updatedClassroom = classroomService.getById(id);
@@ -107,7 +128,8 @@ public class ClassroomController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
+        assertClassroomReadable(classroomService.getById(id), auth);
         classroomService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -136,6 +158,7 @@ public class ClassroomController {
         }
         boolean admin = RoleUtil.isAdmin(auth);
         if (admin) {
+            assertAdminClassroomScope(classroom);
             return ApiResponse.success(classroomService.getClassroomStudents(id, keyword, page, size));
         }
         Long userId = (Long) auth.getPrincipal();
@@ -193,12 +216,82 @@ public class ClassroomController {
         if (classroom == null) {
             throw new BusinessException(com.aicourse.common.ApiCode.NOT_FOUND, "班级不存在");
         }
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> "ROLE_ADMIN".equals(g.getAuthority()));
-        if (!isAdmin && !((Long) auth.getPrincipal()).equals(classroom.getAdvisorId())) {
+        boolean isAdmin = RoleUtil.isAdmin(auth);
+        if (isAdmin) {
+            assertAdminClassroomScope(classroom);
+            return;
+        }
+        if (!((Long) auth.getPrincipal()).equals(classroom.getAdvisorId())) {
             throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN,
                     "只有该班级的归属教师或管理员可管理班级成员");
         }
+    }
+
+    /**
+     * 班级读面（Q-04）：管理员按学院只读；班主任看本人班级；学生只看自己所属班级。
+     */
+    private void assertClassroomReadable(Classroom classroom, Authentication auth) {
+        if (classroom == null) {
+            throw new BusinessException(com.aicourse.common.ApiCode.NOT_FOUND, "班级不存在");
+        }
+        if (RoleUtil.isAdmin(auth)) {
+            assertAdminClassroomScope(classroom);
+            return;
+        }
+        Long userId = (Long) auth.getPrincipal();
+        if ("STUDENT".equals(RoleUtil.roleOf(auth))) {
+            User student = userService.getById(userId);
+            if (student == null || !classroom.getId().equals(student.getClassId())) {
+                throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "仅本人班级可见");
+            }
+            return;
+        }
+        if (!userId.equals(classroom.getAdvisorId())) {
+            throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "仅本人班级可见");
+        }
+    }
+
+    /**
+     * 管理员班级作用域：classrooms 无 college_id，按归属班主任 users.college_id 判定；
+     * 校级管理员全平台放行，院系管理员仅本院班主任的班级。
+     */
+    private void assertAdminClassroomScope(Classroom classroom) {
+        if (!adminScopeGuard.isCollegeAdmin()) {
+            return;
+        }
+        if (classroom == null || classroom.getAdvisorId() == null) {
+            throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权访问其他学院的班级");
+        }
+        adminScopeGuard.assertUserAccessById(classroom.getAdvisorId());
+    }
+
+    /**
+     * 按角色生成可见班级集合；管理员院系过滤在内存中完成，避免给 ClassroomService 增加分页口径。
+     */
+    private List<Classroom> visibleClassrooms(String keyword, String gradeLevel, String major,
+                                              Authentication auth) {
+        List<Classroom> base = classroomService.searchClassrooms(keyword, gradeLevel, major);
+        if (RoleUtil.isAdmin(auth)) {
+            if (!adminScopeGuard.isCollegeAdmin()) {
+                return base;
+            }
+            List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+            if (collegeUserIds == null || collegeUserIds.isEmpty()) {
+                return List.of();
+            }
+            return base.stream()
+                    .filter(c -> c.getAdvisorId() != null && collegeUserIds.contains(c.getAdvisorId()))
+                    .toList();
+        }
+        Long userId = (Long) auth.getPrincipal();
+        if ("STUDENT".equals(RoleUtil.roleOf(auth))) {
+            User student = userService.getById(userId);
+            if (student == null || student.getClassId() == null) {
+                return List.of();
+            }
+            return base.stream().filter(c -> student.getClassId().equals(c.getId())).toList();
+        }
+        return base.stream().filter(c -> userId.equals(c.getAdvisorId())).toList();
     }
 
     /**
@@ -207,7 +300,8 @@ public class ClassroomController {
      * @return 统计信息
      */
     @GetMapping("/{id}/stats")
-    public ApiResponse<ClassroomStatsVO> getStats(@PathVariable Long id) {
+    public ApiResponse<ClassroomStatsVO> getStats(@PathVariable Long id, Authentication auth) {
+        assertClassroomReadable(classroomService.getById(id), auth);
         ClassroomStatsVO stats = classroomService.getClassroomStats(id);
         return ApiResponse.success(stats);
     }
@@ -240,8 +334,9 @@ public class ClassroomController {
     public ApiResponse<List<Classroom>> search(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String gradeLevel,
-            @RequestParam(required = false) String major) {
-        List<Classroom> classrooms = classroomService.searchClassrooms(keyword, gradeLevel, major);
+            @RequestParam(required = false) String major,
+            Authentication auth) {
+        List<Classroom> classrooms = visibleClassrooms(keyword, gradeLevel, major, auth);
         return ApiResponse.success(classrooms);
     }
 
@@ -251,7 +346,8 @@ public class ClassroomController {
      * @return 该课程关联的班级列表（course_id 绑定且有效）
      */
     @GetMapping("/by-course/{courseId}")
-    public ApiResponse<List<Classroom>> listByCourse(@PathVariable Long courseId) {
+    public ApiResponse<List<Classroom>> listByCourse(@PathVariable Long courseId, Authentication auth) {
+        courseAccessControl.assertCanReadCourse(courseId, auth);
         List<Classroom> classrooms = classroomService.listByCourse(courseId);
         return ApiResponse.success(classrooms);
     }
@@ -262,7 +358,9 @@ public class ClassroomController {
      * @return 列表项含 classroomId / classroomName / pendingCount
      */
     @GetMapping("/by-course/{courseId}/pending")
-    public ApiResponse<List<ClassroomPendingCountVO>> countPendingByCourse(@PathVariable Long courseId) {
+    public ApiResponse<List<ClassroomPendingCountVO>> countPendingByCourse(@PathVariable Long courseId,
+                                                                          Authentication auth) {
+        courseAccessControl.assertCanReadCourse(courseId, auth);
         List<ClassroomPendingCountVO> pending = classroomService.countPendingByCourse(courseId);
         return ApiResponse.success(pending);
     }

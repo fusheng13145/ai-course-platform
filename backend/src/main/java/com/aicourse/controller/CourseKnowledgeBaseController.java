@@ -4,12 +4,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.CourseKnowledgeBaseService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -34,15 +36,20 @@ public class CourseKnowledgeBaseController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final CourseKnowledgeBaseService courseKnowledgeBaseService;
+    private final CourseAccessControl courseAccessControl;
 
-    public CourseKnowledgeBaseController(CourseKnowledgeBaseService courseKnowledgeBaseService) {
+    public CourseKnowledgeBaseController(CourseKnowledgeBaseService courseKnowledgeBaseService,
+                                         CourseAccessControl courseAccessControl) {
         this.courseKnowledgeBaseService = courseKnowledgeBaseService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /** 从课程结构化资料（简介 / 章节 / 资源）构建课程知识库并重建索引（教师/管理员） */
     @PostMapping("/{courseId}/build")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> buildFromCourse(@PathVariable Long courseId) {
+    public ApiResponse<JsonNode> buildFromCourse(@PathVariable Long courseId, Authentication auth) {
+        // 对象级授权：教师只能构建本人课程，院系管理员按学院作用域；原先只有角色门。
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         return ApiResponse.success(toJson(courseKnowledgeBaseService.buildFromCourse(courseId)));
     }
 

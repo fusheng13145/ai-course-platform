@@ -64,6 +64,18 @@ class LocalFileStorageServiceImplTest {
     }
 
     @Test
+    void downloadByUrl_and_deleteByUrl_roundTrip() throws IOException {
+        byte[] data = "url roundtrip".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        service.upload("resources/1/note.txt", new ByteArrayInputStream(data), "text/plain", data.length);
+        try (InputStream is = service.downloadByUrl("/uploads/resources/1/note.txt")) {
+            assertNotNull(is);
+            assertArrayEquals(data, is.readAllBytes());
+        }
+        assertTrue(service.deleteByUrl("/uploads/resources/1/note.txt"));
+        assertFalse(Files.exists(tempDir.resolve("resources/1/note.txt")));
+    }
+
+    @Test
     void download_notFound_returnsNull() {
         assertNull(service.download("missing.txt"));
     }

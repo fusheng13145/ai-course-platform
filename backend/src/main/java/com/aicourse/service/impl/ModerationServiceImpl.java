@@ -13,6 +13,7 @@ import com.aicourse.entity.OperationLog;
 import com.aicourse.service.ModerationService;
 import com.aicourse.service.OperationLogService;
 import com.aicourse.service.UserService;
+import com.aicourse.service.FileStorageService;
 import com.aicourse.vo.BannedAuthorVO;
 import com.aicourse.vo.ModerationPostVO;
 import com.aicourse.vo.ModerationResourceVO;
@@ -62,15 +63,18 @@ public class ModerationServiceImpl implements ModerationService {
     private final ResourceMapper resourceMapper;
     private final UserService userService;
     private final OperationLogService operationLogService;
+    private final FileStorageService fileStorageService;
 
     public ModerationServiceImpl(DiscussionPostMapper discussionPostMapper,
                                  ResourceMapper resourceMapper,
                                  UserService userService,
-                                 OperationLogService operationLogService) {
+                                 OperationLogService operationLogService,
+                                 FileStorageService fileStorageService) {
         this.discussionPostMapper = discussionPostMapper;
         this.resourceMapper = resourceMapper;
         this.userService = userService;
         this.operationLogService = operationLogService;
+        this.fileStorageService = fileStorageService;
     }
 
     // ===================== 列表 =====================
@@ -216,9 +220,9 @@ public class ModerationServiceImpl implements ModerationService {
             resourceSnapshot.put("uploaderId", resource.getUploaderId());
             writeDeleteSnapshot("resource", resourceId, adminId, reason, resourceSnapshot);
             resourceMapper.deleteById(resourceId);
-            // V-1（2026-11-15）：删除后立即物理删盘，不再只删库行留下孤儿文件。
-            // 失败（文件已不存在 / 路径非法）不影响主流程，但要如实回告调用方。
-            boolean fileDeleted = com.aicourse.common.UploadPaths.deleteQuietly(resource.getUrl());
+            // V-1（2026-11-15）：删除后立即物理删盘；存储根由 StorageLayout 统一解析，
+            // 外部存储根优先，历史仓库 uploads/ 作为只读兼容位置兜底。
+            boolean fileDeleted = fileStorageService.deleteByUrl(resource.getUrl());
             data.put("fileDeleted", fileDeleted);
             data.put("moderationStatus", "DELETED");
             data.put("authorBanned", banned);

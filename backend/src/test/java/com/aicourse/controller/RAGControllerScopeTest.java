@@ -96,6 +96,33 @@ class RAGControllerScopeTest {
     }
 
     @Test
+    @DisplayName("学生/教师不带 courseId 的 RAG 问答与检索：400，不得落到全库引擎")
+    void askAndRetrieveWithoutCourseRejectedForNonAdmin() {
+        assertThatThrownBy(() -> controller().ask("题", null, 3, as("STUDENT")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("请指定课程ID");
+        assertThatThrownBy(() -> controller().retrieve("关键词", null, 5, as("TEACHER")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("请指定课程ID");
+        verify(ragService, never()).ask(any(), any(), anyInt());
+        verify(ragService, never()).retrieve(any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("管理员不带 courseId 显式全局：放行；带 courseId 仍走管理员课程作用域")
+    void adminGlobalAllowedAndCourseScoped() {
+        when(ragService.ask("题", null, 3)).thenReturn("{}");
+        when(ragService.retrieve("关键词", null, 5)).thenReturn("{}");
+        controller().ask("题", null, 3, as("ADMIN"));
+        controller().retrieve("关键词", null, 5, as("ADMIN"));
+        verify(ragService).ask("题", null, 3);
+        verify(ragService).retrieve("关键词", null, 5);
+
+        controller().ask("题", 4060L, 3, as("ADMIN"));
+        verify(courseAccessControl).assertCanReadCourse(eq(4060L), any());
+    }
+
+    @Test
     @DisplayName("索引构建/清空判课程归属（甲课教师不能清乙课索引）")
     void indexOperationsRequireOwnership() {
         doThrow(forbidden()).when(courseAccessControl).assertCanManageCourse(eq(4060L), any());

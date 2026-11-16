@@ -63,9 +63,7 @@ public class RAGController {
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "3") int topK,
             Authentication auth) {
-        if (courseId != null) {
-            courseAccessControl.assertCanReadCourse(courseId, auth);
-        }
+        assertRagCourseScope(courseId, auth);
         return ApiResponse.success(toJson(ragService.ask(question, courseId, topK)));
     }
 
@@ -195,10 +193,23 @@ public class RAGController {
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "5") int topK,
             Authentication auth) {
+        assertRagCourseScope(courseId, auth);
+        return ApiResponse.success(toJson(ragService.retrieve(query, courseId, topK)));
+    }
+
+    /**
+     * RAG 取数边界：学生/教师必须显式指定课程；管理员可显式全局。
+     * <p>Q-03 裁定：禁止学生无 {@code courseId} 的 RAG 全局检索；教师限本人课程。
+     * 原先 {@code courseId == null} 直接落到引擎全库检索，任意学生都能取到全部课程语料。</p>
+     */
+    private void assertRagCourseScope(Long courseId, Authentication auth) {
         if (courseId != null) {
             courseAccessControl.assertCanReadCourse(courseId, auth);
+            return;
         }
-        return ApiResponse.success(toJson(ragService.retrieve(query, courseId, topK)));
+        if (!isAdmin(auth)) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "请指定课程ID后再使用课程知识库检索");
+        }
     }
 
     /**

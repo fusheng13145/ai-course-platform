@@ -41,6 +41,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -81,6 +82,12 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
         for (Class<?> entity : new Class<?>[]{KnowledgePoint.class, KnowledgePointRelation.class}) {
             TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), entity);
         }
+        // 读端点现在先按 pointId 解析课程归属；默认返回同课程节点，跨课程 403 由 ScopeTest 专测。
+        lenient().when(knowledgePointService.getById(anyLong())).thenAnswer(inv ->
+                point(inv.getArgument(0), "p"));
+        // 本类覆盖业务分支，不模拟课程作用域；按校级管理员口径（readableCourseIds=null）放行全量。
+        // 学生/教师的课程集合过滤由 KnowledgeControllerScopeTest 专测。
+        lenient().when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
     }
 
     private static KnowledgePoint point(Long id, String name) {
@@ -692,15 +699,25 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /knowledge/relations - 分页参数原样下传（无课程筛选时为 null）")
+    @DisplayName("GET /knowledge/relations - 管理员无课程筛选：分页参数原样下传（null）")
     void getRelationList_passesPagingAndNullCourse() throws Exception {
         when(relationService.getRelationList(eq(2), eq(20), isNull())).thenReturn(new Page<>());
 
         mockMvc.perform(get("/knowledge/relations").param("page", "2").param("size", "20")
-                        .with(withUser(1L, "STUDENT")))
+                        .with(withUser(9L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.list").isArray());
         verify(relationService).getRelationList(2, 20, null);
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/relations - 学生不带 courseId：400，不得落到全站关系查询")
+    void getRelationList_studentWithoutCourseRejected() throws Exception {
+        mockMvc.perform(get("/knowledge/relations").param("page", "2").param("size", "20")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(relationService, never()).getRelationList(anyInt(), anyInt(), any());
     }
 
     // ==================== POST /knowledge/extract：异步主体（分支密集区） ====================

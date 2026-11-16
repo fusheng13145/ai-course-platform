@@ -11,6 +11,7 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.GradeService;
 import com.aicourse.vo.FinalGradeVO;
@@ -35,10 +36,13 @@ public class GradeController {
 
     private final GradeService gradeService;
     private final CourseService courseService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public GradeController(GradeService gradeService, CourseService courseService) {
+    public GradeController(GradeService gradeService, CourseService courseService,
+                           AdminScopeGuard adminScopeGuard) {
         this.gradeService = gradeService;
         this.courseService = courseService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /** 保存（新增或更新）课程的过程性成绩方案 */
@@ -104,6 +108,14 @@ public class GradeController {
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
         if (isAdmin) {
+            // 校级管理员保持全平台治理读；院系管理员必须落在本院课程作用域内。
+            if (adminScopeGuard.isCollegeAdmin()) {
+                Course adminCourse = courseService.getById(courseId);
+                if (adminCourse == null) {
+                    throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+                }
+                adminScopeGuard.assertCourseAccess(adminCourse);
+            }
             return;
         }
         Course course = courseService.getById(courseId);

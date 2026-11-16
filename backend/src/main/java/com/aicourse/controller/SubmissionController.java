@@ -71,6 +71,9 @@ public class SubmissionController {
         //   - 重复提交语义：既有实现按「多次提交、attemptNumber 递增、最新一次为准」处理，并复用草稿行避免草稿+正式双行；
         //     submissions 表无 (task_id, student_id) 唯一约束，本次仅在应用层实现，未加 DB 迁移（待团队评审）。
         // 仍仅接收白名单 DTO，绝不使用 Submission 实体直接入参，防止注入 score/graderId/status 等敏感列。
+        // 提交前对象级校验：任务存在 + 已发布 + 学生已通过该课程选课（教师须为授课教师）。
+        // 服务层仍保留发布/截止/次数/逾期策略，此处补上此前缺失的课程成员边界。
+        accessControl.assertCanSubmitTask(body.getTaskId(), auth);
         Submission submission = submissionService.submitAssignment(
                 body.getTaskId(), userId, body.getContent(), body.getFileUrls());
         // 异步 AI 预批改：提交后自动触发，不阻塞学生提交响应；

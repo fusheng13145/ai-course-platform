@@ -3,10 +3,12 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.TeachingClassCreateDTO;
 import com.aicourse.dto.TeachingClassUpdateDTO;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
 import com.aicourse.entity.TeachingClassAdminClass;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.RosterService;
 import com.aicourse.service.TeachingClassService;
 import com.aicourse.vo.RosterSyncResultVO;
@@ -14,9 +16,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 教学班接口控制器（V14 / B-12-P-08 WP4；WP5 增加名单导入与重同步）。
@@ -32,25 +36,44 @@ public class TeachingClassController {
     private final TeachingClassService teachingClassService;
     private final RosterService rosterService;
     private final AdminScopeGuard adminScopeGuard;
+    private final TeachingClassAccessControl teachingClassAccessControl;
 
     public TeachingClassController(TeachingClassService teachingClassService,
                                    RosterService rosterService,
-                                   AdminScopeGuard adminScopeGuard) {
+                                   AdminScopeGuard adminScopeGuard,
+                                   TeachingClassAccessControl teachingClassAccessControl) {
         this.teachingClassService = teachingClassService;
         this.rosterService = rosterService;
         this.adminScopeGuard = adminScopeGuard;
+        this.teachingClassAccessControl = teachingClassAccessControl;
     }
 
     @GetMapping("/course/{courseId}")
     @Operation(summary = "课程下的教学班列表")
-    public ApiResponse<List<TeachingClass>> listByCourse(@PathVariable Long courseId) {
-        return ApiResponse.success(teachingClassService.listByCourse(courseId));
+    public ApiResponse<List<TeachingClass>> listByCourse(@PathVariable Long courseId, Authentication auth) {
+        Course course = teachingClassAccessControl.assertCanViewCourseClasses(courseId, auth);
+        List<TeachingClass> classes = teachingClassService.listByCourse(courseId);
+        // 非课程负责人（例如仅是本课程某教学班主讲）只返回本人教学班，避免全课程枚举。
+        if (!isAdmin(auth) && !Objects.equals(course.getTeacherId(), (Long) auth.getPrincipal())) {
+            Long userId = (Long) auth.getPrincipal();
+            classes = classes.stream()
+                    .filter(c -> Objects.equals(c.getLeadTeacherId(), userId))
+                    .toList();
+        }
+        return ApiResponse.success(classes);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "教学班详情")
-    public ApiResponse<TeachingClass> detail(@PathVariable Long id) {
+    public ApiResponse<TeachingClass> detail(@PathVariable Long id, Authentication auth) {
+        teachingClassAccessControl.assertReadable(id, auth);
         return ApiResponse.success(teachingClassService.getById(id));
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities() != null
+                && auth.getAuthorities().stream()
+                .anyMatch(g -> "ROLE_ADMIN".equals(g.getAuthority()));
     }
 
     @PostMapping
