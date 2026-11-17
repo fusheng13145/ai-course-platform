@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * ExamPaperController 接口测试（升级版：真实业务断言）。
  * 对每个 endpoint 打桩 service 并断言 PagedResponse / 实体 / Map 字段透传，verify 确认路由委托。
  */
-@WebMvcTest(ExamPaperController.class)
+@WebMvcTest({ExamPaperController.class, ExamPaperQuestionController.class, ExamPaperTargetController.class})
 class ExamPaperControllerTest extends ControllerTestBase {
 
     @MockitoBean
