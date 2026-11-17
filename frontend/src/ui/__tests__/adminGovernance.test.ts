@@ -4,9 +4,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 /** 五个治理页共享的接口 mock：每个模块只暴露页面真实调用的具名导出。 */
 const adminApi = vi.hoisted(() => ({
   getUsers: vi.fn(),
+  createUser: vi.fn(),
+  updateUser: vi.fn(),
+  resetUserPassword: vi.fn(),
   getSemesters: vi.fn(),
   createSemester: vi.fn(),
   archiveSemester: vi.fn(),
+  archiveExpiredSemesters: vi.fn(),
 }))
 
 vi.mock('@/api/admin', () => ({ ...adminApi, default: adminApi }))
@@ -17,6 +21,9 @@ vi.mock('@/api/user', () => ({ ...userApi, default: userApi }))
 const permissionApi = vi.hoisted(() => ({
   getAllPermissions: vi.fn(),
   createPermission: vi.fn(),
+  updatePermission: vi.fn(),
+  deletePermission: vi.fn(),
+  togglePermission: vi.fn(),
 }))
 vi.mock('@/api/permission', () => ({ ...permissionApi, default: permissionApi }))
 
@@ -181,9 +188,16 @@ beforeEach(() => {
   adminApi.getSemesters.mockResolvedValue(envelope(SEMESTERS))
   adminApi.createSemester.mockResolvedValue({ code: 200, data: {} })
   adminApi.archiveSemester.mockResolvedValue({ code: 200, data: {} })
+  adminApi.archiveExpiredSemesters.mockResolvedValue({ code: 200, data: {} })
+  adminApi.createUser.mockResolvedValue({ code: 200, data: {} })
+  adminApi.updateUser.mockResolvedValue({ code: 200, data: {} })
+  adminApi.resetUserPassword.mockResolvedValue({ code: 200, data: {} })
   userApi.updateUserStatus.mockResolvedValue({ code: 200, data: null })
   permissionApi.getAllPermissions.mockResolvedValue(envelope(PERMISSIONS))
   permissionApi.createPermission.mockResolvedValue({ code: 200, data: {} })
+  permissionApi.updatePermission.mockResolvedValue({ code: 200, data: {} })
+  permissionApi.deletePermission.mockResolvedValue({ code: 200, data: {} })
+  permissionApi.togglePermission.mockResolvedValue({ code: 200, data: {} })
   classroomApi.getClassroomList.mockResolvedValue(envelope(CLASSES))
   classroomApi.createClassroom.mockResolvedValue({ code: 200, data: {} })
   classroomApi.updateClassroom.mockResolvedValue({ code: 200, data: {} })
@@ -250,7 +264,7 @@ describe('管理员 / 用户与账号', () => {
     const wrapper = mountUsers()
     await flushPromises()
 
-    await wrapper.findAll('tbody tr')[0].find('.row-actions button').trigger('click')
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="user-toggle"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.modal-stub').text()).toContain('张三')
@@ -270,12 +284,119 @@ describe('管理员 / 用户与账号', () => {
     const wrapper = mountUsers()
     await flushPromises()
 
-    await wrapper.findAll('tbody tr')[1].find('.row-actions button').trigger('click')
+    await wrapper.findAll('tbody tr')[1].find('[data-testid="user-toggle"]').trigger('click')
     await flushPromises()
 
     expect(userApi.updateUserStatus).toHaveBeenCalledWith(12, true)
     expect(wrapper.find('.modal-stub').exists()).toBe(false)
     expect(adminApi.getUsers).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('新建用户提交完整资料，成功后刷新列表', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === '新建用户')!
+      .trigger('click')
+    await wrapper.find('[data-testid="user-username"]').setValue('wangwu')
+    await wrapper.find('[data-testid="user-name"]').setValue('王五')
+    await wrapper.find('[data-testid="user-role"]').setValue('TEACHER')
+    await wrapper.find('[data-testid="user-password"]').setValue('Strong@123')
+    await wrapper.find('[data-testid="user-email"]').setValue('wangwu@example.com')
+    await wrapper.find('[data-testid="user-phone"]').setValue('13700000000')
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.createUser).toHaveBeenCalledWith({
+      username: 'wangwu',
+      fullName: '王五',
+      role: 'TEACHER',
+      email: 'wangwu@example.com',
+      phone: '13700000000',
+      password: 'Strong@123',
+      isActive: true,
+      adminClassId: 0,
+    })
+    expect(adminApi.getUsers).toHaveBeenCalledTimes(2)
+    expect(toast).toHaveBeenCalledWith('用户已创建', 'ok')
+    wrapper.unmount()
+  })
+
+  it('弱密码在提交前被拦截，不发起创建请求', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === '新建用户')!
+      .trigger('click')
+    await wrapper.find('[data-testid="user-username"]').setValue('wangwu')
+    await wrapper.find('[data-testid="user-password"]').setValue('weakpass')
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.form-error').text()).toContain('大写字母')
+    expect(adminApi.createUser).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('学生创建可直接分进行政班', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === '新建用户')!
+      .trigger('click')
+    await wrapper.find('[data-testid="user-username"]').setValue('zhaoliu')
+    await wrapper.find('[data-testid="user-password"]').setValue('Strong@123')
+    await wrapper.find('[data-testid="user-role"]').setValue('STUDENT')
+    await wrapper.find('[data-testid="user-admin-class"]').setValue('1')
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'STUDENT', adminClassId: 1 }),
+    )
+    wrapper.unmount()
+  })
+
+  it('编辑用户调用更新端点，重置密码调用专用端点', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="user-edit"]').trigger('click')
+    await wrapper.find('[data-testid="user-name"]').setValue('张三丰')
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.updateUser).toHaveBeenCalledWith(11, {
+      username: 'zhangsan',
+      fullName: '张三丰',
+      role: 'TEACHER',
+      email: 'zhangsan@example.com',
+      phone: '13800000000',
+      adminClassId: 0,
+    })
+    expect(wrapper.find('.modal-stub').exists()).toBe(false)
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="user-reset"]').trigger('click')
+    await wrapper.find('[data-testid="user-new-password"]').setValue('Reset@123')
+    const resetButtons = footerButtons(wrapper)
+    await resetButtons[resetButtons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.resetUserPassword).toHaveBeenCalledWith(11, { newPassword: 'Reset@123' })
+    expect(toast).toHaveBeenCalledWith('密码已重置', 'ok')
     wrapper.unmount()
   })
 
@@ -348,7 +469,7 @@ describe('管理员 / 角色与权限', () => {
     )
     expect(permissionApi.getAllPermissions).toHaveBeenCalledTimes(2)
     expect(wrapper.find('.modal-stub').exists()).toBe(false)
-    expect(toast).toHaveBeenCalledWith('权限已分配', 'ok')
+    expect(toast).toHaveBeenCalledWith('权限项已新增', 'ok')
     wrapper.unmount()
   })
 
@@ -369,6 +490,50 @@ describe('管理员 / 角色与权限', () => {
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
     expect(wrapper.find('.modal-stub').text()).toContain('该角色已存在相同权限 Key')
     expect(permissionApi.getAllPermissions).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('编辑权限项调用更新端点并保留角色', async () => {
+    const wrapper = mountRoles()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="permission-edit"]').trigger('click')
+    await wrapper.find('[data-testid="role-assign-name"]').setValue('账号治理')
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(permissionApi.updatePermission).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        role: 'ADMIN',
+        permissionName: '账号治理',
+        permissionKey: 'user:manage',
+        isActive: true,
+      }),
+    )
+    expect(toast).toHaveBeenCalledWith('权限项已更新', 'ok')
+    wrapper.unmount()
+  })
+
+  it('权限项可停用与删除，删除先二次确认', async () => {
+    const wrapper = mountRoles()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="permission-toggle"]').trigger('click')
+    await flushPromises()
+    expect(permissionApi.togglePermission).toHaveBeenCalledWith(1)
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="permission-delete"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.modal-stub').text()).toContain('用户管理')
+    expect(permissionApi.deletePermission).not.toHaveBeenCalled()
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+    expect(permissionApi.deletePermission).toHaveBeenCalledWith(1)
+    expect(toast).toHaveBeenCalledWith('权限项已删除', 'ok')
     wrapper.unmount()
   })
 
@@ -464,6 +629,39 @@ describe('管理员 / 学期管理', () => {
     expect(adminApi.archiveSemester).toHaveBeenCalledWith(1)
     expect(adminApi.getSemesters).toHaveBeenCalledTimes(2)
     expect(toast).toHaveBeenCalledWith('学期已归档', 'ok')
+    wrapper.unmount()
+  })
+
+  it('批量归档只处理已结束且仍在册的学期，确认后调用批量端点', async () => {
+    adminApi.getSemesters.mockResolvedValueOnce(
+      envelope([
+        ...SEMESTERS,
+        {
+          id: 3,
+          name: '2025-2026-1',
+          startDate: '2025-09-01',
+          endDate: '2026-01-10',
+          status: 'ACTIVE',
+          archivedAt: null,
+        },
+      ]),
+    )
+    const wrapper = mountSemesters()
+    await flushPromises()
+
+    const batchButton = wrapper.findAll('button').find((item) => item.text().includes('归档过期'))!
+    expect(batchButton.text()).toContain('1')
+    await batchButton.trigger('click')
+    expect(wrapper.find('.modal-stub').text()).toContain('1')
+    expect(adminApi.archiveExpiredSemesters).not.toHaveBeenCalled()
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.archiveExpiredSemesters).toHaveBeenCalledTimes(1)
+    expect(adminApi.getSemesters).toHaveBeenCalledTimes(2)
+    expect(toast).toHaveBeenCalledWith('过期学期已归档', 'ok')
     wrapper.unmount()
   })
 

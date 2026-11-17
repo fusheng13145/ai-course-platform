@@ -45,7 +45,7 @@
               <span class="chip chip-mute">{{ roleRows.length }} 项</span>
             </h2>
           </div>
-          <button class="btn btn-sm" :disabled="loading" @click="openAssign">分配权限</button>
+          <button class="btn btn-sm" :disabled="loading" @click="openCreate">新增权限项</button>
         </header>
 
         <div v-if="roleRows.length" class="table-wrap">
@@ -58,6 +58,7 @@
                 <th>资源 / 接口路径</th>
                 <th class="w-140">上级权限</th>
                 <th class="w-80">状态</th>
+                <th class="w-220 th-actions">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -74,6 +75,27 @@
                   <span class="chip" :class="activeOf(row) ? 'chip-ok' : 'chip-mute'">
                     {{ activeOf(row) ? '已启用' : '已停用' }}
                   </span>
+                </td>
+                <td>
+                  <div class="row-actions">
+                    <button class="text-btn" data-testid="permission-edit" @click="openEdit(row)">
+                      编辑
+                    </button>
+                    <button
+                      class="text-btn"
+                      data-testid="permission-toggle"
+                      @click="toggleRow(row)"
+                    >
+                      {{ activeOf(row) ? '停用' : '启用' }}
+                    </button>
+                    <button
+                      class="text-btn danger"
+                      data-testid="permission-delete"
+                      @click="askRemove(row)"
+                    >
+                      删除
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -97,10 +119,12 @@
       </section>
     </div>
 
-    <Modal v-model:open="assignOpen" title="分配权限" width="640px" :close-on-backdrop="false">
-      <p class="modal-text">
-        为 <b>{{ selectedLabel }}</b> 写入一条 role_permissions 记录。角色与权限 Key 组合唯一。
-      </p>
+    <Modal
+      v-model:open="assignOpen"
+      :title="editingPermissionId === null ? '新增权限项' : '编辑权限项'"
+      width="640px"
+      :close-on-backdrop="false"
+    >
       <div class="form-grid">
         <label class="field">
           <span>权限名称 *</span>
@@ -160,13 +184,27 @@
       </div>
       <label class="active-line">
         <input v-model="form.isActive" type="checkbox" />
-        创建后立即启用
+        启用该权限
       </label>
       <p v-if="assignError" class="form-error" role="alert">{{ assignError }}</p>
       <template #footer>
         <button class="btn btn-ghost" :disabled="assignBusy" @click="closeAssign">取消</button>
         <button class="btn btn-primary" :disabled="assignBusy" @click="submitAssign">
-          {{ assignBusy ? '提交中…' : '确认分配' }}
+          {{ assignBusy ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </Modal>
+
+    <Modal v-model:open="removeOpen" title="删除权限项" width="460px" :close-on-backdrop="false">
+      <p class="modal-text">
+        确定删除权限项 <b>{{ removeTarget?.permissionName || removeTarget?.permissionKey }}</b>
+        吗？
+      </p>
+      <p v-if="removeError" class="form-error" role="alert">{{ removeError }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="removeBusy" @click="closeRemove">取消</button>
+        <button class="btn btn-danger" :disabled="removeBusy" @click="confirmRemove">
+          {{ removeBusy ? '删除中…' : '确定删除' }}
         </button>
       </template>
     </Modal>
@@ -180,7 +218,13 @@ import Modal from '../../components/Modal.vue'
 import Stat from '../../components/Stat.vue'
 import { useUi } from '../../composables/ui'
 import { useListFeedback } from '@/composables/useListFeedback'
-import { createPermission, getAllPermissions } from '@/api/permission'
+import {
+  createPermission,
+  deletePermission,
+  getAllPermissions,
+  togglePermission,
+  updatePermission,
+} from '@/api/permission'
 import { pickList, unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
 
@@ -212,6 +256,11 @@ const selectedRole = ref('ADMIN')
 const assignOpen = ref(false)
 const assignBusy = ref(false)
 const assignError = ref('')
+const editingPermissionId = ref<PermissionRow['id'] | null>(null)
+const removeOpen = ref(false)
+const removeBusy = ref(false)
+const removeError = ref('')
+const removeTarget = ref<PermissionRow | null>(null)
 const form = reactive({
   permissionName: '',
   permissionKey: '',
@@ -320,8 +369,7 @@ async function loadAll() {
   })
 }
 
-function openAssign() {
-  assignError.value = ''
+function resetForm() {
   Object.assign(form, {
     permissionName: '',
     permissionKey: '',
@@ -332,12 +380,35 @@ function openAssign() {
     description: '',
     isActive: true,
   })
+}
+
+function openCreate() {
+  editingPermissionId.value = null
+  assignError.value = ''
+  resetForm()
+  assignOpen.value = true
+}
+
+function openEdit(row: PermissionRow) {
+  editingPermissionId.value = row.id ?? null
+  assignError.value = ''
+  Object.assign(form, {
+    permissionName: String(row.permissionName || ''),
+    permissionKey: String(row.permissionKey || ''),
+    permissionType: String(row.permissionType || 'MENU').toUpperCase(),
+    resourcePath: String(row.resourcePath || ''),
+    parentId: row.parentId === null || row.parentId === undefined ? '' : String(row.parentId),
+    sortOrder: row.sortOrder === null || row.sortOrder === undefined ? null : Number(row.sortOrder),
+    description: String(row.description || ''),
+    isActive: activeOf(row),
+  })
   assignOpen.value = true
 }
 
 function closeAssign() {
   if (assignBusy.value) return
   assignOpen.value = false
+  editingPermissionId.value = null
   assignError.value = ''
 }
 
@@ -352,14 +423,21 @@ async function submitAssign() {
     assignError.value = '请填写权限 Key'
     return
   }
-  if (roleRows.value.some((row) => String(row.permissionKey || '') === key)) {
+  if (
+    roleRows.value.some(
+      (row) =>
+        String(row.permissionKey || '') === key &&
+        (editingPermissionId.value === null ||
+          String(row.id) !== String(editingPermissionId.value)),
+    )
+  ) {
     assignError.value = '该角色已拥有相同权限 Key，请勿重复分配'
     return
   }
   assignBusy.value = true
   assignError.value = ''
   try {
-    await createPermission({
+    const payload = {
       role: selectedRole.value,
       permissionName: name,
       permissionKey: key,
@@ -369,14 +447,63 @@ async function submitAssign() {
       sortOrder: form.sortOrder === null ? undefined : Number(form.sortOrder),
       description: form.description.trim() || undefined,
       isActive: form.isActive,
-    })
+    }
+    const editing = editingPermissionId.value
+    if (editing === null || editing === undefined) {
+      await createPermission(payload)
+      toast('权限项已新增', 'ok')
+    } else {
+      await updatePermission(editing, payload)
+      toast('权限项已更新', 'ok')
+    }
     assignOpen.value = false
-    toast('权限已分配', 'ok')
+    editingPermissionId.value = null
     await loadAll()
   } catch (error) {
-    assignError.value = errorText(error, '分配失败，请稍后重试')
+    assignError.value = errorText(error, '保存失败，请稍后重试')
   } finally {
     assignBusy.value = false
+  }
+}
+
+async function toggleRow(row: PermissionRow) {
+  if (!row.id) return
+  try {
+    await togglePermission(row.id)
+    toast(activeOf(row) ? '权限项已停用' : '权限项已启用', 'ok')
+    await loadAll()
+  } catch (error) {
+    toast(errorText(error, '状态切换失败，请稍后重试'), 'danger')
+  }
+}
+
+function askRemove(row: PermissionRow) {
+  removeTarget.value = row
+  removeError.value = ''
+  removeOpen.value = true
+}
+
+function closeRemove() {
+  if (removeBusy.value) return
+  removeOpen.value = false
+  removeTarget.value = null
+  removeError.value = ''
+}
+
+async function confirmRemove() {
+  if (!removeTarget.value?.id || removeBusy.value) return
+  removeBusy.value = true
+  removeError.value = ''
+  try {
+    await deletePermission(removeTarget.value.id)
+    toast('权限项已删除', 'ok')
+    removeOpen.value = false
+    removeTarget.value = null
+    await loadAll()
+  } catch (error) {
+    removeError.value = errorText(error, '删除失败，请稍后重试')
+  } finally {
+    removeBusy.value = false
   }
 }
 

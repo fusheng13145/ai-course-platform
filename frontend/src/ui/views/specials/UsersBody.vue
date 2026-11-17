@@ -43,6 +43,7 @@
           <button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadUsers(true)">
             {{ loading ? '刷新中…' : '刷新' }}
           </button>
+          <button class="btn btn-sm btn-primary" @click="openCreate">新建用户</button>
         </div>
       </header>
 
@@ -76,8 +77,15 @@
               </td>
               <td>
                 <div class="row-actions">
+                  <button class="text-btn" data-testid="user-edit" @click="openEdit(row)">
+                    编辑
+                  </button>
+                  <button class="text-btn" data-testid="user-reset" @click="openReset(row)">
+                    重置密码
+                  </button>
                   <button
                     class="text-btn"
+                    data-testid="user-toggle"
                     :class="{ danger: activeOf(row) }"
                     :disabled="togglingId === row.id"
                     @click="askToggle(row)"
@@ -115,6 +123,112 @@
       </footer>
     </section>
 
+    <Modal
+      v-model:open="editorOpen"
+      :title="editingId === null ? '新建用户' : '编辑用户'"
+      width="640px"
+      :close-on-backdrop="false"
+    >
+      <div class="form-grid">
+        <label class="field">
+          <span>用户名 *</span>
+          <input
+            v-model="form.username"
+            class="input mono"
+            data-testid="user-username"
+            maxlength="20"
+            placeholder="字母、数字或下划线，3–20 位"
+          />
+        </label>
+        <label class="field">
+          <span>姓名</span>
+          <input v-model="form.fullName" class="input" data-testid="user-name" maxlength="50" />
+        </label>
+        <label class="field">
+          <span>角色 *</span>
+          <select v-model="form.role" class="input" data-testid="user-role">
+            <option v-for="item in ROLE_OPTIONS" :key="item.value" :value="item.value">
+              {{ item.label }}
+            </option>
+          </select>
+        </label>
+        <label v-if="editingId === null" class="field">
+          <span>初始密码 *</span>
+          <input
+            v-model="form.password"
+            class="input"
+            data-testid="user-password"
+            type="password"
+            autocomplete="new-password"
+            maxlength="32"
+            placeholder="8–32 位，含大小写字母、数字、特殊字符"
+          />
+        </label>
+        <label class="field">
+          <span>邮箱</span>
+          <input
+            v-model="form.email"
+            class="input"
+            data-testid="user-email"
+            type="email"
+            maxlength="100"
+          />
+        </label>
+        <label class="field">
+          <span>手机号</span>
+          <input
+            v-model="form.phone"
+            class="input"
+            data-testid="user-phone"
+            maxlength="11"
+            placeholder="11 位手机号"
+          />
+        </label>
+        <label v-if="form.role === 'STUDENT'" class="field">
+          <span>行政班</span>
+          <select v-model="form.adminClassId" class="input" data-testid="user-admin-class">
+            <option value="">未分班</option>
+            <option v-for="item in classrooms" :key="String(item.id)" :value="String(item.id)">
+              {{ item.name }}
+            </option>
+          </select>
+        </label>
+      </div>
+      <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="formBusy" @click="closeEditor">取消</button>
+        <button class="btn btn-primary" :disabled="formBusy" @click="submitEditor">
+          {{ formBusy ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </Modal>
+
+    <Modal v-model:open="resetOpen" title="重置密码" width="480px" :close-on-backdrop="false">
+      <p class="modal-text">
+        为 <b>{{ resetUser?.fullName || resetUser?.username || '该账号' }}</b> 设置新密码。
+      </p>
+      <label class="field">
+        <span>新密码 *</span>
+        <input
+          v-model="resetPassword"
+          class="input"
+          data-testid="user-new-password"
+          type="password"
+          autocomplete="new-password"
+          maxlength="32"
+          placeholder="8–32 位，含大小写字母、数字、特殊字符"
+        />
+      </label>
+      <p v-if="resetError" class="form-error" role="alert">{{ resetError }}</p>
+      <p class="modal-hint">保存后该账号的现有登录会话会失效。</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="resetBusy" @click="closeReset">取消</button>
+        <button class="btn btn-primary" :disabled="resetBusy" @click="submitReset">
+          {{ resetBusy ? '重置中…' : '重置密码' }}
+        </button>
+      </template>
+    </Modal>
+
     <Modal v-model:open="confirmOpen" title="停用账号" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         停用后 <b>{{ confirmUser?.fullName || confirmUser?.username || '该账号' }}</b>
@@ -133,12 +247,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import { useListFeedback } from '@/composables/useListFeedback'
-import { getUsers } from '@/api/admin'
+import { createUser, getUsers, resetUserPassword, updateUser } from '@/api/admin'
+import { getClassroomList } from '@/api/classroom'
 import { updateUserStatus } from '@/api/user'
 import { pickList, readTotal, unwrap } from '@/utils/response'
 
@@ -150,7 +265,13 @@ interface UserRow {
   phone?: string
   role?: string
   isActive?: boolean
+  adminClassId?: number | string | null
   [key: string]: unknown
+}
+
+interface ClassroomOption {
+  id?: number | string
+  name?: string
 }
 
 const ROLE_OPTIONS = [
@@ -178,6 +299,158 @@ const confirmOpen = ref(false)
 const actionBusy = ref(false)
 const actionError = ref('')
 const confirmUser = ref<UserRow | null>(null)
+
+const editorOpen = ref(false)
+const editingId = ref<UserRow['id'] | null>(null)
+const formBusy = ref(false)
+const formError = ref('')
+const form = reactive({
+  username: '',
+  fullName: '',
+  role: 'STUDENT',
+  email: '',
+  phone: '',
+  password: '',
+  adminClassId: '',
+})
+const classrooms = ref<ClassroomOption[]>([])
+
+const resetOpen = ref(false)
+const resetUser = ref<UserRow | null>(null)
+const resetPassword = ref('')
+const resetBusy = ref(false)
+const resetError = ref('')
+
+function passwordIssue(value: string): string | null {
+  if (value.length < 8 || value.length > 32) return '密码长度需为 8–32 位'
+  if (!/[a-z]/.test(value)) return '密码需包含小写字母'
+  if (!/[A-Z]/.test(value)) return '密码需包含大写字母'
+  if (!/\d/.test(value)) return '密码需包含数字'
+  const specialChars = '~!@#$%^&*()_+-={}[]:;"\'<>,.?/\\|`'
+  if (![...value].some((char) => specialChars.includes(char))) return '密码需包含特殊字符'
+  return null
+}
+
+function validateForm(): string | null {
+  const username = form.username.trim()
+  if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) return '用户名需为 3–20 位字母、数字或下划线'
+  if (form.fullName.length > 50) return '姓名不能超过 50 个字符'
+  if (!ROLE_OPTIONS.some((item) => item.value === form.role)) return '请选择角色'
+  if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return '邮箱格式不正确'
+  if (form.phone && !/^1[3-9]\d{9}$/.test(form.phone)) return '手机号格式不正确'
+  if (editingId.value === null) {
+    const issue = passwordIssue(form.password)
+    if (issue) return issue
+  }
+  return null
+}
+
+function openCreate() {
+  editingId.value = null
+  formError.value = ''
+  form.username = ''
+  form.fullName = ''
+  form.role = 'STUDENT'
+  form.email = ''
+  form.phone = ''
+  form.password = ''
+  form.adminClassId = ''
+  editorOpen.value = true
+}
+
+function openEdit(row: UserRow) {
+  editingId.value = row.id ?? null
+  formError.value = ''
+  form.username = String(row.username || '')
+  form.fullName = String(row.fullName || '')
+  form.role = String(row.role || 'STUDENT').toUpperCase()
+  form.email = String(row.email || '')
+  form.phone = String(row.phone || '')
+  form.password = ''
+  form.adminClassId = row.adminClassId == null ? '' : String(row.adminClassId)
+  editorOpen.value = true
+}
+
+function closeEditor() {
+  if (formBusy.value) return
+  editorOpen.value = false
+  formError.value = ''
+}
+
+async function submitEditor() {
+  if (formBusy.value) return
+  const issue = validateForm()
+  if (issue) {
+    formError.value = issue
+    return
+  }
+  formBusy.value = true
+  formError.value = ''
+  const editing = editingId.value
+  const payload: Record<string, unknown> = {
+    username: form.username.trim(),
+    fullName: form.fullName.trim(),
+    role: form.role,
+    email: form.email.trim(),
+    phone: form.phone.trim(),
+  }
+  if (form.role === 'STUDENT') {
+    if (form.adminClassId) payload.adminClassId = Number(form.adminClassId)
+    else if (editing !== null && editing !== undefined) payload.adminClassId = 0
+  } else {
+    payload.adminClassId = 0
+  }
+  try {
+    if (editing === null || editing === undefined) {
+      await createUser({ ...payload, password: form.password, isActive: true })
+      toast('用户已创建', 'ok')
+    } else {
+      await updateUser(editing, payload)
+      toast('用户已更新', 'ok')
+    }
+    editorOpen.value = false
+    await loadUsers()
+  } catch (error) {
+    formError.value = errorText(error, '保存失败，请稍后重试')
+  } finally {
+    formBusy.value = false
+  }
+}
+
+function openReset(row: UserRow) {
+  resetUser.value = row
+  resetPassword.value = ''
+  resetError.value = ''
+  resetOpen.value = true
+}
+
+function closeReset() {
+  if (resetBusy.value) return
+  resetOpen.value = false
+  resetUser.value = null
+  resetError.value = ''
+}
+
+async function submitReset() {
+  if (resetBusy.value || !resetUser.value?.id) return
+  const issue = passwordIssue(resetPassword.value)
+  if (issue) {
+    resetError.value = issue
+    return
+  }
+  resetBusy.value = true
+  resetError.value = ''
+  try {
+    await resetUserPassword(resetUser.value.id, { newPassword: resetPassword.value })
+    toast('密码已重置', 'ok')
+    resetOpen.value = false
+    resetUser.value = null
+  } catch (error) {
+    resetError.value = errorText(error, '重置失败，请稍后重试')
+  } finally {
+    resetBusy.value = false
+  }
+}
 
 const { loading, listError, run, emptyDescription } = useListFeedback({
   failMessage: '用户列表加载失败，请稍后重试。',
@@ -282,8 +555,18 @@ async function setStatus(row: UserRow, next: boolean) {
   }
 }
 
+async function loadClassrooms() {
+  try {
+    const payload = unwrap(await getClassroomList())
+    classrooms.value = pickList<ClassroomOption>(payload)
+  } catch {
+    classrooms.value = []
+  }
+}
+
 onMounted(() => {
   void loadUsers()
+  void loadClassrooms()
 })
 </script>
 

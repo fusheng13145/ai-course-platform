@@ -15,6 +15,10 @@
             {{ course.name }}
           </option>
         </select>
+        <button v-if="role === 'admin'" class="btn btn-ghost" @click="openLibrary">课程库</button>
+        <button v-if="role === 'admin'" class="btn btn-ghost" @click="managerOpen = true">
+          课程管理
+        </button>
         <button class="btn btn-primary" :disabled="joining" @click="onPrimary">
           {{ primaryLabel }}
         </button>
@@ -53,6 +57,210 @@
       <b>{{ emptyTitle }}</b>
     </div>
 
+    <Modal v-model:open="managerOpen" title="课程管理" width="920px" :close-on-backdrop="false">
+      <div v-if="courses.length" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="w-120">编号</th>
+              <th>课程名称</th>
+              <th class="w-120">教师</th>
+              <th class="w-140">学期</th>
+              <th class="w-80">状态</th>
+              <th class="w-180 th-actions">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="course in courses" :key="course.id">
+              <td class="mono">{{ course.code || '—' }}</td>
+              <td>{{ course.name }}</td>
+              <td>{{ course.teacher || '—' }}</td>
+              <td>{{ course.semester || '—' }}</td>
+              <td>
+                <span class="chip" :class="course.status === 'INACTIVE' ? 'chip-mute' : 'chip-ok'">
+                  {{ courseStatusLabel(course.status) }}
+                </span>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <button
+                    class="text-btn"
+                    :disabled="courseActionId === course.id"
+                    @click="toggleCourse(course)"
+                  >
+                    {{ course.status === 'INACTIVE' ? '启用' : '停用' }}
+                  </button>
+                  <button
+                    class="text-btn danger"
+                    :disabled="courseActionId === course.id"
+                    @click="askDeleteCourse(course)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="empty-state compact"><b>暂无课程</b></div>
+      <template #footer>
+        <button class="btn btn-ghost" @click="managerOpen = false">关闭</button>
+      </template>
+    </Modal>
+
+    <Modal
+      v-model:open="deleteCourseOpen"
+      title="删除课程"
+      width="460px"
+      :close-on-backdrop="false"
+    >
+      <p class="modal-text">
+        确定删除「{{ deleteCourseTarget?.name || '该课程' }}」？该课程的教学班与选课记录将一并移除。
+      </p>
+      <p v-if="deleteCourseError" class="form-error" role="alert">{{ deleteCourseError }}</p>
+      <template #footer>
+        <button
+          class="btn btn-ghost"
+          :disabled="deleteCourseBusy"
+          @click="deleteCourseOpen = false"
+        >
+          取消
+        </button>
+        <button class="btn btn-danger" :disabled="deleteCourseBusy" @click="confirmDeleteCourse">
+          {{ deleteCourseBusy ? '删除中…' : '确定删除' }}
+        </button>
+      </template>
+    </Modal>
+
+    <Modal v-model:open="libraryOpen" title="课程库" width="860px" :close-on-backdrop="false">
+      <div class="table-tools">
+        <button class="btn btn-sm btn-ghost" @click="openDefinitionCreate">新增课程定义</button>
+      </div>
+      <div v-if="libraryLoading" class="empty-state compact"><b>正在读取课程库…</b></div>
+      <div v-else-if="libraryError" class="callout">
+        <span>课程库</span>
+        <p>{{ libraryError }}</p>
+        <button class="btn btn-ghost btn-sm" @click="loadLibrary">重试</button>
+      </div>
+      <div v-else-if="definitions.length" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="w-120">编号</th>
+              <th>课程名称</th>
+              <th class="w-64">学分</th>
+              <th class="w-64">性质</th>
+              <th class="w-80">状态</th>
+              <th class="w-64 th-actions">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in definitions" :key="String(row.id)">
+              <td class="mono">{{ row.code }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.credits ?? '—' }}</td>
+              <td>{{ row.nature || '—' }}</td>
+              <td>
+                <span class="chip" :class="row.status === 'INACTIVE' ? 'chip-mute' : 'chip-ok'">
+                  {{ row.status === 'INACTIVE' ? '已停用' : '可用' }}
+                </span>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <button class="text-btn" @click="openDefinitionEdit(row)">编辑</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="empty-state compact"><b>课程库为空</b></div>
+      <template #footer>
+        <button class="btn btn-ghost" @click="libraryOpen = false">关闭</button>
+      </template>
+    </Modal>
+
+    <Modal
+      v-model:open="definitionOpen"
+      :title="definitionEditingId === null ? '新增课程定义' : '编辑课程定义'"
+      width="640px"
+      :close-on-backdrop="false"
+    >
+      <div class="form-grid">
+        <label class="field">
+          <span>课程编号 *</span>
+          <input
+            v-model="definitionForm.code"
+            class="input mono"
+            data-testid="definition-code"
+            maxlength="50"
+            placeholder="如 CN202"
+          />
+        </label>
+        <label class="field">
+          <span>课程名称 *</span>
+          <input
+            v-model="definitionForm.name"
+            class="input"
+            data-testid="definition-name"
+            maxlength="255"
+          />
+        </label>
+        <label class="field">
+          <span>学分</span>
+          <input
+            v-model.number="definitionForm.credits"
+            class="input"
+            type="number"
+            min="0"
+            step="0.5"
+          />
+        </label>
+        <label class="field">
+          <span>学时</span>
+          <input v-model.number="definitionForm.hours" class="input" type="number" min="0" />
+        </label>
+        <label class="field">
+          <span>课程性质</span>
+          <select v-model="definitionForm.nature" class="input">
+            <option value="必修">必修</option>
+            <option value="选修">选修</option>
+            <option value="公选">公选</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>学院</span>
+          <select v-model="definitionForm.collegeId" class="input">
+            <option value="">不限学院</option>
+            <option
+              v-for="college in colleges"
+              :key="String(college.id)"
+              :value="String(college.id)"
+            >
+              {{ college.name }}
+            </option>
+          </select>
+        </label>
+        <label v-if="definitionEditingId !== null" class="field">
+          <span>状态</span>
+          <select v-model="definitionForm.status" class="input">
+            <option value="ACTIVE">可用</option>
+            <option value="INACTIVE">停用</option>
+          </select>
+        </label>
+      </div>
+      <p v-if="definitionError" class="form-error" role="alert">{{ definitionError }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="definitionBusy" @click="definitionOpen = false">
+          取消
+        </button>
+        <button class="btn btn-primary" :disabled="definitionBusy" @click="submitDefinition">
+          {{ definitionBusy ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </Modal>
+
     <!-- 选班：同一开课任务下有多个启用教学班时，先选班再加入 -->
     <Modal v-model:open="sectionOpen" title="选择教学班" width="420px">
       <div class="section-list">
@@ -86,13 +294,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHead from '../components/PageHead.vue'
 import Icon from '../components/Icon.vue'
 import Modal from '../components/Modal.vue'
 import CourseFolderCard from '../components/CourseFolderCard.vue'
 import studentApi from '@/api/student'
+import {
+  createCourseDefinition,
+  deleteCourse,
+  getCourseDefinitions,
+  toggleCourseStatus,
+  updateCourseDefinition,
+} from '@/api/course'
+import { getColleges } from '@/api/admin'
 import { pageDef, type Role } from '../nav'
 import { useUi } from '../composables/ui'
 import { getCourses, getCourseCatalog, type CourseCard } from '../data/api'
@@ -116,6 +332,48 @@ const pendingCourseId = ref<number | null>(null)
 const dropOpen = ref(false)
 const dropTarget = ref<CourseCard | null>(null)
 const dropping = ref(false)
+
+interface DefinitionRow {
+  id?: number | string
+  code?: string
+  name?: string
+  credits?: number | string | null
+  hours?: number | null
+  nature?: string
+  collegeId?: number | string | null
+  status?: string
+}
+
+interface CollegeRow {
+  id?: number | string
+  name?: string
+}
+
+const libraryOpen = ref(false)
+const libraryLoading = ref(false)
+const libraryError = ref('')
+const definitions = ref<DefinitionRow[]>([])
+const colleges = ref<CollegeRow[]>([])
+const definitionOpen = ref(false)
+const definitionEditingId = ref<number | string | null>(null)
+const definitionBusy = ref(false)
+const definitionError = ref('')
+const definitionForm = reactive({
+  code: '',
+  name: '',
+  credits: 3,
+  hours: 48,
+  nature: '选修',
+  collegeId: '',
+  status: 'ACTIVE',
+})
+
+const managerOpen = ref(false)
+const courseActionId = ref<number | null>(null)
+const deleteCourseOpen = ref(false)
+const deleteCourseTarget = ref<CourseCard | null>(null)
+const deleteCourseBusy = ref(false)
+const deleteCourseError = ref('')
 
 const def = computed(() => pageDef(role.value as Role, 'courses'))
 const primaryLabel = computed(() => (role.value === 'student' ? '加入课程' : '新建开课任务'))
@@ -234,6 +492,159 @@ async function onPrimary() {
   }
   if (role.value === 'student') {
     await joinSelectedCourse()
+  }
+}
+
+function definitionErrorText(error: unknown): string {
+  const err = error as { response?: { data?: { message?: string } }; message?: string } | null
+  return err?.response?.data?.message || '保存失败，请稍后重试'
+}
+
+async function loadLibrary() {
+  libraryLoading.value = true
+  libraryError.value = ''
+  try {
+    const [definitionPayload, collegePayload] = await Promise.all([
+      getCourseDefinitions(),
+      getColleges(),
+    ])
+    const definitionRows = pickList<DefinitionRow>(unwrap(definitionPayload))
+    const collegeRows = pickList<CollegeRow>(unwrap(collegePayload))
+    definitions.value = definitionRows
+    colleges.value = collegeRows
+  } catch {
+    libraryError.value = '课程库读取失败，请稍后重试'
+  } finally {
+    libraryLoading.value = false
+  }
+}
+
+function openLibrary() {
+  libraryOpen.value = true
+  void loadLibrary()
+}
+
+function openDefinitionCreate() {
+  definitionEditingId.value = null
+  definitionError.value = ''
+  Object.assign(definitionForm, {
+    code: '',
+    name: '',
+    credits: 3,
+    hours: 48,
+    nature: '选修',
+    collegeId: colleges.value[0]?.id ? String(colleges.value[0].id) : '',
+    status: 'ACTIVE',
+  })
+  definitionOpen.value = true
+}
+
+function openDefinitionEdit(row: DefinitionRow) {
+  definitionEditingId.value = row.id ?? null
+  definitionError.value = ''
+  Object.assign(definitionForm, {
+    code: String(row.code || ''),
+    name: String(row.name || ''),
+    credits: Number(row.credits ?? 0),
+    hours: Number(row.hours ?? 0),
+    nature: String(row.nature || '选修'),
+    collegeId: row.collegeId == null ? '' : String(row.collegeId),
+    status: String(row.status || 'ACTIVE'),
+  })
+  definitionOpen.value = true
+}
+
+async function submitDefinition() {
+  if (definitionBusy.value) return
+  const code = definitionForm.code.trim().toUpperCase()
+  const name = definitionForm.name.trim()
+  if (!code) {
+    definitionError.value = '请填写课程编号'
+    return
+  }
+  if (!name) {
+    definitionError.value = '请填写课程名称'
+    return
+  }
+  if (!Number.isFinite(Number(definitionForm.credits)) || Number(definitionForm.credits) < 0) {
+    definitionError.value = '学分必须是非负数字'
+    return
+  }
+  definitionBusy.value = true
+  definitionError.value = ''
+  const payload = {
+    code,
+    name,
+    credits: Number(definitionForm.credits),
+    hours: Number(definitionForm.hours) || 0,
+    nature: definitionForm.nature,
+    collegeId: definitionForm.collegeId ? Number(definitionForm.collegeId) : undefined,
+    status: definitionForm.status,
+  }
+  try {
+    const editing = definitionEditingId.value
+    if (editing === null || editing === undefined) {
+      await createCourseDefinition(payload)
+      toast('课程定义已创建', 'ok')
+    } else {
+      await updateCourseDefinition(editing, payload)
+      toast('课程定义已更新', 'ok')
+    }
+    definitionOpen.value = false
+    await loadLibrary()
+  } catch (error) {
+    definitionError.value = definitionErrorText(error)
+  } finally {
+    definitionBusy.value = false
+  }
+}
+
+function courseStatusLabel(status: string): string {
+  const key = String(status || '').toUpperCase()
+  if (key === 'INACTIVE') return '已停用'
+  if (key === 'ACTIVE') return '启用'
+  return status || '—'
+}
+
+async function refreshCourses() {
+  courses.value = await getCourses('admin')
+}
+
+async function toggleCourse(course: CourseCard) {
+  if (courseActionId.value === course.id) return
+  courseActionId.value = course.id
+  try {
+    await toggleCourseStatus(course.id)
+    toast(String(course.status).toUpperCase() === 'INACTIVE' ? '课程已启用' : '课程已停用', 'ok')
+    await refreshCourses()
+  } catch {
+    toast('课程状态切换失败，请稍后重试', 'warn')
+  } finally {
+    courseActionId.value = null
+  }
+}
+
+function askDeleteCourse(course: CourseCard) {
+  deleteCourseTarget.value = course
+  deleteCourseError.value = ''
+  deleteCourseOpen.value = true
+}
+
+async function confirmDeleteCourse() {
+  const course = deleteCourseTarget.value
+  if (!course || deleteCourseBusy.value) return
+  deleteCourseBusy.value = true
+  deleteCourseError.value = ''
+  try {
+    await deleteCourse(course.id)
+    toast('课程已删除', 'ok')
+    deleteCourseOpen.value = false
+    deleteCourseTarget.value = null
+    await refreshCourses()
+  } catch (error) {
+    deleteCourseError.value = definitionErrorText(error)
+  } finally {
+    deleteCourseBusy.value = false
   }
 }
 
