@@ -15,12 +15,7 @@
             {{ course.name }}
           </option>
         </select>
-        <button
-          v-if="role !== 'admin'"
-          class="btn btn-primary"
-          :disabled="joining"
-          @click="onPrimary"
-        >
+        <button class="btn btn-primary" :disabled="joining" @click="onPrimary">
           {{ primaryLabel }}
         </button>
       </template>
@@ -56,18 +51,30 @@
     <div v-else class="card empty-state">
       <span class="e-ico"><Icon name="book" /></span>
       <b>{{ emptyTitle }}</b>
-      <p>{{ emptyHint }}</p>
-      <button class="btn btn-sm" @click="filter = 'all'">查看全部课程</button>
     </div>
+
+    <!-- 选班：同一开课任务下有多个启用教学班时，先选班再加入 -->
+    <Modal v-model:open="sectionOpen" title="选择教学班" width="420px">
+      <div class="section-list">
+        <label v-for="item in sections" :key="String(item.id)" class="section-option">
+          <input v-model="selectedSectionId" type="radio" :value="String(item.id)" />
+          <span>{{ item.name || `教学班 ${item.id}` }}</span>
+          <small>{{ item.capacity ?? '—' }} 人</small>
+        </label>
+      </div>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="joining" @click="sectionOpen = false">取消</button>
+        <button class="btn btn-primary" :disabled="joining" @click="confirmJoinSection">
+          {{ joining ? '加入中…' : '加入' }}
+        </button>
+      </template>
+    </Modal>
 
     <!-- 退选二次确认 -->
     <Modal v-model:open="dropOpen" title="退选课程" width="460px">
       <p class="modal-text">
-        确定退选「{{
-          dropTarget?.name || '该课程'
-        }}」？退选后课程将从「我的课程」移除，既有学习记录保留。
+        确定退选「{{ dropTarget?.name || '该课程' }}」？退选后将从「我的课程」移除，学习记录保留。
       </p>
-      <p class="modal-hint">如需重新学习，可在课程目录中再次加入。</p>
       <template #footer>
         <button class="btn btn-ghost" :disabled="dropping" @click="dropOpen = false">取消</button>
         <button class="btn btn-danger" :disabled="dropping" @click="runDrop">
@@ -89,6 +96,7 @@ import studentApi from '@/api/student'
 import { pageDef, type Role } from '../nav'
 import { useUi } from '../composables/ui'
 import { getCourses, getCourseCatalog, type CourseCard } from '../data/api'
+import { pickList, unwrap } from '@/utils/response'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -99,13 +107,18 @@ const filter = ref<'all' | 'active' | 'done'>('all')
 const selectedCourseId = ref<number | ''>('')
 const joinable = ref<CourseCard[]>([])
 const joining = ref(false)
+// 选班：一门开课任务可能有多个启用教学班，加入前必须先确定教学班。
+const sectionOpen = ref(false)
+const sections = ref<{ id?: number | string; name?: string; capacity?: number | null }[]>([])
+const selectedSectionId = ref('')
+const pendingCourseId = ref<number | null>(null)
 // 退选：后端 DELETE /student/courses/{courseId}/enroll 已存在，二次确认后走真实写口。
 const dropOpen = ref(false)
 const dropTarget = ref<CourseCard | null>(null)
 const dropping = ref(false)
 
 const def = computed(() => pageDef(role.value as Role, 'courses'))
-const primaryLabel = computed(() => (role.value === 'student' ? '加入课程' : '新建课程'))
+const primaryLabel = computed(() => (role.value === 'student' ? '加入课程' : '新建开课任务'))
 const doneCount = computed(() => courses.value.filter((course) => course.progress >= 100).length)
 const activeCount = computed(() => courses.value.length - doneCount.value)
 const filtered = computed(() => {
@@ -114,11 +127,6 @@ const filtered = computed(() => {
   return courses.value
 })
 const emptyTitle = computed(() => (filter.value === 'done' ? '暂无已完成课程' : '暂无课程'))
-const emptyHint = computed(() =>
-  filter.value === 'done'
-    ? '完成章节任务后，课程会自动归档到这里。'
-    : '课程数据加载后会自动出现在这里。',
-)
 
 /**
  * 课程卡在新标签页打开：列表页状态（筛选、滚动位置）不被覆盖，
@@ -146,13 +154,35 @@ async function joinSelectedCourse() {
     toast(joinable.value.length ? '请先选择要加入的课程' : '暂无可加入的课程', 'warn')
     return
   }
+  try {
+    const payload = unwrap<unknown>(await studentApi.getAvailableTeachingClasses(courseId))
+    sections.value = pickList<{ id?: number | string; name?: string; capacity?: number | null }>(
+      payload,
+    )
+    if (!sections.value.length) {
+      toast('该课程暂无启用教学班', 'warn')
+      return
+    }
+    if (sections.value.length === 1) {
+      await enrollWithSection(courseId, sections.value[0].id)
+      return
+    }
+    pendingCourseId.value = courseId
+    selectedSectionId.value = String(sections.value[0].id)
+    sectionOpen.value = true
+  } catch {
+    toast('教学班读取失败，请稍后重试', 'warn')
+  }
+}
+
+async function enrollWithSection(courseId: number, teachingClassId: unknown) {
   joining.value = true
   try {
-    // 后端契约：StudentController.enrollCourse —— POST /student/courses/{courseId}/enroll，
-    // courseId 走路径参数、无请求体；服务层落库 isActive=true，故 GET /student/courses 立刻可见。
-    await studentApi.enrollCourse(courseId)
+    await studentApi.enrollCourse(courseId, teachingClassId as number | string)
     toast('已加入课程', 'ok')
     selectedCourseId.value = ''
+    sectionOpen.value = false
+    pendingCourseId.value = null
     courses.value = await getCourses('student', true)
     await refreshJoinable()
   } catch {
@@ -160,6 +190,11 @@ async function joinSelectedCourse() {
   } finally {
     joining.value = false
   }
+}
+
+async function confirmJoinSection() {
+  if (!selectedSectionId.value || pendingCourseId.value == null) return
+  await enrollWithSection(pendingCourseId.value, selectedSectionId.value)
 }
 
 /** 打开退选确认弹层（二次确认后才发写请求）。 */
@@ -193,6 +228,10 @@ async function onPrimary() {
     router.push('/teacher/courses/create')
     return
   }
+  if (role.value === 'admin') {
+    router.push('/admin/courses/create')
+    return
+  }
   if (role.value === 'student') {
     await joinSelectedCourse()
   }
@@ -203,3 +242,24 @@ onMounted(async () => {
   if (role.value === 'student') await refreshJoinable()
 })
 </script>
+
+<style scoped>
+.section-list {
+  display: grid;
+  gap: 6px;
+}
+.section-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-field, 8px);
+  cursor: pointer;
+}
+.section-option small {
+  margin-left: auto;
+  color: var(--ink-3);
+}
+</style>

@@ -230,12 +230,16 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
             throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         String approval = course.getApprovalStatus();
-        if ("PENDING".equalsIgnoreCase(approval) || "REJECTED".equalsIgnoreCase(approval)) {
+        if (approval != null && !"APPROVED".equalsIgnoreCase(approval)) {
             log.warn("[Enroll] 拒绝加入未通过审核的课程：courseId={}, approvalStatus={}", courseId, approval);
             throw new BusinessException(ApiCode.FORBIDDEN, "课程尚未通过审核，无法加入");
         }
-        if ("INACTIVE".equalsIgnoreCase(course.getStatus())) {
+        String status = course.getStatus();
+        if (status != null && !"ACTIVE".equalsIgnoreCase(status)) {
             throw new BusinessException(ApiCode.FORBIDDEN, "课程已结束，无法加入");
+        }
+        if (course.getCompletedAt() != null) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "课程已结课，无法加入");
         }
         return course;
     }

@@ -75,12 +75,18 @@ class TeachingClassControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("管理员不能代建教学班（写操作仅课程负责人角色）")
-    void adminCannotCreate() throws Exception {
-        String body = "{\"courseId\":1}";
+    @DisplayName("管理员可代建教学班")
+    void adminCanCreate() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(1L);
+        TeachingClass teachingClass = new TeachingClass();
+        teachingClass.setId(30L);
+        when(teachingClassService.create(anyLong(), anyLong(), any(), any(), any(), any()))
+                .thenReturn(teachingClass);
+
         mockMvc.perform(withUser(post("/teaching-classes")
-                        .contentType(MediaType.APPLICATION_JSON).content(body), 1L, "ADMIN"))
-                .andExpect(status().isForbidden());
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1}"), 1L, "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(30));
     }
 
     @Test

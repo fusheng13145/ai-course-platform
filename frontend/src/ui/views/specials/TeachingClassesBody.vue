@@ -12,11 +12,19 @@
             aria-label="选择课程"
             @change="loadClasses"
           >
-            <option :value="null" disabled>请选择课程</option>
+            <option :value="null" disabled>选择课程</option>
             <option v-for="course in courses" :key="String(course.id)" :value="course.id">
-              {{ course.name }}（#{{ course.id }}）
+              {{ course.name }}
             </option>
           </select>
+          <button
+            v-if="courseId && hasDraft"
+            class="btn btn-ghost"
+            :disabled="publishing"
+            @click="publishClasses"
+          >
+            {{ publishing ? '发布中…' : '发布教学班' }}
+          </button>
         </div>
       </header>
 
@@ -37,13 +45,23 @@
                 <b>{{ row.name || '—' }}</b
                 ><small class="cell-sub">{{ row.code || '' }}</small>
               </td>
-              <td>{{ leadLabel(row.leadTeacherId) }}</td>
               <td>
-                {{ row.memberCount ?? row.currentStudents ?? 0 }} / {{ row.maxStudents ?? '—' }}
+                <select
+                  class="input section-teacher"
+                  :value="String(row.leadTeacherId ?? '')"
+                  aria-label="主讲教师"
+                  @change="assignLead(row, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="" disabled>选择主讲</option>
+                  <option v-for="item in teachers" :key="String(item.id)" :value="String(item.id)">
+                    {{ item.name }}
+                  </option>
+                </select>
               </td>
+              <td>{{ row.memberCount ?? row.currentStudents ?? 0 }} / {{ row.capacity ?? '—' }}</td>
               <td>
                 <span class="chip" :class="row.status === 'ACTIVE' ? 'chip-ok' : 'chip-mute'">
-                  {{ row.status === 'ACTIVE' ? '启用' : row.status || '—' }}
+                  {{ statusLabel(row.status) }}
                 </span>
               </td>
               <td>
@@ -61,11 +79,10 @@
       </div>
       <div v-else-if="loading" class="empty-state compact"><b>正在加载教学班…</b></div>
       <div v-else-if="courseId" class="empty-state compact">
-        <b>该课程暂无教学班</b>
-        <p class="hint">每门课程应自带一个默认教学班，此处为空属数据异常。</p>
+        <b>暂无教学班</b>
       </div>
       <div v-else class="empty-state compact">
-        <b>选择课程查看教学班</b>
+        <b>选择课程</b>
       </div>
 
       <div v-if="openMembersId" class="members-panel">
@@ -85,7 +102,7 @@
                   <b>{{ memberLabel(member.studentId) }}</b
                   ><small class="cell-sub">#{{ member.studentId }}</small>
                 </td>
-                <td>{{ member.approvalStatus || '—' }}</td>
+                <td>{{ approvalLabel(member.approvalStatus) }}</td>
                 <td>
                   <span class="chip" :class="member.isActive ? 'chip-ok' : 'chip-mute'">
                     {{ member.isActive ? '在读' : '已退' }}
@@ -102,12 +119,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useUi } from '../../composables/ui'
 import { getCourseCatalog } from '../../data/api'
 import { getTeachingClassesByCourse, getTeachingClassMembers } from '@/api/admin'
 import { getAllUsers } from '@/api/admin'
+import { publishCourseClasses, assignLeadTeacher } from '@/api/teachingClass'
 import { pickList, unwrap } from '@/utils/response'
+import { approvalLabel } from '../../utils'
 
 interface TcRow {
   id?: number | string
@@ -117,7 +136,7 @@ interface TcRow {
   leadTeacherId?: number | string | null
   memberCount?: number | null
   currentStudents?: number | null
-  maxStudents?: number | null
+  capacity?: number | null
 }
 
 interface MemberRow {
@@ -136,12 +155,16 @@ const { toast } = useUi()
 const courses = ref<OptionRow[]>([])
 const courseId = ref<number | string | null>(null)
 const classes = ref<TcRow[]>([])
+const teachers = ref<{ id?: number | string; name?: string }[]>([])
 const loading = ref(false)
+const publishing = ref(false)
 const openMembersId = ref<string>('')
 const members = ref<MemberRow[]>([])
 const membersLoading = ref('')
-const teacherNames = new Map<string, string>()
 const studentNames = new Map<string, string>()
+const hasDraft = computed(() =>
+  classes.value.some((row) => String(row.status || '').toUpperCase() === 'DRAFT'),
+)
 
 function errorText(error: unknown, fallback: string): string {
   const err = error as { response?: { data?: { message?: string } }; message?: string } | null
@@ -152,26 +175,33 @@ function nameOf(map: Map<string, string>, id: unknown): string {
   return map.get(String(id)) || `#${String(id)}`
 }
 
-function leadLabel(id: unknown): string {
-  return id ? `教师 ${nameOf(teacherNames, id)}` : '未指定'
-}
-
 function memberLabel(id: unknown): string {
   return nameOf(studentNames, id)
+}
+
+function statusLabel(value: unknown): string {
+  const key = String(value ?? '')
+  if (key === 'ACTIVE') return '启用'
+  if (key === 'DRAFT') return '草稿'
+  if (key === 'CLOSED') return '结课'
+  return key || '—'
 }
 
 async function loadDirectory() {
   try {
     const users = await getAllUsers({})
+    teachers.value = []
     for (const user of users as Record<string, unknown>[]) {
       const id = String(user.id ?? '')
-      if (id) {
-        teacherNames.set(id, String(user.fullName || user.username || `用户 ${id}`))
-        studentNames.set(id, String(user.fullName || user.username || `用户 ${id}`))
+      if (!id) continue
+      const name = String(user.fullName || user.username || `用户 ${id}`)
+      studentNames.set(id, name)
+      if (String(user.role || '').toUpperCase() === 'TEACHER') {
+        teachers.value.push({ id, name })
       }
     }
   } catch {
-    /* 目录失败回退 #id */
+    /* 目录失败回退选择器为空 */
   }
 }
 
@@ -196,6 +226,31 @@ async function loadClasses() {
     toast(errorText(error, '教学班列表加载失败'), 'danger')
   } finally {
     loading.value = false
+  }
+}
+
+async function publishClasses() {
+  if (!courseId.value) return
+  publishing.value = true
+  try {
+    await publishCourseClasses(courseId.value)
+    await loadClasses()
+    toast('教学班已发布', 'ok')
+  } catch (error) {
+    toast(errorText(error, '发布教学班失败'), 'danger')
+  } finally {
+    publishing.value = false
+  }
+}
+
+async function assignLead(row: TcRow, teacherId: string) {
+  if (!row.id || !teacherId) return
+  try {
+    const updated = unwrap(await assignLeadTeacher(row.id, teacherId)) as TcRow
+    row.leadTeacherId = updated?.leadTeacherId ?? teacherId
+    toast('主讲已更新', 'ok')
+  } catch (error) {
+    toast(errorText(error, '指定主讲失败'), 'danger')
   }
 }
 
@@ -248,5 +303,9 @@ init()
   margin: 4px 0 8px;
   font-size: 13px;
   font-weight: 600;
+}
+.section-teacher {
+  width: 132px;
+  height: 28px;
 }
 </style>

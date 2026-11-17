@@ -36,8 +36,17 @@
             <h2>教学班概览</h2>
           </div>
         </header>
-        <div class="empty-state compact">
-          <b>教学班数据暂不可用</b>
+        <div v-if="sections.length" class="section-list">
+          <div v-for="row in sections" :key="String(row.id)" class="section-row">
+            <b>{{ row.name || `教学班 #${row.id}` }}</b>
+            <span class="chip" :class="row.status === 'ACTIVE' ? 'chip-ok' : 'chip-mute'">
+              {{ row.status === 'ACTIVE' ? '启用' : '草稿' }}
+            </span>
+            <span class="section-cap">{{ row.capacity ?? '—' }} 人</span>
+          </div>
+        </div>
+        <div v-else class="empty-state compact">
+          <b>暂无教学班</b>
         </div>
       </section>
 
@@ -80,6 +89,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import chapterApi from '@/api/chapter'
 import teacherApi from '@/api/teacher'
+import { getTeachingClasses } from '@/api/teachingClass'
 import { pickList, unwrap } from '@/utils/response'
 import Stat from '../../../components/Stat.vue'
 import Icon from '../../../components/Icon.vue'
@@ -103,6 +113,13 @@ interface TeacherSummary {
   progress: number | null
 }
 
+interface SectionRow {
+  id?: number | string
+  name?: string
+  status?: string
+  capacity?: number | null
+}
+
 const props = defineProps<{
   courseId: number
   role: Role
@@ -117,6 +134,7 @@ const empty = ref(false)
 const summary = ref<TeacherSummary | null>(null)
 const chapterCount = ref<number | null>(null)
 const firstChapter = ref('')
+const sections = ref<SectionRow[]>([])
 /** 课程切换时丢弃先发后至的旧响应，避免把上一门课读数落到当前页 */
 let loadToken = 0
 
@@ -144,6 +162,11 @@ async function fetchTeacherSummary(): Promise<TeacherSummary | null> {
 async function fetchChapters(): Promise<Array<Record<string, unknown>>> {
   const payload = unwrap(await chapterApi.getChapters(props.courseId))
   return pickList(payload) as Array<Record<string, unknown>>
+}
+
+async function fetchSections(): Promise<void> {
+  const payload = unwrap(await getTeachingClasses(props.courseId))
+  sections.value = pickList<SectionRow>(payload)
 }
 
 const chapterCountText = computed(() =>
@@ -229,6 +252,7 @@ async function load() {
   summary.value = null
   chapterCount.value = null
   firstChapter.value = ''
+  sections.value = []
   // 管理员课程空间没有课程级数据面，只展示课程档案
   if (props.role === 'admin') return
   if (!props.courseId) {
@@ -237,9 +261,10 @@ async function load() {
   }
 
   loading.value = true
-  const [summaryResult, chapterResult] = await Promise.allSettled([
+  const [summaryResult, chapterResult, sectionResult] = await Promise.allSettled([
     props.role === 'teacher' ? fetchTeacherSummary() : Promise.resolve(null),
     fetchChapters(),
+    props.role === 'teacher' ? fetchSections() : Promise.resolve(),
   ])
   if (token !== loadToken) return
   loading.value = false
@@ -250,6 +275,7 @@ async function load() {
   }
 
   summary.value = summaryResult.status === 'fulfilled' ? summaryResult.value : null
+  if (sectionResult.status === 'rejected') sections.value = []
   const chapters = chapterResult.status === 'fulfilled' ? chapterResult.value : []
   chapterCount.value = chapters.length
   firstChapter.value = String(chapters[0]?.title || '')
@@ -259,3 +285,34 @@ async function load() {
 
 watch(() => [props.courseId, props.role] as const, load, { immediate: true })
 </script>
+
+<style scoped>
+.section-list {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.section-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: var(--surface, #fff);
+}
+.section-row b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.section-cap {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+</style>

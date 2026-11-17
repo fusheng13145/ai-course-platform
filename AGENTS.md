@@ -14,7 +14,7 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | **599 main Java / 267 test Java；55 Controller / 521 方法级 HTTP 映射；61 张表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec** |
+| **规模（实测）** | **604 main Java / 267 test Java；56 Controller / 528 方法级 HTTP 映射；63 张表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec** |
 | **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `fix/frontend-loading-spinner`，PR #107 待合并 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
@@ -138,7 +138,7 @@ python scripts/audit-stats.py
 | --- | --- |
 | 分支 / 基线 | `fix/frontend-loading-spinner`（本地领先 `origin`；当前提交以 `git log -1` 为准）；`main` 本地与远程均 `35a1df2d`；PR #107 待合并 |
 | 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
-| 结构 | 599 main Java / 267 test Java；55 Controller / 520 方法级 HTTP 映射；61 表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec |
+| 结构 | 604 main Java / 267 test Java；56 Controller / 528 方法级 HTTP 映射；63 表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec |
 | 后端门禁 | 3661 例 / 0 失败 / 0 错误 / 1 跳过；LINE 87.24%、BRANCH 68.43%（门禁 85/65）；SpotBugs 0；ArchUnit 8 |
 | 前端门禁 | Vitest 98 文件 / 1221 例；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过 |
 | Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` 113 passed |

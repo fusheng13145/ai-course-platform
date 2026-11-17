@@ -21,6 +21,7 @@ const studentApi = vi.hoisted(() => ({
   getMyCourses: vi.fn(),
   enrollCourse: vi.fn(),
   unenrollCourse: vi.fn(),
+  getAvailableTeachingClasses: vi.fn(),
 }))
 // 只接管视图真正用到的两个数据面，避免把整条 @/api 依赖图拉进单测
 const dataApi = vi.hoisted(() => ({
@@ -128,6 +129,9 @@ beforeEach(() => {
     return Promise.resolve(envelope(null))
   })
   studentApi.getStudentDashboard.mockResolvedValue(envelope({ courses: [] }))
+  studentApi.getAvailableTeachingClasses.mockResolvedValue(
+    envelope([{ id: 11, name: '默认教学班', capacity: 100 }]),
+  )
 
   dataApi.getCourses.mockImplementation((role: string) =>
     Promise.resolve(role === 'student' ? store.enrollments.map(card) : []),
@@ -252,7 +256,7 @@ describe('学生「加入课程」= 真实选课写口（非演示动作）', ()
 
     const create = wrapper
       .findAll('.page-head-actions button')
-      .find((node) => node.text() === '新建课程')
+      .find((node) => node.text() === '新建开课任务')
     await create!.trigger('click')
 
     expect(router.push).toHaveBeenCalledWith('/teacher/courses/create')

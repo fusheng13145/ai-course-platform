@@ -174,6 +174,7 @@ const courseForSettings = computed<CourseLike | null>(() => {
   }
 })
 const statusChip = computed(() => {
+  if (detail.value?.completedAt) return { text: '已结课', cls: 'chip-mute' }
   const status = String(detail.value?.approvalStatus || detail.value?.status || '')
   if (status === 'APPROVED' || status === '已通过') return { text: '已通过', cls: 'chip-ok' }
   if (status === 'PENDING' || status === '待审批') return { text: '待审批', cls: 'chip-warn' }

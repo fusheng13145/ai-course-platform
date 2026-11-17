@@ -46,6 +46,8 @@ class StudentControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.LearningRecordService learningRecordService;
     @MockitoBean
+    private com.aicourse.service.TeachingClassService teachingClassService;
+    @MockitoBean
     private CourseAccessControl courseAccessControl;
 
     // ==================== 学习中心 ====================

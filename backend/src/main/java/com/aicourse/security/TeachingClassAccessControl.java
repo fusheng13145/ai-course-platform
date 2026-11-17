@@ -16,11 +16,11 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 
 /**
- * 教学班访问控制（V14 / B-12-P-08 WP4）。
+ * 教学班访问控制（V14 / B-12-P-08 WP4；V28 三层课程模型）。
  *
  * <p>口径：</p>
  * <ul>
- *     <li>建班 / 改班 / 指定主讲：仅课程负责人（{@code courses.teacher_id}），管理员不代办；</li>
+ *     <li>建班 / 改班 / 指定主讲 / 发布：课程负责人或管理员（管理员按学院范围，可代建）；</li>
  *     <li>主讲指派：目标必须是 TEACHER，且其 {@code users.college_id} 与课程所属学院一致（2A）；</li>
  *     <li>名单/成绩：仅该教学班主讲可读；管理员按治理只读放行；同课程其他教学班主讲 403。</li>
  * </ul>
@@ -55,12 +55,17 @@ public class TeachingClassAccessControl {
     }
 
     /**
-     * 要求操作人是课程负责人。
+     * 要求操作人是课程负责人，或按学院范围放行的管理员。
      */
     public Course assertCourseOwner(Long courseId, Long operatorId) {
         Course course = requireCourse(courseId);
+        User operator = operatorId == null ? null : userService.getById(operatorId);
+        if (operator != null && RoleConstants.ADMIN.equals(operator.getRole())) {
+            adminScopeGuard.assertCourseAccess(course);
+            return course;
+        }
         if (!Objects.equals(course.getTeacherId(), operatorId)) {
-            throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人可管理该课程的教学班");
+            throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人或管理员可管理该课程的教学班");
         }
         return course;
     }

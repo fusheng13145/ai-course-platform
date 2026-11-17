@@ -32,6 +32,7 @@ export interface CourseDetail {
   approvalStatus: string
   category: string
   description: string
+  completedAt?: string | null
 }
 
 const tone = (id: number) => (Math.abs(Number(id) || 1) % 5) + 1
@@ -131,6 +132,7 @@ export async function loadCourse(role: Role, id: number): Promise<CourseDetail |
       approvalStatus: String(raw.approvalStatus ?? ''),
       category: String(raw.category ?? ''),
       description: String(raw.description ?? ''),
+      completedAt: raw.completedAt == null ? null : String(raw.completedAt),
     }
   } catch {
     return null

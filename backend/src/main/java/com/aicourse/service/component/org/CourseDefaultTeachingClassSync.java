@@ -12,17 +12,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 课程默认教学班同步器（B-12／P-08 WP4 判据 9A 的运行态延伸）。
- * <p>
- * V14 只给<b>存量</b>课程回填「恰 1 个默认教学班」，新建课程因此长期没有可报名的教学班，
- * 学生选课恒被 {@code CourseEnrollmentServiceImpl#resolveTeachingClass} 判 409
- * （2026-11-06 真栈 e2e 实测：教师建课→审批通过后选课 409「课程暂无启用的教学班」）。
- * 本类把 9A 从一次性回填升级为<b>持续不变量</b>：课程落库后即保证恰有 1 个默认班，
- * 且其状态与课程状态同步（ACTIVE→ACTIVE，其余→DRAFT，与 V14 的 CASE 口径一致）。
- * <p>
- * 三条边界：①主讲为空时不建（对齐 V14 的 {@code WHERE teacher_id IS NOT NULL}）；
- * ②课程已有教学班且识别不到默认班时不制造第二个（教师自建班优先）；
- * ③只同步状态与派生名/码，<b>不动容量</b>——容量是教师可编辑的业务值。
+ * 开课任务 → 教学班占位生成器（V28 三层课程模型）。
+ *
+ * <p>规则：</p>
+ * <ul>
+ *   <li>课程定义来源的新开课任务（{@code definitionId != null}）：只有审批通过且课程启用时，
+ *       才按 {@code planned_sections} 生成 DRAFT 教学班；审批前不产生任何班级。</li>
+ *   <li>历史兼容路径（无 definitionId）：保持 1 个默认教学班，状态跟随课程，
+ *       避免存量单测与旧数据在迁移后突然失去可报名入口。</li>
+ *   <li>教师已自建教学班时不制造第二个；只对单班默认班做名称/编号/状态同步。</li>
+ * </ul>
  */
 @Component
 public class CourseDefaultTeachingClassSync {
@@ -36,8 +35,12 @@ public class CourseDefaultTeachingClassSync {
     static final String DEFAULT_CODE_SUFFIX = "-DEFAULT";
 
     private static final String COURSE_STATUS_ACTIVE = "ACTIVE";
+    private static final String APPROVAL_APPROVED = "APPROVED";
+    private static final String APPROVAL_PENDING = "PENDING";
+    private static final String APPROVAL_REJECTED = "REJECTED";
     private static final String CLASS_STATUS_ACTIVE = "ACTIVE";
     private static final String CLASS_STATUS_DRAFT = "DRAFT";
+    private static final int MAX_PLANNED_SECTIONS = 50;
 
     private final TeachingClassMapper teachingClassMapper;
 
@@ -45,52 +48,107 @@ public class CourseDefaultTeachingClassSync {
         this.teachingClassMapper = teachingClassMapper;
     }
 
-    /**
-     * 保证课程落库后恰有 1 个默认教学班，状态跟随课程。
-     *
-     * @param course 已落库的课程；id／teacherId／name 任一为空即跳过——name 为空说明这是一次
-     *               局部更新（只带变更字段），此时派生默认班会把名称写成 {@code "null 默认教学班"}
-     */
     public void sync(Course course) {
         if (course == null || course.getId() == null
                 || course.getTeacherId() == null || course.getName() == null) {
             return;
         }
-        String derivedName = course.getName() + DEFAULT_NAME_SUFFIX;
-        String derivedCode = course.getCode() == null ? null : course.getCode() + DEFAULT_CODE_SUFFIX;
-        String desiredStatus = COURSE_STATUS_ACTIVE.equalsIgnoreCase(course.getStatus())
-                ? CLASS_STATUS_ACTIVE : CLASS_STATUS_DRAFT;
+        boolean definitionModel = course.getDefinitionId() != null;
+        String approval = course.getApprovalStatus();
+        if (definitionModel && approval != null
+                && (APPROVAL_PENDING.equalsIgnoreCase(approval)
+                || APPROVAL_REJECTED.equalsIgnoreCase(approval))) {
+            return;
+        }
 
         List<TeachingClass> existing = teachingClassMapper.selectList(
                 new LambdaQueryWrapper<TeachingClass>()
                         .eq(TeachingClass::getCourseId, course.getId())
                         .orderByAsc(TeachingClass::getId));
+
+        int planned = definitionModel ? plannedSections(course) : 1;
+        if (existing.isEmpty()) {
+            for (int index = 1; index <= planned; index++) {
+                teachingClassMapper.insert(newClass(course, index, planned, definitionModel));
+            }
+            if (planned > 0) {
+                log.debug("[org] 生成教学班占位：courseId={}, count={}, status={}",
+                        course.getId(), planned, definitionModel ? CLASS_STATUS_DRAFT : statusOf(course, false));
+            }
+            return;
+        }
+
+        if (!definitionModel) {
+            syncLegacyDefault(course, existing);
+            return;
+        }
+
+        // 计划班数调大时补齐缺口；不自动删除已有班级，避免带走成员与学习记录。
+        if (existing.size() < planned) {
+            for (int index = existing.size() + 1; index <= planned; index++) {
+                teachingClassMapper.insert(newClass(course, index, planned, true));
+            }
+        }
+        if (!COURSE_STATUS_ACTIVE.equalsIgnoreCase(course.getStatus())) {
+            for (TeachingClass item : existing) {
+                if (!CLASS_STATUS_DRAFT.equals(item.getStatus())) {
+                    item.setStatus(CLASS_STATUS_DRAFT);
+                    item.setUpdatedAt(LocalDateTime.now());
+                    teachingClassMapper.updateById(item);
+                }
+            }
+        }
+    }
+
+    public void close(Course course) {
+        if (course == null || course.getId() == null) {
+            return;
+        }
+        List<TeachingClass> existing = teachingClassMapper.selectList(
+                new LambdaQueryWrapper<TeachingClass>()
+                        .eq(TeachingClass::getCourseId, course.getId()));
+        for (TeachingClass item : existing) {
+            if (!"CLOSED".equals(item.getStatus())) {
+                item.setStatus("CLOSED");
+                item.setUpdatedAt(LocalDateTime.now());
+                teachingClassMapper.updateById(item);
+            }
+        }
+    }
+
+    private TeachingClass newClass(Course course, int index, int planned, boolean definitionModel) {
+        TeachingClass created = new TeachingClass();
+        created.setCourseId(course.getId());
+        if (planned <= 1) {
+            created.setName(course.getName() + DEFAULT_NAME_SUFFIX);
+            created.setCode(course.getCode() == null ? null : course.getCode() + DEFAULT_CODE_SUFFIX);
+        } else {
+            created.setName(course.getName() + " 教学班 " + index);
+            created.setCode(course.getCode() == null ? null
+                    : course.getCode() + "-" + String.format("%02d", index));
+        }
+        created.setLeadTeacherId(course.getTeacherId());
+        created.setCapacity(course.getMaxStudents());
+        created.setStatus(definitionModel ? CLASS_STATUS_DRAFT : statusOf(course, false));
+        created.setCreatedBy(course.getTeacherId());
+        LocalDateTime now = LocalDateTime.now();
+        created.setCreatedAt(now);
+        created.setUpdatedAt(now);
+        return created;
+    }
+
+    private void syncLegacyDefault(Course course, List<TeachingClass> existing) {
+        String derivedName = course.getName() + DEFAULT_NAME_SUFFIX;
+        String derivedCode = course.getCode() == null ? null : course.getCode() + DEFAULT_CODE_SUFFIX;
+        String desiredStatus = statusOf(course, false);
         TeachingClass def = existing.stream()
                 .filter(t -> derivedName.equals(t.getName())
                         || (t.getCode() != null && t.getCode().endsWith(DEFAULT_CODE_SUFFIX)))
                 .findFirst()
                 .orElse(null);
-
         if (def == null) {
-            if (!existing.isEmpty()) {
-                return;
-            }
-            TeachingClass created = new TeachingClass();
-            created.setCourseId(course.getId());
-            created.setName(derivedName);
-            created.setCode(derivedCode);
-            created.setLeadTeacherId(course.getTeacherId());
-            created.setCapacity(course.getMaxStudents());
-            created.setStatus(desiredStatus);
-            created.setCreatedBy(course.getTeacherId());
-            LocalDateTime now = LocalDateTime.now();
-            created.setCreatedAt(now);
-            created.setUpdatedAt(now);
-            teachingClassMapper.insert(created);
-            log.debug("[org] 新建默认教学班：courseId={}, status={}", course.getId(), desiredStatus);
             return;
         }
-
         boolean nameDrift = !derivedName.equals(def.getName());
         boolean codeDrift = derivedCode != null && !derivedCode.equals(def.getCode());
         boolean statusDrift = !desiredStatus.equals(def.getStatus());
@@ -104,7 +162,21 @@ public class CourseDefaultTeachingClassSync {
         def.setStatus(desiredStatus);
         def.setUpdatedAt(LocalDateTime.now());
         teachingClassMapper.updateById(def);
-        log.debug("[org] 默认教学班随课程同步：courseId={}, name/code/status 漂移={} / {} / {}",
-                course.getId(), nameDrift, codeDrift, statusDrift);
+    }
+
+    private static String statusOf(Course course, boolean draft) {
+        if (draft) {
+            return CLASS_STATUS_DRAFT;
+        }
+        return COURSE_STATUS_ACTIVE.equalsIgnoreCase(course.getStatus())
+                ? CLASS_STATUS_ACTIVE : CLASS_STATUS_DRAFT;
+    }
+
+    private static int plannedSections(Course course) {
+        Integer planned = course.getPlannedSections();
+        if (planned == null || planned < 1) {
+            return 1;
+        }
+        return Math.min(planned, MAX_PLANNED_SECTIONS);
     }
 }

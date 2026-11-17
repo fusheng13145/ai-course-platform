@@ -26,7 +26,7 @@ import java.util.List;
  *
  * <p>关键口径：</p>
  * <ul>
- *     <li>建班人必须是课程负责人（{@code courses.teacher_id}），管理员不代办；</li>
+ *     <li>建班人必须是课程负责人或管理员（管理员按学院治理范围校验）；</li>
  *     <li>课程未通过审批（{@code approval_status<>APPROVED}）或已停用（{@code status<>ACTIVE}）时，
  *         新建教学班一律 DRAFT，不接受客户端指定的 ACTIVE；</li>
  *     <li>主讲只能指派本院教师（2A），跨院 403；</li>
@@ -172,6 +172,27 @@ public class TeachingClassServiceImpl extends ServiceImpl<TeachingClassMapper, T
             throw new BusinessException(ApiCode.CONFLICT, "教学班仍有学生名单，不能删除");
         }
         this.removeById(teachingClassId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<TeachingClass> publishCourseClasses(Long courseId, Long operatorId) {
+        Course course = accessControl.assertCourseOwner(courseId, operatorId);
+        if (!isCourseEnabled(course)) {
+            throw new BusinessException(ApiCode.CONFLICT, "课程未通过审批或已停用，教学班不能发布");
+        }
+        List<TeachingClass> classes = listByCourse(courseId);
+        if (classes.isEmpty()) {
+            throw new BusinessException(ApiCode.CONFLICT, "该课程暂无教学班，请先生成或创建教学班");
+        }
+        for (TeachingClass teachingClass : classes) {
+            if (CLASS_STATUS_DRAFT.equals(teachingClass.getStatus())) {
+                teachingClass.setStatus(CLASS_STATUS_ACTIVE);
+                teachingClass.setUpdatedAt(LocalDateTime.now());
+                this.updateById(teachingClass);
+            }
+        }
+        return listByCourse(courseId);
     }
 
     @Override

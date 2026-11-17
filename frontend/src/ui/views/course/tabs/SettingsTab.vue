@@ -1,14 +1,16 @@
 <template>
   <div class="settings-grid">
-    <section v-if="role !== 'admin'" class="card">
+    <section v-if="role !== 'student'" class="card">
       <header class="card-head">
         <div>
-          <h2>基本信息</h2>
+          <h2>开课信息</h2>
         </div>
         <div class="course-tab-actions">
-          <span class="chip chip-ok">{{ approvalLabel(course?.approvalStatus) }}</span>
           <button v-if="role === 'teacher'" class="btn btn-ghost" @click="openEdit">
-            编辑课程
+            开课设置
+          </button>
+          <button v-if="!record?.completedAt" class="btn btn-ghost" @click="completeOpen = true">
+            结课
           </button>
         </div>
       </header>
@@ -16,92 +18,75 @@
         <label><span>课程名称</span><input :value="course?.name || ''" readonly /></label>
         <label><span>课程编号</span><input :value="course?.code || ''" readonly /></label>
         <label><span>学期</span><input :value="course?.semester || ''" readonly /></label>
-        <label><span>学分</span><input :value="course?.credits ?? ''" readonly /></label>
-        <label><span>分类</span><input :value="course?.category || ''" readonly /></label>
         <label
-          ><span>难度</span><input :value="difficultyLabel(record?.difficulty)" readonly
+          ><span>计划教学班</span><input :value="record?.plannedSections ?? 1" readonly
         /></label>
         <label
           ><span>报名方式</span><input :value="enrollmentLabel(record?.enrollmentType)" readonly
         /></label>
-        <label><span>最大人数</span><input :value="record?.maxStudents ?? ''" readonly /></label>
-        <label
-          ><span>审批状态</span><input :value="approvalLabel(course?.approvalStatus)" readonly
-        /></label>
+        <label><span>每班容量</span><input :value="record?.maxStudents ?? ''" readonly /></label>
       </div>
       <p v-if="loadError" class="form-error">{{ loadError }}</p>
     </section>
 
-    <section class="card">
+    <section v-if="role !== 'student'" class="card">
       <header class="card-head">
         <div>
-          <h2>课程状态</h2>
+          <h2>教学班</h2>
+        </div>
+        <div class="course-tab-actions">
+          <button
+            v-if="role === 'teacher' && hasDraft"
+            class="btn btn-ghost"
+            :disabled="publishing"
+            @click="publishClasses"
+          >
+            {{ publishing ? '发布中…' : '发布教学班' }}
+          </button>
         </div>
       </header>
-      <div class="workflow-list">
-        <div class="workflow-step is-done">
-          <span>01</span><b>教师创建课程</b><small>已完成</small>
+      <div v-if="sections.length" class="section-list">
+        <div v-for="row in sections" :key="String(row.id)" class="section-row">
+          <div class="section-name">
+            <b>{{ row.name || `教学班 #${row.id}` }}</b>
+            <small>{{ row.code || '' }}</small>
+          </div>
+          <select
+            v-if="role === 'teacher'"
+            class="input section-teacher"
+            :value="String(row.leadTeacherId ?? '')"
+            aria-label="主讲教师"
+            @change="assignLead(row, ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="" disabled>选择主讲</option>
+            <option v-for="item in teachers" :key="String(item.id)" :value="String(item.id)">
+              {{ item.name }}
+            </option>
+          </select>
+          <span v-else class="section-teacher">{{ leadLabel(row) }}</span>
+          <span class="chip" :class="row.status === 'ACTIVE' ? 'chip-ok' : 'chip-mute'">
+            {{ statusLabel(row.status) }}
+          </span>
+          <span class="section-cap">{{ row.capacity ?? '—' }} 人</span>
         </div>
-        <div class="workflow-step" :class="course?.approvalStatus === 'APPROVED' ? 'is-done' : ''">
-          <span>02</span><b>院系管理员审批</b
-          ><small>{{ approvalLabel(course?.approvalStatus) }}</small>
-        </div>
-        <div class="workflow-step"><span>03</span><b>发布教学班</b></div>
       </div>
+      <div v-else class="empty-state compact"><b>暂无教学班</b></div>
     </section>
 
-    <section v-if="role !== 'admin'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>教学班设置</h2>
-        </div>
-      </header>
-      <div class="empty-state compact">
-        <b>教学班设置暂不提供</b>
-        <p>本页暂不提供教学班与选课名单设置。</p>
-      </div>
-    </section>
-
-    <!-- 编辑课程 -->
-    <Modal v-model:open="editOpen" title="编辑课程" width="640px">
-      <div v-if="editLoading" class="empty-state compact"><b>正在加载课程资料…</b></div>
+    <!-- 开课设置 -->
+    <Modal v-model:open="editOpen" title="开课设置" width="560px">
+      <div v-if="editLoading" class="empty-state compact"><b>正在加载开课资料…</b></div>
       <template v-else>
         <div class="form-grid">
-          <label class="field span-2">
-            <span>课程名称 *</span>
-            <input v-model="form.name" class="input" />
-          </label>
           <label class="field">
-            <span>课程编号</span>
-            <input v-model="form.code" class="input" />
-          </label>
-          <label class="field">
-            <span>课程分类 *</span>
-            <select v-model="form.category" class="input">
-              <option value="">选择分类</option>
-              <option v-for="category in categoryOptions" :key="category" :value="category">
-                {{ category }}
-              </option>
-            </select>
-          </label>
-          <label class="field">
-            <span>学分</span>
+            <span>计划教学班数</span>
             <input
-              v-model.number="form.credits"
+              v-model.number="form.plannedSections"
               class="input"
               type="number"
-              min="0"
-              max="10"
-              step="0.1"
+              min="1"
+              max="50"
             />
-          </label>
-          <label class="field">
-            <span>难度</span>
-            <select v-model="form.difficulty" class="input">
-              <option v-for="option in difficultyOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
           </label>
           <label class="field">
             <span>报名方式</span>
@@ -112,12 +97,8 @@
             </select>
           </label>
           <label class="field">
-            <span>最大人数</span>
-            <input v-model.number="form.maxStudents" class="input" type="number" min="0" />
-          </label>
-          <label class="field span-2">
-            <span>课程简介</span>
-            <textarea v-model="form.description" class="textarea" rows="3"></textarea>
+            <span>每班容量</span>
+            <input v-model.number="form.maxStudents" class="input" type="number" min="1" />
           </label>
           <div class="field span-2 practice-setting">
             <span>学生刷题</span>
@@ -125,9 +106,6 @@
               <input v-model="form.questionPracticeEnabled" type="checkbox" />
               <span>允许本课程学生进入题库刷题</span>
             </label>
-            <p class="academic-note">
-              关闭时学生课程「刷题」页签只显示未开放说明；作业与考试不在此开关控制范围。
-            </p>
           </div>
         </div>
         <p v-if="formError" class="form-error">{{ formError }}</p>
@@ -139,6 +117,18 @@
         </button>
       </template>
     </Modal>
+
+    <Modal v-model:open="completeOpen" title="结课" width="420px">
+      <p class="modal-text">结课后学生不能再加入，成绩与学习记录保留。</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="completing" @click="completeOpen = false">
+          取消
+        </button>
+        <button class="btn btn-primary" :disabled="completing" @click="completeCourseAction">
+          {{ completing ? '结课中…' : '确认结课' }}
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -146,9 +136,10 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import Modal from '../../../components/Modal.vue'
 import { useUi } from '../../../composables/ui'
-import courseApi, { getCourseById } from '@/api/course'
-import { unwrap } from '@/utils/response'
-import { approvalLabel } from '../../../utils'
+import courseApi, { completeCourse, getCourseById } from '@/api/course'
+import commonApi from '@/api/common'
+import { getTeachingClasses, publishCourseClasses, assignLeadTeacher } from '@/api/teachingClass'
+import { pickList, unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 import type { Role } from '../../../nav'
 
@@ -161,16 +152,22 @@ interface CourseLike {
   approvalStatus?: string
 }
 
-const CATEGORIES = ['编程开发', '人工智能', '数据分析', '设计创意', '其他']
-const DIFFICULTY_OPTIONS = [
-  { value: 'BEGINNER', label: '入门' },
-  { value: 'EASY', label: '初级' },
-  { value: 'MEDIUM', label: '中级' },
-  { value: 'HARD', label: '高级' },
-  { value: 'EXPERT', label: '专家' },
-]
+interface SectionRow {
+  id?: number | string
+  name?: string
+  code?: string
+  leadTeacherId?: number | string | null
+  capacity?: number | null
+  status?: string
+}
+
+interface TeacherRow {
+  id?: number | string
+  name?: string
+}
+
 const ENROLLMENT_OPTIONS = [
-  { value: 'OPEN', label: '开放报名' },
+  { value: 'FREE', label: '开放报名' },
   { value: 'APPROVAL', label: '需审核' },
   { value: 'RESTRICTED', label: '限制报名' },
 ]
@@ -184,43 +181,42 @@ const loadError = ref('')
 const editOpen = ref(false)
 const editLoading = ref(false)
 const saving = ref(false)
+const publishing = ref(false)
+const completeOpen = ref(false)
+const completing = ref(false)
 const formError = ref('')
+const sections = ref<SectionRow[]>([])
+const teachers = ref<TeacherRow[]>([])
+const hasDraft = computed(() =>
+  sections.value.some((row) => String(row.status || '').toUpperCase() === 'DRAFT'),
+)
 const form = reactive({
-  name: '',
-  code: '',
-  category: '',
-  credits: 2,
-  difficulty: 'MEDIUM',
-  enrollmentType: 'OPEN',
+  enrollmentType: 'FREE',
   maxStudents: 100,
-  description: '',
+  plannedSections: 1,
   questionPracticeEnabled: false,
 })
-
-function difficultyLabel(value: unknown): string {
-  const key = String(value ?? '')
-  if (!key) return '—'
-  return DIFFICULTY_OPTIONS.find((option) => option.value === key)?.label || key
-}
 
 function enrollmentLabel(value: unknown): string {
   const key = String(value ?? '')
   if (!key) return '—'
+  if (key === 'OPEN') return '开放报名'
   return ENROLLMENT_OPTIONS.find((option) => option.value === key)?.label || key
 }
 
-/** 库里存在枚举外的历史值（如难度「中等」、分类「计算机」），不能在选择器里被静默清空 */
-const categoryOptions = computed(() => {
-  const current = String(record.value?.category ?? form.category ?? '')
-  return current && !CATEGORIES.includes(current) ? [current, ...CATEGORIES] : CATEGORIES
-})
-const difficultyOptions = computed(() => {
-  const current = String(record.value?.difficulty ?? form.difficulty ?? '')
-  const known = DIFFICULTY_OPTIONS.some((option) => option.value === current)
-  return current && !known
-    ? [{ value: current, label: current }, ...DIFFICULTY_OPTIONS]
-    : DIFFICULTY_OPTIONS
-})
+function statusLabel(value: unknown): string {
+  const key = String(value ?? '')
+  if (key === 'ACTIVE') return '启用'
+  if (key === 'DRAFT') return '草稿'
+  if (key === 'CLOSED') return '结课'
+  return key || '—'
+}
+
+function leadLabel(row: SectionRow): string {
+  const teacher = teachers.value.find((item) => String(item.id) === String(row.leadTeacherId ?? ''))
+  return teacher?.name ? String(teacher.name) : '未指定主讲'
+}
+
 const enrollmentOptions = computed(() => {
   const current = String(record.value?.enrollmentType ?? form.enrollmentType ?? '')
   const known = ENROLLMENT_OPTIONS.some((option) => option.value === current)
@@ -236,25 +232,35 @@ async function fetchRecord() {
   } catch (error) {
     logger.error('加载课程资料失败', error)
     record.value = null
-    loadError.value = '课程资料加载失败，编辑与部分读数不可用'
+    loadError.value = '课程资料加载失败'
   }
   return record.value
+}
+
+async function loadSections() {
+  try {
+    sections.value = pickList<SectionRow>(unwrap(await getTeachingClasses(props.courseId)))
+    if (props.role === 'teacher' || props.role === 'admin') {
+      try {
+        teachers.value = pickList<TeacherRow>(unwrap(await commonApi.getTeachers()))
+      } catch {
+        teachers.value = []
+      }
+    }
+  } catch (error) {
+    logger.error('加载教学班失败', error)
+  }
 }
 
 async function openEdit() {
   editOpen.value = true
   editLoading.value = true
   formError.value = ''
-  const body = (record.value || (await fetchRecord())) as Record<string, unknown>
+  const body = (record.value || (await fetchRecord())) as Record<string, unknown> | null
   if (body) {
-    form.name = String(body?.name ?? '')
-    form.code = String(body?.code ?? '')
-    form.category = String(body?.category ?? '')
-    form.credits = body?.credits == null ? 2 : Number(body.credits)
-    form.difficulty = String(body?.difficulty ?? 'MEDIUM')
     form.enrollmentType = String(body?.enrollmentType ?? 'OPEN')
     form.maxStudents = body?.maxStudents == null ? 100 : Number(body.maxStudents)
-    form.description = String(body?.description ?? '')
+    form.plannedSections = body?.plannedSections == null ? 1 : Number(body.plannedSections)
     form.questionPracticeEnabled =
       body?.questionPracticeEnabled === true ||
       body?.questionPracticeEnabled === 1 ||
@@ -264,35 +270,79 @@ async function openEdit() {
 }
 
 async function save() {
-  if (!form.name.trim()) {
-    formError.value = '请填写课程名称'
-    return
-  }
-  if (!form.category) {
-    formError.value = '请选择课程分类'
+  if (form.plannedSections < 1 || form.plannedSections > 50) {
+    formError.value = '计划教学班数需在 1–50 之间'
     return
   }
   saving.value = true
   try {
-    // 后端 updateCourse 走 this.updateById，缓存失效注解被自调用绕过，
-    // 随后重新 GET 会拿到旧值——所以用 PUT 响应体回填视图，而不是再读一次
-    const body = unwrap(
-      await courseApi.updateCourse(props.courseId, { ...form, name: form.name.trim() }),
-    ) as Record<string, unknown>
+    const body = unwrap(await courseApi.updateCourse(props.courseId, { ...form })) as Record<
+      string,
+      unknown
+    >
     record.value = body
-    toast('课程信息已更新', 'ok')
+    toast('开课设置已更新', 'ok')
     editOpen.value = false
     emit('updated', body)
   } catch (error) {
     formError.value = '保存失败，请稍后重试'
-    logger.error('更新课程失败', error)
+    logger.error('更新开课设置失败', error)
   } finally {
     saving.value = false
   }
 }
 
-onMounted(() => {
-  if (props.role !== 'admin') void fetchRecord()
+async function completeCourseAction() {
+  completing.value = true
+  try {
+    const body = unwrap(await completeCourse(props.courseId)) as Record<string, unknown>
+    record.value = body
+    completeOpen.value = false
+    toast('已结课', 'ok')
+    emit('updated', body)
+    await loadSections()
+  } catch (error) {
+    logger.error('结课失败', error)
+    toast('结课失败', 'warn')
+  } finally {
+    completing.value = false
+  }
+}
+
+async function publishClasses() {
+  if (String(props.course?.approvalStatus || '').toUpperCase() !== 'APPROVED') {
+    toast('课程未通过审批，不能发布教学班', 'warn')
+    return
+  }
+  publishing.value = true
+  try {
+    const payload = unwrap(await publishCourseClasses(props.courseId))
+    sections.value = pickList<SectionRow>(payload)
+    toast('教学班已发布', 'ok')
+  } catch (error) {
+    logger.error('发布教学班失败', error)
+    toast('发布教学班失败', 'warn')
+  } finally {
+    publishing.value = false
+  }
+}
+
+async function assignLead(row: SectionRow, teacherId: string) {
+  if (!row.id || !teacherId) return
+  try {
+    const updated = unwrap(await assignLeadTeacher(row.id, teacherId)) as SectionRow
+    row.leadTeacherId = updated?.leadTeacherId ?? teacherId
+    toast('主讲已更新', 'ok')
+  } catch (error) {
+    logger.error('指定主讲失败', error)
+    toast('指定主讲失败', 'warn')
+  }
+}
+
+onMounted(async () => {
+  if (props.role === 'student') return
+  await fetchRecord()
+  await loadSections()
 })
 </script>
 
@@ -311,5 +361,53 @@ onMounted(() => {
 .practice-toggle input {
   width: 16px;
   height: 16px;
+}
+
+.section-list {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.section-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--surface, #fff);
+}
+
+.section-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.section-name b {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-name small {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.section-teacher {
+  width: 140px;
+}
+
+.section-cap {
+  width: 64px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--ink-3);
 }
 </style>

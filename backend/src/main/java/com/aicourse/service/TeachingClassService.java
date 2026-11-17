@@ -42,4 +42,9 @@ public interface TeachingClassService extends IService<TeachingClass> {
      * 教学班主讲查看名单与成绩；其他教学班主讲 403，管理员只读放行。
      */
     List<CourseEnrollment> listMembers(Long teachingClassId, Long operatorId);
+
+    /**
+     * 发布课程下所有 DRAFT 教学班（课程负责人或管理员；课程必须已审批通过并启用）。
+     */
+    List<TeachingClass> publishCourseClasses(Long courseId, Long operatorId);
 }
