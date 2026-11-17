@@ -457,7 +457,7 @@ class QuestionControllerTest extends ControllerTestBase {
         Question existing = sampleQuestion();
         existing.setCourseId(9L);
         when(questionService.getById(1L)).thenReturn(existing);
-        when(questionService.updateById(any())).thenReturn(true);
+        when(questionService.updateQuestion(any())).thenReturn(true);
 
         mockMvc.perform(put("/questions/1").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"更新后的题干\",\"courseId\":123,\"explanation\":\"解析\"}")
@@ -465,7 +465,7 @@ class QuestionControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<Question> captor = ArgumentCaptor.forClass(Question.class);
-        verify(questionService).updateById(captor.capture());
+        verify(questionService).updateQuestion(captor.capture());
         assertEquals(9L, captor.getValue().getCourseId(), "课程归属必须取库内值");
         assertEquals("解析", captor.getValue().getExplanation());
     }
@@ -487,13 +487,13 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PUT /questions/1 - TEACHER角色返回200且data透传更新题目")
     void update_authorized_returns_success() throws Exception {
-        when(questionService.updateById(any())).thenReturn(true);
+        when(questionService.updateQuestion(any())).thenReturn(true);
         when(questionService.getById(any())).thenReturn(sampleQuestion());
         mockMvc.perform(put("/questions/1").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(questionService).updateById(any(Question.class));
+        verify(questionService).updateQuestion(any(Question.class));
         verify(questionService, times(2)).getById(eq(1L));
     }
 
@@ -512,14 +512,14 @@ class QuestionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("DELETE /questions/1 - TEACHER角色返回200且正确委托removeById")
+    @DisplayName("DELETE /questions/1 - TEACHER角色返回200且正确委托deleteQuestion")
     void delete_authorized_returns_success() throws Exception {
         when(questionService.getById(1L)).thenReturn(sampleQuestion());
-        when(questionService.removeById(any(Long.class))).thenReturn(true);
+        when(questionService.deleteQuestion(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/questions/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(questionService).removeById(eq(1L));
+        verify(questionService).deleteQuestion(eq(1L));
     }
 
     @Test
@@ -695,7 +695,7 @@ class QuestionControllerTest extends ControllerTestBase {
                         .content("{\"content\":\"越权更新\"}")
                         .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isForbidden());
-        verify(questionService, never()).updateById(any(Question.class));
+        verify(questionService, never()).updateQuestion(any(Question.class));
     }
 
     @Test
@@ -706,7 +706,7 @@ class QuestionControllerTest extends ControllerTestBase {
                 .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
         mockMvc.perform(delete("/questions/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isForbidden());
-        verify(questionService, never()).removeById(1L);
+        verify(questionService, never()).deleteQuestion(1L);
     }
 
     @Test

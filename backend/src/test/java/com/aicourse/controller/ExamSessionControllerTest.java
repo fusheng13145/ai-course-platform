@@ -104,6 +104,7 @@ class ExamSessionControllerTest extends ControllerTestBase {
         ExamSession session = new ExamSession();
         session.setId(1L);
         when(examSessionService.submitExam(eq(1L), any())).thenReturn(session);
+        when(examSessionService.getById(1L)).thenReturn(session);
         mockMvc.perform(post("/exam-sessions/1/submit").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"answers\":{\"q1\":\"a\"}}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
