@@ -1,99 +1,130 @@
 <template>
   <section class="admin-ai-body">
-    <div class="card caveat-card">
-      <p class="card-kicker">口径边界</p>
-      <p class="scope-line">切换供应商后<b>即时生效</b>，无需重启。</p>
-      <p class="scope-note">密钥不在本页维护；本页只做供应商选择与连通性探测。</p>
-    </div>
-
-    <div v-if="loadError" class="callout" role="alert">
-      <span>当前供应商</span>
-      <p>{{ loadError }}</p>
-      <button class="btn btn-sm" :disabled="loading" @click="load()">
-        {{ loading ? '重试中…' : '重试' }}
+    <div class="tabs page-tabs" role="tablist" aria-label="AI 供应商与知识库">
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'provider' }"
+        role="tab"
+        :aria-selected="activeTab === 'provider'"
+        @click="activeTab = 'provider'"
+      >
+        AI 供应商
+      </button>
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'rag' }"
+        role="tab"
+        :aria-selected="activeTab === 'rag'"
+        data-testid="admin-rag-tab"
+        @click="activeTab = 'rag'"
+      >
+        RAG 知识库
       </button>
     </div>
 
-    <section class="card">
-      <header class="card-head">
-        <div>
-          <h2>当前供应商</h2>
-        </div>
-        <div class="filter-row">
-          <button class="btn btn-sm btn-ghost" :disabled="loading" @click="load()">
-            {{ loading ? '刷新中…' : '刷新' }}
-          </button>
-        </div>
-      </header>
-      <div class="current-grid">
-        <div class="current-item">
-          <span class="current-label">供应商</span>
-          <b class="current-value">{{ current.provider || '—' }}</b>
-          <small class="cell-sub">{{ current.llmName || '' }}</small>
-        </div>
-        <div class="current-item">
-          <span class="current-label">配置状态</span>
-          <span class="chip" :class="current.configured ? 'chip-ok' : 'chip-warn'">
-            {{ current.configured ? '已配置' : '未配置（调用将返回 503）' }}
-          </span>
-        </div>
+    <template v-if="activeTab === 'provider'">
+      <div class="card caveat-card">
+        <p class="card-kicker">口径边界</p>
+        <p class="scope-line">切换供应商后<b>即时生效</b>，无需重启。</p>
+        <p class="scope-note">密钥不在本页维护；本页只做供应商选择与连通性探测。</p>
       </div>
-    </section>
 
-    <section class="card">
-      <header class="card-head">
-        <div>
-          <h2>切换供应商</h2>
-        </div>
-      </header>
-      <div class="provider-grid" role="group" aria-label="选择 LLM 供应商">
-        <button
-          v-for="option in PROVIDER_OPTIONS"
-          :key="option.id"
-          class="provider-btn"
-          :class="{ active: current.provider === option.id }"
-          :disabled="switching || loading"
-          :aria-pressed="current.provider === option.id"
-          @click="switchTo(option.id)"
-        >
-          <b>{{ option.label }}</b>
-          <small>{{ option.desc }}</small>
+      <div v-if="loadError" class="callout" role="alert">
+        <span>当前供应商</span>
+        <p>{{ loadError }}</p>
+        <button class="btn btn-sm" :disabled="loading" @click="load()">
+          {{ loading ? '重试中…' : '重试' }}
         </button>
       </div>
-    </section>
 
-    <section class="card">
-      <header class="card-head">
-        <div>
-          <h2>连通性探测</h2>
+      <section class="card">
+        <header class="card-head">
+          <div>
+            <h2>当前供应商</h2>
+          </div>
+          <div class="filter-row">
+            <button class="btn btn-sm btn-ghost" :disabled="loading" @click="load()">
+              {{ loading ? '刷新中…' : '刷新' }}
+            </button>
+          </div>
+        </header>
+        <div class="current-grid">
+          <div class="current-item">
+            <span class="current-label">供应商</span>
+            <b class="current-value">{{ current.provider || '—' }}</b>
+            <small class="cell-sub">{{ current.llmName || '' }}</small>
+          </div>
+          <div class="current-item">
+            <span class="current-label">配置状态</span>
+            <span class="chip" :class="current.configured ? 'chip-ok' : 'chip-warn'">
+              {{ current.configured ? '已配置' : '未配置（调用将返回 503）' }}
+            </span>
+          </div>
         </div>
-        <div class="filter-row">
-          <button class="btn btn-sm btn-primary" :disabled="testing || loading" @click="runTest()">
-            {{ testing ? '探测中…' : '发送测试补全' }}
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <div>
+            <h2>切换供应商</h2>
+          </div>
+        </header>
+        <div class="provider-grid" role="group" aria-label="选择 LLM 供应商">
+          <button
+            v-for="option in PROVIDER_OPTIONS"
+            :key="option.id"
+            class="provider-btn"
+            :class="{ active: current.provider === option.id }"
+            :disabled="switching || loading"
+            :aria-pressed="current.provider === option.id"
+            @click="switchTo(option.id)"
+          >
+            <b>{{ option.label }}</b>
+            <small>{{ option.desc }}</small>
           </button>
         </div>
-      </header>
-      <div
-        v-if="testResult"
-        class="test-result"
-        :class="testResult.ok ? 'ok' : 'bad'"
-        role="status"
-      >
-        <b>{{ testResult.ok ? '探测成功' : '探测失败' }}</b>
-        <p>
-          {{
-            testResult.message || (testResult.ok ? '当前供应商返回了有效补全。' : '无详细信息。')
-          }}
-        </p>
-        <small>供应商：{{ testResult.provider || current.provider || '—' }}</small>
-      </div>
-      <p v-else class="hint">探测会向当前供应商发送一次零温度请求，成功即代表密钥与服务可用。</p>
-    </section>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <div>
+            <h2>连通性探测</h2>
+          </div>
+          <div class="filter-row">
+            <button
+              class="btn btn-sm btn-primary"
+              :disabled="testing || loading"
+              @click="runTest()"
+            >
+              {{ testing ? '探测中…' : '发送测试补全' }}
+            </button>
+          </div>
+        </header>
+        <div
+          v-if="testResult"
+          class="test-result"
+          :class="testResult.ok ? 'ok' : 'bad'"
+          role="status"
+        >
+          <b>{{ testResult.ok ? '探测成功' : '探测失败' }}</b>
+          <p>
+            {{
+              testResult.message || (testResult.ok ? '当前供应商返回了有效补全。' : '无详细信息。')
+            }}
+          </p>
+          <small>供应商：{{ testResult.provider || current.provider || '—' }}</small>
+        </div>
+        <p v-else class="hint">探测会向当前供应商发送一次零温度请求，成功即代表密钥与服务可用。</p>
+      </section>
+    </template>
+
+    <RagKnowledgePanel v-else />
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import RagKnowledgePanel from './RagKnowledgePanel.vue'
 import { getAdminAiCurrent, switchAiProvider, testAiProvider } from '@/api/admin'
 import { unwrap } from '@/utils/response'
 import { useUi } from '../../composables/ui'
@@ -119,6 +150,7 @@ const PROVIDER_OPTIONS = [
 ] as const
 
 const { toast } = useUi()
+const activeTab = ref<'provider' | 'rag'>('provider')
 
 const current = ref<AdminAiCurrent>({})
 const loading = ref(false)
