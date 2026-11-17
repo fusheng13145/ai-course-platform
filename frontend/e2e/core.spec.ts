@@ -379,4 +379,18 @@ test.describe.serial('核心链路（真栈）', () => {
     await studentApi.dispose()
     await context.close()
   })
+
+  test('登录过期后清态并回登录页（真实 Cookie 失效）', async ({ browser }) => {
+    // M-21 真栈冒烟：不复用 storageState 的 mock token，而是带着真实登录态进入页面后
+    // 清掉 HttpOnly Cookie，再触发一次页面 API；请求应走 401 → 刷新失败 → 清态 → /login。
+    const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
+    const page = await context.newPage()
+    await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.messages-panel, .module')).toBeVisible()
+
+    await context.clearCookies()
+    await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
+    await expect(page, 'Cookie 失效后未回到登录页').toHaveURL(/\/login/, { timeout: 15000 })
+    await context.close()
+  })
 })
