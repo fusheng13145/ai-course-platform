@@ -44,42 +44,15 @@
     </div>
 
     <div v-if="filtered.length" class="course-grid">
-      <article v-for="course in filtered" :key="course.id" class="course-tile">
-        <button class="course-tile-cover" :data-tone="course.tone" @click="open(course.id)">
-          <span>{{ course.short }}</span>
-          <small>{{ [course.code, course.teacher].filter(Boolean).join(' · ') || '课程' }}</small>
-          <span class="chip course-tile-progress">{{ course.progress }}%</span>
-        </button>
-        <div class="course-tile-body">
-          <div class="course-tile-head">
-            <h3>{{ course.name }}</h3>
-          </div>
-          <p>
-            {{
-              [course.semester, course.students ? `${course.students} 名学生` : '']
-                .filter(Boolean)
-                .join(' · ') || '课程信息'
-            }}
-          </p>
-          <div class="course-bar"><i :style="{ '--p': `${course.progress}%` }"></i></div>
-          <div class="course-tile-foot">
-            <span>{{ course.progress >= 70 ? '进展良好' : '需要关注' }}</span>
-            <div class="row-actions">
-              <button
-                v-if="role === 'student'"
-                class="btn btn-sm btn-ghost"
-                :disabled="dropping"
-                @click="askDrop(course)"
-              >
-                退选
-              </button>
-              <button class="btn btn-sm" @click="open(course.id)">
-                {{ role === 'admin' ? '查看治理' : '进入课程' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </article>
+      <CourseFolderCard
+        v-for="course in filtered"
+        :key="course.id"
+        :course="course"
+        :role="role"
+        :dropping="dropping"
+        @open="open"
+        @drop="askDrop"
+      />
     </div>
 
     <div v-else class="card empty-state">
@@ -113,6 +86,7 @@ import { useRouter } from 'vue-router'
 import PageHead from '../components/PageHead.vue'
 import Icon from '../components/Icon.vue'
 import Modal from '../components/Modal.vue'
+import CourseFolderCard from '../components/CourseFolderCard.vue'
 import studentApi from '@/api/student'
 import { pageDef, type Role } from '../nav'
 import { useUi } from '../composables/ui'

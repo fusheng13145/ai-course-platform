@@ -40,7 +40,10 @@ const uiState = vi.hoisted(() => ({
 // 课程卡在新标签页打开前会镜像登录态；单测里不需要真 pinia，替身即可
 const authStore = vi.hoisted(() => ({ mirrorUserForNewTab: vi.fn() }))
 
+const chapterApi = vi.hoisted(() => ({ getChapters: vi.fn() }))
+
 vi.mock('@/api/student', () => ({ default: studentApi }))
+vi.mock('@/api/chapter', () => chapterApi)
 vi.mock('../data/api', () => dataApi)
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: router.push, resolve: router.resolve }) }))
@@ -131,6 +134,8 @@ beforeEach(() => {
     Promise.resolve(role === 'student' ? store.enrollments.map(card) : []),
   )
   dataApi.getCourseCatalog.mockImplementation(() => Promise.resolve(CATALOG.map((c) => card(c.id))))
+  // 课程卡的页卡拉章节：单测里不需要真网络，空章节即走「暂无章节」占位
+  chapterApi.getChapters.mockResolvedValue(envelope([]))
 })
 
 describe('学生「加入课程」= 真实选课写口（非演示动作）', () => {
@@ -139,7 +144,7 @@ describe('学生「加入课程」= 真实选课写口（非演示动作）', ()
     const wrapper = mountCourses()
     await settle()
 
-    await wrapper.find('.course-tile-cover').trigger('click')
+    await wrapper.find('.cf-hit').trigger('click')
 
     expect(router.resolve).toHaveBeenCalledWith('/student/courses/4008/overview')
     // 打开前先把登录态镜像给新标签页，否则新页会被守卫弹回登录页
@@ -267,11 +272,11 @@ function modalButton(text: string): HTMLButtonElement | undefined {
 }
 
 function dropButton(wrapper: VueWrapper) {
-  return wrapper.findAll('.course-tile-foot button').find((node) => node.text() === '退选')
+  return wrapper.findAll('.cf-actions button').find((node) => node.text() === '退选')
 }
 
 function tileNames(wrapper: VueWrapper): string[] {
-  return wrapper.findAll('.course-tile h3').map((node) => node.text())
+  return wrapper.findAll('.cf-title').map((node) => node.text())
 }
 
 describe('学生「退选课程」= 真实退选写口（二次确认）', () => {
