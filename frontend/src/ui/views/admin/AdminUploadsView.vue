@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead title="上传会话监控">
+    <PageHead title="上传会话与资源库">
       <template #actions>
         <button
           v-if="activeTab === 'uploads'"
