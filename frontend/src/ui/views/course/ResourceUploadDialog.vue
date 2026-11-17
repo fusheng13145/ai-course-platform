@@ -19,8 +19,8 @@
       <span class="file-name">{{ pickedFile ? pickedFile.name : '未选择文件' }}</span>
     </div>
     <p class="upload-hint">
-      支持 PDF / Word / Excel / JPG / PNG / GIF / MP4 / MP3，单文件不超过
-      50MB；上传后学生可在课程资源区下载。
+      支持 PDF / Word / Excel / JPG / PNG / GIF / MP4 / MP3；50MB 以内直传，
+      超过 50MB 自动分片续传（单文件上限 2GB）；上传后学生可在课程资源区下载。
     </p>
     <label class="field">
       <span>资源描述</span>
@@ -36,17 +36,18 @@
     <template #footer>
       <button class="btn btn-ghost" :disabled="submitting" @click="requestClose">取消</button>
       <button class="btn btn-primary" :disabled="submitting || !pickedFile" @click="submit">
-        {{ submitting ? '上传中…' : failed ? '重试上传' : '上传' }}
+        {{ submitting ? (isChunked ? `上传中 ${uploadPercent}%` : '上传中…') : failed ? '重试上传' : '上传' }}
       </button>
     </template>
   </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
-import { uploadResource } from '@/api/resource'
+import { useChunkedUpload } from '@/composables/useChunkedUpload'
+import { createResourceFromUploadSession, uploadResource } from '@/api/resource'
 import logger from '@/utils/logger'
 
 const props = defineProps<{ open: boolean; courseId: number }>()
@@ -55,13 +56,17 @@ const emit = defineEmits<{
   (event: 'success'): void
 }>()
 
-/** 与后端 ResourceController.MAX_FILE_SIZE 对齐 */
+/** 与后端 ResourceController.MAX_FILE_SIZE 对齐；超过后改走分片会话 */
 const MAX_BYTES = 50 * 1024 * 1024
+/** 分片链路的产品上限；后端 4096 片 × 5MB 足够，前端先做 2GB 防误选 */
+const MAX_CHUNKED_BYTES = 2 * 1024 * 1024 * 1024
 /** 与后端 ALLOWED_MIME_TYPES 覆盖的扩展名对齐（后端同时做 MIME 与魔数校验） */
 const ALLOWED_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'mp4', 'mp3']
 const ACCEPT = ALLOWED_EXT.map((ext) => `.${ext}`).join(',')
 
 const { toast } = useUi()
+const chunked = useChunkedUpload()
+const uploadPercent = chunked.percentage
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const pickedFile = ref<File | null>(null)
@@ -69,6 +74,9 @@ const description = ref('')
 const submitting = ref(false)
 const failed = ref(false)
 const formError = ref('')
+
+/** 超过单文件直传上限才切片；小文件继续走原有 /resources/upload，行为不变 */
+const isChunked = computed(() => !!pickedFile.value && pickedFile.value.size > MAX_BYTES)
 
 // 每次打开都从干净状态开始；上传失败时 open 仍为 true，不触发重置，保留文件便于重试
 watch(
@@ -84,6 +92,7 @@ function reset() {
   submitting.value = false
   failed.value = false
   formError.value = ''
+  chunked.reset()
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -107,9 +116,9 @@ function onPick(event: Event) {
     formError.value = '不支持该文件格式：仅支持 PDF / Word / Excel / 图片 / 视频 / 音频'
     return
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_CHUNKED_BYTES) {
     pickedFile.value = null
-    formError.value = '文件超过 50MB 限制，请压缩后再上传'
+    formError.value = '文件超过 2GB 上限，请压缩或拆分后再上传'
     return
   }
   if (file.size === 0) {
@@ -151,13 +160,20 @@ async function submit() {
   submitting.value = true
   formError.value = ''
   try {
-    // 单文件直传 /resources/upload：旧端资源上传同样走该端点（非分片），
-    // api/resource.ts 的 buildUploadForm 已把 file/courseId/description 归一化为 FormData。
-    await uploadResource({
-      file: pickedFile.value,
-      courseId: props.courseId,
-      description: description.value,
-    })
+    if (isChunked.value) {
+      const result = await chunked.upload(pickedFile.value, { chunkThreshold: MAX_BYTES })
+      await createResourceFromUploadSession(result.sessionId, {
+        courseId: props.courseId,
+        description: description.value,
+      })
+    } else {
+      // 单文件直传 /resources/upload：小文件沿用旧路径，避免为分片而分片。
+      await uploadResource({
+        file: pickedFile.value,
+        courseId: props.courseId,
+        description: description.value,
+      })
+    }
     emit('success')
     emit('update:open', false)
     reset()

@@ -79,6 +79,17 @@ export const uploadResource = async (
     headers: { 'Content-Type': 'multipart/form-data' },
   }) as Promise<ApiEnvelope<ApiData>>
 /**
+ * 把已合并的分片上传会话登记为课程资源（B-11 教师侧大文件入口）。
+ * 分片字节由 /upload-sessions 链路落盘，本接口只做归属/类型校验与 resources 落库。
+ */
+export const createResourceFromUploadSession = async (
+  sessionId: number,
+  data: { courseId: number; description?: string },
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/resources/from-upload-session/${sessionId}`, null, {
+    params: { courseId: data.courseId, description: data.description ?? '' },
+  }) as Promise<ApiEnvelope<ApiData>>
+/**
  * 导出函数 downloadResource：业务逻辑处理
  */
 export const downloadResource = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
@@ -130,6 +141,7 @@ export default {
   getResourceById,
   buildUploadForm,
   uploadResource,
+  createResourceFromUploadSession,
   downloadResource,
   deleteResource,
   getResourceTree,

@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.common.StorageLayout;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.FileUploadSession;
 import com.aicourse.entity.Resource;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
@@ -48,6 +49,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -96,6 +98,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private com.aicourse.security.AdminScopeGuard adminScopeGuard;
     @MockitoBean
     private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
 
     @BeforeEach
     void stubStorage() {
@@ -116,6 +120,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         org.mockito.Mockito.when(fileStorageService.deleteByUrl(
                         org.mockito.ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> StorageLayout.deleteByUrl((String) inv.getArgument(0)));
+        org.mockito.Mockito.when(fileStorageService.download(
+                        org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> StorageLayout.openRead((String) inv.getArgument(0)));
     }
 
     private static final long COURSE_ID = 1L;
@@ -345,13 +352,77 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("文件内容与声明类型不符，已拒绝上传"));
     }
 
+    // ==================== B-11 分片合并后登记资源 ====================
+
+    private FileUploadSession completedSession(long uploaderId, String filename, String uploadPath) {
+        FileUploadSession session = new FileUploadSession();
+        session.setId(7L);
+        session.setUploaderId(uploaderId);
+        session.setFilename(filename);
+        session.setUploadPath(uploadPath);
+        session.setFileSize((long) PDF_BYTES.length);
+        session.setStatus("COMPLETED");
+        return session;
+    }
+
+    @Test
+    @DisplayName("分片登记：非会话 owner -> 403")
+    void fromUploadSession_notOwner_rejected() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
+        when(fileUploadSessionService.getById(7L))
+                .thenReturn(completedSession(OTHER_TEACHER, "a.pdf", "2026/11/a.pdf"));
+
+        mockMvc.perform(post("/resources/from-upload-session/7")
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(OWNER_TEACHER, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(resourceService, never()).save(any(Resource.class));
+    }
+
+    @Test
+    @DisplayName("分片登记：COMPLETED + 魔数匹配 -> 落 resources 与首版")
+    void fromUploadSession_completed_registersResource() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
+        when(fileUploadSessionService.getById(7L))
+                .thenReturn(completedSession(OWNER_TEACHER, "a.pdf", "2026/11/a.pdf"));
+        StorageLayout.writeBytes("2026/11/a.pdf", PDF_BYTES);
+
+        mockMvc.perform(post("/resources/from-upload-session/7")
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .param("description", "讲义")
+                        .with(withUser(OWNER_TEACHER, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.url").value(StorageLayout.publicUrl("2026/11/a.pdf")))
+                .andExpect(jsonPath("$.data.courseId").value(COURSE_ID));
+
+        verify(resourceService).save(any(Resource.class));
+        verify(resourceVersionService).createNewVersion(any(), eq("a.pdf"), eq("application/pdf"),
+                eq(StorageLayout.publicUrl("2026/11/a.pdf")), eq("分片上传"), eq(OWNER_TEACHER),
+                eq((long) PDF_BYTES.length));
+    }
+
+    @Test
+    @DisplayName("分片登记：扩展名不在白名单 -> 400 且不落库")
+    void fromUploadSession_unsupportedExtension_rejected() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
+        when(fileUploadSessionService.getById(7L))
+                .thenReturn(completedSession(OWNER_TEACHER, "a.exe", "2026/11/a.exe"));
+
+        mockMvc.perform(post("/resources/from-upload-session/7")
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(OWNER_TEACHER, "TEACHER")))
+                .andExpect(status().isBadRequest());
+        verify(resourceService, never()).save(any(Resource.class));
+    }
+
     // ==================== 上传：直接调用补不可经 MVC 注入的异常面 ====================
 
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
         return new ResourceController(rs, cs, es,
                 mock(com.aicourse.service.ResourceVersionService.class), fileStorageService,
-                adminScopeGuard, courseAccessControl);
+                adminScopeGuard, courseAccessControl,
+                mock(com.aicourse.service.FileUploadSessionService.class));
     }
 
     private Authentication teacherAuth() {

@@ -9,11 +9,13 @@ import com.aicourse.common.UploadMagic;
 import com.aicourse.dto.ResourceVisibilityDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.FileUploadSession;
 import com.aicourse.entity.Resource;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.FileStorageService;
+import com.aicourse.service.FileUploadSessionService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
 import com.aicourse.security.AdminScopeGuard;
@@ -78,6 +80,20 @@ public class ResourceController {
             "video/mp4", ".mp4",
             "audio/mpeg", ".mp3");
 
+    /** 分片合并后登记资源时，扩展名 → MIME 的可信映射；与 {@link #ALLOWED_MIME_TYPES} 同集合。 */
+    private static final java.util.Map<String, String> MIME_BY_EXT = java.util.Map.ofEntries(
+            java.util.Map.entry("pdf", "application/pdf"),
+            java.util.Map.entry("doc", "application/msword"),
+            java.util.Map.entry("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            java.util.Map.entry("xls", "application/vnd.ms-excel"),
+            java.util.Map.entry("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            java.util.Map.entry("jpg", "image/jpeg"),
+            java.util.Map.entry("jpeg", "image/jpeg"),
+            java.util.Map.entry("png", "image/png"),
+            java.util.Map.entry("gif", "image/gif"),
+            java.util.Map.entry("mp4", "video/mp4"),
+            java.util.Map.entry("mp3", "audio/mpeg"));
+
     private final ResourceService resourceService;
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
@@ -85,6 +101,7 @@ public class ResourceController {
     private final FileStorageService fileStorageService;
     private final AdminScopeGuard adminScopeGuard;
     private final CourseAccessControl courseAccessControl;
+    private final FileUploadSessionService fileUploadSessionService;
 
     public ResourceController(ResourceService resourceService,
                               CourseService courseService,
@@ -92,7 +109,8 @@ public class ResourceController {
                               ResourceVersionService resourceVersionService,
                               FileStorageService fileStorageService,
                               AdminScopeGuard adminScopeGuard,
-                              CourseAccessControl courseAccessControl) {
+                              CourseAccessControl courseAccessControl,
+                              FileUploadSessionService fileUploadSessionService) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
@@ -100,6 +118,7 @@ public class ResourceController {
         this.fileStorageService = fileStorageService;
         this.adminScopeGuard = adminScopeGuard;
         this.courseAccessControl = courseAccessControl;
+        this.fileUploadSessionService = fileUploadSessionService;
     }
 
     /**
@@ -333,6 +352,79 @@ public class ResourceController {
             log.error("存储服务写入失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件上传异常：" + e.getMessage());
         }
+    }
+
+    /**
+     * 把已合并的分片上传会话登记为课程资源（B-11 教师侧大文件入口）。
+     *
+     * <p>分片上传只负责把字节落到 {@code uploadPath}；本端点负责把对象归属到课程、
+     * 做扩展名/MIME/魔数校验并写 {@code resources} 与 {@code resource_versions} 首版。
+     * 仅教师可用，且必须与上传会话的 uploaderId 一致，避免拿别人的会话 id 登记资源。</p>
+     */
+    @PostMapping("/from-upload-session/{sessionId}")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ApiResponse<Resource> createFromUploadSession(
+            @PathVariable Long sessionId,
+            @RequestParam Long courseId,
+            @RequestParam(required = false) String description,
+            Authentication auth) {
+        Course course = courseService.getById(courseId);
+        if (course == null) {
+            throw new BusinessException(404, "课程不存在");
+        }
+        if (!canAccessCourse(courseId, auth)) {
+            throw new BusinessException(403, "无权向该课程上传资源");
+        }
+        FileUploadSession session = fileUploadSessionService.getById(sessionId);
+        if (session == null) {
+            throw new BusinessException(404, "上传会话不存在");
+        }
+        Long operatorId = (Long) auth.getPrincipal();
+        if (session.getUploaderId() == null || !session.getUploaderId().equals(operatorId)) {
+            throw new BusinessException(403, "无权登记该上传会话");
+        }
+        if (!"COMPLETED".equals(session.getStatus())) {
+            throw new BusinessException(400, "上传会话尚未合并完成");
+        }
+        if (!StringUtils.hasText(session.getUploadPath())) {
+            throw new BusinessException(400, "上传会话缺少存储路径");
+        }
+
+        String originalFilename = StringUtils.hasText(session.getFilename()) ? session.getFilename() : "unknown";
+        int dot = originalFilename.lastIndexOf('.');
+        String ext = dot >= 0 ? originalFilename.substring(dot + 1).toLowerCase() : "";
+        String contentType = MIME_BY_EXT.get(ext);
+        if (contentType == null) {
+            throw new BusinessException(400, "不支持该文件格式上传");
+        }
+        String magic;
+        try (InputStream in = fileStorageService.download(session.getUploadPath())) {
+            if (in == null) {
+                throw new BusinessException(404, "合并文件不存在或已回收");
+            }
+            magic = UploadMagic.detect(in.readNBytes(16));
+        } catch (IOException e) {
+            log.error("读取合并文件头失败: session={}, {}", sessionId, e.getMessage());
+            throw new BusinessException(500, "读取上传文件失败", e);
+        }
+        if (!UploadMagic.matchesMime(contentType, magic)) {
+            throw new BusinessException(400, "文件内容与声明类型不符，已拒绝登记");
+        }
+
+        Resource resource = new Resource();
+        resource.setFileName(originalFilename);
+        resource.setFileType(contentType);
+        resource.setUrl(StorageLayout.publicUrl(session.getUploadPath()));
+        resource.setCourseId(courseId);
+        resource.setUploaderId(operatorId);
+        resource.setUploadTime(LocalDateTime.now());
+        resource.setDescription(description);
+        resource.setVisibleToAll(Boolean.FALSE);
+        resourceService.save(resource);
+        resourceVersionService.createNewVersion(resource.getId(), originalFilename, contentType,
+                resource.getUrl(), "分片上传", operatorId,
+                session.getFileSize() == null ? 0L : session.getFileSize());
+        return ApiResponse.success("文件上传成功", resource);
     }
 
     /**
