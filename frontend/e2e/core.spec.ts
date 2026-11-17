@@ -265,7 +265,8 @@ test.describe.serial('核心链路（真栈）', () => {
     await adminPage.goto('/admin/ai-usage', { waitUntil: 'domcontentloaded' })
     await expect(adminPage.locator('.ai-usage-body')).toBeVisible()
     await expect(adminPage.locator('[data-testid="page-not-provided"]')).toHaveCount(0)
-    await expect(adminPage.getByText('口径边界', { exact: true }).first()).toBeVisible()
+    // 真读数落在 KPI 网格里；不再用解释性文案当“不是空态”的判据
+    await expect(adminPage.locator('.ai-usage-body .stat').first()).toBeVisible()
     await expect(adminPage.locator('body')).not.toContainText('示例数据')
     await admin.close()
 
