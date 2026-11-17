@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -77,6 +78,35 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         }
         this.save(question);
         return question;
+    }
+
+    /**
+     * 更新题目（控制器入口必须走本方法，确保列表缓存与详情缓存同时失效）。
+     *
+     * <p>历史上控制器直接调 {@code updateById}，绕过了所有 {@code @CacheEvict}，
+     * 导致题目内容修改后 {@code questionSearch/questionDetail} 在 TTL 内继续返回旧值。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(value = "questionSearch", allEntries = true),
+            @CacheEvict(value = "questionDetail", key = "'detail_' + #question.id")
+    })
+    public boolean updateQuestion(Question question) {
+        return this.updateById(question);
+    }
+
+    /**
+     * 删除题目（控制器入口必须走本方法，确保列表缓存与详情缓存同时失效）。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(value = "questionSearch", allEntries = true),
+            @CacheEvict(value = "questionDetail", key = "'detail_' + #id")
+    })
+    public boolean deleteQuestion(Long id) {
+        return this.removeById(id);
     }
 
     /**

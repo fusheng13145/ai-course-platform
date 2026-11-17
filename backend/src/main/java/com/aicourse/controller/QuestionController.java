@@ -450,7 +450,7 @@ public class QuestionController {
         Question question = dto.toEntity();
         question.setId(id);
         question.setCourseId(existing.getCourseId());
-        questionService.updateById(question);
+        questionService.updateQuestion(question);
         Question updatedQuestion = questionService.getById(id);
         return ApiResponse.success("更新成功", updatedQuestion);
     }
@@ -466,7 +466,7 @@ public class QuestionController {
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
         Question existing = requireQuestion(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
-        questionService.removeById(id);
+        questionService.deleteQuestion(id);
         return ApiResponse.success("删除成功", null);
     }
 
