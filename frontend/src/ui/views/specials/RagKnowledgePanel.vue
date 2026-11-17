@@ -622,7 +622,7 @@ onMounted(async () => {
 }
 .retrieval-item {
   border: 1px solid var(--line, #e5e7eb);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   padding: 10px 12px;
 }
 .retrieval-item header {

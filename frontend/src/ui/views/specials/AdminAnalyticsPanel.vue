@@ -335,7 +335,7 @@ onMounted(() => void load())
   align-items: center;
   justify-content: center;
   min-height: 34px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   font-size: 11px;
   color: var(--text);
   background: rgba(22, 163, 74, var(--heat, 0.06));
