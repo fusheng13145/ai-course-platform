@@ -14,7 +14,7 @@ export const getCheckDetail = (id: number | string): Promise<ApiEnvelope<ApiData
 export const getCheckMatches = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/plagiarism-checks/${id}/matches`) as Promise<ApiEnvelope<ApiData>>
 // 查重历史（传 studentId 查该生历史；不传则返回全部查重任务列表，供管理端使用）
-export const getCheckHistory = (studentId: number | string): Promise<ApiEnvelope<ApiData>> =>
+export const getCheckHistory = (studentId?: number | string): Promise<ApiEnvelope<ApiData>> =>
   (studentId
     ? request.get(`/plagiarism-checks/student/${studentId}`)
     : request.get('/plagiarism-checks')) as Promise<ApiEnvelope<ApiData>>

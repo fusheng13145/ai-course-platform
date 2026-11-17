@@ -1,168 +1,194 @@
 <template>
   <div>
-    <div v-if="paperError || sessionsError" class="callout">
-      <span>加载失败</span>
-      <p>{{ paperError || sessionsError }}</p>
+    <div class="tabs page-tabs" role="tablist" aria-label="考试治理">
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'exam' }"
+        role="tab"
+        :aria-selected="activeTab === 'exam'"
+        @click="activeTab = 'exam'"
+      >
+        考试与试卷
+      </button>
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'plagiarism' }"
+        role="tab"
+        :aria-selected="activeTab === 'plagiarism'"
+        data-testid="exam-plagiarism-tab"
+        @click="activeTab = 'plagiarism'"
+      >
+        查重管理
+      </button>
     </div>
 
-    <div class="stat-grid kpi-grid">
-      <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="admin" />
-    </div>
-
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>
-            进行中考试 <span class="chip chip-mute">{{ sessions.length }} 场</span>
-          </h2>
-        </div>
-        <div class="filter-row">
-          <button class="btn btn-sm" :disabled="sessionsLoading" @click="loadSessions">
-            {{ sessionsLoading ? '刷新中…' : '刷新' }}
-          </button>
-        </div>
-      </header>
-
-      <div v-if="sessions.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>试卷</th>
-              <th class="w-140">学生</th>
-              <th class="w-80">次</th>
-              <th class="w-220">开始时间</th>
-              <th class="w-96">用时</th>
-              <th class="w-220 th-actions">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in sessions" :key="`s-${rowKey(row.id, index)}`">
-              <td>{{ row.paperTitle || `试卷 #${row.examPaperId ?? '—'}` }}</td>
-              <td>{{ row.studentName || `用户 #${row.studentId ?? '—'}` }}</td>
-              <td>{{ row.attemptNumber ?? '—' }}</td>
-              <td>{{ formatDateTime(row.startTime) }}</td>
-              <td>{{ formatSeconds(row.timeSpent) }}</td>
-              <td>
-                <div class="row-actions">
-                  <button class="text-btn" @click="openCheating(row)">作弊检测</button>
-                  <button class="text-btn danger" @click="askForceSubmit(row)">强制交卷</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-else-if="sessionsLoading" class="empty-state compact">
-        <b>正在加载进行中考试…</b>
-      </div>
-      <div v-else class="empty-state compact">
-        <span class="e-ico"><Icon name="play" /></span>
-        <b>当前没有进行中的考试</b>
-        <p>考试开考后会话出现在这里，可强制交卷或做作弊检测。</p>
-      </div>
-      <p class="hint">一行一名学生的考试会话；强制交卷不可撤回。</p>
-    </section>
-
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>
-            试卷列表 <span class="chip chip-mute">{{ filteredPapers.length }} 份</span>
-          </h2>
-        </div>
-        <div class="filter-row">
-          <select v-model="filters.courseId" class="input filter-course" @change="reload">
-            <option value="">全部课程</option>
-            <option v-for="course in courses" :key="course.id" :value="course.id">
-              {{ course.name || course.title }}
-            </option>
-          </select>
-          <select v-model="filters.status" class="input filter-course" @change="reload">
-            <option value="">全部状态</option>
-            <option value="DRAFT">草稿</option>
-            <option value="PENDING_REVIEW">待审核</option>
-            <option value="REJECTED">已驳回</option>
-            <option value="PUBLISHED">已发布</option>
-            <option value="ARCHIVED">已归档</option>
-          </select>
-          <input
-            v-model="filters.keyword"
-            class="input filter-keyword"
-            type="search"
-            placeholder="搜索试卷名/课程…"
-            @keyup.enter="reload"
-          />
-          <button class="btn btn-sm" @click="reload">查询</button>
-          <button class="btn btn-sm btn-ghost" @click="resetFilters">重置</button>
-        </div>
-      </header>
-
-      <div v-if="filteredPapers.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>试卷</th>
-              <th class="w-220">课程</th>
-              <th class="w-96">创建人</th>
-              <th class="w-80">总分</th>
-              <th class="w-80">时长</th>
-              <th class="w-80">题量</th>
-              <th class="w-220">起止</th>
-              <th class="w-96">状态</th>
-              <th class="w-140 th-actions">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in pagedPapers" :key="`p-${rowKey(row.id, index)}`">
-              <td>
-                <b class="paper-title">{{ row.title || '未命名试卷' }}</b>
-                <small class="cell-sub">{{ row.description || '—' }}</small>
-              </td>
-              <td>{{ courseNameOf(row) }}</td>
-              <td>{{ userNameOf(row.creatorId) }}</td>
-              <td>{{ row.totalScore ?? '—' }}</td>
-              <td>{{ row.duration ?? '—' }} 分</td>
-              <td>{{ row.questionCount ?? '—' }}</td>
-              <td>
-                <small class="cell-sub">{{ formatDateTime(row.startTime) }}</small>
-                <small class="cell-sub">{{ formatDateTime(row.endTime) }}</small>
-              </td>
-              <td>
-                <span class="chip" :class="statusChip(row.status)">{{
-                  examPaperStatusView(row.status).label
-                }}</span>
-              </td>
-              <td>
-                <div class="row-actions">
-                  <button class="text-btn" @click="openQuestions(row)">题目</button>
-                  <button class="text-btn" @click="openStats(row)">统计</button>
-                  <template v-if="isPendingReview(row)">
-                    <button class="text-btn" @click="askApprove(row)">通过</button>
-                    <button class="text-btn danger" @click="askReject(row)">驳回</button>
-                  </template>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-else-if="papersLoading" class="empty-state compact"><b>正在加载试卷…</b></div>
-      <div v-else class="empty-state compact">
-        <span class="e-ico"><Icon name="clipboard" /></span>
-        <b>{{ paperError ? '试卷列表未能加载' : '没有符合条件的试卷' }}</b>
-        <p>{{ paperError ? '请查看上方提示后重试。' : '调整筛选条件后重试。' }}</p>
+    <template v-if="activeTab === 'exam'">
+      <div v-if="paperError || sessionsError" class="callout">
+        <span>加载失败</span>
+        <p>{{ paperError || sessionsError }}</p>
       </div>
 
-      <footer class="card-foot">
-        <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ filteredPapers.length }} 份</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-          <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-            下一页
-          </button>
+      <div class="stat-grid kpi-grid">
+        <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="admin" />
+      </div>
+
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>
+              进行中考试 <span class="chip chip-mute">{{ sessions.length }} 场</span>
+            </h2>
+          </div>
+          <div class="filter-row">
+            <button class="btn btn-sm" :disabled="sessionsLoading" @click="loadSessions">
+              {{ sessionsLoading ? '刷新中…' : '刷新' }}
+            </button>
+          </div>
+        </header>
+
+        <div v-if="sessions.length" class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>试卷</th>
+                <th class="w-140">学生</th>
+                <th class="w-80">次</th>
+                <th class="w-220">开始时间</th>
+                <th class="w-96">用时</th>
+                <th class="w-220 th-actions">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in sessions" :key="`s-${rowKey(row.id, index)}`">
+                <td>{{ row.paperTitle || `试卷 #${row.examPaperId ?? '—'}` }}</td>
+                <td>{{ row.studentName || `用户 #${row.studentId ?? '—'}` }}</td>
+                <td>{{ row.attemptNumber ?? '—' }}</td>
+                <td>{{ formatDateTime(row.startTime) }}</td>
+                <td>{{ formatSeconds(row.timeSpent) }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="text-btn" @click="openCheating(row)">作弊检测</button>
+                    <button class="text-btn danger" @click="askForceSubmit(row)">强制交卷</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </footer>
-    </section>
+        <div v-else-if="sessionsLoading" class="empty-state compact">
+          <b>正在加载进行中考试…</b>
+        </div>
+        <div v-else class="empty-state compact">
+          <span class="e-ico"><Icon name="play" /></span>
+          <b>当前没有进行中的考试</b>
+          <p>考试开考后会话出现在这里，可强制交卷或做作弊检测。</p>
+        </div>
+        <p class="hint">一行一名学生的考试会话；强制交卷不可撤回。</p>
+      </section>
+
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>
+              试卷列表 <span class="chip chip-mute">{{ filteredPapers.length }} 份</span>
+            </h2>
+          </div>
+          <div class="filter-row">
+            <select v-model="filters.courseId" class="input filter-course" @change="reload">
+              <option value="">全部课程</option>
+              <option v-for="course in courses" :key="course.id" :value="course.id">
+                {{ course.name || course.title }}
+              </option>
+            </select>
+            <select v-model="filters.status" class="input filter-course" @change="reload">
+              <option value="">全部状态</option>
+              <option value="DRAFT">草稿</option>
+              <option value="PENDING_REVIEW">待审核</option>
+              <option value="REJECTED">已驳回</option>
+              <option value="PUBLISHED">已发布</option>
+              <option value="ARCHIVED">已归档</option>
+            </select>
+            <input
+              v-model="filters.keyword"
+              class="input filter-keyword"
+              type="search"
+              placeholder="搜索试卷名/课程…"
+              @keyup.enter="reload"
+            />
+            <button class="btn btn-sm" @click="reload">查询</button>
+            <button class="btn btn-sm btn-ghost" @click="resetFilters">重置</button>
+          </div>
+        </header>
+
+        <div v-if="filteredPapers.length" class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>试卷</th>
+                <th class="w-220">课程</th>
+                <th class="w-96">创建人</th>
+                <th class="w-80">总分</th>
+                <th class="w-80">时长</th>
+                <th class="w-80">题量</th>
+                <th class="w-220">起止</th>
+                <th class="w-96">状态</th>
+                <th class="w-140 th-actions">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in pagedPapers" :key="`p-${rowKey(row.id, index)}`">
+                <td>
+                  <b class="paper-title">{{ row.title || '未命名试卷' }}</b>
+                  <small class="cell-sub">{{ row.description || '—' }}</small>
+                </td>
+                <td>{{ courseNameOf(row) }}</td>
+                <td>{{ userNameOf(row.creatorId) }}</td>
+                <td>{{ row.totalScore ?? '—' }}</td>
+                <td>{{ row.duration ?? '—' }} 分</td>
+                <td>{{ row.questionCount ?? '—' }}</td>
+                <td>
+                  <small class="cell-sub">{{ formatDateTime(row.startTime) }}</small>
+                  <small class="cell-sub">{{ formatDateTime(row.endTime) }}</small>
+                </td>
+                <td>
+                  <span class="chip" :class="statusChip(row.status)">{{
+                    examPaperStatusView(row.status).label
+                  }}</span>
+                </td>
+                <td>
+                  <div class="row-actions">
+                    <button class="text-btn" @click="openQuestions(row)">题目</button>
+                    <button class="text-btn" @click="openStats(row)">统计</button>
+                    <template v-if="isPendingReview(row)">
+                      <button class="text-btn" @click="askApprove(row)">通过</button>
+                      <button class="text-btn danger" @click="askReject(row)">驳回</button>
+                    </template>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else-if="papersLoading" class="empty-state compact"><b>正在加载试卷…</b></div>
+        <div v-else class="empty-state compact">
+          <span class="e-ico"><Icon name="clipboard" /></span>
+          <b>{{ paperError ? '试卷列表未能加载' : '没有符合条件的试卷' }}</b>
+          <p>{{ paperError ? '请查看上方提示后重试。' : '调整筛选条件后重试。' }}</p>
+        </div>
+
+        <footer class="card-foot">
+          <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ filteredPapers.length }} 份</span>
+          <div class="pager">
+            <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
+            <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
+              下一页
+            </button>
+          </div>
+        </footer>
+      </section>
+    </template>
+
+    <PlagiarismPanel v-else />
 
     <!-- 题目明细 -->
     <Modal v-model:open="questions.open" title="试卷题目" width="760px">
@@ -273,6 +299,7 @@ import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
 import PaperStats from '../../components/PaperStats.vue'
+import PlagiarismPanel from './PlagiarismPanel.vue'
 import { useUi } from '../../composables/ui'
 import examApi from '@/api/exam'
 import { getAllCourses } from '@/api/course'
@@ -338,6 +365,7 @@ interface QuestionCell {
 }
 
 const { toast } = useUi()
+const activeTab = ref<'exam' | 'plagiarism'>('exam')
 
 const papers = ref<PaperRow[]>([])
 const courses = ref<CourseOption[]>([])
