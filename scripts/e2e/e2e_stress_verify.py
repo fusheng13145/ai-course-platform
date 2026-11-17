@@ -225,6 +225,9 @@ def build_fixture() -> dict:
         "maxAttempts": 3, "typeRules": {"TRUE_FALSE": 1}})
     fx["paper"] = (o.get("data") or {}).get("id")
     teacher.req("POST", f"/exam-papers/{fx['paper']}/publish")
+    # 2026-11-17 修复：/publish 只提交审核（DRAFT→PENDING_REVIEW），必须再由管理员
+    # /approve 才会 PUBLISHED；原夹具漏这一步，导致交卷高峰永远「试卷尚未发布」。
+    admin.req("PATCH", f"/exam-papers/{fx['paper']}/approve")
 
     # 学生：并发选课（OPEN 类型 → 直接 APPROVED）
     for u in ("student", "student2", "student3", "student4"):
@@ -267,6 +270,9 @@ def cleanup(fx: dict) -> None:
     cid = fx.get("cid")
     if not cid:
         return
+    db(f"delete from {DB}.exam_sessions where exam_paper_id in "
+       f"(select id from {DB}.exam_papers where course_id={cid})")
+    db(f"delete from {DB}.exam_papers where course_id={cid}")
     db(f"delete from {DB}.task_completions where task_id in "
        f"(select id from {DB}.tasks where course_id={cid})")
     db(f"delete from {DB}.submissions where task_id in "
@@ -442,6 +448,187 @@ def run_phase(label: str, workers: int, req_per_worker: int, cookies, fx: dict,
     return row
 
 
+def run_exam_peak(fx: dict, attempts: int = 1) -> dict:
+    """交卷高峰：4 名已选课学生 × N 次尝试，先并发开考，再同时交卷。
+
+    受演示账号限制（本机只保留 student/student2/student3/student4 四个学生），
+    这里用「多尝试」把并发交卷线程数放大到 12；读数仍标注「4 名学生 × 3 次尝试」，
+    不得表述为「真实班级高峰」。
+    """
+    users = ["student", "student2", "student3", "student4"]
+    setup: list[tuple[Session, int, str]] = []
+    setup_errors: list[str] = []
+    for _ in range(attempts):
+        for u in users:
+            s = Session()
+            if not s.login(u):
+                setup_errors.append(f"{u}:login")
+                s.close()
+                continue
+            st, o, _ = s.req("POST", "/exam-sessions/start", {"examPaperId": fx["paper"]})
+            if st == 400 and "正在进行" in str(o.get("message", "")):
+                # 上一轮压测可能留下 ACTIVE 会话：按试卷查最新会话并交卷，再开新会话。
+                # 注意 /exam-sessions/active 是教师/管理员端点，学生侧用 /paper/{paperId}。
+                sta, oa, _ = s.req("GET", f"/exam-sessions/paper/{fx['paper']}")
+                active = (oa.get("data") or {})
+                old_sid = active.get("id") if isinstance(active, dict) else None
+                if old_sid:
+                    stq, oq, _ = s.req("GET", f"/exam-sessions/{old_sid}/questions")
+                    qs = (oq.get("data") or []) if stq == 200 else []
+                    qid = (qs[0].get("questionId") or qs[0].get("id")) if qs else None
+                    if qid is not None:
+                        s.req("POST", f"/exam-sessions/{old_sid}/submit",
+                              {"sessionId": old_sid, "answers": {str(qid): "true"}})
+                    st, o, _ = s.req("POST", "/exam-sessions/start", {"examPaperId": fx["paper"]})
+            sid = (o.get("data") or {}).get("id")
+            if st != 200 or not sid:
+                setup_errors.append(f"{u}:start={st}:{o.get('message')}")
+                s.close()
+                continue
+            stq, oq, _ = s.req("GET", f"/exam-sessions/{sid}/questions")
+            qs = (oq.get("data") or []) if stq == 200 else []
+            qid = (qs[0].get("questionId") or qs[0].get("id")) if qs else None
+            if qid is None:
+                setup_errors.append(f"{u}:questions={stq}:{oq.get('message')}")
+                s.close()
+                continue
+            setup.append((s, sid, str(qid)))
+    if setup_errors:
+        print(f"        开考失败样本: {setup_errors[:5]}")
+
+    durations: list[float] = []
+    codes: dict[int, int] = {}
+    lock = threading.Lock()
+    start_evt = threading.Event()
+
+    def submit(sess: Session, sid: int, qid: str) -> None:
+        start_evt.wait()
+        st, _, dt = sess.req("POST", f"/exam-sessions/{sid}/submit",
+                             {"sessionId": sid, "answers": {qid: "true"}})
+        with lock:
+            durations.append(dt)
+            codes[st] = codes.get(st, 0) + 1
+
+    ths = [threading.Thread(target=submit, args=(s, sid, qid), daemon=True)
+           for s, sid, qid in setup]
+    t0 = time.perf_counter()
+    for t in ths:
+        t.start()
+    start_evt.set()
+    for t in ths:
+        t.join()
+    elapsed = time.perf_counter() - t0
+    for s, _, _ in setup:
+        s.close()
+
+    total = len(durations)
+    ok = sum(c for st, c in codes.items() if 200 <= st < 300)
+    srv_err = sum(c for st, c in codes.items() if st >= 500)
+    transport = codes.get(0, 0)
+    rl = codes.get(429, 0)
+    unexpected = total - ok - transport - rl
+    ds = sorted(durations)
+
+    def pct(p: float) -> float:
+        if not ds:
+            return 0.0
+        return ds[min(len(ds) - 1, int(round((p / 100.0) * (len(ds) - 1))))]
+
+    row = {
+        "label": f"交卷高峰 4人×{attempts}次", "workers": total, "total": total,
+        "elapsed": elapsed, "rps": total / elapsed if elapsed else 0.0,
+        "ok": ok, "ok_rate": ok / total * 100 if total else 0.0,
+        "srv_err": srv_err, "transport": transport, "rl": rl,
+        "biz_reject": 0, "unexpected": unexpected, "opcodes": {},
+        "avg": statistics.fmean(ds) if ds else 0.0,
+        "p50": pct(50), "p90": pct(90), "p95": pct(95), "p99": pct(99),
+        "max": ds[-1] if ds else 0.0, "codes": dict(sorted(codes.items())),
+        "note": f"4 名学生 × {attempts} 次尝试，非真实班级规模",
+    }
+    RESULTS.append(row)
+    print(f"[{row['label']}] 交卷会话={total} 耗时={elapsed:.2f}s "
+          f"吞吐={row['rps']:.1f} req/s 成功={ok}({row['ok_rate']:.1f}%) "
+          f"5xx={srv_err} 传输错={transport} 429={rl} 其他异常={unexpected} "
+          f"| p50={row['p50']:.0f}ms p95={row['p95']:.0f}ms p99={row['p99']:.0f}ms max={row['max']:.0f}ms")
+    if srv_err or transport or unexpected:
+        DEFECTS.append(f"{row['label']}：5xx={srv_err} 传输={transport} 非预期={unexpected} "
+                       f"（码表 {row['codes']}）")
+    return row
+
+
+def run_ai_qa(fx: dict, repeats: int = 1) -> dict:
+    """AI 问答并发：4 名学生同时向课程问答发问。
+
+    外部 LLM 可能 503（未配置/额度/上游不可达），503 单独计数为 upstream_503，
+    不混入代码层缺陷；读数用于确认「并发时后端不崩、不串会话」。
+    """
+    users = ["student", "student2", "student3", "student4"] * repeats
+    durations: list[float] = []
+    codes: dict[int, int] = {}
+    lock = threading.Lock()
+    start_evt = threading.Event()
+
+    def ask(u: str) -> None:
+        s = Session()
+        if not s.login(u):
+            with lock:
+                codes[0] = codes.get(0, 0) + 1
+                durations.append(0.0)
+            s.close()
+            return
+        start_evt.wait()
+        st, o, dt = s.req("POST", "/ai/qa/ask",
+                          {"question": "TCP 三次握手的过程是什么？", "courseId": fx["cid"]},
+                          timeout=60)
+        with lock:
+            durations.append(dt)
+            codes[st] = codes.get(st, 0) + 1
+        s.close()
+
+    ths = [threading.Thread(target=ask, args=(u,), daemon=True) for u in users]
+    t0 = time.perf_counter()
+    for t in ths:
+        t.start()
+    start_evt.set()
+    for t in ths:
+        t.join()
+    elapsed = time.perf_counter() - t0
+
+    total = len(durations)
+    ok = sum(c for st, c in codes.items() if 200 <= st < 300)
+    upstream_503 = codes.get(503, 0)
+    srv_err = sum(c for st, c in codes.items() if st >= 500 and st != 503)
+    transport = codes.get(0, 0)
+    unexpected = total - ok - upstream_503 - srv_err - transport
+    ds = sorted(durations)
+
+    def pct(p: float) -> float:
+        if not ds:
+            return 0.0
+        return ds[min(len(ds) - 1, int(round((p / 100.0) * (len(ds) - 1))))]
+
+    row = {
+        "label": f"AI问答并发 {len(users)}路", "workers": len(users), "total": total,
+        "elapsed": elapsed, "rps": total / elapsed if elapsed else 0.0,
+        "ok": ok, "ok_rate": ok / total * 100 if total else 0.0,
+        "srv_err": srv_err, "transport": transport, "rl": codes.get(429, 0),
+        "biz_reject": 0, "unexpected": unexpected, "opcodes": {},
+        "avg": statistics.fmean(ds) if ds else 0.0,
+        "p50": pct(50), "p90": pct(90), "p95": pct(95), "p99": pct(99),
+        "max": ds[-1] if ds else 0.0, "codes": dict(sorted(codes.items())),
+        "upstream_503": upstream_503,
+        "note": "503 为 LLM/RAG 上游不可用，不在本项计为后端缺陷",
+    }
+    RESULTS.append(row)
+    print(f"[{row['label']}] 请求={total} 耗时={elapsed:.2f}s 成功={ok}({row['ok_rate']:.1f}%) "
+          f"503上游={upstream_503} 5xx={srv_err} 传输错={transport} 其他异常={unexpected} "
+          f"| p50={row['p50']:.0f}ms p95={row['p95']:.0f}ms p99={row['p99']:.0f}ms max={row['max']:.0f}ms")
+    if srv_err or transport or unexpected:
+        DEFECTS.append(f"{row['label']}：5xx={srv_err} 传输={transport} 非预期={unexpected} "
+                       f"（码表 {row['codes']}）")
+    return row
+
+
 def run_sustain(cookies: dict, fx: dict, seconds: int, workers: int) -> dict:
     """持续负载：固定并发，跑满 N 秒，检验长时间运行是否劣化/泄漏迹象。"""
     durations: list[float] = []
@@ -518,6 +705,8 @@ def run_sustain(cookies: dict, fx: dict, seconds: int, workers: int) -> dict:
 
 def main() -> int:
     quick = "--quick" in sys.argv
+    exam_peak = "--exam-peak" in sys.argv
+    ai_qa = "--ai-qa" in sys.argv
     levels = LEVELS_QUICK if quick else LEVELS_FULL
     per = REQ_PER_WORKER_QUICK if quick else REQ_PER_WORKER_FULL
 
@@ -552,6 +741,16 @@ def main() -> int:
     # ---- 写负载 ----
     for lv in levels[:2]:
         run_phase(f"写负载 并发{lv}", lv, max(5, per // 4), cookies, fx, writer=True)
+
+    # ---- 交卷高峰（可选；受演示账号限制，4 名学生 × 3 次尝试） ----
+    if exam_peak and fx.get("paper"):
+        # 演示环境只有 4 名学生；多轮尝试会与「同一学生同时只能有一场 ACTIVE 考试」
+        # 的业务约束冲突（后续轮会被 400 拒绝），因此默认 1 轮 4 路并发交卷。
+        run_exam_peak(fx, attempts=1)
+
+    # ---- AI 问答并发（可选；外部 LLM 503 单独计数） ----
+    if ai_qa:
+        run_ai_qa(fx, repeats=1)
 
     # ---- 持续负载 ----
     if not quick:
