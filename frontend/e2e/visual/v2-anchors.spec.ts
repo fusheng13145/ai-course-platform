@@ -7,7 +7,7 @@ import { freezeClock, SNAPSHOT_THRESHOLDS, snapName, storagePathFor } from './vi
  * 与旧端 anchors.spec.ts 分开的理由：旧套件的 12 个锚点全部指向旧路由，摘除旧前端时一起失效；
  * 这里只钉当前壳层的五个面，快照落在本文件自己的 __snapshots__ 目录，互不覆盖。
  * 时钟用同一把 freezeClock 冻结（相对时间文案才不会天天漂）；明暗两档各一张，共 10 张。
- * 数据来自本机真栈（course 4001 等种子）；种子变了要按重录闸门重新录制，不是"容忍红"。
+ * 数据来自本机真栈（course 4178 等种子）；种子变了要按重录闸门重新录制，不是"容忍红"。
  */
 
 type Theme = 'light' | 'dark'
@@ -111,7 +111,7 @@ test.describe('视觉基线 · 学生', () => {
         page,
         'v2-student-course-overview',
         theme,
-        '/student/courses/4001/overview',
+        '/student/courses/4178/overview',
         page.locator('.course-head'),
       )
     })
