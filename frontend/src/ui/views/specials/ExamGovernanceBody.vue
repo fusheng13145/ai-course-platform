@@ -81,9 +81,8 @@
         <div v-else class="empty-state compact">
           <span class="e-ico"><Icon name="play" /></span>
           <b>当前没有进行中的考试</b>
-          <p>考试开考后会话出现在这里，可强制交卷或做作弊检测。</p>
         </div>
-        <p class="hint">一行一名学生的考试会话；强制交卷不可撤回。</p>
+        <p class="hint">强制交卷不可撤回。</p>
       </section>
 
       <section class="card table-card">

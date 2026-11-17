@@ -303,7 +303,7 @@ describe('学生阅读列 · 课程资源（PRD §3.1 资源预览/下载）', (
     const wrapper = mountReader()
     await flushPromises()
     expect(wrapper.findAll('.res-list li')).toHaveLength(0)
-    expect(wrapper.text()).toContain('本课程还没有可下载的资源')
+    expect(wrapper.text()).toContain('暂无课程资源。')
     wrapper.unmount()
   })
 
@@ -314,8 +314,8 @@ describe('学生阅读列 · 课程资源（PRD §3.1 资源预览/下载）', (
     const alert = wrapper.find('[role="alert"]')
     expect(alert.exists()).toBe(true)
     expect(alert.text()).toContain('课程资源加载失败')
-    // 失败态不得同时显示"还没有资源"的空态文案
-    expect(wrapper.text()).not.toContain('本课程还没有可下载的资源')
+    // 失败态不得同时显示"没有资源"的空态文案
+    expect(wrapper.text()).not.toContain('暂无课程资源。')
     wrapper.unmount()
   })
 

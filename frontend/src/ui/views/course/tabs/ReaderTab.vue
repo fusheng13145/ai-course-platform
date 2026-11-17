@@ -40,15 +40,7 @@
       <div v-if="activeChapter?.html" class="reader-content" v-html="activeChapter.html"></div>
       <template v-else>
         <p v-if="activeChapter?.loading">章节正文加载中…</p>
-        <template v-else>
-          <p>
-            章节正文尚未发布或内容为空。授课教师在课程空间中维护章节与任务点；学生端只展示已发布内容。
-          </p>
-          <p>
-            章节正文由授课教师在课程空间中维护；学生端只展示已发布内容。若长时间为空，
-            请确认该章节已发布，或联系任课教师。
-          </p>
-        </template>
+        <p v-else>本章节暂无正文。</p>
       </template>
       <div class="reader-actions">
         <button class="btn btn-ghost" @click="step(-1)">上一节</button>
@@ -97,9 +89,7 @@
         </ul>
 
         <p v-else-if="resourceLoading" class="empty-note">正在加载课程资源…</p>
-        <p v-else class="empty-note">
-          本课程还没有可下载的资源；授课教师在课程空间上传后会出现在这里。
-        </p>
+        <p v-else class="empty-note">暂无课程资源。</p>
       </section>
     </article>
 

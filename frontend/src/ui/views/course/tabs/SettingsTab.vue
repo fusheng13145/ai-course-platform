@@ -29,7 +29,6 @@
           ><span>审批状态</span><input :value="approvalLabel(course?.approvalStatus)" readonly
         /></label>
       </div>
-      <p class="hint">课程编号按学期唯一；修改只影响基本信息，不会改动章节、任务与成绩。</p>
       <p v-if="loadError" class="form-error">{{ loadError }}</p>
     </section>
 
@@ -49,7 +48,6 @@
         </div>
         <div class="workflow-step"><span>03</span><b>发布教学班</b></div>
       </div>
-      <p class="hint">审批记录不可编辑；管理员课程治理页只读。</p>
     </section>
 
     <section v-if="role !== 'admin'" class="card">

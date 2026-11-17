@@ -1,99 +1,78 @@
 /*
- * 排版层：把原型 9–13px 的紧凑字号抬到可读尺度，
- * 并用本机已装的 Noto Sans SC 替换落到微软雅黑的全局正文。
+ * 排版层：一套系统字族、四档字号、标题无衬线。
  * 只作用于 body[data-app="ui"]，旧端零影响。
+ * 四档：22 页标题 / 14 正文 / 13 控件与行标题 / 12 元信息。
  */
 body[data-app='ui'] {
-  --font-body: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --font-body:
+    'Segoe UI', -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-display: var(--font-body);
   --font-mono: 'Cascadia Code', 'Consolas', 'SFMono-Regular', monospace;
+  --fs-title: 22px;
+  --fs-body: 14px;
+  --fs-ui: 13px;
+  --fs-meta: 12px;
   font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 1.72;
+  font-size: var(--fs-body);
+  line-height: 1.65;
   letter-spacing: 0;
 }
 
 body[data-app='ui'] .page-head h1,
 body[data-app='ui'] .module-head h1,
 body[data-app='ui'] .course-title-line h1 {
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: clamp(28px, 2.6vw, 34px);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
   font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 
-/* v2 签名规则：衬线只在大字号出场；卡片小标题回 sans 600（14px 衬线发虚） */
 body[data-app='ui'] .card-head h2 {
   font-family: var(--font-body);
-  font-size: 13.5px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   letter-spacing: 0;
 }
 
-body[data-app='ui'] .card-kicker,
-body[data-app='ui'] .page-kicker,
-body[data-app='ui'] .eyebrow {
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-}
-
-/* v2：侧栏组标签/眉标回 sans（mono 禁排中文），10px 半粗 */
-body[data-app='ui'] .nav-eyebrow,
-body[data-app='ui'] .nav-group-label {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
-
-body[data-app='ui'] .page-sub {
-  font-size: 12.5px;
-  line-height: 1.8;
-}
-
-body[data-app='ui'] .lede {
-  font-size: 13px;
-  line-height: 1.85;
-}
-
 body[data-app='ui'] .stat-label {
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
-/* v2 签名：KPI 大数字改衬线（学术刊物质感），等宽数字对齐 */
 body[data-app='ui'] .stat-value {
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: 28px;
+  font-family: var(--font-display);
+  font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 body[data-app='ui'] .stat-note {
-  font-size: 9.5px;
+  font-size: 11.5px;
 }
 
 body[data-app='ui'] .nav-label {
-  font-size: 12.5px;
+  font-size: var(--fs-ui);
 }
 
 body[data-app='ui'] .nav-item {
-  padding: 8.5px 10px;
+  padding: 8px 10px;
 }
 
 body[data-app='ui'] .course-name {
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 body[data-app='ui'] .course-meta {
-  font-size: 10px;
+  font-size: 11.5px;
 }
 
 body[data-app='ui'] .queue-main b {
-  font-size: 12px;
+  font-size: var(--fs-ui);
 }
 
 body[data-app='ui'] .queue-main small {
-  font-size: 9.5px;
+  font-size: 11.5px;
 }
 
 body[data-app='ui'] .queue-item {
@@ -101,12 +80,12 @@ body[data-app='ui'] .queue-item {
 }
 
 body[data-app='ui'] th {
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
 }
 
 body[data-app='ui'] td {
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 body[data-app='ui'] .btn {
@@ -114,20 +93,20 @@ body[data-app='ui'] .btn {
 }
 
 body[data-app='ui'] .chip {
-  font-size: 10px;
-}
-
-body[data-app='ui'] .text-btn {
   font-size: 11px;
 }
 
+body[data-app='ui'] .text-btn {
+  font-size: 12px;
+}
+
 body[data-app='ui'] .hint {
-  font-size: 10px;
-  line-height: 1.7;
+  font-size: var(--fs-meta);
+  line-height: 1.6;
 }
 
 body[data-app='ui'] .side-body,
 body[data-app='ui'] .side-list li {
-  font-size: 11px;
-  line-height: 1.75;
+  font-size: var(--fs-meta);
+  line-height: 1.7;
 }

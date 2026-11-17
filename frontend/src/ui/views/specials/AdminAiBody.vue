@@ -23,11 +23,7 @@
     </div>
 
     <template v-if="activeTab === 'provider'">
-      <div class="card caveat-card">
-        <p class="card-kicker">口径边界</p>
-        <p class="scope-line">切换供应商后<b>即时生效</b>，无需重启。</p>
-        <p class="scope-note">密钥不在本页维护；本页只做供应商选择与连通性探测。</p>
-      </div>
+      <p class="scope-line">切换供应商即时生效；密钥在服务端维护，本页只做选择与连通性探测。</p>
 
       <div v-if="loadError" class="callout" role="alert">
         <span>当前供应商</span>

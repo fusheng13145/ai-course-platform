@@ -1,18 +1,10 @@
 <template>
   <section class="ai-usage-body">
-    <!-- 口径先摆在前头：数据源 ai_call_logs（2026-10-13 起埋点）。
-         2026-11-07 P2 批次起提供按课程 / 按日 / 按能力三个维度；出题治理＝总闸 + 逐人名单。 -->
-    <div class="card caveat-card">
-      <p class="card-kicker">口径边界</p>
-      <p class="scope-line">
-        当前统计窗 <b>近 {{ rangeDays }} 天</b>{{ rangeText }}。
-      </p>
-      <p v-if="collectionNote" class="scope-note">{{ collectionNote }}</p>
-      <p class="scope-note">
-        按日、按能力分组时，无调用的分组<b>不展示</b>；平台级配额为 100 次/日、200k
-        tokens/日，逐人出题限制见下方「出题治理」。
-      </p>
-    </div>
+    <!-- 口径：统计窗与「无调用不展示」是读数定义，不是提示语，保留一行 -->
+    <p class="scope-line">
+      统计窗 <b>近 {{ rangeDays }} 天</b>{{ rangeText }}；按日、按能力分组时，无调用的分组不展示。
+    </p>
+    <p v-if="collectionNote" class="scope-note">{{ collectionNote }}</p>
 
     <div v-if="listError" class="callout" role="alert">
       <span>AI 用量加载失败</span>
@@ -637,19 +629,15 @@ onMounted(() => {
   width: 100%;
   height: var(--v, 0%);
   min-height: 2px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 55%, transparent),
-    var(--accent)
-  );
-  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  border-radius: var(--r-chip) var(--r-chip) 0 0;
 }
 .bar-col .bar-val {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-3);
 }
 .bar-col .bar-label {
-  font-size: 8.5px;
+  font-size: 10px;
   color: var(--text-3);
   writing-mode: vertical-rl;
   height: 34px;

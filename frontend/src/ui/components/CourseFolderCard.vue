@@ -79,7 +79,6 @@ const metaText = computed(() => {
   const parts = [props.course.semester, props.course.teacher].filter(Boolean) as string[]
   if (props.role !== 'student' && props.course.students)
     parts.push(`${props.course.students} 名学生`)
-  if (!parts.length) parts.push('课程信息')
   return parts.join(' · ')
 })
 
@@ -191,12 +190,11 @@ onUnmounted(() => {
       <span class="cf-spec" aria-hidden="true"></span>
 
       <h3 class="cf-title">{{ course.name }}</h3>
-      <p class="cf-meta">{{ metaText }}</p>
+      <p v-if="metaText" class="cf-meta">{{ metaText }}</p>
 
       <div class="cf-bar"><i :style="{ '--p': `${course.progress}%` }"></i></div>
 
       <div class="cf-foot">
-        <span>{{ course.progress >= 70 ? '进展良好' : '需要关注' }}</span>
         <div class="cf-actions">
           <button
             v-if="role === 'student'"
@@ -515,7 +513,7 @@ body[data-theme='dark'] .cf-sheet[data-empty='1'] .cf-sheet-title {
 }
 .cf-meta {
   margin: 0;
-  font-size: 8px;
+  font-size: 11px;
   color: var(--ink-3);
   white-space: nowrap;
   overflow: hidden;
@@ -539,10 +537,10 @@ body[data-theme='dark'] .cf-sheet[data-empty='1'] .cf-sheet-title {
 .cf-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 6px;
   margin-top: auto;
-  font-size: 8.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .cf-actions {

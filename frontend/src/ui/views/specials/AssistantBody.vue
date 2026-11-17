@@ -40,7 +40,7 @@
         </button>
       </form>
       <p v-if="chatError" class="form-error" role="alert">{{ chatError }}</p>
-      <p class="hint">AI 回答有不确定性，重要结论请以课程资料为准；响应 503 时为模型通道不可用。</p>
+      <p class="hint">回答基于课程资料；重要结论以课程资料为准。</p>
     </section>
   </section>
 </template>

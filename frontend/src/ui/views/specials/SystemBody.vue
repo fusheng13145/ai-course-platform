@@ -1,18 +1,6 @@
 <template>
   <section class="system-body">
-    <!-- 口径先摆在前头：本页是「读配置 + 改配置值」的运维面，
-         不含备份、恢复、日志文件下载等高风险动作（那些端点存在但本页不提供入口）。 -->
-    <div class="card caveat-card">
-      <p class="card-kicker">运维面</p>
-      <p class="scope-line">
-        当前共 <b>{{ configs.length }}</b> 条配置，分
-        <b>{{ groupCount }}</b> 组；修改某一条只影响该条配置。
-      </p>
-      <p class="scope-note">
-        密钥类配置以掩码显示，编辑时必须输入新值才会提交；本页<b>不提供</b>备份、恢复与日志下载入口。
-      </p>
-    </div>
-
+    <!-- 运维面：只读配置 + 改值；备份 / 恢复 / 日志下载不提供入口（布局上就没有按钮） -->
     <div v-if="listError" class="callout" role="alert">
       <span>系统配置</span>
       <p>{{ listError }}</p>
@@ -39,10 +27,7 @@
         <span>服务状态</span>
         <p>{{ healthError }}</p>
       </div>
-      <div v-else-if="!health" class="empty-state compact">
-        <b>尚未取到服务状态</b>
-      </div>
-      <div v-else class="health-grid">
+      <div v-else-if="health" class="health-grid">
         <div class="health-item">
           <b>数据库</b>
           <span class="chip" :class="health.database === 'CONNECTED' ? 'chip-ok' : 'chip-danger'">
@@ -245,7 +230,6 @@ const { loading, listError, run, emptyDescription } = useListFeedback({
 const groups = computed(() =>
   Array.from(new Set(configs.value.map((row) => String(row.group || '未分组')))).sort(),
 )
-const groupCount = computed(() => groups.value.length)
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -271,7 +255,7 @@ const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / p
 watch([keyword, groupFilter], () => reset())
 
 const healthText = computed(() => {
-  if (!health.value) return '—'
+  if (!health.value) return healthLoading.value ? '探测中' : '未取到'
   return health.value.status || '—'
 })
 

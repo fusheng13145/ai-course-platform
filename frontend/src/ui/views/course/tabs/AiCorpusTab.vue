@@ -105,11 +105,8 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="file" /></span>
         <b>{{ error ? '知识库文档加载失败' : '本课程还没有语料文档' }}</b>
-        <p>{{ error || '新增文档并重建索引后，AI 助教问答即可命中课程资料。' }}</p>
+        <p v-if="error">{{ error }}</p>
       </div>
-      <p class="hint">
-        引擎未接入或不可达时列表/索引操作按契约返回 503 降级提示（此处如实透出，不伪装成功）。
-      </p>
     </section>
   </div>
 </template>

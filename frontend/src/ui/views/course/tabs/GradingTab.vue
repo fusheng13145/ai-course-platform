@@ -177,9 +177,6 @@
               </li>
             </ul>
             <p v-else class="detail-summary">未发现达到阈值的相似片段。</p>
-            <p class="hint">
-              算法：Jaccard + CJK 双字（同学任务内逐对比对）；结果只作教师参考，不自动改分。
-            </p>
           </div>
 
           <div v-if="returnModal.row" class="return-box">
@@ -197,7 +194,7 @@
               <button class="btn btn-primary" @click="commitReturn">确认退回</button>
             </div>
           </div>
-          <p class="hint">AI 只回填建议分，提交后才写入成绩；退回必须填写理由。</p>
+          <p class="hint">AI 只回填建议分，提交后才写入成绩。</p>
         </template>
         <div v-else class="empty-state">
           <span class="e-ico"><Icon name="file" /></span>

@@ -38,9 +38,7 @@
           已完成 {{ doneCount }}
         </button>
       </div>
-      <div class="table-tools">
-        <span class="chip chip-mute">{{ role === 'admin' ? '治理视图' : '课程空间' }}</span>
-      </div>
+      <div class="table-tools"></div>
     </div>
 
     <div v-if="filtered.length" class="course-grid">

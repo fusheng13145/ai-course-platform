@@ -114,11 +114,11 @@ describe('导航与路由一致性', () => {
     expect(pageDef('student', 'exams').title).toBe('我的考试')
   })
 
-  it('每个全局页面定义都有标题与描述', () => {
+  it('每个全局页面定义都有标题', () => {
     for (const role of ROLES) {
       for (const [page, def] of Object.entries(PAGE_DEFS[role])) {
         expect(pageDef(role, page).title, `${role}/${page} 缺标题`).toBeTruthy()
-        expect(def.desc, `${role}/${page} 缺描述`).toBeTruthy()
+        expect(def.title, `${role}/${page} 缺标题`).toBeTruthy()
       }
     }
   })

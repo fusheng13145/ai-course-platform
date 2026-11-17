@@ -3,14 +3,7 @@
     <template #form>
       <header class="av-form-head">
         <h2>找回密码</h2>
-        <p>通过注册邮箱接收验证码，验证后重置密码。</p>
       </header>
-
-      <ol class="fp-steps" aria-label="重置密码步骤">
-        <li :class="{ 'is-active': step === 1, 'is-done': step > 1 }"><span>01</span>验证邮箱</li>
-        <li :class="{ 'is-active': step === 2, 'is-done': step > 2 }"><span>02</span>验证码</li>
-        <li :class="{ 'is-active': step === 3 }"><span>03</span>新密码</li>
-      </ol>
 
       <form class="av-form" @submit.prevent="submit">
         <template v-if="step === 1">
@@ -87,7 +80,6 @@
       </form>
 
       <p class="av-switch"><router-link to="/login">返回登录</router-link></p>
-      <p class="av-note">验证码 5 分钟内有效；若未收到邮件，请联系管理员检查邮件服务配置。</p>
     </template>
   </AuthShell>
 </template>
@@ -211,38 +203,3 @@ onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
 })
 </script>
-
-<style scoped>
-.fp-steps {
-  display: flex;
-  gap: 6px;
-  margin: 0 0 2px;
-  padding: 0;
-  list-style: none;
-}
-.fp-steps li {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-bottom: 7px;
-  border-bottom: 2px solid var(--line);
-  font-size: 10px;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-.fp-steps li span {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  color: var(--ink-4);
-}
-.fp-steps li.is-active,
-.fp-steps li.is-done {
-  border-color: var(--accent);
-  color: var(--ink);
-}
-.fp-steps li.is-active span,
-.fp-steps li.is-done span {
-  color: var(--accent);
-}
-</style>

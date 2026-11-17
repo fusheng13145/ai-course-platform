@@ -1,6 +1,6 @@
 <template>
   <aside class="sidenav" aria-label="主导航">
-    <!-- 折叠手柄：骑跨在侧栏右缘上（原位于顶栏左侧，因顶栏改版迁移至此） -->
+    <!-- 折叠手柄：骑跨在侧栏右缘上 -->
     <button
       class="side-collapse"
       :aria-label="sidebarCollapsed ? '展开导航' : '收起导航'"
@@ -9,15 +9,6 @@
     >
       <Icon name="chevron" />
     </button>
-    <!-- 当前空间标识（纯展示）：切院系/跳转的动作并不存在，原「点击弹 toast」的伪按钮
-         会误导用户，故去掉交互语义；课程空间里信息与 .course-nav-card 重复，不渲染。 -->
-    <div v-if="!isCourse" class="workspace">
-      <span class="ws-mark">{{ workspace.mark }}</span>
-      <span class="ws-text">
-        <b>{{ workspace.title }}</b>
-        <small>{{ workspace.sub }}</small>
-      </span>
-    </div>
 
     <div class="nav-scroll">
       <template v-if="isCourse">
@@ -31,21 +22,14 @@
         </button>
         <div class="course-nav-pin">
           <div class="course-nav-card">
-            <p v-if="courseSemester" class="course-nav-kicker">{{ courseSemester }}</p>
             <div class="course-nav-title">
               {{ courseLabel }}
               <span v-if="courseContext.status" class="chip chip-ok">{{
                 courseContext.status
               }}</span>
             </div>
-            <p class="course-nav-meta">
-              {{
-                [courseContext.code, courseContext.teacher].filter(Boolean).join(' · ') ||
-                '课程信息加载中'
-              }}
-            </p>
+            <p v-if="courseMeta" class="course-nav-meta">{{ courseMeta }}</p>
             <label v-if="courses.length" class="course-switcher-wrap">
-              <span>切换课程</span>
               <select
                 class="course-switcher"
                 :value="courseId"
@@ -58,9 +42,6 @@
               </select>
             </label>
           </div>
-        </div>
-        <div class="nav-group-label nav-group-label--course">
-          <span>课程页签</span>
         </div>
         <div class="nav-group course-tabs">
           <button
@@ -135,25 +116,9 @@ const courseMark = computed(() => {
   const short = courses.value.find((c) => c.id === courseId.value)?.short
   return short || courseLabel.value.slice(0, 2)
 })
-const courseSemester = computed(() => courseContext.semester || '')
-
-const workspace = computed(() => {
-  if (isCourse.value) {
-    return {
-      mark: courseMark.value,
-      title: courseLabel.value,
-      sub: [courseContext.semester, courseContext.code].filter(Boolean).join(' · ') || '课程空间',
-    }
-  }
-  if (role.value === 'admin') {
-    return { mark: '云', title: '云枢大学', sub: '校级治理 · 2026 秋' }
-  }
-  return {
-    mark: '计',
-    title: '计算机学院',
-    sub: role.value === 'teacher' ? '教师空间 · 2026 秋' : '学生空间 · 2026 秋',
-  }
-})
+const courseMeta = computed(() =>
+  [courseContext.code, courseContext.teacher].filter(Boolean).join(' · '),
+)
 
 function isActive(path: string): boolean {
   if (route.path === path) return true

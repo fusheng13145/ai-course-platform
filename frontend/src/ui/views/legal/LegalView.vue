@@ -89,16 +89,15 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
   text-decoration: none;
 }
 .lv-brand .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-ctl);
   background: var(--brand-mark-bg);
   color: #fff;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
+  font-weight: 600;
+  font-size: 14px;
 }
 .lv-brand-text {
   display: flex;
@@ -107,7 +106,7 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
 }
 .lv-brand-text b {
   font-size: 14px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
 }
 .lv-brand-text small {
   margin-top: 3px;
@@ -139,19 +138,16 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
   padding-bottom: 18px;
   border-bottom: 1px solid var(--line);
 }
-.lv-head .eyebrow {
-  margin: 0 0 9px;
-}
 .lv-head h1 {
   margin: 0;
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: clamp(28px, 3vw, 36px);
+  font-family: var(--font-display);
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 .lv-sub {
-  margin: 8px 0 0;
-  font-size: 11.5px;
+  margin: 6px 0 0;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .lv-body :deep(section) {
@@ -163,8 +159,8 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
 }
 .lv-body :deep(h2) {
   margin: 0 0 9px;
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: 16px;
+  font-family: var(--font-display);
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink);
 }
@@ -206,8 +202,7 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
   margin-top: 22px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .lv-foot a {

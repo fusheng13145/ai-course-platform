@@ -378,3 +378,16 @@ python scripts/sync-kg-to-python.py <courseId>
 | “跨设备完成率” | 引导三态只落本地 `localStorage` | `docs/前端待办项.md` §4 |
 | “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §14.2 R-C1 |
 | “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §14.2 R-K1/K2/K3 |
+
+---
+
+## 13. 界面纪律（2026-11-17）
+
+**一句话**：页面靠布局自解释，不靠解释性文字。像 Linear 官网／苹果备忘录那样干净，同时改善 UX、DX、AX。
+
+- 一页 = `PageHead(title)` + 动作 + 内容；页头没有副标题／kicker／来源章，`PageDef` 没有 `desc`。
+- 加文案先过三问：动作标签？数据？改不了的事实（不可撤回／仅查询）？都不是就删。删了看不懂就改布局，不要加回一句话。
+- 空态一行 `<b>`，错误态一行 + 重试；不写「XX 会出现在这里」。
+- 视觉：一套系统字族、四档字号（22／14／13／12）、无衬线标题、无渐变／入场动画／hover 位移／辉光，分隔只用 1px 线。
+- 退役类名（模板出现即红）：`page-kicker`／`page-sub`／`card-kicker`／`card-sub`／`card-hint`／`ai-caveat`／`eyebrow`／`lede`／`av-*`（story／feat／motto）。
+- 守卫：`frontend/src/ui/__tests__/copyLaw.test.ts`（文案，含阴性对照）＋ `visualLaw.test.ts`（静态视觉）。规则全文见 `docs/开发规范.md` §8.2。

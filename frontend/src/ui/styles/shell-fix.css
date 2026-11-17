@@ -6,10 +6,10 @@
 /* 豁免账（V2 批）：html 根兜底底色须保持字面量——--bg 等令牌定义在 body[data-app] 作用域，
    html 层解析不到（CSS 自定义属性不可向上冒泡）。两值与令牌亮/暗值逐字相同，随令牌演进同步。 */
 html[data-ui] {
-  background: #f6f7f9;
+  background: #f7f8fa;
 }
 html[data-ui][data-ui-theme='dark'] {
-  background: #0f131a;
+  background: #0c0e11;
 }
 body[data-app='ui'] {
   height: auto;

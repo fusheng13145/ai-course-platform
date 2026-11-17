@@ -29,12 +29,9 @@
     <MessagesBody v-else-if="def.special === 'messages'" />
     <component :is="specialBodyComponent" v-else-if="specialBodyComponent" :key="page" />
 
-    <!-- 兜底：既没有真实正文、也不是「待扩展」清单里的页面。示例层删除后不该再有这种页面，
-         保留它只是防止将来漏配时白屏；文案不指向已下线的旧前端。 -->
+    <!-- 兜底：既没有真实正文、也不在待扩展清单里的页面。只为防白屏，一句话足够。 -->
     <div v-else class="card empty-state">
-      <span class="e-ico"><Icon name="layers" /></span>
       <b>该页暂不提供数据</b>
-      <p>本页暂无可展示内容。</p>
     </div>
   </section>
 </template>
