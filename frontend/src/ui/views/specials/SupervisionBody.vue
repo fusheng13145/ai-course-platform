@@ -1,61 +1,87 @@
 <template>
   <section class="supervision-body">
-    <div class="stat-grid kpi-grid">
-      <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="admin" />
+    <div class="tabs page-tabs" role="tablist" aria-label="教学监督">
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'summary' }"
+        role="tab"
+        :aria-selected="activeTab === 'summary'"
+        @click="activeTab = 'summary'"
+      >
+        课程运行
+      </button>
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'analytics' }"
+        role="tab"
+        :aria-selected="activeTab === 'analytics'"
+        data-testid="supervision-analytics-tab"
+        @click="activeTab = 'analytics'"
+      >
+        数据分析
+      </button>
     </div>
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>
-            课程运行总览 <span class="chip chip-mute">{{ rows.length }} 门</span>
-          </h2>
-        </div>
-        <div class="filter-row class-tools">
-          <button class="btn btn-sm" :disabled="loading" @click="load">
-            {{ loading ? '刷新中…' : '刷新' }}
-          </button>
-        </div>
-      </header>
-      <div v-if="rows.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>课程</th>
-              <th class="w-96">在学</th>
-              <th class="w-96">平均进度</th>
-              <th class="w-96">进行中考试</th>
-              <th class="w-96">待批阅</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="String(row.courseId)">
-              <td>
-                <b>{{ row.courseName }}</b
-                ><small class="cell-sub">{{ row.courseCode || '' }}</small>
-              </td>
-              <td>{{ row.studentCount }}</td>
-              <td>{{ row.avgProgress != null ? row.avgProgress + '%' : '—' }}</td>
-              <td>
-                <span
-                  class="chip"
-                  :class="Number(row.activeExams) > 0 ? 'chip-warn' : 'chip-mute'"
-                  >{{ row.activeExams }}</span
-                >
-              </td>
-              <td>
-                <span
-                  class="chip"
-                  :class="Number(row.pendingGrading) > 0 ? 'chip-warn' : 'chip-mute'"
-                  >{{ row.pendingGrading }}</span
-                >
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+    <template v-if="activeTab === 'summary'">
+      <div class="stat-grid kpi-grid">
+        <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="admin" />
       </div>
-      <div v-else-if="loading" class="empty-state compact"><b>正在加载…</b></div>
-      <div v-else class="empty-state compact"><b>暂无在册课程</b></div>
-    </section>
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>
+              课程运行总览 <span class="chip chip-mute">{{ rows.length }} 门</span>
+            </h2>
+          </div>
+          <div class="filter-row class-tools">
+            <button class="btn btn-sm" :disabled="loading" @click="load">
+              {{ loading ? '刷新中…' : '刷新' }}
+            </button>
+          </div>
+        </header>
+        <div v-if="rows.length" class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>课程</th>
+                <th class="w-96">在学</th>
+                <th class="w-96">平均进度</th>
+                <th class="w-96">进行中考试</th>
+                <th class="w-96">待批阅</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in rows" :key="String(row.courseId)">
+                <td>
+                  <b>{{ row.courseName }}</b
+                  ><small class="cell-sub">{{ row.courseCode || '' }}</small>
+                </td>
+                <td>{{ row.studentCount }}</td>
+                <td>{{ row.avgProgress != null ? row.avgProgress + '%' : '—' }}</td>
+                <td>
+                  <span
+                    class="chip"
+                    :class="Number(row.activeExams) > 0 ? 'chip-warn' : 'chip-mute'"
+                    >{{ row.activeExams }}</span
+                  >
+                </td>
+                <td>
+                  <span
+                    class="chip"
+                    :class="Number(row.pendingGrading) > 0 ? 'chip-warn' : 'chip-mute'"
+                    >{{ row.pendingGrading }}</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else-if="loading" class="empty-state compact"><b>正在加载…</b></div>
+        <div v-else class="empty-state compact"><b>暂无在册课程</b></div>
+      </section>
+    </template>
+
+    <AdminAnalyticsPanel v-else />
   </section>
 </template>
 
@@ -63,6 +89,7 @@
 import { computed, onMounted, ref } from 'vue'
 import Stat from '../../components/Stat.vue'
 import { useUi } from '../../composables/ui'
+import AdminAnalyticsPanel from './AdminAnalyticsPanel.vue'
 import request from '@/api/request'
 import { pickList, unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
@@ -78,6 +105,7 @@ interface SummaryRow {
 }
 
 const { toast } = useUi()
+const activeTab = ref<'summary' | 'analytics'>('summary')
 const rows = ref<SummaryRow[]>([])
 const loading = ref(false)
 
