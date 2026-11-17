@@ -172,7 +172,64 @@ export interface Notification {
   content: string
   time: string
   unread: boolean
+  /** 后端事件码的中文展示名；界面只显示这个，不直接渲染原始枚举。 */
   kind: string
+  type: string
+  category: string
+  actionUrl: string
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  SYSTEM: '系统通知',
+  ANNOUNCEMENT: '课程公告',
+  TASK: '作业通知',
+  TASK_CREATED: '作业发布',
+  ASSIGNMENT: '作业通知',
+  EXAM: '考试通知',
+  EXAM_PUBLISHED: '考试发布',
+  SUBMISSION_GRADED: '批阅完成',
+  DISCUSSION: '讨论通知',
+  DISCUSSION_REPLIED: '讨论回复',
+  DISCUSSION_MENTIONED: '讨论提及',
+  REMINDER: '学习提醒',
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  SYSTEM: '系统通知',
+  COURSE: '课程通知',
+  ASSIGNMENT: '作业通知',
+  EXAM: '考试通知',
+  DISCUSSION: '讨论通知',
+  ANNOUNCEMENT: '课程公告',
+}
+
+/** 把后端事件码翻成中文；已是中文的旧数据原样保留，未知英文码退回分类名。 */
+function notificationKind(item: Record<string, unknown>): string {
+  const raw = String(item.type ?? '').trim()
+  if (!raw) return CATEGORY_LABELS[String(item.category ?? '').toUpperCase()] || '通知'
+  if (/[\u4e00-\u9fa5]/.test(raw)) return raw
+  return (
+    TYPE_LABELS[raw.toUpperCase()] ||
+    CATEGORY_LABELS[String(item.category ?? '').toUpperCase()] ||
+    '通知'
+  )
+}
+
+function normalizeNotifications(rows: unknown[]): Notification[] {
+  return rows.map((row, index) => {
+    const item = row as Record<string, unknown>
+    return {
+      id: (item.id as number) ?? `demo-${index}`,
+      title: String(item.title ?? '通知'),
+      content: String(item.content ?? item.message ?? ''),
+      time: String(item.createdAt ?? item.time ?? ''),
+      unread: item.isRead === false || item.read === false || item.unread === true,
+      kind: notificationKind(item),
+      type: String(item.type ?? ''),
+      category: String(item.category ?? ''),
+      actionUrl: String(item.actionUrl ?? ''),
+    }
+  })
 }
 
 /**
@@ -184,17 +241,23 @@ export async function loadNotifications(throwOnError = false): Promise<Notificat
     const payload = unwrap<unknown>(
       await notificationApi.getNotificationList({ page: 1, size: 20 }),
     )
-    return pickList(payload).map((row, index) => {
-      const item = row as Record<string, unknown>
-      return {
-        id: (item.id as number) ?? `demo-${index}`,
-        title: String(item.title ?? '通知'),
-        content: String(item.content ?? item.message ?? ''),
-        time: String(item.createdAt ?? item.time ?? ''),
-        unread: item.isRead === false || item.read === false || item.unread === true,
-        kind: String(item.type ?? '系统'),
-      }
-    })
+    return normalizeNotifications(pickList(payload))
+  } catch (error) {
+    if (throwOnError) throw error
+    return []
+  }
+}
+
+/** 课程页「通知」数据源：只取当前用户在该课程下的通知。 */
+export async function loadCourseNotifications(
+  courseId: number | string,
+  throwOnError = false,
+): Promise<Notification[]> {
+  try {
+    const payload = unwrap<unknown>(
+      await notificationApi.getCourseNotificationList(courseId, { page: 1, size: 20 }),
+    )
+    return normalizeNotifications(pickList(payload))
   } catch (error) {
     if (throwOnError) throw error
     return []

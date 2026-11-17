@@ -42,7 +42,7 @@ const readRow = {
 }
 
 async function mountBody() {
-  const wrapper = mount(MessagesBody)
+  const wrapper = mount(MessagesBody, { global: { stubs: { teleport: true } } })
   await flushPromises()
   return wrapper
 }
@@ -67,33 +67,52 @@ describe('消息中心', () => {
     expect(text).toContain('期中成绩已发布')
     expect(text).toContain('计算机网络期中成绩已发布，请及时查看。')
     expect(text).toContain('2026-10-20 10:00')
-    expect(text).toContain('课程通知')
     expect(text).toContain('1 条未读')
     expect(text).not.toContain('示例数据')
   })
 
-  it('单条已读：接口成功后才置为已读', async () => {
+  it('单条已读：点击消息打开详情并置为已读', async () => {
     const wrapper = await mountBody()
 
-    await wrapper.find('.message-read-btn').trigger('click')
+    await wrapper.find('.message-item').trigger('click')
     await flushPromises()
 
     expect(api.markAsRead).toHaveBeenCalledTimes(1)
     expect(api.markAsRead).toHaveBeenCalledWith(1)
     expect(wrapper.findAll('.message-item')[0].classes()).not.toContain('is-unread')
-    expect(wrapper.find('.message-read-btn').exists()).toBe(false)
+    expect(wrapper.find('.message-detail').exists()).toBe(true)
+    expect(wrapper.text()).toContain('计算机网络期中成绩已发布，请及时查看。')
   })
 
   it('单条已读失败：danger toast，且该行保持未读', async () => {
     api.markAsRead.mockRejectedValueOnce(new Error('500'))
     const wrapper = await mountBody()
 
-    await wrapper.find('.message-read-btn').trigger('click')
+    await wrapper.find('.message-item').trigger('click')
     await flushPromises()
 
     expect(toast).toHaveBeenCalledWith('标记已读失败，请重试', 'danger')
     expect(wrapper.findAll('.message-item')[0].classes()).toContain('is-unread')
-    expect(wrapper.find('.message-read-btn').exists()).toBe(true)
+  })
+
+  it('原始事件码只在详情里显示中文，不上屏英文枚举', async () => {
+    api.getNotificationList.mockResolvedValueOnce(
+      listOf([
+        {
+          ...unreadRow,
+          type: 'DISCUSSION_REPLIED',
+          category: 'DISCUSSION',
+          title: '收到新的讨论回复',
+        },
+      ]),
+    )
+    const wrapper = await mountBody()
+
+    expect(wrapper.text()).toContain('收到新的讨论回复')
+    expect(wrapper.text()).not.toContain('DISCUSSION_REPLIED')
+    await wrapper.find('.message-item').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.message-detail').text()).toContain('讨论回复')
   })
 
   it('全部已读：调用 markAllAsRead 后本地未读清零', async () => {
@@ -104,7 +123,6 @@ describe('消息中心', () => {
 
     expect(api.markAllAsRead).toHaveBeenCalledTimes(1)
     expect(wrapper.findAll('.message-item.is-unread')).toHaveLength(0)
-    expect(wrapper.find('.message-read-btn').exists()).toBe(false)
     expect(toast).toHaveBeenCalledWith('全部通知已标记为已读', 'ok')
   })
 
@@ -117,7 +135,6 @@ describe('消息中心', () => {
 
     expect(toast).toHaveBeenCalledWith('全部已读失败，请重试', 'danger')
     expect(wrapper.findAll('.message-item.is-unread')).toHaveLength(1)
-    expect(wrapper.find('.message-read-btn').exists()).toBe(true)
   })
 
   it('失败态与空态可区分：失败可重试，重试成功后落到空态', async () => {

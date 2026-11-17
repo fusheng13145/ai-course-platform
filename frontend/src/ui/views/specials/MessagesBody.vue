@@ -11,9 +11,7 @@
     <section v-else class="card table-card">
       <header class="card-head">
         <div>
-          <h2>
-            通知列表 <span class="chip chip-mute">{{ rows.length }} 条</span>
-          </h2>
+          <h2>通知</h2>
         </div>
         <div class="filter-row message-tools">
           <span v-if="unreadCount" class="chip chip-warn">{{ unreadCount }} 条未读</span>
@@ -32,31 +30,24 @@
       </div>
 
       <ul v-else-if="rows.length" class="message-list">
-        <li
-          v-for="item in rows"
-          :key="item.id"
-          class="message-item"
-          :class="{ 'is-unread': item.unread }"
-        >
-          <span class="message-dot" aria-hidden="true"></span>
-          <div class="message-main">
-            <div class="message-title-row">
-              <b class="message-title">{{ item.title }}</b>
-              <span class="chip chip-mute">{{ item.kind }}</span>
-              <span class="chip" :class="item.unread ? 'chip-warn' : 'chip-mute'">
-                {{ item.unread ? '未读' : '已读' }}
-              </span>
-            </div>
-            <p class="message-content">{{ item.content || '—' }}</p>
-            <small class="cell-sub">{{ formatTime(item.time) }}</small>
-          </div>
+        <li v-for="item in rows" :key="item.id">
           <button
-            v-if="item.unread"
-            class="text-btn message-read-btn"
-            :disabled="markingId !== null || allMarking"
-            @click="markRead(item)"
+            type="button"
+            class="message-item"
+            :class="{ 'is-unread': item.unread }"
+            @click="openDetail(item)"
           >
-            {{ markingId === item.id ? '处理中…' : '标为已读' }}
+            <span class="message-dot" aria-hidden="true"></span>
+            <span class="message-main">
+              <span class="message-title-row">
+                <b class="message-title">{{ item.title }}</b>
+                <span class="chip" :class="item.unread ? 'chip-warn' : 'chip-mute'">
+                  {{ item.unread ? '未读' : '已读' }}
+                </span>
+              </span>
+              <span class="message-content">{{ item.content || '—' }}</span>
+              <small class="cell-sub">{{ formatTime(item.time) }}</small>
+            </span>
           </button>
         </li>
       </ul>
@@ -64,15 +55,26 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="bell" /></span>
         <b>暂无通知</b>
-        <p>课程通知、考试安排与系统公告会出现在这里。</p>
       </div>
     </section>
+
+    <Modal :open="detailOpen" title="通知" width="560px" @update:open="detailOpen = $event">
+      <div v-if="active" class="message-detail">
+        <h3>{{ active.title }}</h3>
+        <div class="message-detail-meta">
+          <span class="chip chip-mute">{{ active.kind }}</span>
+          <time>{{ formatTime(active.time) }}</time>
+        </div>
+        <p>{{ active.content || '—' }}</p>
+      </div>
+    </Modal>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import Icon from '../../components/Icon.vue'
+import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import { loadNotifications, type Notification } from '../../data/api'
 import { markAllAsRead, markAsRead } from '@/api/notification'
@@ -84,6 +86,8 @@ const loading = ref(false)
 const error = ref('')
 const markingId = ref<Notification['id'] | null>(null)
 const allMarking = ref(false)
+const active = ref<Notification | null>(null)
+const detailOpen = ref(false)
 
 const unreadCount = computed(() => rows.value.filter((row) => row.unread).length)
 
@@ -104,18 +108,24 @@ async function load() {
   }
 }
 
-async function markRead(item: Notification) {
+async function markRead(item: Notification, quiet = false) {
   if (!item.unread || markingId.value !== null || allMarking.value) return
   markingId.value = item.id
   try {
     await markAsRead(item.id)
     item.unread = false
-    toast('已标记为已读', 'ok')
+    if (!quiet) toast('已标记为已读', 'ok')
   } catch {
     toast('标记已读失败，请重试', 'danger')
   } finally {
     markingId.value = null
   }
+}
+
+async function openDetail(item: Notification) {
+  active.value = item
+  detailOpen.value = true
+  await markRead(item, true)
 }
 
 async function markAll() {
@@ -161,13 +171,21 @@ onMounted(load)
 }
 .message-item {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-columns: 8px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
+  width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.message-item:hover {
+  border-color: var(--line-strong);
 }
 .message-item.is-unread {
   border-color: var(--line-strong);
@@ -183,6 +201,11 @@ onMounted(load)
 .message-item.is-unread .message-dot {
   background: var(--accent);
 }
+.message-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
 .message-title-row {
   display: flex;
   flex-wrap: wrap;
@@ -193,12 +216,31 @@ onMounted(load)
   font-size: 12px;
 }
 .message-content {
-  margin: 5px 0 3px;
+  display: block;
+  margin: 0;
   font-size: 11px;
   line-height: 1.7;
   color: var(--ink-2);
 }
-.message-read-btn {
-  white-space: nowrap;
+.message-detail {
+  display: grid;
+  gap: 12px;
+}
+.message-detail h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.message-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.message-detail p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
 }
 </style>

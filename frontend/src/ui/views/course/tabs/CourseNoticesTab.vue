@@ -1,27 +1,22 @@
 <template>
   <div class="notices-tab">
-    <div class="course-tab-bar">
-      <span class="tab-hint">课程公告按受众扇出为站内通知，只对本课程成员可见。</span>
-      <button
-        v-if="role === 'teacher'"
-        class="btn btn-primary btn-sm"
-        @click="composerOpen = !composerOpen"
-      >
-        {{ composerOpen ? '收起发布框' : '发布课程通知' }}
+    <div v-if="role === 'teacher'" class="course-tab-bar">
+      <button class="btn btn-primary btn-sm" @click="composerOpen = !composerOpen">
+        {{ composerOpen ? '收起' : '发布通知' }}
       </button>
     </div>
 
     <div v-if="role === 'teacher' && composerOpen" class="card composer">
       <header class="card-head">
         <div>
-          <h2>发布课程通知</h2>
+          <h2>发布通知</h2>
         </div>
       </header>
       <div class="composer-body">
         <input
           v-model="form.title"
           class="input"
-          placeholder="标题（必填，≤200 字）"
+          placeholder="标题"
           maxlength="200"
           aria-label="通知标题"
         />
@@ -29,26 +24,22 @@
           v-model="form.content"
           class="input content-input"
           rows="4"
-          placeholder="正文（必填）"
+          placeholder="正文"
           aria-label="通知正文"
         ></textarea>
         <div class="composer-actions">
           <span v-if="formError" class="form-error" role="alert">{{ formError }}</span>
           <button class="btn btn-primary btn-sm" :disabled="publishing" @click="publish()">
-            {{ publishing ? '发布中…' : '发布并扇出通知' }}
+            {{ publishing ? '发布中…' : '发布' }}
           </button>
         </div>
       </div>
-      <p class="hint">发布后通知全部选课学生与主讲教师。</p>
     </div>
 
     <section class="card">
       <header class="card-head">
         <div>
-          <h2>
-            课程通知
-            <span class="chip chip-mute">{{ rows.length }} 条</span>
-          </h2>
+          <h2>课程通知</h2>
         </div>
         <div class="filter-row">
           <button class="btn btn-sm btn-ghost" :disabled="loading" @click="load()">
@@ -58,12 +49,17 @@
       </header>
 
       <ul v-if="rows.length" class="notice-list">
-        <li v-for="row in rows" :key="row.id" class="notice-item">
+        <li
+          v-for="row in rows"
+          :key="row.id"
+          class="notice-item"
+          :class="{ 'is-unread': row.unread }"
+        >
           <div class="notice-meta">
             <b class="notice-title">{{ row.title || '—' }}</b>
-            <span class="notice-time">{{ formatTime(row.createdAt) }}</span>
+            <span class="notice-time">{{ formatTime(row.time) }}</span>
           </div>
-          <p class="notice-content">{{ row.content || '（无正文）' }}</p>
+          <p class="notice-content">{{ row.content || '—' }}</p>
         </li>
       </ul>
       <div v-else-if="loading" class="empty-state compact">
@@ -71,8 +67,8 @@
       </div>
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="bell" /></span>
-        <b>{{ error ? '课程通知加载失败' : '本课程还没有通知' }}</b>
-        <p>{{ error || '教师发布课程通知后，这里与站内信会同步出现。' }}</p>
+        <b>{{ error || '本课程还没有通知' }}</b>
+        <button v-if="error" class="btn btn-sm" :disabled="loading" @click="load">重试</button>
       </div>
     </section>
   </div>
@@ -82,28 +78,18 @@
 import { onMounted, reactive, ref } from 'vue'
 import Icon from '../../../components/Icon.vue'
 import { useUi } from '../../../composables/ui'
-import { listMyAnnouncements, publishCourseAnnouncement } from '@/api/announcement'
-import { pickList, unwrap } from '@/utils/response'
+import { publishCourseAnnouncement } from '@/api/announcement'
+import { loadCourseNotifications, type Notification } from '../../../data/api'
 
 /**
- * 课程内「通知」页签（2026-11-07 P2 批次：闭环 PRD §3.1「课程通知＝待扩展」）。
- * 教师侧：发布框（courseId 维度公告 → 扇出站内信）；学生侧：只读列表。
- * 数据源复用 WP8 公告链路，不新增后端端点；列表取「与我相关」分页后按课程过滤。
+ * 课程内「通知」页签：数据源是当前用户在该课程下的通知（公告、考试、作业、讨论）。
+ * 教师侧保留发布框；发布仍走公告链路，扇出的站内通知再由课程维度查询回来。
  */
 const props = defineProps<{ courseId: number | string; role: 'teacher' | 'student' | 'admin' }>()
 
 const { toast } = useUi()
 
-interface NoticeRow {
-  id?: number
-  courseId?: number | string | null
-  title?: string | null
-  content?: string | null
-  publisherName?: string | null
-  createdAt?: string | null
-}
-
-const rows = ref<NoticeRow[]>([])
+const rows = ref<Notification[]>([])
 const loading = ref(false)
 const error = ref('')
 const composerOpen = ref(false)
@@ -120,24 +106,14 @@ function errMsg(e: unknown, fallback: string): string {
   return resp?.data?.message || fallback
 }
 
-/** 拉取「与我相关」的公告并按课程过滤；分页不足时继续向后翻页（最多 10 页兜底）。 */
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const collected: NoticeRow[] = []
-    for (let page = 1; page <= 10; page += 1) {
-      const payload = unwrap<Record<string, unknown>>(await listMyAnnouncements({ page, size: 50 }))
-      const records = pickList(payload).map((row) => row as NoticeRow)
-      collected.push(
-        ...records.filter((row) => String(row.courseId ?? '') === String(props.courseId)),
-      )
-      const total = Number(payload?.total ?? 0)
-      if (records.length === 0 || collected.length >= total) break
-    }
-    rows.value = collected
+    rows.value = await loadCourseNotifications(props.courseId, true)
   } catch (e) {
-    error.value = errMsg(e, '课程通知加载失败，请稍后重试')
+    rows.value = []
+    error.value = errMsg(e, '课程通知加载失败')
   } finally {
     loading.value = false
   }
@@ -162,7 +138,7 @@ async function publish() {
     })
     form.title = ''
     form.content = ''
-    toast('课程通知已发布并扇出', 'ok')
+    toast('课程通知已发布', 'ok')
     await load()
   } catch (e) {
     toast(errMsg(e, '发布失败，请稍后重试'), 'danger')
@@ -184,12 +160,8 @@ onMounted(() => {
 .course-tab-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
-}
-.tab-hint {
-  font-size: 12px;
-  color: var(--text-3);
 }
 .composer-body {
   display: grid;
@@ -221,6 +193,10 @@ onMounted(() => {
   border-radius: var(--r-md);
   display: grid;
   gap: 4px;
+}
+.notice-item.is-unread {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 .notice-meta {
   display: flex;

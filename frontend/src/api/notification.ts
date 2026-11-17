@@ -8,6 +8,16 @@ export const getNotificationList = (
 ): Promise<ApiEnvelope<ApiData>> =>
   request.get('/notifications', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
+ * 获取某门课程下与当前用户相关的通知（课程页「通知」数据源）。
+ */
+export const getCourseNotificationList = (
+  courseId: number | string,
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/notifications/course/${courseId}`, {
+    params,
+  }) as Promise<ApiEnvelope<ApiData>>
+/**
  * 导出函数 getUnreadCount：获取/查询数据
  */
 export const getUnreadCount = (): Promise<ApiEnvelope<ApiData>> =>
@@ -35,6 +45,7 @@ export const sendNotification = (data: Record<string, unknown>): Promise<ApiEnve
  */
 export default {
   getNotificationList,
+  getCourseNotificationList,
   getUnreadCount,
   markAsRead,
   markAllAsRead,

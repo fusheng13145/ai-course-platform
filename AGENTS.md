@@ -14,7 +14,7 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | **599 main Java / 267 test Java；55 Controller / 520 方法级 HTTP 映射；61 张表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec** |
+| **规模（实测）** | **599 main Java / 267 test Java；55 Controller / 521 方法级 HTTP 映射；61 张表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec** |
 | **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `fix/frontend-loading-spinner`，PR #107 待合并 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
