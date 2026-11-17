@@ -91,6 +91,7 @@ import studentApi from '@/api/student'
 import { pageDef, type Role } from '../nav'
 import { useUi } from '../composables/ui'
 import { getCourses, getCourseCatalog, type CourseCard } from '../data/api'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const { role, toast } = useUi()
@@ -122,12 +123,16 @@ const emptyHint = computed(() =>
 )
 
 /**
- * 课程卡在当前标签页内进入课程空间：与侧栏「返回我的课程」同一条历史栈，
- * 返回即回到列表（筛选与滚动位置由浏览器历史自动恢复）。
- * 不再新开标签页——那样返回后原列表页仍留着，会叠出两个「我的课程」页。
+ * 课程卡在新标签页打开：列表页状态（筛选、滚动位置）不被覆盖，
+ * 也便于同时对照多门课。href 走 router.resolve，保留 base 与查询串。
+ * 返回列表 = 关掉课程标签页（原列表页仍在，不会叠出第二份）。
  */
 function open(id: number) {
-  router.push(`/${role.value}/courses/${id}/overview`)
+  const href = router.resolve(`/${role.value}/courses/${id}/overview`).href
+  // 新标签页是独立 JS 上下文、读不到本页的 sessionStorage：先把当前登录态
+  // （非敏感 user）镜像到 localStorage，否则新页会被守卫判成未登录弹回 /login。
+  useAuthStore().mirrorUserForNewTab()
+  window.open(href, '_blank', 'noopener')
 }
 
 /** 可加入课程 = 课程目录剔除已在修课程（按 id 去重，剔除 id<=0 的脏行）。 */

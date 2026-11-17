@@ -36,12 +36,15 @@ const uiState = vi.hoisted(() => ({
   toast: vi.fn(),
   role: null as unknown as { value: string },
 }))
+// 课程卡在新标签页打开前会镜像登录态；单测里不需要真 pinia，替身即可
+const authStore = vi.hoisted(() => ({ mirrorUserForNewTab: vi.fn() }))
 
 const chapterApi = vi.hoisted(() => ({ getChapters: vi.fn() }))
 
 vi.mock('@/api/student', () => ({ default: studentApi }))
 vi.mock('@/api/chapter', () => chapterApi)
 vi.mock('../data/api', () => dataApi)
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: router.push, resolve: router.resolve }) }))
 vi.mock('../composables/ui', async () => {
   const { ref } = await import('vue')
@@ -135,16 +138,19 @@ beforeEach(() => {
 })
 
 describe('学生「加入课程」= 真实选课写口（非演示动作）', () => {
-  it('点课程卡在当前标签页进入课程空间，不新开窗口叠出重复列表页', async () => {
+  it('点课程卡在新标签页打开课程空间，不替换当前列表页', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     const wrapper = mountCourses()
     await settle()
 
     await wrapper.find('.cf-hit').trigger('click')
 
-    // 同标签页路由跳转：与侧栏「返回我的课程」共用一条历史栈，返回即回到列表
-    expect(router.push).toHaveBeenCalledWith('/student/courses/4008/overview')
-    expect(openSpy).not.toHaveBeenCalled()
+    expect(router.resolve).toHaveBeenCalledWith('/student/courses/4008/overview')
+    // 打开前先把登录态镜像给新标签页，否则新页会被守卫弹回登录页
+    expect(authStore.mirrorUserForNewTab).toHaveBeenCalledTimes(1)
+    expect(openSpy).toHaveBeenCalledWith('/student/courses/4008/overview', '_blank', 'noopener')
+    // 当前页不跳转：筛选与滚动位置保留；返回列表由用户直接关闭课程标签页完成
+    expect(router.push).not.toHaveBeenCalled()
     openSpy.mockRestore()
     wrapper.unmount()
   })

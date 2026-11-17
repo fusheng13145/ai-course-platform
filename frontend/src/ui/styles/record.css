@@ -1040,10 +1040,7 @@ body[data-app="ui"].is-collapsed .nav-item { justify-content: center; padding: 9
 body[data-app="ui"].is-collapsed .nav-item.is-active::before { left: 2px; top: 10px; bottom: 10px; }
 body[data-app="ui"].is-collapsed .sidenav { padding-left: 7px; padding-right: 7px; }
 body[data-app="ui"].is-collapsed .nav-scope,
-body[data-app="ui"].is-collapsed .course-nav-card,
-body[data-app="ui"].is-collapsed .side-back-label { display: none; }
-body[data-app="ui"].is-collapsed .side-back { justify-content: center; margin: 0 4px 8px; padding: 6px 0; }
-body[data-app="ui"].is-collapsed .side-back .icon { width: 14px; height: 14px; }
+body[data-app="ui"].is-collapsed .course-nav-card { display: none; }
 body[data-app="ui"].is-collapsed .nav-scroll > .nav-group + .nav-group {
   margin-top: 3px; padding-top: 8px; border-top: 1px solid var(--side-line);
 }
@@ -1313,12 +1310,6 @@ body[data-app="ui"] .scope-switch button {
   background: transparent; color: var(--side-ink-2); font-size: 9px; white-space: nowrap;
 }
 body[data-app="ui"] .scope-switch button.is-active { background: var(--side-active-bg); color: var(--side-active-ink); font-weight: 600; }
-body[data-app="ui"] .side-back {
-  display: flex; align-items: center; gap: 6px; margin: 0 4px 9px;
-  border: 0; background: none; color: var(--side-ink-2); font-size: 10px; padding: 4px 6px; border-radius: var(--r-ctl);
-}
-body[data-app="ui"] .side-back:hover { background: var(--side-hover); color: var(--side-ink); }
-body[data-app="ui"] .side-back .icon { width: 12px; height: 12px; transform: rotate(180deg); }
 body[data-app="ui"] .course-rail-mark { display: none; }
 body[data-app="ui"].is-collapsed .course-rail-mark {
   display: grid; place-items: center;

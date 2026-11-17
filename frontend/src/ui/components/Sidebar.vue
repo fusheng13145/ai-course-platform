@@ -21,10 +21,6 @@
 
     <div class="nav-scroll">
       <template v-if="isCourse">
-        <button class="side-back" title="返回我的课程" @click="go(coursesPath)">
-          <Icon name="arrow" />
-          <span class="side-back-label">返回{{ role === 'admin' ? '课程目录' : '我的课程' }}</span>
-        </button>
         <button
           class="course-rail-mark"
           :aria-label="`当前课程：${courseLabel}`"
@@ -131,7 +127,6 @@ const groups = computed(() =>
     .map((group) => ({ ...group, items: group.items.filter((item) => item.id !== 'profile') }))
     .filter((group) => group.items.length > 0),
 )
-const coursesPath = computed(() => `/${role.value}/courses`)
 
 const courseLabel = computed(
   () => courseContext.name || courses.value.find((c) => c.id === courseId.value)?.name || '课程',
