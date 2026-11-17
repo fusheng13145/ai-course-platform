@@ -79,6 +79,15 @@ export const importQuestionsExcel = (data: FormData): Promise<ApiEnvelope<ApiDat
     headers: { 'Content-Type': 'multipart/form-data' },
   }) as Promise<ApiEnvelope<ApiData>>
 
+/** 学生题库练习：分页获取不含答案的题目 */
+export const getPracticeQuestions = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/questions/practice', { params }) as Promise<ApiEnvelope<ApiData>>
+/** 学生题库练习：提交答案后才返回正确答案与解析 */
+export const checkPracticeAnswer = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/questions/practice/check', data) as Promise<ApiEnvelope<ApiData>>
+
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
@@ -101,4 +110,6 @@ export default {
   getErrorProne,
   exportQuestionsExcel,
   importQuestionsExcel,
+  getPracticeQuestions,
+  checkPracticeAnswer,
 }

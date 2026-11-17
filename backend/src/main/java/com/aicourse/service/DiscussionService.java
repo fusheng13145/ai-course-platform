@@ -5,6 +5,7 @@ import com.aicourse.entity.DiscussionTopic;
 import com.aicourse.vo.LikePostVO;
 import com.aicourse.vo.TopicDetailVO;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
@@ -51,27 +52,28 @@ public interface DiscussionService extends IService<DiscussionTopic> {
     Long courseIdOfPost(Long postId);
 
     /**
-     * 关闭话题（仅发起人或管理员）
+     * 关闭话题：作者本人或话题所属课程的教师/管理员。
+     * 课程归属由 {@code CourseAccessControl} 判定，管理员按学院作用域收口。
      */
-    DiscussionTopic closeTopic(Long id, Long userId, String role);
+    DiscussionTopic closeTopic(Long id, Authentication auth);
 
     /**
-     * 置顶/取消置顶（仅发起人或管理员）
+     * 置顶/取消置顶：作者本人或话题所属课程的教师/管理员。
      */
-    DiscussionTopic pinTopic(Long id, boolean pinned, Long userId, String role);
+    DiscussionTopic pinTopic(Long id, boolean pinned, Authentication auth);
 
     /**
-     * 标记/取消精华（仅教师或管理员，对标超星精华帖）
+     * 标记/取消精华：仅话题所属课程的教师/管理员；跨课程教师与院系管理员越界均 403。
      */
-    DiscussionTopic markEssence(Long id, boolean essence, Long userId, String role);
+    DiscussionTopic markEssence(Long id, boolean essence, Authentication auth);
 
     /**
-     * 删除回复（作者本人或管理员），同步减少话题回复数
+     * 删除回复：作者本人或话题所属课程的教师/管理员，同步减少话题回复数。
      */
-    void deletePost(Long postId, Long userId, String role);
+    void deletePost(Long postId, Authentication auth);
 
     /**
-     * 删除话题（作者本人或管理员），级联清理该话题下全部回复与点赞
+     * 删除话题：作者本人或话题所属课程的教师/管理员，级联清理该话题下全部回复与点赞。
      */
-    void deleteTopic(Long id, Long userId, String role);
+    void deleteTopic(Long id, Authentication auth);
 }

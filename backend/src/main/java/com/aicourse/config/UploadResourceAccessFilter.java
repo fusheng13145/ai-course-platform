@@ -33,8 +33,9 @@ import java.util.Map;
  * 三条边界，避免把改动做成行为回归：
  * <ol>
  *   <li>路径查不到资源行 ⇒ <b>不改判</b>，沿用既有「需登录的 capability URL」语义
- *       （课程封面、头像等由别处引用的文件不属于资源模型，强判即坏功能）；</li>
- *   <li>{@code visible_to_all = TRUE} ⇒ 放行，与现网默认值一致（上传默认就是 true）；</li>
+ *       （课程封面、任务附件、头像等由 CommonController 上传，不属于资源模型；
+ *       强判会破坏这些功能。该边界不是「公开」，仍需登录且 URL 为不可枚举 UUID）；</li>
+ *   <li>{@code visible_to_all = TRUE} ⇒ 放行，仅作为显式公开开关；V26 起新资源默认 false；</li>
  *   <li>{@code visible_to_all = false} ⇒ 复用 {@link CourseAccessControl#assertCanReadCourse}
  *       （管理员放行／教师须是本课程负责人／学生须有 APPROVED 选课），
  *       与 {@code /resources/download/{id}} 的判定同源，不在这里另写一份成员关系规则。</li>

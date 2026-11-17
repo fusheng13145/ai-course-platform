@@ -8,12 +8,14 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.DiscussionPostLikeMapper;
 import com.aicourse.mapper.DiscussionPostMapper;
 import com.aicourse.mapper.DiscussionTopicMapper;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.DiscussionService;
 import com.aicourse.vo.LikePostVO;
 import com.aicourse.vo.TopicDetailVO;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
@@ -24,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-import com.aicourse.common.RoleConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,13 +41,16 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
     private final DiscussionPostMapper postMapper;
     private final DiscussionPostLikeMapper postLikeMapper;
     private final NotificationService notificationService;
+    private final CourseAccessControl courseAccessControl;
 
     public DiscussionServiceImpl(DiscussionTopicMapper topicMapper, DiscussionPostMapper postMapper,
-                                 DiscussionPostLikeMapper postLikeMapper, NotificationService notificationService) {
+                                 DiscussionPostLikeMapper postLikeMapper, NotificationService notificationService,
+                                 CourseAccessControl courseAccessControl) {
         this.topicMapper = topicMapper;
         this.postMapper = postMapper;
         this.postLikeMapper = postLikeMapper;
         this.notificationService = notificationService;
+        this.courseAccessControl = courseAccessControl;
     }
 
 
@@ -299,8 +303,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
     /** 关闭讨论 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DiscussionTopic closeTopic(Long id, Long userId, String role) {
-        DiscussionTopic topic = requireOwner(id, userId, role);
+    public DiscussionTopic closeTopic(Long id, Authentication auth) {
+        DiscussionTopic topic = requireTopicManager(id, auth);
         topic.setStatus(DiscussionTopic.STATUS_CLOSED);
         this.updateById(topic);
         return topic;
@@ -310,46 +314,43 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
     /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DiscussionTopic pinTopic(Long id, boolean pinned, Long userId, String role) {
-        DiscussionTopic topic = requireOwner(id, userId, role);
+    public DiscussionTopic pinTopic(Long id, boolean pinned, Authentication auth) {
+        DiscussionTopic topic = requireTopicManager(id, auth);
         topic.setIsPinned(pinned);
         this.updateById(topic);
         return topic;
     }
 
 
-    /** 标记讨论 */
+    /** 标记讨论：精华属于课程治理动作，作者本人也不能自行加精。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DiscussionTopic markEssence(Long id, boolean essence, Long userId, String role) {
-        // 精华仅教师/管理员可标记（学生无权限）
+    public DiscussionTopic markEssence(Long id, boolean essence, Authentication auth) {
         DiscussionTopic topic = this.getById(id);
         if (topic == null) {
             throw new BusinessException("话题不存在");
         }
-        boolean isTeacherOrAdmin = RoleConstants.TEACHER.equals(role) || RoleConstants.ADMIN.equals(role);
-        if (!isTeacherOrAdmin) {
-            throw new BusinessException("仅教师或管理员可标记精华");
-        }
+        requireCourseManager(topic, auth, "仅课程教师或管理员可标记精华");
         topic.setIsEssence(essence);
         this.updateById(topic);
         return topic;
     }
 
 
-    /** 删除讨论 */
+    /** 删除讨论：作者本人可删自己的回复；本课程教师/管理员可删课程内回复。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deletePost(Long postId, Long userId, String role) {
+    public void deletePost(Long postId, Authentication auth) {
         log.info("删除讨论");
 
         DiscussionPost post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException("回复不存在");
         }
-        boolean isAdmin = RoleConstants.ADMIN.equals(role);
-        if (!isAdmin && !userId.equals(post.getAuthorId())) {
-            throw new BusinessException(ApiCode.FORBIDDEN, "无权删除该回复");
+        Long userId = principalId(auth);
+        if (!userId.equals(post.getAuthorId())) {
+            DiscussionTopic topic = this.getById(post.getTopicId());
+            requireCourseManager(topic, auth, "无权删除该回复");
         }
         postMapper.deleteById(postId);
         DiscussionTopic topic = this.getById(post.getTopicId());
@@ -359,11 +360,11 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
     }
 
-    /** 删除话题：作者本人或管理员；按 点赞 → 回复 → 话题 顺序级联清理，避免悬挂回复。 */
+    /** 删除话题：作者本人或话题所属课程的教师/管理员；按 点赞 → 回复 → 话题 顺序级联清理。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteTopic(Long id, Long userId, String role) {
-        DiscussionTopic topic = requireOwner(id, userId, role);
+    public void deleteTopic(Long id, Authentication auth) {
+        DiscussionTopic topic = requireTopicManager(id, auth);
         List<DiscussionPost> posts = postMapper.selectList(
                 new LambdaQueryWrapper<DiscussionPost>().eq(DiscussionPost::getTopicId, topic.getId()));
         if (!posts.isEmpty()) {
@@ -373,18 +374,41 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
             postMapper.deleteBatchIds(postIds);
         }
         this.removeById(topic.getId());
-        log.info("删除话题 id={} 级联回复 {} 条（操作人 {}）", topic.getId(), posts.size(), userId);
+        log.info("删除话题 id={} 级联回复 {} 条（操作人 {}）", topic.getId(), posts.size(), principalId(auth));
     }
 
-    private DiscussionTopic requireOwner(Long id, Long userId, String role) {
+    /**
+     * 话题管理权：作者本人，或话题所属课程的教师/管理员。
+     * 无课程归属的公共话题没有“本课程教师”可判，因此仅作者本人可管理，其余 fail-closed。
+     */
+    private DiscussionTopic requireTopicManager(Long id, Authentication auth) {
         DiscussionTopic topic = this.getById(id);
         if (topic == null) {
             throw new BusinessException("话题不存在");
         }
-        boolean isAdmin = RoleConstants.ADMIN.equals(role);
-        if (!isAdmin && !userId.equals(topic.getCreatorId())) {
-            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该话题");
+        if (principalId(auth).equals(topic.getCreatorId())) {
+            return topic;
         }
+        if (topic.getCourseId() == null) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "公共讨论仅发起人可管理");
+        }
+        courseAccessControl.assertCanManageCourse(topic.getCourseId(), auth);
         return topic;
+    }
+
+    /** 课程治理权：必须能管理话题所属课程；无课程归属时 fail-closed。 */
+    private void requireCourseManager(DiscussionTopic topic, Authentication auth, String message) {
+        if (topic == null || topic.getCourseId() == null) {
+            throw new BusinessException(ApiCode.FORBIDDEN, message);
+        }
+        courseAccessControl.assertCanManageCourse(topic.getCourseId(), auth);
+    }
+
+    /** 当前登录主体；缺失或非 Long 时按未认证处理，避免空指针放行。 */
+    private Long principalId(Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
+            throw new BusinessException(ApiCode.UNAUTHORIZED, "未认证");
+        }
+        return userId;
     }
 }

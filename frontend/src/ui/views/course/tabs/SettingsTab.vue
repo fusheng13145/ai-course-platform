@@ -121,6 +121,16 @@
             <span>课程简介</span>
             <textarea v-model="form.description" class="textarea" rows="3"></textarea>
           </label>
+          <div class="field span-2 practice-setting">
+            <span>学生刷题</span>
+            <label class="practice-toggle">
+              <input v-model="form.questionPracticeEnabled" type="checkbox" />
+              <span>允许本课程学生进入题库刷题</span>
+            </label>
+            <p class="academic-note">
+              关闭时学生课程「刷题」页签只显示未开放说明；作业与考试不在此开关控制范围。
+            </p>
+          </div>
         </div>
         <p v-if="formError" class="form-error">{{ formError }}</p>
       </template>
@@ -186,6 +196,7 @@ const form = reactive({
   enrollmentType: 'OPEN',
   maxStudents: 100,
   description: '',
+  questionPracticeEnabled: false,
 })
 
 function difficultyLabel(value: unknown): string {
@@ -246,6 +257,10 @@ async function openEdit() {
     form.enrollmentType = String(body?.enrollmentType ?? 'OPEN')
     form.maxStudents = body?.maxStudents == null ? 100 : Number(body.maxStudents)
     form.description = String(body?.description ?? '')
+    form.questionPracticeEnabled =
+      body?.questionPracticeEnabled === true ||
+      body?.questionPracticeEnabled === 1 ||
+      body?.questionPracticeEnabled === '1'
   }
   editLoading.value = false
 }
@@ -286,5 +301,17 @@ onMounted(() => {
 <style scoped>
 .settings-grid .course-tab-actions {
   align-items: center;
+}
+
+.practice-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.practice-toggle input {
+  width: 16px;
+  height: 16px;
 }
 </style>

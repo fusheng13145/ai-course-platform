@@ -75,7 +75,17 @@ class DemoSeedMigrationIsolationTest {
             // V20（2026-11-14）：exam_sessions 人工阅卷评语列（纯加列）—— 结构迁移，非演示数据
             "V20__exam_session_question_comments.sql",
             // V21（2026-11-14）：file_type 列扩容 100（对齐上传 MIME 白名单）—— 结构迁移
-            "V21__resources_file_type_len.sql");
+            "V21__resources_file_type_len.sql",
+            // V23（2026-11-17，P0-A1）：courses.question_practice_enabled 课程级学生刷题开关（纯加列）—— 结构迁移
+            "V23__course_question_practice.sql",
+            // V24（2026-11-17，P0-B）：submissions 任务-学生-尝试唯一键 —— 结构迁移
+            "V24__submission_attempt_unique.sql",
+            // V25（2026-11-17，P0-B）：exam_sessions 学生-试卷-尝试唯一键 —— 结构迁移
+            "V25__exam_session_attempt_unique.sql",
+            // V26（2026-11-17，P0-B）：resources.visible_to_all 默认收紧为 0 —— 结构迁移
+            "V26__resource_visibility_default_private.sql",
+            // V27（2026-11-17，P0-B）：questions 新题课程归属 CHECK + 历史未归属标记 —— 结构迁移
+            "V27__question_course_required.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

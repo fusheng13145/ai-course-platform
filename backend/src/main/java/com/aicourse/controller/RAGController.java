@@ -7,18 +7,22 @@ import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.AdminScope;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * RAG知识库控制器
@@ -50,6 +54,17 @@ public class RAGController {
         return auth != null && auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch("ROLE_ADMIN"::equals);
+    }
+
+    /** 院系管理员：ADMIN + SCOPE_ADMIN_COLLEGE；没有该作用域的存量 ADMIN 仍按校级处理。 */
+    private boolean isCollegeAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(AdminScope.AUTHORITY_COLLEGE::equals);
+    }
+
+    private boolean isSchoolAdmin(Authentication auth) {
+        return isAdmin(auth) && !isCollegeAdmin(auth);
     }
 
     /**
@@ -92,9 +107,15 @@ public class RAGController {
             if (!isAdmin(auth)) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "列举全部课程文档仅管理员可用");
             }
-        } else {
-            courseAccessControl.assertCanManageCourse(courseId, auth);
+            JsonNode all = toJson(ragService.listDocuments(null));
+            if (isCollegeAdmin(auth)) {
+                // 院系管理员不得查看他院课程文档；RAG 文档无本地表，只能按引擎返回的 course_id 过滤。
+                List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+                return ApiResponse.success(filterDocumentsByCourseIds(all, readableCourseIds));
+            }
+            return ApiResponse.success(all);
         }
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         return ApiResponse.success(toJson(ragService.listDocuments(courseId)));
     }
 
@@ -127,17 +148,19 @@ public class RAGController {
     /**
      * 文档级归属校验：文档ID是 RAG 引擎侧资源，本端无本地表，先经 listDocuments 反查其
      * 所属课程，再套用与 addDocument 相同的 {@code assertCanManageCourse} 课程管理权判定。
-     * 反查不到（引擎不可用/文档不存在/未挂课程）时对教师 fail-closed 403，管理员放行。
+     * 反查不到（引擎不可用/文档不存在/未挂课程）时：有课程归属的一律走课程 ACL；
+     * 未挂课程的全局文档仅校级管理员可治理，院系管理员与教师均 fail-closed 403。
      */
     private void assertCanManageDocument(Long documentId, Authentication auth) {
-        if (isAdmin(auth)) {
+        Long courseId = resolveCourseIdOfDocument(documentId);
+        if (courseId != null) {
+            courseAccessControl.assertCanManageCourse(courseId, auth);
             return;
         }
-        Long courseId = resolveCourseIdOfDocument(documentId);
-        if (courseId == null) {
-            throw new BusinessException(ApiCode.FORBIDDEN, "无法确认该文档所属课程，禁止操作");
+        if (isSchoolAdmin(auth)) {
+            return;
         }
-        courseAccessControl.assertCanManageCourse(courseId, auth);
+        throw new BusinessException(ApiCode.FORBIDDEN, "无法确认该文档所属课程，禁止操作");
     }
 
     /** 经 RAG 引擎全量文档列表反查 documentId → courseId；列表为空/解析失败返回 null。 */
@@ -210,6 +233,44 @@ public class RAGController {
         if (!isAdmin(auth)) {
             throw new BusinessException(ApiCode.BAD_REQUEST, "请指定课程ID后再使用课程知识库检索");
         }
+    }
+
+    /**
+     * 按院系可读课程集合过滤 RAG 文档。兼容引擎返回裸数组与 {@code {documents: []}} 两种形态；
+     * 无法识别 course_id 的文档一律不返回，避免院系管理员看到他院/全局文档。
+     */
+    private JsonNode filterDocumentsByCourseIds(JsonNode root, List<Long> allowedCourseIds) {
+        if (root == null || allowedCourseIds == null) {
+            return root;
+        }
+        if (root.isArray()) {
+            return filterDocumentArray(root, allowedCourseIds);
+        }
+        if (root.isObject() && root.get("documents") != null && root.get("documents").isArray()) {
+            ObjectNode copy = root.deepCopy();
+            copy.set("documents", filterDocumentArray(root.get("documents"), allowedCourseIds));
+            return copy;
+        }
+        return root;
+    }
+
+    private JsonNode filterDocumentArray(JsonNode documents, List<Long> allowedCourseIds) {
+        var filtered = OBJECT_MAPPER.createArrayNode();
+        for (JsonNode doc : documents) {
+            if (!doc.isObject()) {
+                continue;
+            }
+            Long docCourseId = documentCourseId(doc);
+            if (docCourseId != null && allowedCourseIds.contains(docCourseId)) {
+                filtered.add(doc);
+            }
+        }
+        return filtered;
+    }
+
+    private Long documentCourseId(JsonNode doc) {
+        JsonNode courseNode = doc.has("course_id") ? doc.get("course_id") : doc.get("courseId");
+        return courseNode == null || courseNode.isNull() ? null : courseNode.asLong();
     }
 
     /**

@@ -41,6 +41,8 @@ class QuestionControllerPaginationBoundaryTest extends ControllerTestBase {
     private com.aicourse.service.component.ai.AiGenerationPolicy aiGenerationPolicy;
     @MockitoBean
     private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.QuestionPracticeService questionPracticeService;
 
     @ParameterizedTest(name = "page={0} size={1} -> current={2} size={3}")
     @CsvSource({
@@ -53,6 +55,7 @@ class QuestionControllerPaginationBoundaryTest extends ControllerTestBase {
     })
     @DisplayName("GET /questions - 页码≤0 兜底为1、每页条数原样透传（无上限，风险项）")
     void list_normalizesCurrentButNotSize(long page, long size, long expectedCurrent, long expectedSize) throws Exception {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
         when(questionService.page(any(), any())).thenReturn(new Page<Question>());
         mockMvc.perform(get("/questions")
                         .param("page", String.valueOf(page))

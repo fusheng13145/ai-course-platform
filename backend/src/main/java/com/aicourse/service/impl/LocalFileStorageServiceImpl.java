@@ -5,6 +5,7 @@ import com.aicourse.common.StorageLayout;
 import com.aicourse.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -22,6 +23,7 @@ import java.nio.file.StandardCopyOption;
  */
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "minio.enabled", havingValue = "false", matchIfMissing = true)
 public class LocalFileStorageServiceImpl implements FileStorageService {
 
 

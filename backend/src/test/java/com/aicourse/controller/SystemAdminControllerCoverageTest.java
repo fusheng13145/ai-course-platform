@@ -8,6 +8,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.service.UserSessionService;
 import com.aicourse.security.AdminScopeGuard;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.poi.ss.usermodel.Row;
@@ -82,6 +83,8 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
     private AnalyticsService analyticsService;
     @MockitoBean
     private CourseEnrollmentService enrollmentService;
+    @MockitoBean
+    private UserSessionService userSessionService;
 
     /** 满足 AdminCreateUserDTO 正则与统一 PasswordPolicy 的强口令样本（含大小写/数字/特殊字符）。 */
     private static final String STRONG_PWD = "Abc@1234";
@@ -296,20 +299,22 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("PUT /admin/users/{id}/reset-password - 合法强口令：加密后更新")
+    @DisplayName("PUT /admin/users/{id}/reset-password - 合法强口令：加密后更新并吊销全部会话")
     void resetPassword_success() throws Exception {
         when(userService.getById(13L)).thenReturn(new User());
         when(passwordEncoder.encode(STRONG_PWD)).thenReturn("$2a$10$rehashed");
+        when(userSessionService.revokeAllActiveSessions(13L)).thenReturn(2);
 
         mockMvc.perform(put("/admin/users/13/reset-password").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newPassword\":\"" + STRONG_PWD + "\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("密码重置成功"));
+                .andExpect(jsonPath("$.message").value("密码已重置，需重新登录"));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.captor();
         verify(userService).updateById(captor.capture());
         assertEquals("$2a$10$rehashed", captor.getValue().getPassword());
+        verify(userSessionService).revokeAllActiveSessions(13L);
     }
 
     // ==================== JSON 批量导入 ====================

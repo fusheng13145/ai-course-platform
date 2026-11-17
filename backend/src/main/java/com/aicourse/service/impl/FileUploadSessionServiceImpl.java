@@ -3,10 +3,12 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.StorageLayout;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.FileUploadSessionMapper;
+import com.aicourse.service.FileStorageService;
 import com.aicourse.service.FileUploadSessionService;
 import com.aicourse.vo.UploadProgressVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -47,6 +49,10 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     private static final Logger log = LoggerFactory.getLogger(FileUploadSessionServiceImpl.class);
 
+    public FileUploadSessionServiceImpl(FileStorageService fileStorageService) {
+        this.fileStorageService = fileStorageService;
+    }
+
     /** 上传会话默认过期时间：24小时 */
     private static final int SESSION_EXPIRE_HOURS = 24;
 
@@ -57,6 +63,20 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
     private static final long MAX_FILE_SIZE_BYTES = 2L * 1024 * 1024 * 1024;
     /** 总分片数上限（默认 4096），防 totalChunks 声明巨大值被无限推进 */
     private static final int MAX_TOTAL_CHUNKS = 4096;
+
+    /** 单个分片上限（默认 50MB），与 servlet.multipart 单次上限及 ResourceController 口径一致。 */
+    private static final long MAX_CHUNK_SIZE_BYTES = 50L * 1024 * 1024;
+
+    /** 单用户同时处于 UPLOADING 的会话数上限，防止并发占用分片目录。 */
+    @Value("${file.upload.max-active-sessions-per-user:10}")
+    private int maxActiveSessionsPerUser = 10;
+
+    /** 单用户所有 UPLOADING 会话声明字节数之和上限，默认 4GB。 */
+    @Value("${file.upload.max-active-bytes-per-user:4294967296}")
+    private long maxActiveBytesPerUser = 4L * 1024 * 1024 * 1024;
+
+    /** 统一存储入口：分片合并最终产物必须经此落盘，禁止绕过去直接写 upload-dir。 */
+    private final FileStorageService fileStorageService;
 
     /** 分片暂存文件后缀，文件名为 {0基索引}.part */
     private static final String CHUNK_SUFFIX = ".part";
@@ -87,6 +107,39 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             "mp4", "webm", "mov",
             "zip", "rar", "7z"
     );
+
+    /**
+     * 单用户并发会话与未完成字节配额。
+     *
+     * <p>只统计 {@code UPLOADING}：已完成/失败会话的最终文件进入存储根，磁盘占用由部署侧配额治理；
+     * 这里拦的是“同时挂起多个会话、长期占用分片目录”的风险。</p>
+     */
+    private void enforceUserQuota(Long uploaderId, Long fileSize) {
+        if (uploaderId == null) {
+            return;
+        }
+        long activeSessions = 0L;
+        long activeBytes = 0L;
+        List<FileUploadSession> active = this.list(new LambdaQueryWrapper<FileUploadSession>()
+                .eq(FileUploadSession::getUploaderId, uploaderId)
+                .eq(FileUploadSession::getStatus, "UPLOADING"));
+        if (active != null) {
+            activeSessions = active.size();
+            for (FileUploadSession session : active) {
+                if (session.getFileSize() != null && session.getFileSize() > 0) {
+                    activeBytes += session.getFileSize();
+                }
+            }
+        }
+        if (activeSessions >= maxActiveSessionsPerUser) {
+            throw new BusinessException(ApiCode.TOO_MANY_REQUESTS,
+                    "上传会话过多：最多同时保留 " + maxActiveSessionsPerUser + " 个未完成会话");
+        }
+        if (fileSize != null && fileSize > 0 && activeBytes + fileSize > maxActiveBytesPerUser) {
+            throw new BusinessException(ApiCode.TOO_MANY_REQUESTS,
+                    "未完成上传总大小超出配额：最多 " + maxActiveBytesPerUser + " 字节");
+        }
+    }
 
     /**
      * 上传会话安全清洗文件名，同时校验扩展名白名单。
@@ -132,6 +185,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         if (totalChunks != null && totalChunks > MAX_TOTAL_CHUNKS) {
             throw new BusinessException("总分片数超出上限（最多 4096 片）");
         }
+        enforceUserQuota(uploaderId, fileSize);
         // 对象名相对 file.upload-dir（与 LocalFileStorageServiceImpl / ResourceController 同口径），
         // 对外可访问 URL 为 /uploads/{uploadPath}，故此处刻意不带 "uploads/" 前缀
         LocalDate now = LocalDate.now();
@@ -187,6 +241,10 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         }
         if (size <= 0) {
             throw new BusinessException("分片内容为空");
+        }
+        if (size > MAX_CHUNK_SIZE_BYTES) {
+            throw new BusinessException(ApiCode.PAYLOAD_TOO_LARGE,
+                    "单个分片不能超过 " + MAX_CHUNK_SIZE_BYTES + " 字节");
         }
         // 配额：累计落盘字节不得超会话声明的文件大小（未声明则退回单文件上限），防客户端边传边改口
         long declaredSize = session.getFileSize() != null && session.getFileSize() > 0
@@ -311,10 +369,11 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                     + "（已落盘 " + chunkByIndex.size() + "/" + totalChunks + "）");
         }
 
-        Path finalPath = resolveWithinUploadRoot(session.getUploadPath());
-        Path merging = finalPath.resolveSibling(finalPath.getFileName() + ".merging");
+        // 先做对象名越界校验；实际落盘交给 FileStorageService（Local/MinIO 共用同一入口）。
+        resolveWithinUploadRoot(session.getUploadPath());
+        Path merging = chunkRoot().resolve(sessionId + "-" + UUID.randomUUID() + ".merging");
         try {
-            Files.createDirectories(finalPath.getParent());
+            Files.createDirectories(chunkRoot());
             try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(merging))) {
                 for (int i = 0; i < totalChunks; i++) {
                     Files.copy(chunkByIndex.get(i), out);
@@ -329,7 +388,14 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                 throw new BusinessException("合并字节数与会话声明的文件大小不符：合并 "
                         + merged + " 字节，声明 " + declared + " 字节");
             }
-            Files.move(merging, finalPath, StandardCopyOption.REPLACE_EXISTING);
+            // 统一经存储抽象落盘：Local 写外部根、MinIO 走上传 SDK，合并路径不再直写目录。
+            fileStorageService.uploadFromPath(session.getUploadPath(), merging,
+                    "application/octet-stream", merged);
+            try {
+                Files.deleteIfExists(merging);
+            } catch (IOException cleanupFailure) {
+                log.warn("合并临时文件清理失败（最终文件已落盘）: {}", merging);
+            }
         } catch (IOException e) {
             try {
                 Files.deleteIfExists(merging);
@@ -337,6 +403,14 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                 log.warn("合并中间产物清理失败: {}", merging);
             }
             log.error("分片合并失败: session={}, {}", sessionId, e.getMessage());
+            throw new BusinessException(500, "分片合并失败", e);
+        } catch (RuntimeException e) {
+            try {
+                Files.deleteIfExists(merging);
+            } catch (IOException cleanupFailure) {
+                log.warn("合并中间产物清理失败: {}", merging);
+            }
+            log.error("分片合并存储失败: session={}, {}", sessionId, e.getMessage());
             throw new BusinessException(500, "分片合并失败", e);
         }
         deleteChunkDir(sessionId);

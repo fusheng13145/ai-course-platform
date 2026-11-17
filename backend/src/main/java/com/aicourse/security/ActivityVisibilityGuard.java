@@ -36,7 +36,7 @@ import java.util.Set;
  *     <li>可见范围 CLASSES：仅目标教学班可见；同课程非目标教学班教师/学生不可见；</li>
  *     <li>课程负责人对其课程内活动保持全量可见；同课程其他教学班主讲仅能看到 COURSE 活动
  *         与其主讲教学班被点名的 CLASSES 活动；</li>
- *     <li>管理员治理只读放行，但发布与改目标由控制器显式 403。</li>
+ *     <li>管理员治理只读按学院作用域放行（校级全平台），发布与改目标仍由控制器显式 403。</li>
  * </ul>
  */
 @Component
@@ -47,17 +47,23 @@ public class ActivityVisibilityGuard {
     private final TeachingClassMapper teachingClassMapper;
     private final TaskTeachingClassMapper taskTeachingClassMapper;
     private final ExamTeachingClassMapper examTeachingClassMapper;
+    private final AdminScopeGuard adminScopeGuard;
+    private final CourseAccessControl courseAccessControl;
 
     public ActivityVisibilityGuard(CourseService courseService,
                                    CourseEnrollmentService enrollmentService,
                                    TeachingClassMapper teachingClassMapper,
                                    TaskTeachingClassMapper taskTeachingClassMapper,
-                                   ExamTeachingClassMapper examTeachingClassMapper) {
+                                   ExamTeachingClassMapper examTeachingClassMapper,
+                                   AdminScopeGuard adminScopeGuard,
+                                   CourseAccessControl courseAccessControl) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
         this.teachingClassMapper = teachingClassMapper;
         this.taskTeachingClassMapper = taskTeachingClassMapper;
         this.examTeachingClassMapper = examTeachingClassMapper;
+        this.adminScopeGuard = adminScopeGuard;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -79,6 +85,7 @@ public class ActivityVisibilityGuard {
             throw new BusinessException(ApiCode.NOT_FOUND, "任务不存在");
         }
         if (isAdmin(auth)) {
+            adminScopeGuard.assertCourseAccess(requireCourse(task.getCourseId()));
             return;
         }
         Long userId = principalId(auth);
@@ -121,6 +128,7 @@ public class ActivityVisibilityGuard {
             throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
         }
         if (isAdmin(auth)) {
+            adminScopeGuard.assertCourseAccess(requireCourse(paper.getCourseId()));
             return;
         }
         Long userId = principalId(auth);
@@ -157,6 +165,7 @@ public class ActivityVisibilityGuard {
      */
     public void applyTaskScope(LambdaQueryWrapper<Task> wrapper, Authentication auth, Long teachingClassId) {
         if (isAdmin(auth)) {
+            applyAdminTaskScope(wrapper, auth, teachingClassId);
             return;
         }
         Long userId = principalId(auth);
@@ -200,6 +209,7 @@ public class ActivityVisibilityGuard {
     public void applyExamPaperScope(LambdaQueryWrapper<ExamPaper> wrapper, Authentication auth,
                                     Long teachingClassId) {
         if (isAdmin(auth)) {
+            applyAdminExamPaperScope(wrapper, auth, teachingClassId);
             return;
         }
         Long userId = principalId(auth);
@@ -235,6 +245,47 @@ public class ActivityVisibilityGuard {
             return;
         }
         applyTeacherExamScope(wrapper, userId);
+    }
+
+    /**
+     * 管理员列表作用域：院系管理员限本学院可读课程，校级管理员全平台；
+     * 指定教学班时先校验该班所属课程在管理员作用域内，再按班收敛。
+     */
+    private void applyAdminTaskScope(LambdaQueryWrapper<Task> wrapper, Authentication auth,
+                                     Long teachingClassId) {
+        if (teachingClassId != null) {
+            TeachingClass teachingClass = requireClass(teachingClassId);
+            adminScopeGuard.assertCourseAccess(requireCourse(teachingClass.getCourseId()));
+            wrapper.eq(Task::getCourseId, teachingClass.getCourseId());
+            addTaskClassVisibility(wrapper, List.of(teachingClass.getId()));
+            return;
+        }
+        applyAdminCourseIds(wrapper, auth, Task::getCourseId);
+    }
+
+    private void applyAdminExamPaperScope(LambdaQueryWrapper<ExamPaper> wrapper, Authentication auth,
+                                          Long teachingClassId) {
+        if (teachingClassId != null) {
+            TeachingClass teachingClass = requireClass(teachingClassId);
+            adminScopeGuard.assertCourseAccess(requireCourse(teachingClass.getCourseId()));
+            wrapper.eq(ExamPaper::getCourseId, teachingClass.getCourseId());
+            addExamClassVisibility(wrapper, List.of(teachingClass.getId()));
+            return;
+        }
+        applyAdminCourseIds(wrapper, auth, ExamPaper::getCourseId);
+    }
+
+    private <T> void applyAdminCourseIds(LambdaQueryWrapper<T> wrapper, Authentication auth,
+                                         com.baomidou.mybatisplus.core.toolkit.support.SFunction<T, ?> courseIdColumn) {
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+        if (readableCourseIds == null) {
+            return;
+        }
+        if (readableCourseIds.isEmpty()) {
+            wrapper.apply("1 = 0");
+            return;
+        }
+        wrapper.in(courseIdColumn, readableCourseIds);
     }
 
     private void applyTeacherTaskScope(LambdaQueryWrapper<Task> wrapper, Long userId) {

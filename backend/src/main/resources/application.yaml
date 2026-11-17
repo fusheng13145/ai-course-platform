@@ -478,6 +478,11 @@ file:
   # 未合并完的分片不得出现在 /uploads/** 静态映射里。
   chunk-dir: ${FILE_CHUNK_DIR:}
   max-size: 52428800
+  upload:
+    # 单用户同时处于 UPLOADING 的会话数上限，防止并发占用分片目录
+    max-active-sessions-per-user: ${FILE_MAX_ACTIVE_SESSIONS:10}
+    # 单用户所有未完成会话声明字节数之和上限（默认 4GB）
+    max-active-bytes-per-user: ${FILE_MAX_ACTIVE_BYTES:4294967296}
 
 # ===================== MinIO 对象存储配置（默认禁用） =====================
 # 启用后将使用 MinIO 替代本地磁盘作为文件存储后端。

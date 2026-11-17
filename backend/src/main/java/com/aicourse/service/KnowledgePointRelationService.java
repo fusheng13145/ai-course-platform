@@ -56,6 +56,12 @@ public interface KnowledgePointRelationService extends IService<KnowledgePointRe
     Page<KnowledgePointRelation> getRelationList(int page, int size, Long courseId);
 
     /**
+     * 按「可读课程集合」分页查询关系（无显式课程时的管理员作用域读面）。
+     * @param courseIds 允许的课程ID集合；空集合直接返回空页
+     */
+    Page<KnowledgePointRelation> getRelationListByCourses(int page, int size, List<Long> courseIds);
+
+    /**
      * 获取某知识点的出边（作为源节点的关联关系）
      * @param sourceId 源知识点ID
      * @return 出边关联关系列表

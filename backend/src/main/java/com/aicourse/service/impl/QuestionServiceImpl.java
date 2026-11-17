@@ -4,8 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.JsonUtils;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
@@ -38,12 +40,15 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     private final AIService aiService;
     private final ObjectMapper objectMapper;
+    /** 知识点查询按名称匹配题库 JSON 列；只依赖 Mapper，避免与 KnowledgePointService 形成构造期环。 */
+    private final KnowledgePointMapper knowledgePointMapper;
 
     // @Lazy 打破与 AIServiceImpl 的构造期循环依赖：
     // AIServiceImpl -> RAGServiceImpl -> KnowledgePointServiceImpl -> QuestionServiceImpl -> AIServiceImpl
     // 本类仅在运行时方法（generateQuestion）中使用 AIService，构造期无需立即就绪。
-    public QuestionServiceImpl(@Lazy AIService aiService) {
+    public QuestionServiceImpl(@Lazy AIService aiService, KnowledgePointMapper knowledgePointMapper) {
         this.aiService = aiService;
+        this.knowledgePointMapper = knowledgePointMapper;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -58,6 +63,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @CacheEvict(value = "questionSearch", allEntries = true)
     public Question createQuestion(Question question) {
         log.info("创建题目");
+        requireCourseId(question.getCourseId());
 
         // 设置初始值
         if (question.getUsageCount() == null) {
@@ -83,6 +89,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
     @CacheEvict(value = "questionSearch", allEntries = true)
     public Question generateByAI(Long courseId, String type, String difficulty, String knowledgePointNames) {
+        requireCourseId(courseId);
         // 调用AI服务生成题目JSON
         String generatedContent = aiService.generateQuestion(courseId, type, difficulty, 1);
 
@@ -132,6 +139,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @CacheEvict(value = "questionSearch", allEntries = true)
     public List<Question> generateBatchByAI(Long courseId, String type, String difficulty,
                                             String knowledgePointNames, int count, Long createdBy) {
+        requireCourseId(courseId);
         String generated = aiService.generateQuestion(courseId, type, difficulty, count);
         List<Map<String, Object>> list;
         try {
@@ -186,6 +194,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             if (q.getContent() == null || q.getContent().isBlank()) {
                 continue;
             }
+            requireCourseId(q.getCourseId());
             if (q.getType() == null || q.getType().isBlank()) {
                 q.setType("single");
             }
@@ -346,6 +355,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         if (source == null) {
             throw new BusinessException("源题目不存在");
         }
+        requireCourseId(source.getCourseId());
 
         Question copy = new Question();
         copy.setCourseId(source.getCourseId());
@@ -380,6 +390,27 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 .eq(type != null && !type.isEmpty(), Question::getType, type)
                 .eq(difficulty != null && !difficulty.isEmpty(), Question::getDifficulty, difficulty)
                 .like(keyword != null && !keyword.isEmpty(), Question::getContent, keyword)
+                .orderByDesc(Question::getCreatedAt);
+
+        return this.page(Page.of(page, size), queryWrapper);
+    }
+
+    /**
+     * 智能搜索（按可读课程集合收口）。此路径不缓存：课程集合是请求级 ACL 结果，
+     * 不能与公开搜索共用同一个 {@code questionSearch} key。
+     */
+    @Override
+    public Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword,
+                                          int page, int size, List<Long> readableCourseIds) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return new Page<>(page, size, 0);
+        }
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(courseId != null, Question::getCourseId, courseId)
+                .eq(type != null && !type.isEmpty(), Question::getType, type)
+                .eq(difficulty != null && !difficulty.isEmpty(), Question::getDifficulty, difficulty)
+                .like(keyword != null && !keyword.isEmpty(), Question::getContent, keyword)
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
                 .orderByDesc(Question::getCreatedAt);
 
         return this.page(Page.of(page, size), queryWrapper);
@@ -465,10 +496,17 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     public List<Question> getByKnowledgePoint(Long knowledgePointId) {
-        // 知识点存储为JSON/逗号分隔ID，使用LIKE模糊匹配
-        String kpIdStr = knowledgePointId.toString();
+        if (knowledgePointId == null) {
+            return Collections.emptyList();
+        }
+        KnowledgePoint kp = knowledgePointMapper.selectById(knowledgePointId);
+        if (kp == null || kp.getName() == null || kp.getName().isBlank()) {
+            return Collections.emptyList();
+        }
+        // P0-A1 修正：题目 JSON 列存的是知识点名称，原实现 LIKE(kpId) 只能命中数字 ID，
+        // 读路径与掌握度（按名称归一）口径分叉。这里按名称做 JSON 精确包含匹配。
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
-                .like(Question::getKnowledgePoints, kpIdStr)
+                .apply("JSON_CONTAINS(knowledge_points, JSON_QUOTE({0}))", kp.getName())
                 .eq(Question::getIsActive, true)
                 .orderByDesc(Question::getCreatedAt);
 
@@ -544,6 +582,19 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         return new QuestionBankStatisticsVO(total, today);
     }
 
+    @Override
+    public QuestionBankStatisticsVO getBankStatistics(List<Long> readableCourseIds) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return new QuestionBankStatisticsVO(0L, 0L);
+        }
+        LambdaQueryWrapper<Question> totalWrapper = new LambdaQueryWrapper<Question>()
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds);
+        LambdaQueryWrapper<Question> todayWrapper = new LambdaQueryWrapper<Question>()
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
+                .ge(Question::getCreatedAt, LocalDate.now().atStartOfDay());
+        return new QuestionBankStatisticsVO(this.count(totalWrapper), this.count(todayWrapper));
+    }
+
     /**
      * 获取易错题TOP N
      * 按正确率升序、使用次数降序排序取前N条
@@ -561,5 +612,32 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 .last("LIMIT " + safeLimit);
 
         return this.list(queryWrapper);
+    }
+
+    @Override
+    public List<Question> getErrorProneQuestions(Long courseId, int limit, List<Long> readableCourseIds) {
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(courseId != null, Question::getCourseId, courseId)
+                .in(readableCourseIds != null, Question::getCourseId, readableCourseIds)
+                .eq(Question::getIsActive, true)
+                .gt(Question::getUsageCount, 0)
+                .orderByAsc(Question::getCorrectRate)
+                .orderByDesc(Question::getUsageCount)
+                .last("LIMIT " + safeLimit);
+
+        return this.list(queryWrapper);
+    }
+
+    /**
+     * 新题必须归属课程（V27 CHECK 为 DB 兜底；历史 legacy_unassigned=1 留空不在此路径）。
+     */
+    private void requireCourseId(Long courseId) {
+        if (courseId == null) {
+            throw new BusinessException("题目必须归属课程，不能创建无课程归属的新题");
+        }
     }
 }

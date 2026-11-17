@@ -17,6 +17,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -173,7 +174,7 @@ class RAGControllerScopeTest {
     }
 
     @Test
-    @DisplayName("反查不到归属（引擎不可用/文档不存在）时教师 fail-closed 403；管理员免反查放行")
+    @DisplayName("反查不到归属时教师/院系管理员 fail-closed 403；校级管理员仍可治理全局文档")
     void documentMutationFailsClosedWhenOwnershipUnknown() {
         // 引擎不可用：listDocuments 返回 503 降级占位（无 documents 数组）
         when(ragService.listDocuments(null)).thenReturn("{\"documents\":null,\"code\":503}");
@@ -183,13 +184,55 @@ class RAGControllerScopeTest {
                 .hasMessageContaining("无法确认该文档所属课程");
         assertThatThrownBy(() -> controller().deleteDocument(7L, as("TEACHER")))
                 .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> controller().updateDocument(7L, "x", asCollegeAdmin()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("无法确认该文档所属课程");
 
-        // 管理员不依赖反查，引擎不可用也保持原有放行行为
+        // 校级管理员不依赖反查，引擎不可用也保持原有放行行为
         when(ragService.updateDocument(7L, "x")).thenReturn("{\"id\":7}");
         when(ragService.deleteDocument(7L)).thenReturn("{\"id\":7}");
         controller().updateDocument(7L, "x", as("ADMIN"));
         controller().deleteDocument(7L, as("ADMIN"));
         verify(ragService).updateDocument(eq(7L), eq("x"));
         verify(ragService).deleteDocument(eq(7L));
+    }
+
+    @Test
+    @DisplayName("院系管理员不带 courseId 列举文档：只返回本学院课程文档")
+    void collegeAdminDocumentListingIsScoped() {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(4060L, 4061L));
+        when(ragService.listDocuments(null)).thenReturn("""
+                {"documents":[
+                  {"id":1,"document_name":"本院讲义","course_id":4060},
+                  {"id":2,"document_name":"他院讲义","course_id":9999},
+                  {"id":3,"document_name":"全局文档"}
+                ]}
+                """);
+
+        var response = controller().listDocuments(null, asCollegeAdmin());
+
+        var documents = response.getData().get("documents");
+        assertThat(documents.size()).isEqualTo(1);
+        assertThat(documents.get(0).get("id").asLong()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("院系管理员治理他院文档：按 courseId 走课程管理权并 403")
+    void collegeAdminCannotMutateOtherCollegeDocument() {
+        when(ragService.listDocuments(null))
+                .thenReturn("{\"documents\":[{\"id\":7,\"course_id\":9999}]}");
+        doThrow(forbidden()).when(courseAccessControl).assertCanManageCourse(eq(9999L), any());
+
+        assertThatThrownBy(() -> controller().updateDocument(7L, "x", asCollegeAdmin()))
+                .isInstanceOf(BusinessException.class);
+
+        verify(ragService, never()).updateDocument(anyLong(), anyString());
+    }
+
+    private static Authentication asCollegeAdmin() {
+        return new UsernamePasswordAuthenticationToken(
+                5001L, null, List.of(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority(com.aicourse.common.AdminScope.AUTHORITY_COLLEGE)));
     }
 }

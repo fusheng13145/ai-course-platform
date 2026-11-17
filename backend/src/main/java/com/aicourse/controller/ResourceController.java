@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.StorageLayout;
+import com.aicourse.common.UploadMagic;
 import com.aicourse.dto.ResourceVisibilityDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
@@ -15,6 +16,8 @@ import com.aicourse.service.CourseService;
 import com.aicourse.service.FileStorageService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.vo.ChapterResourceTreeVO;
 import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -23,13 +26,13 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -75,30 +78,28 @@ public class ResourceController {
             "video/mp4", ".mp4",
             "audio/mpeg", ".mp3");
 
-    // 常见文件魔数（修复 P1-6：Content-Type 可伪造，必须以文件内容校验真实类型）
-    private static final byte[] MAGIC_PDF = {'%', 'P', 'D', 'F'};
-    private static final byte[] MAGIC_PNG = {(byte) 0x89, 'P', 'N', 'G'};
-    private static final byte[] MAGIC_JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
-    private static final byte[] MAGIC_GIF = {'G', 'I', 'F', '8'};
-    private static final byte[] MAGIC_ZIP = {'P', 'K', 0x03, 0x04};
-    private static final byte[] MAGIC_OLE2 = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0};
-
     private final ResourceService resourceService;
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
     private final ResourceVersionService resourceVersionService;
     private final FileStorageService fileStorageService;
+    private final AdminScopeGuard adminScopeGuard;
+    private final CourseAccessControl courseAccessControl;
 
     public ResourceController(ResourceService resourceService,
                               CourseService courseService,
                               CourseEnrollmentService courseEnrollmentService,
                               ResourceVersionService resourceVersionService,
-                              FileStorageService fileStorageService) {
+                              FileStorageService fileStorageService,
+                              AdminScopeGuard adminScopeGuard,
+                              CourseAccessControl courseAccessControl) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
         this.resourceVersionService = resourceVersionService;
         this.fileStorageService = fileStorageService;
+        this.adminScopeGuard = adminScopeGuard;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -164,13 +165,18 @@ public class ResourceController {
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         if (courseId == null) {
-            // 跨课程搜索会枚举全站资源（含 /uploads 路径），属越权风险：仅 ADMIN 允许，
-            // 学生/教师必须指定 courseId 在本人有权访问的课程内搜索（DR-16）。
+            // 跨课程搜索会枚举全站资源（含 /uploads 路径），属越权风险：仅管理员允许，
+            // 院系管理员进一步收口到本学院可读课程（校级管理员 readableCourseIds=null 才全量）。
             if (auth == null || !(auth.getPrincipal() instanceof Long) || !isAdmin(auth)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ApiResponse.error(ApiCode.FORBIDDEN, "请指定课程ID进行资源搜索"));
             }
-        } else if (!canAccessCourse(courseId, auth)) {
+            List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+            Page<Resource> result = resourceService.searchResourcesInCourses(
+                    keyword, readableCourseIds, page, size);
+            return ResponseEntity.ok(ApiResponse.success(result));
+        }
+        if (!canAccessCourse(courseId, auth)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
         }
@@ -268,17 +274,18 @@ public class ResourceController {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持该文件格式上传");
         }
 
-        byte[] bytes;
+        byte[] header;
         try {
-            bytes = file.getBytes();
+            // 只读文件头做魔数校验，不再把整文件读进堆；随后重新打开输入流交给存储层。
+            header = UploadMagic.readHeader(file);
         } catch (IOException e) {
-            log.error("读取上传文件失败: {}", e.getMessage(), e);
+            log.error("读取上传文件头失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "读取上传文件失败：" + e.getMessage());
         }
         // 修复 P1-6：Content-Type 由客户端声明可伪造，必须以文件魔数校验真实内容，
         // 阻断"伪装成图片的可执行/HTML/脚本文件"入库（防存储型 XSS / 恶意文件分发）。
-        String magic = detectMagicType(bytes);
-        if (!magicMatchesContentType(contentType, magic)) {
+        String magic = UploadMagic.detect(header);
+        if (!UploadMagic.matchesMime(contentType, magic)) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "文件内容与声明类型不符，已拒绝上传");
         }
 
@@ -295,8 +302,8 @@ public class ResourceController {
         String objectKey = "resources/" + courseId + "/" + UUID.randomUUID() + suffix;
 
         try {
-            String stored = fileStorageService.upload(objectKey, new ByteArrayInputStream(bytes),
-                    contentType, bytes.length);
+            String stored = fileStorageService.upload(objectKey, file.getInputStream(),
+                    contentType, file.getSize());
             if (stored == null || stored.isBlank()) {
                 return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件存储失败");
             }
@@ -306,6 +313,7 @@ public class ResourceController {
             resource.setFileType(contentType);
             resource.setUrl(StorageLayout.publicUrl(objectKey));
             resource.setCourseId(courseId);
+            resource.setUploaderId((Long) auth.getPrincipal());
             resource.setUploadTime(LocalDateTime.now());
             resource.setDescription(description);
             // V-2（2026-11-15）：教学资源仅对已加入该课程的用户可见。
@@ -318,6 +326,9 @@ public class ResourceController {
                     resource.getUrl(), "初始上传", (Long) auth.getPrincipal(), file.getSize());
 
             return ApiResponse.success("文件上传成功", resource);
+        } catch (IOException e) {
+            log.error("读取上传文件流失败: {}", e.getMessage(), e);
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "读取上传文件失败");
         } catch (RuntimeException e) {
             log.error("存储服务写入失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件上传异常：" + e.getMessage());
@@ -326,7 +337,7 @@ public class ResourceController {
 
     /**
      * 下载资源文件（修复 P1-6：下载必须校验资源访问权限——
-     * ADMIN 放行；教师仅限本课程；学生必须已选该课程，否则 403）
+     * 管理员按学院作用域；教师仅限本课程；学生必须已选该课程，否则 403）
      */
     @GetMapping("/download/{id}")
     public ResponseEntity<org.springframework.core.io.Resource> downloadResource(@PathVariable Long id,
@@ -377,7 +388,11 @@ public class ResourceController {
         }
         Long userId = (Long) auth.getPrincipal();
         if (isAdmin(auth)) {
-            return true;
+            if (resource.getCourseId() == null) {
+                // 全局资源保留既有「登录可读」口径；管理员可读，非管理员仍按下方课程成员规则拒绝。
+                return true;
+            }
+            return canAdminAccessCourse(resource.getCourseId());
         }
         if (isTeacher(auth)) {
             Course course = resource.getCourseId() != null ? courseService.getById(resource.getCourseId()) : null;
@@ -396,8 +411,8 @@ public class ResourceController {
      * <p>此前 listByCourse / tree / stats / chapter / search 等列表端点**无任何 ACL**，
      * 任意已登录用户可枚举任意课程的资源（含 {@code /uploads/<uuid>} 路径），再经
      * {@code /uploads/**}（已受登录保护）直链下载，构成跨课程越权读取。</p>
-     * 规则与 {@link #canAccessResource} 对齐：ADMIN 放行；教师须是该课程 teacherId；
-     * 学生须 {@code hasApprovedEnrollment}。返回 false 的调用方应返回 403。
+     * 规则与 {@link #canAccessResource} 对齐：管理员按学院作用域（校级全平台）；
+     * 教师须是该课程 teacherId；学生须 {@code hasApprovedEnrollment}。返回 false 的调用方应返回 403。
      */
     private boolean canAccessCourse(Long courseId, Authentication auth) {
         if (courseId == null) {
@@ -408,13 +423,26 @@ public class ResourceController {
         }
         Long userId = (Long) auth.getPrincipal();
         if (isAdmin(auth)) {
-            return true;
+            return canAdminAccessCourse(courseId);
         }
         if (isTeacher(auth)) {
             Course course = courseService.getById(courseId);
             return course != null && userId.equals(course.getTeacherId());
         }
         return courseEnrollmentService.hasApprovedEnrollment(userId, courseId);
+    }
+
+    /** 管理员课程作用域：院系管理员只能读本学院（含教师学院回退），校级全平台。 */
+    private boolean canAdminAccessCourse(Long courseId) {
+        if (courseId == null) {
+            return false;
+        }
+        try {
+            adminScopeGuard.assertCourseAccess(courseService.getById(courseId));
+            return true;
+        } catch (AccessDeniedException e) {
+            return false;
+        }
     }
 
     /**
@@ -425,53 +453,6 @@ public class ResourceController {
             return "file";
         }
         return value.replaceAll("[\\r\\n\"]", "_");
-    }
-
-    /**
-     * 识别文件魔数（读取文件头 8 字节）
-     */
-    private String detectMagicType(byte[] b) {
-        if (b == null || b.length < 8) {
-            return null;
-        }
-        if (startsWith(b, MAGIC_PDF)) return "pdf";
-        if (startsWith(b, MAGIC_PNG)) return "png";
-        if (startsWith(b, MAGIC_JPEG)) return "jpeg";
-        if (startsWith(b, MAGIC_GIF)) return "gif";
-        if (startsWith(b, MAGIC_ZIP)) return "zip";
-        if (startsWith(b, MAGIC_OLE2)) return "ole2";
-        if (b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p') return "mp4";
-        return null;
-    }
-
-    private boolean startsWith(byte[] data, byte[] magic) {
-        if (data.length < magic.length) return false;
-        for (int i = 0; i < magic.length; i++) {
-            if (data[i] != magic[i]) return false;
-        }
-        return true;
-    }
-
-    /**
-     * 声明 Content-Type 与魔数一致性校验（修复 P1-6）
-     */
-    private boolean magicMatchesContentType(String contentType, String magic) {
-        if (magic == null) {
-            return false;
-        }
-        if ("application/pdf".equals(contentType)) return "pdf".equals(magic);
-        if ("image/png".equals(contentType)) return "png".equals(magic);
-        if ("image/jpeg".equals(contentType)) return "jpeg".equals(magic);
-        if ("image/gif".equals(contentType)) return "gif".equals(magic);
-        if ("video/mp4".equals(contentType)) return "mp4".equals(magic);
-        // MP3 帧头（FFFx）不统一，仅对声明类型放行
-        if ("audio/mpeg".equals(contentType)) return true;
-        // Word/Excel 新格式（docx/xlsx/pptx）为 ZIP 容器；旧格式（doc/xls）为 OLE2 复合文档
-        if (contentType != null
-                && (contentType.contains("word") || contentType.contains("excel"))) {
-            return "zip".equals(magic) || "ole2".equals(magic);
-        }
-        return false;
     }
 
     /**

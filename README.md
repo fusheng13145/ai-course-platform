@@ -60,7 +60,7 @@
 | 后端框架 | Spring Boot | 3.5.16（JDK 21） |
 | ORM | MyBatis-Plus | 3.5.7 |
 | 安全 | Spring Security + JWT | 6.x / jjwt 0.12.6 |
-| 数据库迁移 | Flyway | 结构 **V1–V21（17 个脚本；V20 为空号，2026-11-15 裁定不补）**（`db/migration`，全环境）＋ 演示种子 V5–V7、V12_1（`db/seed-demo`，prod 排除）；已应用迁移校验和冻结不可改 |
+| 数据库迁移 | Flyway | 结构 **V1–V27（23 个脚本；V20 实际存在；V22 为 seed-demo）**（`db/migration`，全环境）＋ 演示种子 V5–V7、V12_1、V22（5 个，`db/seed-demo`，prod 排除）；已应用迁移校验和冻结不可改 |
 | 数据库 / 缓存 | MySQL / Redis | 8.4 / 7.x（Redis 为**必选**依赖） |
 | 前端框架 | Vue + Vite | 3.5.x / 8.1.7 |
 | UI 层 | 自研 `src/ui/components/` 原语 + CSS 变量令牌 | **无第三方组件库**（Element Plus／echarts 已随旧前端在 `15fb858` 整体摘除） |

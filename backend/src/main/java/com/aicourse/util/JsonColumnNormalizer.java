@@ -141,4 +141,60 @@ public final class JsonColumnNormalizer {
             return false;
         }
     }
+
+    /**
+     * 把字符串型 JSON 列读取为字符串列表：数组按元素展开，标量按单元素返回。
+     * 非 JSON 文本按逗号/中文逗号拆分，保留历史脏数据可读性。
+     */
+    public static List<String> toStringList(String text) {
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        try {
+            var node = MAPPER.readTree(text);
+            if (node.isArray()) {
+                List<String> values = new java.util.ArrayList<>();
+                node.forEach(item -> {
+                    if (!item.isNull()) {
+                        values.add(item.asText());
+                    }
+                });
+                return values;
+            }
+            if (node.isTextual()) {
+                return List.of(node.asText());
+            }
+            return List.of(node.asText());
+        } catch (Exception e) {
+            return Arrays.stream(text.split("[,，]"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        }
+    }
+
+    /**
+     * 把答案 JSON 列读取为可直接比较的纯文本：数组以逗号连接，标量取其文本。
+     * 题目答案在库里可能是 {@code "A"}、{@code ["A","B"]} 或历史裸值 {@code A}。
+     */
+    public static String toPlainAnswer(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        try {
+            var node = MAPPER.readTree(text);
+            if (node.isArray()) {
+                List<String> values = new java.util.ArrayList<>();
+                node.forEach(item -> {
+                    if (!item.isNull()) {
+                        values.add(item.asText());
+                    }
+                });
+                return String.join(",", values);
+            }
+            return node.asText();
+        } catch (Exception e) {
+            return text.trim();
+        }
+    }
 }

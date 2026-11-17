@@ -6,6 +6,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.service.UserSessionService;
 import com.aicourse.security.AdminScopeGuard;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,8 @@ class SystemAdminControllerAclTest extends ControllerTestBase {
     private AnalyticsService analyticsService;
     @MockitoBean
     private CourseEnrollmentService enrollmentService;
+    @MockitoBean
+    private UserSessionService userSessionService;
 
     /** 受保护管理端点清单（HTTP 方法 + 路径），用于参数化越权矩阵。 */
     static Stream<Arguments> adminEndpoints() {

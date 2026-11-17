@@ -44,6 +44,9 @@ const toast = vi.hoisted(() => vi.fn())
 vi.mock('../composables/ui', () => ({
   useUi: () => ({ toast }),
 }))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ userId: 2 }),
+}))
 
 import TasksTab from '../views/course/tabs/TasksTab.vue'
 import GradesTab from '../views/course/tabs/GradesTab.vue'
@@ -540,6 +543,24 @@ describe('学生课程 · 讨论页签', () => {
     expect(findButton(wrapper, '关闭话题')).toBeUndefined()
     expect(findButton(wrapper, '删除')).toBeUndefined()
     expect(wrapper.text()).toContain('我先说')
+    wrapper.unmount()
+  })
+
+  it('学生作者可管理自己的话题与回复，非作者仍不显示管理动作', async () => {
+    const ownTopic = { ...topic, authorId: 2 }
+    discussionApi.getTopics.mockResolvedValue({ data: { records: [ownTopic] } })
+    discussionApi.getTopicDetail.mockResolvedValue({
+      data: { topic: ownTopic, posts: [{ id: 78, content: '我的回复', authorId: 2 }] },
+    })
+
+    const wrapper = mountDiscussion('student')
+    await flushPromises()
+    await findButton(wrapper, '进入话题')?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.thread-actions').exists()).toBe(true)
+    expect(findButton(wrapper, '置顶')).toBeTruthy()
+    expect(findButton(wrapper, '删除')).toBeTruthy()
     wrapper.unmount()
   })
 

@@ -105,7 +105,11 @@ public class SubmissionWriteComponent {
                 .last("LIMIT 1");
         Submission draft = submissionMapper.selectOne(draftWrapper, false);
 
-        int attemptNumber = (int) submittedCount + 1;
+        // 草稿已预占下一次尝试号（见 saveDraft），转正必须沿用它；否则取当前最大尝试号 + 1。
+        // 若仍按 submittedCount + 1 计算，已有提交 1 + 草稿 2 时会与草稿撞号，V24 唯一键直接拒绝。
+        int attemptNumber = draft != null && draft.getAttemptNumber() != null
+                ? draft.getAttemptNumber()
+                : resolveNextAttemptNumber(taskId, studentId);
 
         Submission submission;
         if (draft != null) {
@@ -168,6 +172,8 @@ public class SubmissionWriteComponent {
             draft.setStudentId(studentId);
             draft.setStatus("DRAFT");
             draft.setViewCount(0);
+            // 草稿预占“当前最大尝试号 + 1”，避免与已提交记录撞 attempt_number（V24 唯一键）
+            draft.setAttemptNumber(resolveNextAttemptNumber(taskId, studentId));
             // WP7 快照：草稿创建时即归属当时的教学班，转正后不再改写
             draft.setTeachingClassId(
                     teachingClassSnapshotResolver.resolveTeachingClassId(studentId, task.getCourseId()));
@@ -183,6 +189,19 @@ public class SubmissionWriteComponent {
             submissionMapper.updateById(draft);
         }
         return draft;
+    }
+
+    /**
+     * 下一次尝试号：取该学生该任务所有记录（含草稿）的最大 attempt_number + 1。
+     * 不按 formal 提交数 + 1 计算，避免有空洞或草稿占号时与 V24 唯一键冲突。
+     */
+    private int resolveNextAttemptNumber(Long taskId, Long studentId) {
+        Submission latest = submissionMapper.selectOne(new LambdaQueryWrapper<Submission>()
+                .eq(Submission::getTaskId, taskId)
+                .eq(Submission::getStudentId, studentId)
+                .orderByDesc(Submission::getAttemptNumber)
+                .last("LIMIT 1"), false);
+        return latest == null || latest.getAttemptNumber() == null ? 1 : latest.getAttemptNumber() + 1;
     }
 
     /**
@@ -226,28 +245,56 @@ public class SubmissionWriteComponent {
             latePenalty = latePenalty.setScale(2, RoundingMode.HALF_UP);
         }
 
-        // 创建新的提交记录
-        int newAttemptNumber = existing.getAttemptNumber() + 1;
-        Submission newSubmission = new Submission();
-        newSubmission.setTaskId(existing.getTaskId());
-        newSubmission.setStudentId(existing.getStudentId());
-        // WP7 快照：重交是新记录，同样按当前成员关系解析（task 可能已被删，此时快照留空）
-        newSubmission.setTeachingClassId(task != null
-                ? teachingClassSnapshotResolver.resolveTeachingClassId(existing.getStudentId(), task.getCourseId())
-                : null);
+        // 重交也受任务最大提交次数约束（草稿不计入正式尝试数）
+        LambdaQueryWrapper<Submission> submittedWrapper = new LambdaQueryWrapper<Submission>()
+                .eq(Submission::getTaskId, existing.getTaskId())
+                .eq(Submission::getStudentId, existing.getStudentId())
+                .ne(Submission::getStatus, "DRAFT");
+        long submittedCount = submissionMapper.selectCount(submittedWrapper);
+        Integer maxSubmissions = task != null ? task.getMaxSubmissions() : null;
+        if (maxSubmissions != null && maxSubmissions > 0 && submittedCount >= maxSubmissions) {
+            throw new BusinessException("已达到最大提交次数限制（" + maxSubmissions + "次），无法再次提交");
+        }
+
+        // 有草稿时直接复用草稿行（草稿已预占下一次尝试号），否则新建记录
+        LambdaQueryWrapper<Submission> draftWrapper = new LambdaQueryWrapper<Submission>()
+                .eq(Submission::getTaskId, existing.getTaskId())
+                .eq(Submission::getStudentId, existing.getStudentId())
+                .eq(Submission::getStatus, "DRAFT")
+                .last("LIMIT 1");
+        Submission draft = submissionMapper.selectOne(draftWrapper, false);
+
+        Submission newSubmission;
+        if (draft != null) {
+            newSubmission = draft;
+        } else {
+            newSubmission = new Submission();
+            newSubmission.setTaskId(existing.getTaskId());
+            newSubmission.setStudentId(existing.getStudentId());
+            // WP7 快照：重交是新记录，同样按当前成员关系解析（task 可能已被删，此时快照留空）
+            newSubmission.setTeachingClassId(task != null
+                    ? teachingClassSnapshotResolver.resolveTeachingClassId(existing.getStudentId(), task.getCourseId())
+                    : null);
+            newSubmission.setAttemptNumber(resolveNextAttemptNumber(existing.getTaskId(), existing.getStudentId()));
+        }
         newSubmission.setContent(content);
         if (fileUrls != null && !fileUrls.isEmpty()) {
             newSubmission.setFileUrls(String.join(",", fileUrls));
+        } else if (draft != null) {
+            newSubmission.setFileUrls(draft.getFileUrls()); // 未带新附件时保留草稿期附件
         }
         newSubmission.setStatus(SubmissionStatus.RESUBMITTED);
         newSubmission.setSubmittedAt(now);
-        newSubmission.setAttemptNumber(newAttemptNumber);
         newSubmission.setIsLate(isLate);
         newSubmission.setLatePenalty(latePenalty);
         newSubmission.setMaxScore(task != null ? task.getMaxScore() : existing.getMaxScore());
-        newSubmission.setViewCount(0);
+        newSubmission.setViewCount(draft != null && draft.getViewCount() != null ? draft.getViewCount() : 0);
 
-        submissionMapper.insert(newSubmission);
+        if (draft != null) {
+            submissionMapper.updateById(newSubmission);
+        } else {
+            submissionMapper.insert(newSubmission);
+        }
         return newSubmission;
     }
 

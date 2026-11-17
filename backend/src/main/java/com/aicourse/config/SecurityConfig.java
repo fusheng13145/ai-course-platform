@@ -328,6 +328,12 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/knowledge/path/plan")
                             .authenticated();
 
+                    // 学生题库练习判分：P0-A1 新增的学生端写入口，必须登录；
+                    // 课程开关、选课关系与答案判分由 QuestionPracticeService 与控制器方法级 ACL 负责。
+                    // 必须放在下方 /questions/** 的「教师/管理员写操作」规则之前，否则学生会被 URL 级 403 拦截。
+                    auth.requestMatchers(HttpMethod.POST, "/questions/practice/check")
+                            .authenticated();
+
                     // 课程/试卷/题目等资源：POST、PUT、DELETE、PATCH 仅教师、管理员可操作
                     auth.requestMatchers(HttpMethod.POST, commonResourcePaths.toArray(new String[0]))
                             .hasAnyRole(RoleConstants.TEACHER, RoleConstants.ADMIN);

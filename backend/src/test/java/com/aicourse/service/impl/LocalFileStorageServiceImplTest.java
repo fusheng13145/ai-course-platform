@@ -76,6 +76,22 @@ class LocalFileStorageServiceImplTest {
     }
 
     @Test
+    void uploadFromPath_movesBytesIntoStorageRoot() throws IOException {
+        Path source = tempDir.resolve("merge.tmp");
+        byte[] data = "merged-chunks".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(source, data);
+
+        String name = service.uploadFromPath("resources/1/merged.txt", source, "text/plain", data.length);
+
+        assertEquals("resources/1/merged.txt", name);
+        try (InputStream is = service.download("resources/1/merged.txt")) {
+            assertNotNull(is);
+            assertArrayEquals(data, is.readAllBytes());
+        }
+        assertTrue(Files.exists(source), "uploadFromPath 不负责删除源文件，由调用方清理");
+    }
+
+    @Test
     void download_notFound_returnsNull() {
         assertNull(service.download("missing.txt"));
     }

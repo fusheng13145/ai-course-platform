@@ -75,6 +75,7 @@ public class SystemAdminController {
     private final CourseEnrollmentService enrollmentService;
     private final PasswordEncoder passwordEncoder;
     private final AdminScopeGuard adminScopeGuard;
+    private final UserSessionService userSessionService;
 
     public SystemAdminController(SystemService systemService,
                                   UserService userService,
@@ -82,7 +83,8 @@ public class SystemAdminController {
                                   AnalyticsService analyticsService,
                                   CourseEnrollmentService enrollmentService,
                                   PasswordEncoder passwordEncoder,
-                                  AdminScopeGuard adminScopeGuard) {
+                                  AdminScopeGuard adminScopeGuard,
+                                  UserSessionService userSessionService) {
         this.systemService = systemService;
         this.userService = userService;
         this.courseService = courseService;
@@ -90,6 +92,7 @@ public class SystemAdminController {
         this.enrollmentService = enrollmentService;
         this.passwordEncoder = passwordEncoder;
         this.adminScopeGuard = adminScopeGuard;
+        this.userSessionService = userSessionService;
     }
 
 
@@ -239,7 +242,15 @@ public class SystemAdminController {
         PasswordPolicy.validate(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         userService.updateById(user);
-        return ApiResponse.success("密码重置成功", null);
+        // 与用户自助改密同口径：密码写库成功后吊销全部活跃会话，旧 access/refresh token 一律失效。
+        // 吊销失败不回滚密码更新，但必须显式记日志便于人工核查。
+        try {
+            int revoked = userSessionService.revokeAllActiveSessions(userId);
+            log.info("[admin] 重置用户密码后吊销活跃会话: userId={}, revoked={}", userId, revoked);
+        } catch (Exception e) {
+            log.error("[admin] 密码已重置但吊销会话失败（需人工核查）: userId={}", userId, e);
+        }
+        return ApiResponse.success("密码已重置，需重新登录", null);
     }
 
     /**

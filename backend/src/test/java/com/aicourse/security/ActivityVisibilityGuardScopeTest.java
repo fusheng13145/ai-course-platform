@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -39,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 /**
@@ -61,6 +63,8 @@ class ActivityVisibilityGuardScopeTest {
     @Mock private TeachingClassMapper teachingClassMapper;
     @Mock private TaskTeachingClassMapper taskTeachingClassMapper;
     @Mock private ExamTeachingClassMapper examTeachingClassMapper;
+    @Mock private AdminScopeGuard adminScopeGuard;
+    @Mock private CourseAccessControl courseAccessControl;
 
     private ActivityVisibilityGuard guard;
 
@@ -74,8 +78,9 @@ class ActivityVisibilityGuardScopeTest {
         TableInfoHelper.initTableInfo(assistant, TaskTeachingClass.class);
         TableInfoHelper.initTableInfo(assistant, ExamTeachingClass.class);
         guard = new ActivityVisibilityGuard(courseService, enrollmentService, teachingClassMapper,
-                taskTeachingClassMapper, examTeachingClassMapper);
+                taskTeachingClassMapper, examTeachingClassMapper, adminScopeGuard, courseAccessControl);
         when(courseService.getById(1L)).thenReturn(course(1L, 7L));
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
     }
 
     private static Authentication as(Long userId, String role) {
@@ -216,6 +221,34 @@ class ActivityVisibilityGuardScopeTest {
         LambdaQueryWrapper<ExamPaper> papers = new LambdaQueryWrapper<>();
         guard.applyExamPaperScope(papers, as(1L, RoleConstants.ADMIN), null);
         assertThat(papers.getTargetSql()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("列表：院系管理员只保留本学院可读课程，不退化成全平台")
+    void collegeAdminListIsScoped() {
+        when(courseAccessControl.readableCourseIds(any())).thenReturn(List.of(2L, 3L));
+
+        LambdaQueryWrapper<Task> tasks = new LambdaQueryWrapper<>();
+        guard.applyTaskScope(tasks, as(1L, RoleConstants.ADMIN), null);
+        assertThat(tasks.getTargetSql()).contains("course_id IN");
+
+        LambdaQueryWrapper<ExamPaper> papers = new LambdaQueryWrapper<>();
+        guard.applyExamPaperScope(papers, as(1L, RoleConstants.ADMIN), null);
+        assertThat(papers.getTargetSql()).contains("course_id IN");
+    }
+
+    @Test
+    @DisplayName("详情：院系管理员读他院课程活动 -> AccessDenied（不是无条件放行）")
+    void collegeAdminCannotReadOtherCollegeActivity() {
+        doThrow(new AccessDeniedException("无权访问其他学院的课程"))
+                .when(adminScopeGuard).assertCourseAccess(any());
+
+        assertThatThrownBy(() -> guard.assertVisibleTask(task(ActivityVisibility.CLASSES, "PUBLISHED"),
+                as(1L, RoleConstants.ADMIN)))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> guard.assertVisibleExamPaper(paper(ActivityVisibility.CLASSES),
+                as(1L, RoleConstants.ADMIN)))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
