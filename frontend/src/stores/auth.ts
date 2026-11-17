@@ -109,23 +109,6 @@ export const useAuthStore = defineStore('auth', () => {
     if (permissions.value) storage.setItem('permissions', JSON.stringify(permissions.value))
   }
 
-  /**
-   * 打开新标签页前调用：把当前标签页内存里的非敏感 user 镜像到 localStorage。
-   *
-   * 为什么要单独一个入口：登录写盘只发生在登录/注册那一刻。若用户是在本次改动
-   * 之前就已登录（user 只在 sessionStorage 里），或从别的入口拿到登录态，
-   * 新标签页仍然读不到 user，会被守卫判成未登录弹回 /login。
-   * 这里在真正需要跨标签页时补一次镜像，不依赖「用户重新登录」。
-   */
-  function mirrorUserForNewTab() {
-    if (!user.value) return
-    try {
-      localStorage.setItem('user', JSON.stringify(user.value))
-    } catch {
-      /* 隐私模式下 localStorage 可能抛错：新标签页会退化为需重新登录，不影响当前页 */
-    }
-  }
-
   function clearAllStorage() {
     // 清理可能残留的旧令牌键，避免遗留 localStorage 中的令牌被误用
     localStorage.removeItem('token')
@@ -415,7 +398,6 @@ export const useAuthStore = defineStore('auth', () => {
     resetAuthState,
     getDefaultRoute,
     fetchPermissions,
-    mirrorUserForNewTab,
     hasMenuPermission,
     hasButtonPermission,
   }
