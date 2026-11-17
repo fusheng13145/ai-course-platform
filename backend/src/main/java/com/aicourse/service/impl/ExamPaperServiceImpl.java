@@ -238,6 +238,31 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
     }
 
     /**
+     * 归档试卷（PUBLISHED → ARCHIVED，幂等）。
+     * <p>DELETE 对已产生考试记录的试卷返回 409 并指向归档；本方法只改状态、不删任何行，
+     * 因此不会级联销毁题目、考试会话与监考事件。归档后学生列表（只筛 PUBLISHED）不可见。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = "examPapers", key = "#paperId")
+    public void archiveExamPaper(Long paperId) {
+        ExamPaper examPaper = this.getById(paperId);
+        if (examPaper == null) {
+            throw new BusinessException("试卷不存在");
+        }
+        String status = examPaper.getStatus();
+        if (ExamPaperStatus.ARCHIVED.name().equals(status)) {
+            return;
+        }
+        if (!ExamPaperStatus.PUBLISHED.name().equals(status)) {
+            throw new BusinessException("仅已发布试卷可归档");
+        }
+        examPaper.setStatus(ExamPaperStatus.ARCHIVED.name());
+        this.updateById(examPaper);
+        log.info("试卷已归档: examPaperId={}", paperId);
+    }
+
+    /**
      * 置为已发布并推送选课学生通知（发布与审核通过共用）。
      */
     private void markPublished(ExamPaper examPaper) {

@@ -15,9 +15,13 @@ import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,6 +35,8 @@ import java.util.Map;
  */
 @Service
 public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamSession> implements ExamSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExamSessionServiceImpl.class);
 
     private final ExamSessionLifecycleComponent lifecycleComponent;
     private final ExamSessionCheatingComponent cheatingComponent;
@@ -65,7 +71,24 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ExamSession submitExam(Long sessionId, Map<String, Object> answers) {
-        return lifecycleComponent.submitExam(sessionId, answers);
+        ExamSession submitted = lifecycleComponent.submitExam(sessionId, answers);
+        // PRD 的「即时成绩」：交卷成功后立即对客观题判分。
+        // 必须在**提交事务之后**执行——autoGrade 自己开事务并读取已提交的 SUBMITTED 会话；
+        // 若在未提交时调用，它读不到答案。判分失败只记 warn，不回滚已成功的交卷，
+        // 会话保持 SUBMITTED，教师仍可在成绩管理中手动触发自动阅卷。
+        if (answers != null && !answers.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        gradingService.autoGrade(sessionId);
+                    } catch (Exception e) {
+                        log.warn("交卷后自动判分失败，保留 SUBMITTED 待教师处理: sessionId={}", sessionId, e);
+                    }
+                }
+            });
+        }
+        return submitted;
     }
 
     @Override

@@ -340,6 +340,24 @@ public class ExamPaperController {
     }
 
     /**
+     * 归档试卷（教师/管理员权限）。
+     * <p>已产生考试记录的试卷 DELETE 返回 409，归档是文案指定的出路：只改状态、
+     * 保留题目与考试记录，学生列表（只筛 PUBLISHED）随即不可见。</p>
+     * @param id 试卷ID
+     * @param auth 认证信息
+     * @return 归档后的试卷
+     */
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "归档试卷",
+            description = "PUBLISHED → ARCHIVED，幂等；用于已产生考试记录、不可物理删除的试卷")
+    public ApiResponse<ExamPaper> archive(@PathVariable Long id, Authentication auth) {
+        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
+        examPaperService.archiveExamPaper(id);
+        return ApiResponse.success("已归档", examPaperService.getById(id));
+    }
+
+    /**
      * 查询试卷关联的题目列表（学生答题 / 教师预览共用，返回体统一脱敏）
      * @param id 试卷ID
      * @return 题目详情集合（不含标准答案与解析）
