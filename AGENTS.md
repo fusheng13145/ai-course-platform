@@ -14,8 +14,8 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | 585 Java 文件 / 67,388 行；**52 控制器 / 515 端点**；**61 张表**（PRD 47 + 扩展 14） |
-| **当前阶段** | 四阶段接管：阶段 1/2/3 已交付；阶段 4 已执行 **B0 / B1 / B2（文档）/ B3（双引擎）/ B4（HyDE+重排）/ B5（计网语料入库）/ B6（KG 真实构建：IPA + IREM 五类）** |
+| **规模（实测）** | 598 Java 文件 / 61,670 行；**53 控制器 / 518 端点**；**61 张表**（PRD 47 + 扩展 14） |
+| **当前阶段** | 四阶段接管：阶段 1/2/3 已交付；阶段 4 已完成 P0-A1/A2/A3/B/C，P0-D 文档/CI 收口进行中；P0-E 结题材料独立并行 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
 **一句话记住优先级**：`PRD > 泛化课程平台 > 多课程 > 软著`，但**结题材料（三指标 + 数据集 + 报告 + 论文）排在最前**。
@@ -203,7 +203,7 @@ python scripts/audit-stats.py
 
 | 不能这么说 | 原因 |
 | --- | --- |
-| "CI 已绿 / 受 CI 门禁保护" | 本机对 Actions 结果不可观测；`frontend-e2e` 仅手动触发 |
+| "CI 已绿 / 受 CI 门禁保护" | 本机对 Actions 结果不可观测；`frontend-e2e` PR 只跑核心 smoke，完整套件在 main／手动 |
 | "集成层本机验证过" | 本机只跑 `-DskipITs`，12 例 IT 由 CI 取数 |
 | "依赖无漏洞" | Trivy 漏洞库侧只在 CI 有读数 |
 | "无障碍已达标 / WCAG 合规" | 只有近似控制台读数，非 axe、非门禁 |
@@ -336,7 +336,7 @@ python scripts/sync-kg-to-python.py <courseId>
 
 ### 11.1 CI 与门禁位置
 
-- `.github/workflows/ci.yml` 13 个作业；连 `deploy.yml`／`eval-nightly.yml`／`release.yml` 共 **17 个唯一作业键**；`frontend-e2e` 仅 `workflow_dispatch`。
+- `.github/workflows/ci.yml` 13 个作业；连 `deploy.yml`／`eval-nightly.yml`／`release.yml` 共 **17 个唯一作业键**；`frontend-e2e` 在 PR 跑核心 3 spec，push `main`／`workflow_dispatch` 跑完整流程套件。
 - push 事件对 `docs/**`、`archive/**`、`*.md` 走 `paths-ignore` ⇒ **纯文档改动不触发 CI**，不能拿“CI 没红”当验证。
 - 开 PR 走浏览器；GitHub MCP 的写类工具在本仓历史实测报 schema 错且真的没生效，用之前先做一次无害写入复验。
 
@@ -346,7 +346,7 @@ python scripts/sync-kg-to-python.py <courseId>
 
 | 不能这么说 | 原因 | 出处 |
 | --- | --- | --- |
-| “CI 已绿／受 CI 门禁保护” | 本机对 Actions 结果不可观测；`frontend-e2e` 仅手动触发 | `docs/测试文档.md` §7、§11 |
+| “CI 已绿／受 CI 门禁保护” | 本机对 Actions 结果不可观测；`frontend-e2e` PR 只跑核心 smoke，完整套件在 main／手动 | `docs/测试文档.md` §7、§11 |
 | “集成层本机验证过” | 本机自 2026-10-08 只跑 `-DskipITs`；12 例 IT 由 CI 取数 | `docs/测试文档.md` §2.1 |
 | “依赖无漏洞” | Trivy 漏洞库侧只在 CI 有读数 | `docs/后端待办项.md` I-05 |
 | “无障碍已达标／WCAG 合规” | 只有近似控制台读数，非 axe、非门禁 | `docs/测试文档.md` §4.5 |

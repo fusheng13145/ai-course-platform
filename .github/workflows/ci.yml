@@ -801,17 +801,18 @@ jobs:
   # 决策：采用「全栈」方案——后端 jar 连 MySQL/Redis service 容器，前端构建后以
   # vite preview 提供静态资源（playwright.config.ts 经 PW_WEB_SERVER_COMMAND 覆盖 dev），
   # Playwright 跑真实 /api 链路。specs 直连真实 API（未做 page.route 桩），需后端+DB 在线。
-  # 当前以 workflow_dispatch 手动触发，待补齐测试种子账号并确认 green 后再纳入 push/PR 默认门禁，
-  # 避免在未就绪时污染受保护分支的自动 CI。本沙箱无 Actions runner / Playwright 浏览器，未实跑验证。
+  # 触发口径（2026-11-17 P0-D）：
+  #   - PR：只跑核心 3 个 spec（core / knowledge-graph / question-transfer），控制时长；
+  #   - push main / workflow_dispatch：跑完整流程套件（视觉套件仍由独立 workflow 管）。
+  # 不再用 workflow_dispatch 作为唯一入口；PR smoke 是否设为 required check 由项目主确认，
+  # 本文件只提供检查项，不新增 reviewer/审批阻塞。
   # ------------------------------------------------------------------
   frontend-e2e:
     name: Frontend E2E (Playwright, full-stack)
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    # 2026-11-14 P1-9（Q7 拍板：纳入 push 观察一轮）：此前仅 workflow_dispatch 手动触发，
-    # e2e 主链回归依赖人工。现 push 到 main 即跑（PR 不跑，控 runner 资源——PR 阶段
-    # 由单测/typecheck 守，合并后真栈复验）；观察一轮稳定后再评估纳入 PR 链。
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    # 2026-11-17 P0-D：PR 阶段跑核心 smoke，main push 跑完整套件。
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: frontend
@@ -918,7 +919,13 @@ jobs:
             sleep 5
           done
           if [ "$code" != "200" ]; then echo "backend 未就绪，最后 http=$code"; tail -n 60 ../backend-e2e.log; exit 1; fi
-          npx playwright test
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR E2E smoke: core + knowledge-graph + question-transfer"
+            npx playwright test e2e/core.spec.ts e2e/knowledge-graph.spec.ts e2e/question-transfer.spec.ts
+          else
+            echo "Full E2E suite (main / manual)"
+            npx playwright test
+          fi
           status=$?
           echo "---- backend-e2e.log (tail) ----"; tail -n 50 ../backend-e2e.log || true
           exit $status
