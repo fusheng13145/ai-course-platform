@@ -147,6 +147,7 @@ import { useUi } from '../../composables/ui'
 import type { Metric } from '../../nav'
 import studentApi from '@/api/student'
 import taskApi from '@/api/task'
+import { useAuthStore } from '@/stores/auth'
 import { pickList, unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 
@@ -366,9 +367,18 @@ function toCompletedRow(sub: RawRow, tasks: Record<string, RawRow>, index: numbe
   }
 }
 
+/**
+ * 任务行在新标签页打开对应课程的任务页，与「我的课程」卡片一致：
+ * 列表页的筛选和滚动位置不被覆盖，也便于同时对照多门课的任务。
+ * href 走 router.resolve，保留 base 与查询串。
+ */
 function openRow(row: TaskRow) {
   if (row.courseId == null) return
-  router.push(`/student/courses/${row.courseId}/tasks`)
+  const href = router.resolve(`/student/courses/${row.courseId}/tasks`).href
+  // 新标签页是独立 JS 上下文、读不到本页 sessionStorage：先把当前登录态
+  // （非敏感 user）镜像到 localStorage，否则新页会被守卫判成未登录弹回 /login。
+  useAuthStore().mirrorUserForNewTab()
+  window.open(href, '_blank', 'noopener')
 }
 
 async function load() {
