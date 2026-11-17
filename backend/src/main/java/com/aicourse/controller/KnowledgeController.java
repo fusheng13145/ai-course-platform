@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.integration.ContractPaths;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.KnowledgeExtractDTO;
@@ -673,23 +674,26 @@ public class KnowledgeController {
     private Map<String, Object> parseKgJson(String raw) {
         if (raw == null || raw.isBlank()) {
             Map<String, Object> fallback = new LinkedHashMap<>();
-            fallback.put("mode", "LOCAL");
+            fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
             fallback.put("note", "知识图谱服务返回为空，已使用本地降级");
             return fallback;
         }
         try {
             JsonNode node = KG_OM.readTree(raw);
-            if (node.has("code") && node.get("code").asInt() == 503) {
+            // 判定口径保持与改造前一致（只看 code=503），仅把魔法数换成契约常量；
+            // 若改用 ContractPaths.isUnavailable 会把 mode=UNAVAILABLE 也判为不可用，属于行为变更，不在本批范围。
+            if (node.has(ContractPaths.R_CODE)
+                    && node.get(ContractPaths.R_CODE).asInt() == ContractPaths.CODE_UNAVAILABLE) {
                 Map<String, Object> fallback = new LinkedHashMap<>();
-                fallback.put("mode", "UNAVAILABLE");
+                fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_UNAVAILABLE);
                 fallback.put("note", "知识图谱引擎未接入或不可用");
                 return fallback;
             }
             Map<String, Object> map = KG_OM.convertValue(node, Map.class);
-            return map != null ? map : Map.of("mode", "LOCAL");
+            return map != null ? map : Map.of(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
         } catch (Exception e) {
             Map<String, Object> fallback = new LinkedHashMap<>();
-            fallback.put("mode", "LOCAL");
+            fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
             fallback.put("note", "知识图谱服务返回解析失败，已使用本地降级");
             return fallback;
         }

@@ -18,11 +18,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 课程知识库编排服务实现（消费侧）。
@@ -33,7 +32,9 @@ import java.util.Set;
  *   <li><b>章节</b>：按 {@code orderIndex} 排序，文档名 {@code [章节] <标题>}，内容为标题 + 正文；</li>
  *   <li><b>资源</b>：仅取审核状态为正常（{@link Resource#MODERATION_NORMAL}）的，文档名 {@code [资源] <文件名>}。</li>
  * </ol>
- * 幂等：先以 {@link RAGService#listDocuments(Long)} 取回已有文档名集合，命中即跳过（重跑不产生重复语料）。
+ * 幂等：先以 {@link RAGService#listDocuments(Long)} 取回已有文档（名称 + id + 正文），
+ * 同名时**比对正文**——相同即跳过，不同则走 {@link RAGService#updateDocument} 覆盖（C2-3，2026-11-17）。
+ * 原实现只按名称跳过，课程简介/章节正文改过后重跑仍沿用旧内容，且 {@code skipped} 计数会误导教师。
  * </p>
  * <p>
  * <b>失败可见</b>（不静默、不误导）：
@@ -94,6 +95,7 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
         // 默认值先落位：LOCAL / UNAVAILABLE 分支均未真正写入，added/skipped 恒为 0，
         // 保证前端拿到的字段形状一致（不必对缺字段做特例判断）。
         result.put("added", 0);
+        result.put("updated", 0);
         result.put("skipped", 0);
 
         if (candidates.isEmpty()) {
@@ -109,29 +111,43 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
             return write(result);
         }
 
-        Set<String> existingNames = loadExistingNames(courseId);
-        if (existingNames == null) {
+        Map<String, ExistingDoc> existingDocs = loadExistingDocuments(courseId);
+        if (existingDocs == null) {
             return unavailable(result, "RAG 引擎不可用：未能读取已有文档列表，本次未写入任何文档");
         }
 
         int added = 0;
+        int updated = 0;
         int skipped = 0;
         int failed = 0;
         for (KbDoc doc : candidates) {
-            if (existingNames.contains(doc.name())) {
+            ExistingDoc existing = existingDocs.get(doc.name());
+            if (existing == null) {
+                if (isEngineUnavailable(readJson(ragService.addDocument(courseId, doc.name(), doc.content())))) {
+                    failed++;
+                    continue;
+                }
+                added++;
+                continue;
+            }
+            // 同名文档：比对内容，相同则跳过、不同则覆盖。
+            // 引擎未返回正文（content=null）或缺少 id 时无法安全比对，保守跳过——
+            // 宁可不同步，也不误覆盖教师手动改过的内容。
+            if (existing.id() == null || existing.content() == null || existing.content().equals(doc.content())) {
                 skipped++;
                 continue;
             }
-            if (isEngineUnavailable(readJson(ragService.addDocument(courseId, doc.name(), doc.content())))) {
+            if (isEngineUnavailable(readJson(ragService.updateDocument(existing.id(), doc.content())))) {
                 failed++;
                 continue;
             }
-            added++;
+            updated++;
         }
 
         Integer indexedChunks = null;
         boolean indexFailed = false;
-        if (added > 0) {
+        // 只更新正文也必须重建索引，否则向量仍是旧文本，检索会继续命中旧内容。
+        if (added > 0 || updated > 0) {
             JsonNode indexNode = readJson(ragService.buildIndex(courseId));
             if (isEngineUnavailable(indexNode)) {
                 indexFailed = true;
@@ -141,6 +157,7 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
         }
 
         result.put("added", added);
+        result.put("updated", updated);
         result.put("skipped", skipped);
         if (indexedChunks != null) {
             result.put("indexedChunks", indexedChunks);
@@ -148,13 +165,14 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
 
         if (failed > 0 || indexFailed) {
             String detail = indexFailed
-                    ? "RAG 引擎在重建索引阶段不可用，已写入 " + added + " 篇但索引未重建"
+                    ? "RAG 引擎在重建索引阶段不可用，已写入 " + added + " 篇、更新 " + updated + " 篇但索引未重建"
                     : "RAG 引擎不可用，有 " + failed + " 篇课程资料未能写入";
             return unavailable(result, detail);
         }
 
         result.put("mode", ContractPaths.MODE_ENGINE);
-        result.put("note", "已写入 " + added + " 篇、跳过 " + skipped + " 篇（知识库中已存在），并重建课程索引");
+        result.put("note", "已新增 " + added + " 篇、更新 " + updated + " 篇（内容有变更）、跳过 " + skipped
+                + " 篇（内容未变），并重建课程索引");
         return write(result);
     }
 
@@ -201,13 +219,22 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
         return docs;
     }
 
-    /** 取知识库已有文档名集合；引擎不可用（列表请求返回 503）或解析失败时返回 null。 */
-    private Set<String> loadExistingNames(Long courseId) {
+    /**
+     * 取知识库已有文档（文档名 → id + 正文）；引擎不可用（列表请求返回 503）或解析失败时返回 null。
+     *
+     * <p><b>为什么要连正文一起取</b>（C2-3，2026-11-17）：原先只取文档名集合，命中即跳过，
+     * 导致课程简介/章节正文改过之后重跑构建仍沿用旧内容，且返回的 {@code skipped} 计数
+     * 让教师误以为"已更新"。取回正文后即可比对：相同跳过、不同覆盖。</p>
+     *
+     * <p><b>成本</b>：列表接口本就返回全文，原先只是解析时丢弃了；本方法不新增请求，
+     * 只多占一份内存引用，课程级文档量（数十篇）可接受。</p>
+     */
+    private Map<String, ExistingDoc> loadExistingDocuments(Long courseId) {
         JsonNode root = readJson(ragService.listDocuments(courseId));
         if (isEngineUnavailable(root)) {
             return null;
         }
-        Set<String> names = new HashSet<>();
+        Map<String, ExistingDoc> docs = new HashMap<>();
         JsonNode arr = root == null ? null : root.get("documents");
         if (arr != null && arr.isArray()) {
             for (JsonNode d : arr) {
@@ -215,12 +242,15 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
                 if (name == null) {
                     name = textOrNull(d, "name");
                 }
-                if (name != null) {
-                    names.add(name);
+                if (name == null) {
+                    continue;
                 }
+                Long id = d.hasNonNull("id") ? d.get("id").asLong() : null;
+                String content = textOrNull(d, "content");
+                docs.put(name, new ExistingDoc(id, content));
             }
         }
-        return names;
+        return docs;
     }
 
     // ===================== 序列化与解析 =====================
@@ -300,5 +330,9 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
 
     /** 待入库文档（名称用于幂等去重，来源用于前端展示）。 */
     private record KbDoc(String name, String source, String content) {
+    }
+
+    /** 知识库中已存在的文档（id 用于覆盖更新，content 用于判断是否变更）。 */
+    private record ExistingDoc(Long id, String content) {
     }
 }

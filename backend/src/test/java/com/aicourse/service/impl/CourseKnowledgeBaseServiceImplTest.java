@@ -26,7 +26,7 @@ import static org.mockito.Mockito.*;
  * 覆盖四条主路径：
  * <ol>
  *   <li>{@code rag.enabled=false} → 只枚举不写入（mode=LOCAL，绝不调用引擎，不误导为「已入库」）；</li>
- *   <li>引擎可用 → 幂等写入（按文档名去重）+ 重建索引（mode=ENGINE）；</li>
+ *   <li>引擎可用 → 幂等写入（同名比对正文：相同跳过、不同覆盖）+ 重建索引（mode=ENGINE）；</li>
  *   <li>引擎不可用（列表/写入/建索引任一返回 503）→ mode=UNAVAILABLE + code=503（失败可见，不静默）；</li>
  *   <li>课程不存在 → 抛 {@code BusinessException(404)}；课程无可入库资料 → total=0 且不触碰引擎。</li>
  * </ol>
@@ -136,6 +136,95 @@ class CourseKnowledgeBaseServiceImplTest {
         assertEquals(1, node.get("skipped").asInt());
 
         verify(ragService, times(2)).addDocument(eq(1L), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("同名且正文相同：跳过后不调用 updateDocument（幂等不变更）")
+    void same_name_same_content_skips_without_update() throws Exception {
+        stubCourseWithChapterAndResource();
+        when(courseService.getById(1L)).thenReturn(course());
+        // 正文与 collectDocuments 生成的 "[章节] 第一章 线性表" 完全一致
+        when(ragService.listDocuments(1L)).thenReturn(
+                "{\"documents\":[{\"id\":5,\"documentName\":\"[章节] 第一章 线性表\","
+                        + "\"content\":\"第一章 线性表\\n顺序表与链表的实现\"}]}");
+        when(ragService.addDocument(eq(1L), anyString(), anyString()))
+                .thenReturn("{\"id\":1,\"documentName\":\"x\",\"mode\":\"ENGINE\"}");
+        when(ragService.buildIndex(1L)).thenReturn("{\"success\":true,\"indexedChunks\":6}");
+
+        JsonNode node = read(service(true).buildFromCourse(1L));
+
+        assertEquals(2, node.get("added").asInt());
+        assertEquals(0, node.get("updated").asInt());
+        assertEquals(1, node.get("skipped").asInt());
+        verify(ragService, never()).updateDocument(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("同名但正文不同：走 updateDocument 覆盖，并重建索引")
+    void same_name_changed_content_updates_and_rebuilds_index() throws Exception {
+        stubCourseWithChapterAndResource();
+        when(courseService.getById(1L)).thenReturn(course());
+        when(ragService.listDocuments(1L)).thenReturn(
+                "{\"documents\":[{\"id\":5,\"documentName\":\"[章节] 第一章 线性表\","
+                        + "\"content\":\"第一章 线性表\\n旧版正文\"}]}");
+        when(ragService.addDocument(eq(1L), anyString(), anyString()))
+                .thenReturn("{\"id\":1,\"documentName\":\"x\",\"mode\":\"ENGINE\"}");
+        when(ragService.updateDocument(eq(5L), anyString()))
+                .thenReturn("{\"id\":5,\"documentName\":\"[章节] 第一章 线性表\",\"mode\":\"ENGINE\"}");
+        when(ragService.buildIndex(1L)).thenReturn("{\"success\":true,\"indexedChunks\":7}");
+
+        JsonNode node = read(service(true).buildFromCourse(1L));
+
+        assertEquals(2, node.get("added").asInt());
+        assertEquals(1, node.get("updated").asInt());
+        assertEquals(0, node.get("skipped").asInt());
+        verify(ragService).updateDocument(5L, "第一章 线性表\n顺序表与链表的实现");
+        // 即便 added>0，也必须为"仅更新"的场景重建索引——这里一并断言索引被调用
+        verify(ragService).buildIndex(1L);
+    }
+
+    @Test
+    @DisplayName("只有更新、无新增：仍必须重建索引（否则检索继续命中旧文本）")
+    void updated_only_still_rebuilds_index() throws Exception {
+        stubCourseWithChapterAndResource();
+        when(courseService.getById(1L)).thenReturn(course());
+        // 三篇都已存在，其中章节正文有变更
+        when(ragService.listDocuments(1L)).thenReturn(
+                "{\"documents\":["
+                        + "{\"id\":1,\"documentName\":\"[课程简介] 数据结构\",\"content\":\"数据结构\\n本课程讲授线性表、树与图\"},"
+                        + "{\"id\":2,\"documentName\":\"[章节] 第一章 线性表\",\"content\":\"第一章 线性表\\n旧版正文\"},"
+                        + "{\"id\":3,\"documentName\":\"[资源] 讲义.pdf\",\"content\":\"讲义.pdf\\n第一章讲义\"}"
+                        + "]}");
+        when(ragService.updateDocument(eq(2L), anyString()))
+                .thenReturn("{\"id\":2,\"documentName\":\"[章节] 第一章 线性表\",\"mode\":\"ENGINE\"}");
+        when(ragService.buildIndex(1L)).thenReturn("{\"success\":true,\"indexedChunks\":9}");
+
+        JsonNode node = read(service(true).buildFromCourse(1L));
+
+        assertEquals(0, node.get("added").asInt());
+        assertEquals(1, node.get("updated").asInt());
+        assertEquals(2, node.get("skipped").asInt());
+        verify(ragService, never()).addDocument(anyLong(), anyString(), anyString());
+        verify(ragService).buildIndex(1L);
+    }
+
+    @Test
+    @DisplayName("已有文档未返回正文：保守跳过，绝不误覆盖")
+    void missing_content_falls_back_to_skip() throws Exception {
+        stubCourseWithChapterAndResource();
+        when(courseService.getById(1L)).thenReturn(course());
+        when(ragService.listDocuments(1L))
+                .thenReturn("{\"documents\":[{\"id\":5,\"documentName\":\"[章节] 第一章 线性表\"}]}");
+        when(ragService.addDocument(eq(1L), anyString(), anyString()))
+                .thenReturn("{\"id\":1,\"documentName\":\"x\",\"mode\":\"ENGINE\"}");
+        when(ragService.buildIndex(1L)).thenReturn("{\"success\":true,\"indexedChunks\":4}");
+
+        JsonNode node = read(service(true).buildFromCourse(1L));
+
+        assertEquals(2, node.get("added").asInt());
+        assertEquals(0, node.get("updated").asInt());
+        assertEquals(1, node.get("skipped").asInt());
+        verify(ragService, never()).updateDocument(anyLong(), anyString());
     }
 
     // ---------- 3. 引擎不可用 ----------
