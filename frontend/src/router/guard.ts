@@ -1,5 +1,5 @@
 import type { RouteLocationNormalized, Router } from 'vue-router'
-import NProgress from 'nprogress'
+import { showLoading, hideLoading } from '@/utils/loadingIndicator'
 import { useAuthStore } from '@/stores/auth'
 
 /** 守卫的三种跳转落点，由各端 router 自行决定（旧端走根路径，走 /**） */
@@ -16,11 +16,12 @@ export type ResolveGuardPaths = (to: RouteLocationNormalized) => GuardPaths
  * 把鉴权守卫安装到任意 router 上，旧端 router 与 自有 router 共用这一份实现。
  *
  * 落点不写死：login / 403 / 503 全部由 resolvePaths(to) 给出，在旧 router 被摘除后
- * 仍能独立完成登录态校验、权限探针、角色门禁与进度条。
+ * 仍能独立完成登录态校验、权限探针、角色门禁与加载指示。
  */
 export function installRouterGuard(router: Router, resolvePaths: ResolveGuardPaths): void {
   router.beforeEach(async (to, _from, next) => {
-    NProgress.start()
+    // 与请求拦截器共用同一个全局指示器；每次导航必然配对一次 hideLoading（见 afterEach）
+    showLoading()
     const authStore = useAuthStore()
     const requiresAuth = to.matched.some((record) => record.meta.requiresAuth !== false)
     const { loginPath, forbiddenPath, unavailablePath } = resolvePaths(to)
@@ -31,10 +32,11 @@ export function installRouterGuard(router: Router, resolvePaths: ResolveGuardPat
         // 若默认落地页恰好等于当前路径（历史上未知角色会返回 '/login'），
         // next('/login') 会再次进入本分支 → 自指向重定向。此处对「目标 === 当前」
         // 直接终止导航（next(false)），保证重定向链路无条件有界。
+        // 收尾统一交给 afterEach：Vue Router 对 aborted 导航同样会调用它，
+        // 这里再单独 hide 会与 afterEach 的计数减重，导致指示器提前消失。
         const target = authStore.getDefaultRoute()
         if (target === to.path || target === to.fullPath) {
           next(false)
-          NProgress.done()
           return
         }
         next(target)
@@ -90,6 +92,6 @@ export function installRouterGuard(router: Router, resolvePaths: ResolveGuardPat
   })
 
   router.afterEach(() => {
-    NProgress.done()
+    hideLoading()
   })
 }

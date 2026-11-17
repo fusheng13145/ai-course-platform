@@ -36,8 +36,8 @@ const EXAM_COURSE_ID = 1
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>
 let states: Record<Role, StorageState> | null = null
 let paperTitle = ''
-/** 本轮自己创建并发布的那张取证卷 id；afterAll 只按这一个 id 删除 */
-let createdPaperId = 0
+/** 本轮自己创建并发布的取证卷 id；afterAll 逐个归档/删除，绝不碰种子卷 */
+let createdPaperIds: number[] = []
 
 async function loginState(browser: Browser, role: Role) {
   const context = await browser.newContext({ baseURL: BASE })
@@ -102,9 +102,24 @@ async function ensureExamPaper(
   // 记下本轮自己的卷 id，跑完由 afterAll 按 id 删除，不留取证卷。
   // 身份分工按 WP6 裁定：管理员只读治理、不得直接发布教学活动（/publish 对 ADMIN 返回 403），
   // 所以建卷→写题→提交审核走课程授课教师，审核通过走管理员 PATCH /approve。
-  const questions = await teacherApi.get(`/api/questions?courseId=${EXAM_COURSE_ID}&page=1&size=2`)
+  const questions = await teacherApi.get(
+    `/api/questions?courseId=${EXAM_COURSE_ID}&type=SINGLE_CHOICE&page=1&size=20`,
+  )
   expect(questions.ok(), '题库接口不可用').toBeTruthy()
-  const questionRows = pickList(await questions.json())
+  // 题库里存在 type=SINGLE_CHOICE 但 options 为空的探针题（安全用例造的数据），
+  // 这类题在答题页不渲染选项、也无法作答；只挑真正带选项的题，避免开考链被探针题卡死。
+  const questionRows = pickList(await questions.json()).filter((row) => {
+    if (Array.isArray(row.options)) return row.options.length > 0
+    if (typeof row.options === 'string') {
+      try {
+        const parsed = JSON.parse(row.options)
+        return Array.isArray(parsed) && parsed.length > 0
+      } catch {
+        return false
+      }
+    }
+    return false
+  })
   if (!questionRows.length) return ''
 
   const title = `${PAPER_PREFIX}-${EXAM_COURSE_ID}-${Date.now()}`
@@ -120,7 +135,7 @@ async function ensureExamPaper(
   expect(created.ok(), '建卷失败').toBeTruthy()
   const paperId = Number(unwrap<Record<string, unknown>>(await created.json()).id)
   expect(paperId, '建卷未返回 id').toBeGreaterThan(0)
-  createdPaperId = paperId
+  createdPaperIds.push(paperId)
 
   const payload = {
     questions: questionRows.slice(0, 2).map((row, index) => ({
@@ -148,51 +163,51 @@ test.describe.serial('核心链路（真栈）', () => {
   })
 
   test.afterAll(async () => {
-    // 只删本轮 ensureExamPaper 自己造的那一张：删前按 id 读回、标题前缀复核后才动手，
+    // 只清理本轮 ensureExamPaper 自己造的卷：删前按 id 读回、标题前缀复核后才动手，
     // 绝不碰种子卷与他人历史卷（删除对题目行／考试会话／监考事件是级联语义）。
-    if (!createdPaperId || !states) return
-    const paperId = createdPaperId
-    createdPaperId = 0
+    if (!createdPaperIds.length || !states) return
+    const ids = [...createdPaperIds]
+    createdPaperIds = []
     const api = await request.newContext({ baseURL: BASE, storageState: states.admin })
     // 注意不能用 unwrap：data 为 null 时它会回落成整个响应体，「已删干净」会被读成「仍在库」
     const dataOf = async (res: Awaited<ReturnType<APIRequestContext['get']>>) =>
       ((await res.json().catch(() => ({}))) as Record<string, unknown>).data ?? null
-    const before = await api.get(`/api/exam-papers/${paperId}`)
-    const title = String(((await dataOf(before)) as Record<string, unknown> | null)?.title ?? '')
-    if (!title.startsWith(PAPER_PREFIX)) {
-      console.log(`[core] 跳过清理：卷 ${paperId} 的标题「${title}」不带本轮取证卷前缀`)
-      await api.dispose()
-      return
-    }
-    const removed = await api.delete(`/api/exam-papers/${paperId}`)
-    // 2026-11-01 项目主裁定（B-13 ⑳）：已产生 exam_sessions 的试卷**不得物理删除**，后端返回 409，
-    // 避免 fk 级联销毁题目行／考试会话／监考事件；409 文案指定的出路是「改为归档」。
-    // 本用例必然开考（就是那条 30 秒自动保存链），所以 409 是**设计内的预期结果**，不是缺陷。
-    // 归档同样能把卷撤出学生可见面（学生列表只筛 status=PUBLISHED），故按裁定走归档收口。
-    let archived = false
-    if (!removed.ok()) {
-      expect(removed.status(), `删除取证卷失败且不是裁定允许的 409：HTTP ${removed.status()}`).toBe(
-        409,
+    for (const paperId of ids) {
+      const before = await api.get(`/api/exam-papers/${paperId}`)
+      const title = String(((await dataOf(before)) as Record<string, unknown> | null)?.title ?? '')
+      if (!title.startsWith(PAPER_PREFIX)) {
+        console.log(`[core] 跳过清理：卷 ${paperId} 的标题「${title}」不带本轮取证卷前缀`)
+        continue
+      }
+      const removed = await api.delete(`/api/exam-papers/${paperId}`)
+      // 2026-11-01 项目主裁定（B-13 ⑳）：已产生 exam_sessions 的试卷**不得物理删除**，后端返回 409，
+      // 避免 fk 级联销毁题目行／考试会话／监考事件；409 文案指定的出路是「改为归档」。
+      // 本用例必然开考（就是那条 30 秒自动保存链），所以 409 是**设计内的预期结果**，不是缺陷。
+      // 归档同样能把卷撤出学生可见面（学生列表只筛 status=PUBLISHED），故按裁定走归档收口。
+      let archived = false
+      if (!removed.ok()) {
+        expect(
+          removed.status(),
+          `删除取证卷失败且不是裁定允许的 409：HTTP ${removed.status()}`,
+        ).toBe(409)
+        // 409 的文案指向归档；归档是专用端点（PUT /{id} 因 A-02 #5 明确剔除 status，
+        // 不能再靠请求体把 PUBLISHED 改成 ARCHIVED）。归档只改状态，保留题目与考试记录。
+        const archive = await api.post(`/api/exam-papers/${paperId}/archive`)
+        expect(archive.ok(), `归档取证卷失败：HTTP ${archive.status()}`).toBeTruthy()
+        archived = true
+      }
+      const gone = await api.get(`/api/exam-papers/${paperId}`)
+      const residual = (await dataOf(gone)) as Record<string, unknown> | null
+      console.log(
+        `[core] 取证卷 ${paperId} 自清理：DELETE → HTTP ${removed.status()}` +
+          (archived ? '（已产生考试记录，按裁定改归档）' : '') +
+          `；读回 HTTP ${gone.status()} data=${archived ? `status=${String(residual?.status)}` : residual ? '仍在库' : 'null（已删干净）'}`,
       )
-      // 实体带 @NotBlank(title)，只发 status 会被 400「试卷标题不能为空」挡回；
-      // 带上刚读回的原标题即可（updateById 只覆盖非 null 字段，不会清掉其它列）。
-      const put = await api.put(`/api/exam-papers/${paperId}`, {
-        data: { title, status: 'ARCHIVED' },
-      })
-      expect(put.ok(), `归档取证卷失败：HTTP ${put.status()}`).toBeTruthy()
-      archived = true
-    }
-    const gone = await api.get(`/api/exam-papers/${paperId}`)
-    const residual = (await dataOf(gone)) as Record<string, unknown> | null
-    console.log(
-      `[core] 取证卷自清理：DELETE → HTTP ${removed.status()}` +
-        (archived ? '（已产生考试记录，按裁定改归档）' : '') +
-        `；读回 HTTP ${gone.status()} data=${archived ? `status=${String(residual?.status)}` : residual ? '仍在库' : 'null（已删干净）'}`,
-    )
-    if (archived) {
-      expect(String(residual?.status), `归档后 ${paperId} 的状态应为 ARCHIVED`).toBe('ARCHIVED')
-    } else {
-      expect(residual, `删除后 ${paperId} 仍能读到试卷，自清理未生效`).toBeNull()
+      if (archived) {
+        expect(String(residual?.status), `归档后 ${paperId} 的状态应为 ARCHIVED`).toBe('ARCHIVED')
+      } else {
+        expect(residual, `删除后 ${paperId} 仍能读到试卷，自清理未生效`).toBeNull()
+      }
     }
     await api.dispose()
   })
@@ -307,6 +322,75 @@ test.describe.serial('核心链路（真栈）', () => {
     await expect(page.locator('.question')).toBeVisible()
     await expect(page.locator('.sheet-progress')).toContainText('已作答 1')
     await expect(page.locator('.q-options input[type=radio]').first()).toBeChecked()
+    await context.close()
+  })
+
+  test('学生正式交卷，服务端判分并返回成绩', async ({ browser }) => {
+    test.setTimeout(90000)
+    const teacherApi = await request.newContext({
+      baseURL: BASE,
+      storageState: states!.teacher,
+    })
+    const adminApi = await request.newContext({ baseURL: BASE, storageState: states!.admin })
+    const title = await ensureExamPaper(teacherApi, adminApi)
+    await teacherApi.dispose()
+    await adminApi.dispose()
+    test.skip(!title, '课程题库没有可用题目，无法造卷；本环境跳过交卷链')
+    const paperId = createdPaperIds[createdPaperIds.length - 1]
+
+    const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
+    const page = await context.newPage()
+    await page.goto('/student/exams', { waitUntil: 'domcontentloaded' })
+    const row = page.locator('.exam-row', { hasText: title })
+    await expect(row, '学生考试列表里没有刚发布的卷子').toBeVisible()
+    await startFromRow(page, row)
+    await expect(page.locator('.question')).toBeVisible()
+    await page.waitForTimeout(1500)
+
+    // 题型不定，能答就答一题；不答也允许交卷（未答题按 0 分），
+    // 本用例验的是「正式交卷 → 服务端判分 → 结果页读数」整条链，而不是正确率。
+    const firstRadio = page.locator('.q-options input[type=radio]').first()
+    if (await firstRadio.count()) {
+      await page.locator('.q-options label').first().click()
+    }
+
+    await page.getByRole('button', { name: '交卷', exact: true }).click()
+    await page.getByRole('button', { name: '确认提交' }).click()
+    await expect(page.locator('.exam-panel .result')).toBeVisible()
+    const scoreLine = (await page.locator('.result .score b').innerText()).trim()
+    expect(scoreLine, `结果页未显示判分读数：${scoreLine}`).toMatch(/\d+(\.\d+)?\s*分/)
+    const uiScore = Number(scoreLine.replace(/[^\d.]/g, ''))
+
+    // 与成绩报告交叉核对：UI 显示必须等于服务端 totalScore，防止前端本地伪造读数。
+    const studentApi = await request.newContext({
+      baseURL: BASE,
+      storageState: states!.student,
+    })
+    const sessions = await studentApi.get('/api/exam-sessions/my')
+    expect(sessions.ok(), '我的考试会话接口不可用').toBeTruthy()
+    const session = pickList(await sessions.json()).find(
+      (item) => Number(item.examPaperId) === paperId,
+    )
+    expect(session, `未找到试卷 ${paperId} 的考试会话`).toBeTruthy()
+    const report = await studentApi.get(`/api/exam-sessions/${Number(session!.id)}/report`)
+    expect(report.ok(), '成绩报告接口不可用').toBeTruthy()
+    const reportData = unwrap<Record<string, unknown>>(await report.json())
+    expect(Number(reportData.totalScore), '成绩报告 totalScore 与结果页不一致').toBe(uiScore)
+    await studentApi.dispose()
+    await context.close()
+  })
+
+  test('登录过期后清态并回登录页（真实 Cookie 失效）', async ({ browser }) => {
+    // M-21 真栈冒烟：不复用 storageState 的 mock token，而是带着真实登录态进入页面后
+    // 清掉 HttpOnly Cookie，再触发一次页面 API；请求应走 401 → 刷新失败 → 清态 → /login。
+    const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
+    const page = await context.newPage()
+    await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.messages-panel, .module')).toBeVisible()
+
+    await context.clearCookies()
+    await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
+    await expect(page, 'Cookie 失效后未回到登录页').toHaveURL(/\/login/, { timeout: 15000 })
     await context.close()
   })
 })

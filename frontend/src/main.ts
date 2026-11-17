@@ -1,7 +1,6 @@
 import '@/bootstrap/apiHostEp'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import 'nprogress/nprogress.css'
 
 import App from './App.vue'
 import { createAppRouter } from './ui/router'

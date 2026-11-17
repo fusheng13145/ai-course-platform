@@ -115,7 +115,8 @@ public class ExamSessionController {
             @Valid @RequestBody ExamSubmitDTO body) {
         examSessionAccessControl.assertOwnedByStudent(id, auth);
         ExamSession session = examSessionService.submitExam(id, body.getAnswers());
-        return ApiResponse.success("提交成功", session);
+        // 交卷事务提交后会触发客观题自动判分；此处重读，返回最新状态（通常是 GRADED + totalScore）。
+        return ApiResponse.success("提交成功", examSessionService.getById(session.getId()));
     }
 
     /**

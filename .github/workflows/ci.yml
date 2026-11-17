@@ -182,7 +182,7 @@ jobs:
               <mirror>
                 <id>google-maven-central</id>
                 <mirrorOf>central</mirrorOf>
-                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+                <url>https://maven-central.storage-download.googleapis.com/maven2/</url>
               </mirror>
             </mirrors>
           </settings>
@@ -202,7 +202,19 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           TESTCONTAINERS_RYUK_DISABLED: true
-        run: mvn -B verify jacoco:report
+        run: mvn -B -Dmaven.wagon.http.retryHandler.count=3 verify
+
+      - name: Stage JaCoCo exec for artifact upload
+        # JaCoCo exec 落在 ${user.home}（规避中文工作区路径导致探针静默不落盘），
+        # upload-artifact 的 path 相对 workspace，故先复制到 backend/target。
+        if: always()
+        run: |
+          set -e
+          exec_file=$(ls -t "$HOME"/jacoco-backend-*.exec 2>/dev/null | head -n 1 || true)
+          if [ -n "$exec_file" ]; then
+            mkdir -p target
+            cp "$exec_file" target/jacoco.exec
+          fi
 
       - name: Upload JaCoCo coverage report
         # 即便覆盖率门禁不达标（verify 失败），也保留报告供排查趋势

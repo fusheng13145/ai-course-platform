@@ -364,8 +364,6 @@ body[data-app='ui'][data-style='record'] .quick-links button {
   padding: 8px 10px;
   font-size: 11.5px;
 }
-body[data-app='ui'][data-style='record'] .side-back,
-body[data-app='ui'][data-style='record'] .side-back-label,
 body[data-app='ui'][data-style='record'] .course-back {
   font-size: 11.5px;
 }
@@ -498,10 +496,6 @@ body[data-app='ui'][data-style='record'] .text-btn.danger:hover {
 body[data-app='ui'][data-style='record'] .back:hover,
 body[data-app='ui'][data-style='record'] .course-back:hover {
   color: var(--ink-3);
-}
-body[data-app='ui'][data-style='record'] .side-back:hover {
-  background: transparent;
-  color: var(--side-ink-2);
 }
 body[data-app='ui'][data-style='record'] .quick-links button:hover {
   border-color: var(--line);

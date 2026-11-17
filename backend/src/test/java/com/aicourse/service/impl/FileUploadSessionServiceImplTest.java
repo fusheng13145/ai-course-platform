@@ -637,10 +637,11 @@ class FileUploadSessionServiceImplTest {
     @DisplayName("sweepOrphanChunkDirs 回收会话行已不存在的分片目录（删行不等于磁盘清干净）")
     void sweep_deletesDirsOfUnknownSessions() throws Exception {
         seedChunk(777L, 0, "AA");
-        when(fileUploadSessionMapper.selectById(777L)).thenReturn(null);
+        when(fileUploadSessionMapper.selectBatchIds(any())).thenReturn(List.of());
 
         assertEquals(1, service.sweepOrphanChunkDirs());
         assertFalse(Files.exists(chunkRoot.resolve("777")), "无主目录必须回收");
+        verify(fileUploadSessionMapper, never()).selectById(anyLong());
     }
 
     @Test
@@ -648,19 +649,23 @@ class FileUploadSessionServiceImplTest {
     void sweep_keepsResumableSessions() throws Exception {
         seedChunk(1L, 0, "AA");
         seedChunk(2L, 0, "BB");
-        when(fileUploadSessionMapper.selectById(1L)).thenReturn(session(1L, 99L, "UPLOADING", 1, 4));
-        when(fileUploadSessionMapper.selectById(2L)).thenReturn(session(2L, 99L, "FAILED", 3, 4));
+        when(fileUploadSessionMapper.selectBatchIds(any())).thenReturn(List.of(
+                session(1L, 99L, "UPLOADING", 1, 4),
+                session(2L, 99L, "FAILED", 3, 4)));
 
         assertEquals(0, service.sweepOrphanChunkDirs());
         assertTrue(Files.exists(chunkRoot.resolve("1")), "续传中会话的分片不得被回收");
         assertTrue(Files.exists(chunkRoot.resolve("2")), "合并失败会话的分片须留给补传");
+        verify(fileUploadSessionMapper, times(1)).selectBatchIds(any());
+        verify(fileUploadSessionMapper, never()).selectById(anyLong());
     }
 
     @Test
     @DisplayName("sweepOrphanChunkDirs 回收终态会话的残留目录")
     void sweep_deletesTerminalLeftovers() throws Exception {
         seedChunk(3L, 0, "CC");
-        when(fileUploadSessionMapper.selectById(3L)).thenReturn(session(3L, 99L, "COMPLETED", 4, 4));
+        when(fileUploadSessionMapper.selectBatchIds(any())).thenReturn(List.of(
+                session(3L, 99L, "COMPLETED", 4, 4)));
 
         assertEquals(1, service.sweepOrphanChunkDirs());
         assertFalse(Files.exists(chunkRoot.resolve("3")));

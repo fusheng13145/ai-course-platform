@@ -1,243 +1,279 @@
 <template>
   <section class="module">
-    <PageHead title="上传会话监控">
+    <PageHead title="上传会话与资源库">
       <template #actions>
-        <button class="btn btn-ghost" :disabled="loading" @click="refreshList">
+        <button
+          v-if="activeTab === 'uploads'"
+          class="btn btn-ghost"
+          :disabled="loading"
+          @click="refreshList"
+        >
           {{ loading ? '拉取中…' : '刷新列表' }}
         </button>
       </template>
     </PageHead>
 
-    <div v-if="listError" class="callout">
-      <span>加载失败</span>
-      <p>{{ listError }}</p>
+    <div class="tabs page-tabs" role="tablist" aria-label="内容与资源">
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'uploads' }"
+        role="tab"
+        :aria-selected="activeTab === 'uploads'"
+        @click="activeTab = 'uploads'"
+      >
+        上传会话
+      </button>
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'resources' }"
+        role="tab"
+        :aria-selected="activeTab === 'resources'"
+        data-testid="uploads-resources-tab"
+        @click="activeTab = 'resources'"
+      >
+        资源库与版本
+      </button>
     </div>
 
-    <div class="stat-grid kpi-grid">
-      <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="admin" />
-    </div>
-
-    <section class="card">
-      <header class="card-head">
-        <div>
-          <h2>本地文件分片上传</h2>
-        </div>
-      </header>
-      <input
-        ref="fileInputRef"
-        type="file"
-        class="file-input"
-        aria-label="选择要分片上传的本地文件"
-        @change="onFilePicked"
-      />
-      <div class="filter-row">
-        <button class="btn" :disabled="isUploading" @click="pickFile">
-          {{ pickedFile ? '重新选择' : '选择本地文件' }}
-        </button>
-        <span class="picked">{{
-          pickedFile ? `${pickedFile.name} · ${formatUploadSize(pickedFile.size)}` : '未选择文件'
-        }}</span>
-        <label class="knob">
-          分片大小(MB)
-          <input
-            v-model.number="chunkSizeMb"
-            class="input num"
-            type="number"
-            min="1"
-            :max="MAX_CHUNK_MB"
-            :disabled="isUploading"
-          />
-        </label>
-        <label class="knob">
-          切片阈值(MB)
-          <input
-            v-model.number="thresholdMb"
-            class="input num"
-            type="number"
-            min="1"
-            max="2048"
-            :disabled="isUploading"
-          />
-        </label>
-        <button
-          class="btn btn-primary"
-          :disabled="!pickedFile || isUploading"
-          data-testid="upload-start"
-          @click="startUpload"
-        >
-          {{ uploadStatus === 'FAILED' ? '按磁盘真值续传' : '开始上传' }}
-        </button>
-        <button v-if="isUploading" class="btn btn-danger" @click="cancelUploadFlow">
-          取消本次上传
-        </button>
+    <template v-if="activeTab === 'uploads'">
+      <div v-if="listError" class="callout">
+        <span>加载失败</span>
+        <p>{{ listError }}</p>
       </div>
-      <p class="plan-hint">
-        每片带前端实算的 MD5 由服务端逐片比对；中断后按服务端报告的缺失分片续传，本地不维护进度计数
-      </p>
-      <div class="upload-state">
-        <div class="progress-row">
-          <div
-            class="progress-bar"
-            role="progressbar"
-            aria-label="上传进度"
-            :aria-valuenow="percentage"
-            aria-valuemin="0"
-            aria-valuemax="100"
-          >
-            <i :style="{ '--p': `${percentage}%` }"></i>
+
+      <div class="stat-grid kpi-grid">
+        <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="admin" />
+      </div>
+
+      <section class="card">
+        <header class="card-head">
+          <div>
+            <h2>本地文件分片上传</h2>
           </div>
-          <b class="progress-num">{{ percentage }}%</b>
-        </div>
-        <p class="plan-hint">
-          计划 {{ totalChunks }} 片 · 服务端已落盘 {{ uploadedChunks }} 片
-          <template v-if="sessionId">· 会话 {{ sessionId }}</template>
-        </p>
-      </div>
-      <p v-if="uploadError" class="form-error">{{ uploadError }}</p>
-      <p v-if="mergedUrl" class="result-line" data-testid="upload-result">
-        合并完成，直链：<a :href="mergedUrl" target="_blank" rel="noopener">{{ mergedUrl }}</a>
-      </p>
-    </section>
-
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>
-            上传会话列表 <span class="chip chip-mute">{{ sessions.length }} 条</span>
-          </h2>
-        </div>
-      </header>
-
-      <div v-if="pagedSessions.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="w-80">ID</th>
-              <th>文件名称</th>
-              <th class="w-96">文件大小</th>
-              <th class="w-140">进度</th>
-              <th class="w-96">状态</th>
-              <th class="w-220">创建时间</th>
-              <th class="w-140 th-actions">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in pagedSessions" :key="String(row.id ?? index)">
-              <td>{{ row.id }}</td>
-              <td>
-                <b class="file-name">{{ fileNameOf(row) }}</b>
-              </td>
-              <td>{{ formatUploadSize(sizeOf(row)) }}</td>
-              <td>
-                <span class="progress-inline" :data-testid="`row-progress-${row.id}`">
-                  <i :style="{ '--p': `${progressOf(row)}%` }"></i>
-                </span>
-                {{ progressOf(row) }}%
-              </td>
-              <td>
-                <span class="chip" :class="chipOf(row.status)">{{
-                  uploadStatusLabel(row.status)
-                }}</span>
-              </td>
-              <td>{{ row.createdAt || '—' }}</td>
-              <td>
-                <div class="row-actions">
-                  <template v-if="row.status === 'UPLOADING'">
-                    <button
-                      class="text-btn"
-                      :disabled="mergingId === row.id"
-                      @click="handleMerge(row)"
-                    >
-                      {{ mergingId === row.id ? '合并中…' : '合并' }}
-                    </button>
-                    <button class="text-btn danger" @click="handleCancel(row)">取消</button>
-                  </template>
-                  <button v-else class="text-btn" @click="viewProgress(row)">查看进度</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-else-if="loading" class="empty-state compact"><b>正在加载上传会话…</b></div>
-      <div v-else class="empty-state compact">
-        <span class="e-ico"><Icon name="upload" /></span>
-        <b>{{ emptyDescription() }}</b>
-        <p>
-          {{
-            listError
-              ? '修正后可点右上角「刷新列表」重试。'
-              : '下方「本地文件分片上传」发起一次上传即可产生会话记录。'
-          }}
-        </p>
-      </div>
-
-      <!-- listSessions 一次性返回全量（后端无分页参数），渲染层按 D2-5 客户端切片 -->
-      <footer v-if="showPager" class="card-foot">
-        <span>
-          第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条（每页 {{ pageSize }} 条）
-        </span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-          <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-            下一页
+        </header>
+        <input
+          ref="fileInputRef"
+          type="file"
+          class="file-input"
+          aria-label="选择要分片上传的本地文件"
+          @change="onFilePicked"
+        />
+        <div class="filter-row">
+          <button class="btn" :disabled="isUploading" @click="pickFile">
+            {{ pickedFile ? '重新选择' : '选择本地文件' }}
+          </button>
+          <span class="picked">{{
+            pickedFile ? `${pickedFile.name} · ${formatUploadSize(pickedFile.size)}` : '未选择文件'
+          }}</span>
+          <label class="knob">
+            分片大小(MB)
+            <input
+              v-model.number="chunkSizeMb"
+              class="input num"
+              type="number"
+              min="1"
+              :max="MAX_CHUNK_MB"
+              :disabled="isUploading"
+            />
+          </label>
+          <label class="knob">
+            切片阈值(MB)
+            <input
+              v-model.number="thresholdMb"
+              class="input num"
+              type="number"
+              min="1"
+              max="2048"
+              :disabled="isUploading"
+            />
+          </label>
+          <button
+            class="btn btn-primary"
+            :disabled="!pickedFile || isUploading"
+            data-testid="upload-start"
+            @click="startUpload"
+          >
+            {{ uploadStatus === 'FAILED' ? '按磁盘真值续传' : '开始上传' }}
+          </button>
+          <button v-if="isUploading" class="btn btn-danger" @click="cancelUploadFlow">
+            取消本次上传
           </button>
         </div>
-      </footer>
-    </section>
-
-    <Modal v-model:open="progressOpen" title="上传进度" width="520px" @close="stopPolling()">
-      <div v-if="currentRow" class="detail-grid">
-        <p>
-          <span>文件</span><b>{{ fileNameOf(currentRow) }}</b>
+        <p class="plan-hint">
+          每片带前端实算的 MD5
+          由服务端逐片比对；中断后按服务端报告的缺失分片续传，本地不维护进度计数
         </p>
-        <p>
-          <span>大小</span><b>{{ formatUploadSize(sizeOf(currentRow)) }}</b>
-        </p>
-        <p>
-          <span>状态</span>
-          <b>
-            <span class="chip" :class="chipOf(currentRow.status)">
-              {{ uploadStatusLabel(currentRow.status) }}
-            </span>
-          </b>
-        </p>
-      </div>
-      <div class="progress-row detail-row">
-        <div class="progress-bar detail-bar">
-          <i :style="{ '--p': `${progressOf(currentRow)}%` }"></i>
+        <div class="upload-state">
+          <div class="progress-row">
+            <div
+              class="progress-bar"
+              role="progressbar"
+              aria-label="上传进度"
+              :aria-valuenow="percentage"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <i :style="{ '--p': `${percentage}%` }"></i>
+            </div>
+            <b class="progress-num">{{ percentage }}%</b>
+          </div>
+          <p class="plan-hint">
+            计划 {{ totalChunks }} 片 · 服务端已落盘 {{ uploadedChunks }} 片
+            <template v-if="sessionId">· 会话 {{ sessionId }}</template>
+          </p>
         </div>
-        <b class="progress-num">{{ progressOf(currentRow) }}%</b>
-      </div>
-      <p v-if="progressMissing.length" class="missing-line">
-        缺失分片序号：{{ progressMissing.join('、') }}（补齐后即可合并）
-      </p>
-      <p v-if="progressError" class="form-error">{{ progressError }}</p>
-      <p class="modal-hint">
-        <template v-if="currentRow?.status === 'UPLOADING'">
-          每 5 秒刷新一次；进度与缺失分片取自服务端磁盘上的实际分片文件
-        </template>
-        <template v-else>{{
-          lastProgressUpdatedAt ? `最近更新：${lastProgressUpdatedAt}` : '会话已结束'
-        }}</template>
-      </p>
-      <template #footer>
-        <button class="btn btn-ghost" @click="progressOpen = false">关闭</button>
-      </template>
-    </Modal>
+        <p v-if="uploadError" class="form-error">{{ uploadError }}</p>
+        <p v-if="mergedUrl" class="result-line" data-testid="upload-result">
+          合并完成，直链：<a :href="mergedUrl" target="_blank" rel="noopener">{{ mergedUrl }}</a>
+        </p>
+      </section>
 
-    <Modal
-      v-model:open="askState.open"
-      :title="askState.title"
-      width="460px"
-      @close="resolveAsk(false)"
-    >
-      <p class="modal-text">{{ askState.text }}</p>
-      <template #footer>
-        <button class="btn btn-ghost" @click="resolveAsk(false)">{{ askState.cancelText }}</button>
-        <button class="btn btn-danger" @click="resolveAsk(true)">{{ askState.confirmText }}</button>
-      </template>
-    </Modal>
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>
+              上传会话列表 <span class="chip chip-mute">{{ sessions.length }} 条</span>
+            </h2>
+          </div>
+        </header>
+
+        <div v-if="pagedSessions.length" class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="w-80">ID</th>
+                <th>文件名称</th>
+                <th class="w-96">文件大小</th>
+                <th class="w-140">进度</th>
+                <th class="w-96">状态</th>
+                <th class="w-220">创建时间</th>
+                <th class="w-140 th-actions">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in pagedSessions" :key="String(row.id ?? index)">
+                <td>{{ row.id }}</td>
+                <td>
+                  <b class="file-name">{{ fileNameOf(row) }}</b>
+                </td>
+                <td>{{ formatUploadSize(sizeOf(row)) }}</td>
+                <td>
+                  <span class="progress-inline" :data-testid="`row-progress-${row.id}`">
+                    <i :style="{ '--p': `${progressOf(row)}%` }"></i>
+                  </span>
+                  {{ progressOf(row) }}%
+                </td>
+                <td>
+                  <span class="chip" :class="chipOf(row.status)">{{
+                    uploadStatusLabel(row.status)
+                  }}</span>
+                </td>
+                <td>{{ row.createdAt || '—' }}</td>
+                <td>
+                  <div class="row-actions">
+                    <template v-if="row.status === 'UPLOADING'">
+                      <button
+                        class="text-btn"
+                        :disabled="mergingId === row.id"
+                        @click="handleMerge(row)"
+                      >
+                        {{ mergingId === row.id ? '合并中…' : '合并' }}
+                      </button>
+                      <button class="text-btn danger" @click="handleCancel(row)">取消</button>
+                    </template>
+                    <button v-else class="text-btn" @click="viewProgress(row)">查看进度</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else-if="loading" class="empty-state compact"><b>正在加载上传会话…</b></div>
+        <div v-else class="empty-state compact">
+          <span class="e-ico"><Icon name="upload" /></span>
+          <b>{{ emptyDescription() }}</b>
+          <p>
+            {{
+              listError
+                ? '修正后可点右上角「刷新列表」重试。'
+                : '下方「本地文件分片上传」发起一次上传即可产生会话记录。'
+            }}
+          </p>
+        </div>
+
+        <!-- listSessions 一次性返回全量（后端无分页参数），渲染层按 D2-5 客户端切片 -->
+        <footer v-if="showPager" class="card-foot">
+          <span>
+            第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条（每页 {{ pageSize }} 条）
+          </span>
+          <div class="pager">
+            <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
+            <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
+              下一页
+            </button>
+          </div>
+        </footer>
+      </section>
+
+      <Modal v-model:open="progressOpen" title="上传进度" width="520px" @close="stopPolling()">
+        <div v-if="currentRow" class="detail-grid">
+          <p>
+            <span>文件</span><b>{{ fileNameOf(currentRow) }}</b>
+          </p>
+          <p>
+            <span>大小</span><b>{{ formatUploadSize(sizeOf(currentRow)) }}</b>
+          </p>
+          <p>
+            <span>状态</span>
+            <b>
+              <span class="chip" :class="chipOf(currentRow.status)">
+                {{ uploadStatusLabel(currentRow.status) }}
+              </span>
+            </b>
+          </p>
+        </div>
+        <div class="progress-row detail-row">
+          <div class="progress-bar detail-bar">
+            <i :style="{ '--p': `${progressOf(currentRow)}%` }"></i>
+          </div>
+          <b class="progress-num">{{ progressOf(currentRow) }}%</b>
+        </div>
+        <p v-if="progressMissing.length" class="missing-line">
+          缺失分片序号：{{ progressMissing.join('、') }}（补齐后即可合并）
+        </p>
+        <p v-if="progressError" class="form-error">{{ progressError }}</p>
+        <p class="modal-hint">
+          <template v-if="currentRow?.status === 'UPLOADING'">
+            每 5 秒刷新一次；进度与缺失分片取自服务端磁盘上的实际分片文件
+          </template>
+          <template v-else>{{
+            lastProgressUpdatedAt ? `最近更新：${lastProgressUpdatedAt}` : '会话已结束'
+          }}</template>
+        </p>
+        <template #footer>
+          <button class="btn btn-ghost" @click="progressOpen = false">关闭</button>
+        </template>
+      </Modal>
+
+      <Modal
+        v-model:open="askState.open"
+        :title="askState.title"
+        width="460px"
+        @close="resolveAsk(false)"
+      >
+        <p class="modal-text">{{ askState.text }}</p>
+        <template #footer>
+          <button class="btn btn-ghost" @click="resolveAsk(false)">
+            {{ askState.cancelText }}
+          </button>
+          <button class="btn btn-danger" @click="resolveAsk(true)">
+            {{ askState.confirmText }}
+          </button>
+        </template>
+      </Modal>
+    </template>
+
+    <ResourceLibraryPanel v-else />
   </section>
 </template>
 
@@ -247,6 +283,7 @@ import PageHead from '../../components/PageHead.vue'
 import Modal from '../../components/Modal.vue'
 import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
+import ResourceLibraryPanel from '../specials/ResourceLibraryPanel.vue'
 import { useUi } from '../../composables/ui'
 import { useListFeedback } from '@/composables/useListFeedback'
 import { useClientPagination } from '@/composables/useClientPagination'
@@ -280,6 +317,7 @@ const MAX_CHUNK_MB = Math.floor(MAX_CHUNK_SIZE / MB)
 const chipClass = { ok: 'chip-ok', warn: 'chip-warn', danger: 'chip-danger', info: 'chip-mute' }
 
 const { toast } = useUi()
+const activeTab = ref<'uploads' | 'resources'>('uploads')
 /** 的 toast 色调与 EP 的四档不同，这里做一次语义映射 */
 const notify = {
   info: (message: string) => toast(message, 'info'),

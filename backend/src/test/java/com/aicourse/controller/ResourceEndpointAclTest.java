@@ -52,6 +52,8 @@ class ResourceEndpointAclTest extends ControllerTestBase {
     private com.aicourse.security.AdminScopeGuard adminScopeGuard;
     @MockitoBean
     private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
 
     private static final Long COURSE_ID = 1L;
     private static final Long TEACHER_ID = 10L;

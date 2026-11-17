@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.common.StorageLayout;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.FileUploadSession;
 import com.aicourse.entity.Resource;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
@@ -29,7 +30,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,6 +49,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -97,6 +98,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private com.aicourse.security.AdminScopeGuard adminScopeGuard;
     @MockitoBean
     private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
 
     @BeforeEach
     void stubStorage() {
@@ -117,6 +120,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         org.mockito.Mockito.when(fileStorageService.deleteByUrl(
                         org.mockito.ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> StorageLayout.deleteByUrl((String) inv.getArgument(0)));
+        org.mockito.Mockito.when(fileStorageService.download(
+                        org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> StorageLayout.openRead((String) inv.getArgument(0)));
     }
 
     private static final long COURSE_ID = 1L;
@@ -200,22 +206,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("上传（pdf）：uploads 目录不存在时 mkdirs 创建成功并落盘")
+    @DisplayName("上传（pdf）：外部存储根不存在时 mkdirs 创建成功并落盘")
     void upload_createsUploadDirWhenAbsent() throws Exception {
-        // 尽力清空目录以稳定走到 !dir.exists() && dir.mkdirs() 分支；目录非空删除失败时不影响其余断言。
-        try {
-            Path dir = Paths.get("uploads");
-            if (Files.isDirectory(dir)) {
-                try (var s = Files.list(dir)) {
-                    List<Path> leftovers = s.toList();
-                    if (leftovers.isEmpty()) {
-                        Files.delete(dir);
-                    }
-                }
-            }
-        } catch (IOException ignored) {
-            // 清理失败不阻断本用例：后续上传仍会成功
-        }
+        // 仓库内 uploads/ 已移除，落盘根固定为外部存储根（写入路径由 StorageLayout 自动 mkdirs）。
         uploadAndAssert("讲义.pdf", "application/pdf", PDF_BYTES, ".pdf");
     }
 
@@ -359,13 +352,77 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("文件内容与声明类型不符，已拒绝上传"));
     }
 
+    // ==================== B-11 分片合并后登记资源 ====================
+
+    private FileUploadSession completedSession(long uploaderId, String filename, String uploadPath) {
+        FileUploadSession session = new FileUploadSession();
+        session.setId(7L);
+        session.setUploaderId(uploaderId);
+        session.setFilename(filename);
+        session.setUploadPath(uploadPath);
+        session.setFileSize((long) PDF_BYTES.length);
+        session.setStatus("COMPLETED");
+        return session;
+    }
+
+    @Test
+    @DisplayName("分片登记：非会话 owner -> 403")
+    void fromUploadSession_notOwner_rejected() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
+        when(fileUploadSessionService.getById(7L))
+                .thenReturn(completedSession(OTHER_TEACHER, "a.pdf", "2026/11/a.pdf"));
+
+        mockMvc.perform(post("/resources/from-upload-session/7")
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(OWNER_TEACHER, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(resourceService, never()).save(any(Resource.class));
+    }
+
+    @Test
+    @DisplayName("分片登记：COMPLETED + 魔数匹配 -> 落 resources 与首版")
+    void fromUploadSession_completed_registersResource() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
+        when(fileUploadSessionService.getById(7L))
+                .thenReturn(completedSession(OWNER_TEACHER, "a.pdf", "2026/11/a.pdf"));
+        StorageLayout.writeBytes("2026/11/a.pdf", PDF_BYTES);
+
+        mockMvc.perform(post("/resources/from-upload-session/7")
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .param("description", "讲义")
+                        .with(withUser(OWNER_TEACHER, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.url").value(StorageLayout.publicUrl("2026/11/a.pdf")))
+                .andExpect(jsonPath("$.data.courseId").value(COURSE_ID));
+
+        verify(resourceService).save(any(Resource.class));
+        verify(resourceVersionService).createNewVersion(any(), eq("a.pdf"), eq("application/pdf"),
+                eq(StorageLayout.publicUrl("2026/11/a.pdf")), eq("分片上传"), eq(OWNER_TEACHER),
+                eq((long) PDF_BYTES.length));
+    }
+
+    @Test
+    @DisplayName("分片登记：扩展名不在白名单 -> 400 且不落库")
+    void fromUploadSession_unsupportedExtension_rejected() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
+        when(fileUploadSessionService.getById(7L))
+                .thenReturn(completedSession(OWNER_TEACHER, "a.exe", "2026/11/a.exe"));
+
+        mockMvc.perform(post("/resources/from-upload-session/7")
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(OWNER_TEACHER, "TEACHER")))
+                .andExpect(status().isBadRequest());
+        verify(resourceService, never()).save(any(Resource.class));
+    }
+
     // ==================== 上传：直接调用补不可经 MVC 注入的异常面 ====================
 
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
         return new ResourceController(rs, cs, es,
                 mock(com.aicourse.service.ResourceVersionService.class), fileStorageService,
-                adminScopeGuard, courseAccessControl);
+                adminScopeGuard, courseAccessControl,
+                mock(com.aicourse.service.FileUploadSessionService.class));
     }
 
     private Authentication teacherAuth() {
@@ -464,10 +521,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("下载：成功 200，Content-Disposition 文件名 CRLF/引号被清洗（防头注入）")
     void downloadResource_sanitizesHeaderFileName() throws Exception {
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_dl_ok.pdf");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_dl_ok.pdf", PDF_BYTES);
         try {
             when(resourceService.getById(7L))
                     .thenReturn(resourceOf(7L, COURSE_ID, "/uploads/cov_dl_ok.pdf", "evil\r\nname\"x.pdf"));
@@ -483,10 +537,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("下载：fileName 为 null -> sanitizeHeaderValue 回退 \"file\"")
     void downloadResource_nullFileName_fallsToFile() throws Exception {
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_dl_nullname.pdf");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_dl_nullname.pdf", PDF_BYTES);
         try {
             when(resourceService.getById(8L))
                     .thenReturn(resourceOf(8L, COURSE_ID, "/uploads/cov_dl_nullname.pdf", null));
@@ -548,10 +599,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("下载：已报名学生 -> 200（canAccessResource 学生放行侧）")
     void downloadResource_enrolledStudent_ok() throws Exception {
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_dl_student.pdf");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_dl_student.pdf", PDF_BYTES);
         try {
             when(resourceService.getById(16L))
                     .thenReturn(resourceOf(16L, COURSE_ID, "/uploads/cov_dl_student.pdf", "s.pdf"));
@@ -659,10 +707,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(403))
                 .andExpect(jsonPath("$.message").value("无权删除该课程资源"));
 
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_del.tmp");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_del.tmp", PDF_BYTES);
         when(resourceService.getById(29L)).thenReturn(resourceOf(29L, COURSE_ID, "/uploads/cov_del.tmp", "d.tmp"));
         when(resourceService.removeById(29L)).thenReturn(true);
         // WP9 只读矩阵：资源删除面已摘除 ADMIN，真实删除路径由课程负责教师走通

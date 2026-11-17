@@ -2,7 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 加载指示走浏览器标签图标的动画（见 src/utils/loadingIndicator.ts），页面内不再渲染任何浮层 -->
+    <link id="app-favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- PWA manifest（2026-11-07 P3 批次）：可安装 + 独立窗口；不含 Service Worker（无离线承诺）。
          theme-color 与 manifest theme_color 保持一致，暗色模式由运行时主题类处理。 -->
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -20,22 +21,6 @@
     <title>AI智能课程平台</title>
   </head>
   <body>
-    <!-- 全局请求加载进度条 -->
-    <div
-      id="global-loading-bar"
-      style="
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: 9999;
-        height: 3px;
-        width: 0%;
-        background: linear-gradient(90deg, #409eff, #67c23a);
-        border-radius: 0 2px 2px 0;
-        pointer-events: none;
-      "
-    ></div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -29,7 +29,6 @@ const dataApi = vi.hoisted(() => ({
 }))
 const router = vi.hoisted(() => ({
   push: vi.fn(),
-  // resolve 只用于拼新标签页 href；测试里原样返回路径
   resolve: vi.fn((to: string) => ({ href: to })),
 }))
 
@@ -150,7 +149,7 @@ describe('学生「加入课程」= 真实选课写口（非演示动作）', ()
     // 打开前先把登录态镜像给新标签页，否则新页会被守卫弹回登录页
     expect(authStore.mirrorUserForNewTab).toHaveBeenCalledTimes(1)
     expect(openSpy).toHaveBeenCalledWith('/student/courses/4008/overview', '_blank', 'noopener')
-    // 当前页不跳转：筛选与滚动位置保留
+    // 当前页不跳转：筛选与滚动位置保留；返回列表由用户直接关闭课程标签页完成
     expect(router.push).not.toHaveBeenCalled()
     openSpy.mockRestore()
     wrapper.unmount()

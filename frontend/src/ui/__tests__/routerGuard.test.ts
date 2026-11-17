@@ -18,10 +18,9 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => store,
 }))
 
-// 进度条只关心被调用，不引入真实 NProgress 的 DOM 副作用
-vi.mock('nprogress', () => ({
-  default: { start: vi.fn(), done: vi.fn(), configure: vi.fn() },
-}))
+// 加载指示器只关心被调用，不引入真实 DOM 副作用
+const loading = vi.hoisted(() => ({ showLoading: vi.fn(), hideLoading: vi.fn() }))
+vi.mock('@/utils/loadingIndicator', () => loading)
 
 // 懒加载视图在导航时会被真实 import，这里逐个存根，测试因此不触碰任何视图/接口
 vi.mock('../Shell.vue', () => ({ default: { name: 'Shell' } }))
@@ -125,5 +124,12 @@ describe('自有 router 的鉴权守卫', () => {
 
     expect(router.currentRoute.value.path).toBe('/503')
     expect(store.fetchPermissions).not.toHaveBeenCalled()
+  })
+
+  it('每次导航都成对调用加载指示器（不漏减，也不多减）', async () => {
+    await router.push('/login')
+
+    expect(loading.showLoading).toHaveBeenCalledTimes(1)
+    expect(loading.hideLoading).toHaveBeenCalledTimes(1)
   })
 })

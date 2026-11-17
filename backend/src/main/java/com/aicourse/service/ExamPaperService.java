@@ -60,6 +60,14 @@ public interface ExamPaperService extends IService<ExamPaper> {
     void rejectExamPaper(Long paperId, String reason);
 
     /**
+     * 归档试卷：PUBLISHED → ARCHIVED，幂等。
+     * <p>已产生考试记录的试卷不允许物理删除（DELETE 返回 409），归档是 409 文案指定的出路：
+     * 只撤出学生可见面（学生列表只筛 PUBLISHED），保留题目行、考试会话与监考记录。</p>
+     * @param paperId 试卷ID
+     */
+    void archiveExamPaper(Long paperId);
+
+    /**
      * 复制试卷
      * @param sourcePaperId 源试卷ID
      * @param newTitle 新试卷标题

@@ -32,6 +32,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -314,6 +316,31 @@ class ExamSessionServiceImplTest {
         assertEquals("{\"101\":\"A\"}", result.getAnswers());
         assertNotNull(result.getSubmitTime());
         verify(examSessionMapper).update(isNull(), any());
+    }
+
+    @Test
+    @DisplayName("submitExam - 事务提交后注册自动判分回调")
+    void testSubmitExam_AutoGradeAfterCommit() {
+        when(examSessionMapper.update(isNull(), any())).thenReturn(1);
+        ExamSession submitted = new ExamSession();
+        submitted.setId(1L);
+        submitted.setStatus("SUBMITTED");
+        submitted.setAnswers("{\"101\":\"A\"}");
+        when(examSessionMapper.selectById(1L)).thenReturn(startedSession, submitted);
+
+        Map<String, Object> answers = new HashMap<>();
+        answers.put("101", "A");
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            examSessionService.submitExam(1L, answers);
+            List<TransactionSynchronization> synchronizations =
+                    TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, synchronizations.size(), "交卷应注册一个 afterCommit 判分回调");
+            synchronizations.get(0).afterCommit();
+            verify(gradingService).autoGrade(1L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

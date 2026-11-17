@@ -79,6 +79,9 @@
                   <button class="text-btn" :disabled="copyingId === row.id" @click="copyRow(row)">
                     {{ copyingId === row.id ? '复制中…' : '复制' }}
                   </button>
+                  <button v-if="canArchive(row)" class="text-btn" @click="archiveRow(row)">
+                    归档
+                  </button>
                   <template v-if="statusView(row).canPublish">
                     <button class="text-btn" @click="openEdit(row)">编辑</button>
                     <button class="text-btn" @click="publishRow(row)">提交审核</button>
@@ -221,6 +224,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
+  archiveExamPaper,
   copyExam,
   createExamPaper,
   deleteExamPaper,
@@ -606,6 +610,24 @@ function publishRow(row: ExamRow) {
     action: async () => {
       await publishExam(row.id)
       toast('已提交审核', 'ok')
+      await loadExams()
+    },
+  })
+}
+
+function canArchive(row: ExamRow) {
+  return String(row.status).toUpperCase() === 'PUBLISHED'
+}
+
+function archiveRow(row: ExamRow) {
+  askConfirm({
+    title: '归档试卷',
+    message: `归档后「${row.title}」会从学生考试列表移除，但历史作答、成绩与监考记录全部保留，可在需要时回看。`,
+    confirmText: '归档',
+    danger: false,
+    action: async () => {
+      await archiveExamPaper(row.id)
+      toast('试卷已归档', 'ok')
       await loadExams()
     },
   })

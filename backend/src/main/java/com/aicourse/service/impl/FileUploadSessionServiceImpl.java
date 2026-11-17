@@ -558,16 +558,24 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             log.error("分片根目录读取失败: {}", root, e);
             throw new BusinessException("分片根目录读取失败");
         }
-        int swept = 0;
+        Map<Path, Long> dirSessionIds = new HashMap<>();
         for (Path dir : dirs) {
-            long sessionId;
             try {
-                sessionId = Long.parseLong(dir.getFileName().toString());
+                dirSessionIds.put(dir, Long.parseLong(dir.getFileName().toString()));
             } catch (NumberFormatException e) {
                 log.warn("分片根目录下有非会话 id 命名的目录，跳过不回收: {}", dir);
-                continue;
             }
-            FileUploadSession session = this.getById(sessionId);
+        }
+        if (dirSessionIds.isEmpty()) {
+            return 0;
+        }
+        // B-03：一次批量取会话行，避免「每个孤儿目录一次 selectById」的 N+1。
+        Map<Long, FileUploadSession> sessions = this.listByIds(dirSessionIds.values()).stream()
+                .collect(java.util.stream.Collectors.toMap(FileUploadSession::getId, s -> s));
+        int swept = 0;
+        for (Map.Entry<Path, Long> entry : dirSessionIds.entrySet()) {
+            long sessionId = entry.getValue();
+            FileUploadSession session = sessions.get(sessionId);
             boolean reclaimable = session == null
                     || "COMPLETED".equals(session.getStatus())
                     || "CANCELLED".equals(session.getStatus());

@@ -21,6 +21,20 @@ public interface QuestionService extends com.baomidou.mybatisplus.extension.serv
     Question createQuestion(Question question);
 
     /**
+     * 更新题目（统一入口，负责失效题库列表与详情缓存）。
+     * @param question 题目信息（必须带 id）
+     * @return 是否更新成功
+     */
+    boolean updateQuestion(Question question);
+
+    /**
+     * 删除题目（统一入口，负责失效题库列表与详情缓存）。
+     * @param id 题目 ID
+     * @return 是否删除成功
+     */
+    boolean deleteQuestion(Long id);
+
+    /**
      * AI生成题目（对接AIService）
      * @param courseId 课程ID
      * @param type 题目类型

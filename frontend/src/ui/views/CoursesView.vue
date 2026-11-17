@@ -125,6 +125,7 @@ const emptyHint = computed(() =>
 /**
  * 课程卡在新标签页打开：列表页状态（筛选、滚动位置）不被覆盖，
  * 也便于同时对照多门课。href 走 router.resolve，保留 base 与查询串。
+ * 返回列表 = 关掉课程标签页（原列表页仍在，不会叠出第二份）。
  */
 function open(id: number) {
   const href = router.resolve(`/${role.value}/courses/${id}/overview`).href

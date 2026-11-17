@@ -1,176 +1,203 @@
 <template>
   <section class="notices-body">
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>发布公告</h2>
-        </div>
-      </header>
-      <div class="form-grid publish-grid">
-        <label class="field"
-          ><span>受众类型 *</span>
-          <select v-model="form.audienceType" class="input" data-testid="notice-audience">
-            <option value="course">课程（全部在读学生 + 授课教师）</option>
-            <option value="teachingClass">教学班（班成员 + 主讲）</option>
-            <option value="adminClass">行政班（在册学生 + 班主任）</option>
-          </select>
-        </label>
-        <label v-if="form.audienceType === 'course'" class="field"
-          ><span>课程 *</span>
-          <select v-model="form.courseId" class="input">
-            <option :value="null" disabled>请选择课程</option>
-            <option v-for="course in courses" :key="String(course.id)" :value="course.id">
-              {{ course.name }}（#{{ course.id }}）
-            </option>
-          </select>
-        </label>
-        <template v-if="form.audienceType === 'teachingClass'">
+    <div class="tabs page-tabs" role="tablist" aria-label="通知与提醒">
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'notices' }"
+        role="tab"
+        :aria-selected="activeTab === 'notices'"
+        @click="activeTab = 'notices'"
+      >
+        通知公告
+      </button>
+      <button
+        class="btn btn-sm"
+        :class="{ 'is-active': activeTab === 'reminders' }"
+        role="tab"
+        :aria-selected="activeTab === 'reminders'"
+        data-testid="notices-reminders-tab"
+        @click="activeTab = 'reminders'"
+      >
+        催交提醒
+      </button>
+    </div>
+
+    <template v-if="activeTab === 'notices'">
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>发布公告</h2>
+          </div>
+        </header>
+        <div class="form-grid publish-grid">
           <label class="field"
+            ><span>受众类型 *</span>
+            <select v-model="form.audienceType" class="input" data-testid="notice-audience">
+              <option value="course">课程（全部在读学生 + 授课教师）</option>
+              <option value="teachingClass">教学班（班成员 + 主讲）</option>
+              <option value="adminClass">行政班（在册学生 + 班主任）</option>
+            </select>
+          </label>
+          <label v-if="form.audienceType === 'course'" class="field"
             ><span>课程 *</span>
-            <select v-model="form.tcCourseId" class="input">
-              <option :value="null" disabled>先选课程</option>
+            <select v-model="form.courseId" class="input">
+              <option :value="null" disabled>请选择课程</option>
               <option v-for="course in courses" :key="String(course.id)" :value="course.id">
                 {{ course.name }}（#{{ course.id }}）
               </option>
             </select>
           </label>
-          <label class="field"
-            ><span>教学班 *</span>
-            <select v-model="form.teachingClassId" class="input" :disabled="!form.tcCourseId">
-              <option :value="null" disabled>
-                {{ form.tcCourseId ? '请选择教学班' : '先选课程' }}
-              </option>
-              <option v-for="tc in tcOptions" :key="String(tc.id)" :value="tc.id">
-                {{ tc.name }}
+          <template v-if="form.audienceType === 'teachingClass'">
+            <label class="field"
+              ><span>课程 *</span>
+              <select v-model="form.tcCourseId" class="input">
+                <option :value="null" disabled>先选课程</option>
+                <option v-for="course in courses" :key="String(course.id)" :value="course.id">
+                  {{ course.name }}（#{{ course.id }}）
+                </option>
+              </select>
+            </label>
+            <label class="field"
+              ><span>教学班 *</span>
+              <select v-model="form.teachingClassId" class="input" :disabled="!form.tcCourseId">
+                <option :value="null" disabled>
+                  {{ form.tcCourseId ? '请选择教学班' : '先选课程' }}
+                </option>
+                <option v-for="tc in tcOptions" :key="String(tc.id)" :value="tc.id">
+                  {{ tc.name }}
+                </option>
+              </select>
+            </label>
+          </template>
+          <label v-if="form.audienceType === 'adminClass'" class="field"
+            ><span>行政班 *</span>
+            <select v-model="form.adminClassId" class="input">
+              <option :value="null" disabled>请选择行政班</option>
+              <option v-for="ac in adminClasses" :key="String(ac.id)" :value="ac.id">
+                {{ ac.name }}（{{ ac.studentCount ?? 0 }} 人）
               </option>
             </select>
           </label>
-        </template>
-        <label v-if="form.audienceType === 'adminClass'" class="field"
-          ><span>行政班 *</span>
-          <select v-model="form.adminClassId" class="input">
-            <option :value="null" disabled>请选择行政班</option>
-            <option v-for="ac in adminClasses" :key="String(ac.id)" :value="ac.id">
-              {{ ac.name }}（{{ ac.studentCount ?? 0 }} 人）
-            </option>
-          </select>
-        </label>
-        <label class="field span-2"
-          ><span>标题 *</span>
-          <input
-            v-model="form.title"
-            class="input"
-            data-testid="notice-title"
-            placeholder="公告标题"
-          />
-        </label>
-        <label class="field span-2"
-          ><span>正文 *</span>
-          <textarea
-            v-model="form.content"
-            class="input textarea"
-            data-testid="notice-content"
-            rows="4"
-            placeholder="公告正文；发布后按受众扇出到站内通知（去重）"
-          ></textarea>
-        </label>
-      </div>
-      <p v-if="publishError" class="form-error" role="alert">{{ publishError }}</p>
-      <div class="publish-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="publishing"
-          data-testid="notice-publish"
-          @click="publish"
-        >
-          {{ publishing ? '发布中…' : '发布公告' }}
-        </button>
-        <span class="hint-inline">受众在发布时去重；非受众不可见（403）。</span>
-      </div>
-    </section>
-
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>
-            公告记录 <span class="chip chip-mute">{{ total }} 条</span>
-          </h2>
+          <label class="field span-2"
+            ><span>标题 *</span>
+            <input
+              v-model="form.title"
+              class="input"
+              data-testid="notice-title"
+              placeholder="公告标题"
+            />
+          </label>
+          <label class="field span-2"
+            ><span>正文 *</span>
+            <textarea
+              v-model="form.content"
+              class="input textarea"
+              data-testid="notice-content"
+              rows="4"
+              placeholder="公告正文；发布后按受众扇出到站内通知（去重）"
+            ></textarea>
+          </label>
         </div>
-        <div class="filter-row class-tools">
-          <input
-            v-model="keyword"
-            class="input search-input"
-            type="search"
-            placeholder="搜索标题 / 正文"
-            aria-label="搜索公告"
-            @keyup.enter="loadAnnouncements(true)"
-          />
-          <select
-            v-model="targetType"
-            class="input filter-select"
-            aria-label="按受众类型筛选"
-            @change="loadAnnouncements(true)"
-          >
-            <option :value="''">全部类型</option>
-            <option value="course">课程</option>
-            <option value="teachingClass">教学班</option>
-            <option value="adminClass">行政班</option>
-          </select>
-          <button class="btn btn-sm" :disabled="loading" @click="loadAnnouncements(true)">
-            {{ loading ? '查询中…' : '查询' }}
-          </button>
-        </div>
-      </header>
-      <div v-if="rows.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>标题 / 正文摘要</th>
-              <th class="w-140">受众</th>
-              <th class="w-140">发布人</th>
-              <th class="w-140">发布时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="String(row.id)">
-              <td>
-                <b>{{ row.title || '—' }}</b>
-                <small class="cell-sub">{{ brief(row.content) }}</small>
-              </td>
-              <td>{{ audienceLabel(row) }}</td>
-              <td>{{ row.publisherRole || '—' }} #{{ row.publisherId ?? '—' }}</td>
-              <td>{{ briefTime(row.createdAt) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-else-if="loading" class="empty-state compact"><b>正在加载公告…</b></div>
-      <div v-else class="empty-state compact">
-        <b>暂无公告</b>
-        <p>发布后会按受众扇出到站内通知。</p>
-      </div>
-      <footer v-if="total > pageSize" class="card-foot">
-        <span>第 {{ page }} 页 · 共 {{ total }} 条</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1 || loading" @click="turnPage(page - 1)">
-            上一页
-          </button>
+        <p v-if="publishError" class="form-error" role="alert">{{ publishError }}</p>
+        <div class="publish-actions">
           <button
-            class="btn btn-sm"
-            :disabled="page * pageSize >= total || loading"
-            @click="turnPage(page + 1)"
+            class="btn btn-primary"
+            :disabled="publishing"
+            data-testid="notice-publish"
+            @click="publish"
           >
-            下一页
+            {{ publishing ? '发布中…' : '发布公告' }}
           </button>
+          <span class="hint-inline">受众在发布时去重；非受众不可见（403）。</span>
         </div>
-      </footer>
-    </section>
+      </section>
+
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>
+              公告记录 <span class="chip chip-mute">{{ total }} 条</span>
+            </h2>
+          </div>
+          <div class="filter-row class-tools">
+            <input
+              v-model="keyword"
+              class="input search-input"
+              type="search"
+              placeholder="搜索标题 / 正文"
+              aria-label="搜索公告"
+              @keyup.enter="loadAnnouncements(true)"
+            />
+            <select
+              v-model="targetType"
+              class="input filter-select"
+              aria-label="按受众类型筛选"
+              @change="loadAnnouncements(true)"
+            >
+              <option :value="''">全部类型</option>
+              <option value="course">课程</option>
+              <option value="teachingClass">教学班</option>
+              <option value="adminClass">行政班</option>
+            </select>
+            <button class="btn btn-sm" :disabled="loading" @click="loadAnnouncements(true)">
+              {{ loading ? '查询中…' : '查询' }}
+            </button>
+          </div>
+        </header>
+        <div v-if="rows.length" class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>标题 / 正文摘要</th>
+                <th class="w-140">受众</th>
+                <th class="w-140">发布人</th>
+                <th class="w-140">发布时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in rows" :key="String(row.id)">
+                <td>
+                  <b>{{ row.title || '—' }}</b>
+                  <small class="cell-sub">{{ brief(row.content) }}</small>
+                </td>
+                <td>{{ audienceLabel(row) }}</td>
+                <td>{{ row.publisherRole || '—' }} #{{ row.publisherId ?? '—' }}</td>
+                <td>{{ briefTime(row.createdAt) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else-if="loading" class="empty-state compact"><b>正在加载公告…</b></div>
+        <div v-else class="empty-state compact">
+          <b>暂无公告</b>
+          <p>发布后会按受众扇出到站内通知。</p>
+        </div>
+        <footer v-if="total > pageSize" class="card-foot">
+          <span>第 {{ page }} 页 · 共 {{ total }} 条</span>
+          <div class="pager">
+            <button class="btn btn-sm" :disabled="page <= 1 || loading" @click="turnPage(page - 1)">
+              上一页
+            </button>
+            <button
+              class="btn btn-sm"
+              :disabled="page * pageSize >= total || loading"
+              @click="turnPage(page + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </footer>
+      </section>
+    </template>
+
+    <RemindersPanel v-else />
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useUi } from '../../composables/ui'
+import RemindersPanel from './RemindersPanel.vue'
 import {
   getAllAnnouncements,
   getColleges,
@@ -201,6 +228,7 @@ interface OptionRow {
 }
 
 const { toast } = useUi()
+const activeTab = ref<'notices' | 'reminders'>('notices')
 
 const rows = ref<NoticeRow[]>([])
 const page = ref(1)

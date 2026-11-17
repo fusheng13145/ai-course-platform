@@ -3,7 +3,7 @@ import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestCo
 import { apiHost, type ApiMessageHost } from '@/api/apiHost'
 import { useAuthStore } from '@/stores/auth'
 import { disconnect as wsDisconnect } from '@/utils/websocket'
-import { showLoading, hideLoading } from '@/utils/loadingBar'
+import { showLoading, hideLoading } from '@/utils/loadingIndicator'
 import { getRequestKey, generateReqKey } from '@/api/requestKey'
 import {
   getStatusMessage,
@@ -12,7 +12,7 @@ import {
   extractFieldErrorSummary,
 } from '@/utils/requestError'
 
-// 全局 Loading 进度条已抽离至 @/utils/loadingBar（HTTP 层不直接操作 DOM）
+// 全局加载指示（转圈）已抽离至 @/utils/loadingIndicator（HTTP 层不直接操作 DOM）
 
 // ==================== 消息去重（防连续弹窗堆叠） ====================
 const messageCache = new Map<string, number>()
@@ -246,7 +246,7 @@ service.interceptors.request.use(
   (config) => {
     /* 添加请求到取消列表 */
     addPendingRequest(config)
-    /* 全局 loading 进度条 */
+    /* 全局加载指示器 start */
     showLoading()
     /* 认证令牌存于 HttpOnly Cookie，浏览器经 withCredentials 自动携带，
        无需（也不应在）前端手动注入 Authorization 头，避免令牌暴露给 JS 上下文。 */

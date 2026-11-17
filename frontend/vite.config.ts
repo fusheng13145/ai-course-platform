@@ -17,15 +17,7 @@ export default defineConfig(({ mode }) => ({
   // 触发 Vite 运行时"发现新依赖 → 重新预构建 → 强制整页刷新"的问题
   // （症状：切换标签页卡顿数秒后页面自动 reload，且路由跳转丢失）
   optimizeDeps: {
-    include: [
-      'vue',
-      'vue-router',
-      'pinia',
-      'axios',
-      'dayjs',
-      'nprogress',
-      'dompurify',
-    ],
+    include: ['vue', 'vue-router', 'pinia', 'axios', 'dayjs', 'dompurify'],
   },
   server: {
     port: 5173,

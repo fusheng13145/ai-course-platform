@@ -12,19 +12,16 @@ import java.util.Locale;
  *
  * <p>默认根目录在仓库之外：{@code ~/.aicourse-platform/storage} 与
  * {@code ~/.aicourse-platform/chunks}。可用 {@code AICOURSE_DATA_DIR} 整体改根，
- * 或用 {@code FILE_UPLOAD_DIR} / {@code FILE_CHUNK_DIR} 分别覆盖。仓库内旧的
- * {@code uploads/} 只作为历史文件只读兼容位置，新文件不再写入该目录。</p>
+ * 或用 {@code FILE_UPLOAD_DIR} / {@code FILE_CHUNK_DIR} 分别覆盖。仓库内已不再保留
+ * {@code uploads/} 目录：所有读写只走外部存储根，不存在「外部缺失再回退仓库」的路径。</p>
  *
  * <p>对外 URL 仍保持 {@code /uploads/<key>}，由 {@code UploadResourceConfig}
- * 映射到外部存储根；因此前端、历史数据库 URL 与既有测试断言都不需要改前缀。</p>
+ * 映射到外部存储根；因此前端与历史数据库 URL 都不需要改前缀。</p>
  */
 public final class StorageLayout {
 
     /** 对外统一逻辑前缀，保留旧口径以兼容历史数据。 */
     public static final String PUBLIC_PREFIX = "/uploads/";
-
-    /** 旧版仓库内上传目录，仅用于历史文件回读/删除。 */
-    public static final String LEGACY_UPLOAD_DIR = "uploads";
 
     private StorageLayout() {
     }
@@ -77,13 +74,11 @@ public final class StorageLayout {
         return chunkRoot(null);
     }
 
-    /** 仓库内旧上传目录的绝对路径。 */
-    public static Path legacyUploadRoot() {
-        return Paths.get(LEGACY_UPLOAD_DIR).toAbsolutePath().normalize();
-    }
-
     /**
      * 把落库 URL 或裸 key 解析成稳定的对象 key：去掉 {@code /uploads/} 或 {@code uploads/} 前缀。
+     *
+     * <p>{@code uploads/} 这种无前导斜杠的形态来自历史数据，仍需接受；它同样映射到
+     * 外部存储根，与仓库目录无关。</p>
      *
      * @return 合法 key；含穿越片段、绝对路径、Windows 盘符或空值时返回 null
      */
@@ -125,7 +120,7 @@ public final class StorageLayout {
     }
 
     /**
-     * 解析落库 URL 对应的本地文件路径：先查外部存储根，再回退旧仓库 {@code uploads/}。
+     * 解析落库 URL 对应的本地文件路径（默认外部根）。
      * 返回值可能是尚不存在的路径（下载方自行判断存在性）；非法 URL 返回 null。
      */
     public static Path resolveUrl(String storedUrl) {
@@ -133,22 +128,14 @@ public final class StorageLayout {
     }
 
     /**
-     * 解析落库 URL 对应的本地文件路径：显式根优先，再回退旧仓库 {@code uploads/}。
+     * 解析落库 URL 对应的本地文件路径（显式根优先，否则默认外部根）。
      */
     public static Path resolveUrl(String configuredDir, String storedUrl) {
         String key = objectKey(storedUrl);
         if (key == null) {
             return null;
         }
-        Path primary = resolveKey(uploadRoot(configuredDir), key);
-        if (primary != null && Files.isRegularFile(primary)) {
-            return primary;
-        }
-        Path legacy = resolveKey(legacyUploadRoot(), key);
-        if (legacy != null && Files.isRegularFile(legacy)) {
-            return legacy;
-        }
-        return primary;
+        return resolveKey(uploadRoot(configuredDir), key);
     }
 
     /** 将 key 转成对外 URL。 */
@@ -183,7 +170,7 @@ public final class StorageLayout {
     }
 
     /**
-     * 从外部存储根读取输入流；不存在时回退旧仓库 {@code uploads/}。
+     * 从外部存储根读取输入流。
      *
      * @return 文件输入流；不存在返回 null
      */
@@ -192,7 +179,7 @@ public final class StorageLayout {
     }
 
     /**
-     * 从指定外部存储根读取输入流；不存在时回退旧仓库 {@code uploads/}。
+     * 从指定外部存储根读取输入流。
      */
     public static java.io.InputStream openRead(String configuredDir, String storedUrl) throws IOException {
         Path path = resolveUrl(configuredDir, storedUrl);
@@ -203,32 +190,29 @@ public final class StorageLayout {
     }
 
     /**
-     * 删除落库 URL 对应的物理文件：先外部根，再旧仓库根；任一删除成功即返回 true。
+     * 删除落库 URL 对应的物理文件（默认外部根）；删除成功返回 true。
      */
     public static boolean deleteByUrl(String storedUrl) {
         return deleteByUrl(null, storedUrl);
     }
 
     /**
-     * 删除落库 URL 对应的物理文件：先指定外部根，再旧仓库根；任一删除成功即返回 true。
+     * 删除落库 URL 对应的物理文件（显式根优先，否则默认外部根）；删除成功返回 true。
      */
     public static boolean deleteByUrl(String configuredDir, String storedUrl) {
         String key = objectKey(storedUrl);
         if (key == null) {
             return false;
         }
-        for (Path root : new Path[]{uploadRoot(configuredDir), legacyUploadRoot()}) {
-            Path target = resolveKey(root, key);
-            if (target == null || !Files.isRegularFile(target)) {
-                continue;
-            }
-            try {
-                return Files.deleteIfExists(target);
-            } catch (IOException e) {
-                // 继续尝试下一个兼容位置，调用方只关心最终是否删除。
-            }
+        Path target = resolveKey(uploadRoot(configuredDir), key);
+        if (target == null || !Files.isRegularFile(target)) {
+            return false;
         }
-        return false;
+        try {
+            return Files.deleteIfExists(target);
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /**

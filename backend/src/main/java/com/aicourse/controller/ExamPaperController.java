@@ -10,25 +10,17 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.exception.BusinessException;
-import com.aicourse.vo.QuestionVO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamPaperStatus;
-import com.aicourse.dto.ActivityTargetDTO;
 import com.aicourse.dto.AutoComposeDTO;
-import com.aicourse.dto.ExamQuestionBatchDTO;
-import com.aicourse.entity.ExamQuestion;
-import com.aicourse.entity.Question;
 import com.aicourse.security.ActivityVisibilityGuard;
 import com.aicourse.security.RoleUtil;
 import com.aicourse.service.ActivityTargetService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
-import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.ExamSessionService;
-import com.aicourse.service.QuestionService;
 import com.aicourse.vo.ExamPaperDetailVO;
-import com.aicourse.vo.ExamPaperQuestionVO;
 import com.aicourse.vo.ExamPaperStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -38,9 +30,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,8 +47,6 @@ public class ExamPaperController {
     private static final Logger log = LoggerFactory.getLogger(ExamPaperController.class);
 
     private final ExamPaperService examPaperService;
-    private final ExamQuestionService examQuestionService;
-    private final QuestionService questionService;
     private final ExamSessionService examSessionService;
     private final com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
     private final CourseService courseService;
@@ -66,16 +54,12 @@ public class ExamPaperController {
     private final ActivityTargetService activityTargetService;
 
     public ExamPaperController(ExamPaperService examPaperService,
-                               ExamQuestionService examQuestionService,
-                               QuestionService questionService,
                                ExamSessionService examSessionService,
                                com.aicourse.security.ExamPaperAccessControl examPaperAccessControl,
                                CourseService courseService,
                                ActivityVisibilityGuard activityVisibilityGuard,
                                ActivityTargetService activityTargetService) {
         this.examPaperService = examPaperService;
-        this.examQuestionService = examQuestionService;
-        this.questionService = questionService;
         this.examSessionService = examSessionService;
         this.examPaperAccessControl = examPaperAccessControl;
         this.courseService = courseService;
@@ -201,49 +185,6 @@ public class ExamPaperController {
         return ApiResponse.success(examPaper);
     }
 
-    /**
-     * 查询试卷目标教学班
-     */
-    @GetMapping("/{id}/targets")
-    @Operation(summary = "查询试卷目标教学班", description = "返回试卷可见范围与目标教学班ID")
-    public ApiResponse<Map<String, Object>> getTargets(@PathVariable Long id, Authentication auth) {
-        ExamPaper paper = requirePaper(id);
-        activityVisibilityGuard.assertVisibleExamPaper(paper, auth);
-        return ApiResponse.success(buildTargetsPayload(
-                ActivityVisibility.normalize(paper.getVisibility()),
-                activityTargetService.examPaperTargetClassIds(id)));
-    }
-
-    /**
-     * 设置试卷目标教学班（教师权限；管理员调用返回 403）
-     */
-    @PutMapping("/{id}/targets")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "设置试卷目标教学班", description = "维护 visibility 与目标教学班；管理员调用返回 403")
-    public ApiResponse<Map<String, Object>> updateTargets(@PathVariable Long id,
-                                                          @Valid @RequestBody ActivityTargetDTO targets,
-                                                          Authentication auth) {
-        activityVisibilityGuard.assertNotAdmin(auth);
-        ExamPaper existing = requirePaper(id);
-        examPaperAccessControl.assertCanManage(existing, auth);
-        String visibility = activityTargetService.normalizeAndValidate(
-                id, existing.getCourseId(), targets.getVisibility(), targets.getTeachingClassIds(), true);
-        ExamPaper patch = new ExamPaper();
-        patch.setId(id);
-        patch.setVisibility(visibility);
-        examPaperService.updateById(patch);
-        activityTargetService.replaceExamPaperTargets(id, visibility, targets.getTeachingClassIds());
-        return ApiResponse.success("设置成功", buildTargetsPayload(visibility,
-                activityTargetService.examPaperTargetClassIds(id)));
-    }
-
-    private static Map<String, Object> buildTargetsPayload(String visibility, List<Long> teachingClassIds) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("visibility", visibility);
-        payload.put("teachingClassIds", teachingClassIds);
-        return payload;
-    }
-
     private ExamPaper requirePaper(Long id) {
         ExamPaper paper = examPaperService.getById(id);
         if (paper == null) {
@@ -340,64 +281,21 @@ public class ExamPaperController {
     }
 
     /**
-     * 查询试卷关联的题目列表（学生答题 / 教师预览共用，返回体统一脱敏）
+     * 归档试卷（教师/管理员权限）。
+     * <p>已产生考试记录的试卷 DELETE 返回 409，归档是文案指定的出路：只改状态、
+     * 保留题目与考试记录，学生列表（只筛 PUBLISHED）随即不可见。</p>
      * @param id 试卷ID
-     * @return 题目详情集合（不含标准答案与解析）
+     * @param auth 认证信息
+     * @return 归档后的试卷
      */
-    @GetMapping("/{id}/questions")
-    @Operation(summary = "查询试卷关联的题目列表")
-    public ApiResponse<List<ExamPaperQuestionVO>> getQuestions(@PathVariable Long id, Authentication auth) {
-        // 对象级授权：管理员放行；学生须有已通过审批的选课；教师须为该课程授课教师。
-        // 修复（2026-09-21，P0）：本端点原无任何归属校验，非选课学生可跨课程读取他人试卷题目。
-        ExamPaper paper = requirePaper(id);
-        examPaperAccessControl.assertCanRead(paper, auth);
-        activityVisibilityGuard.assertVisibleExamPaper(paper, auth);
-
-        LambdaQueryWrapper<ExamQuestion> queryWrapper = new LambdaQueryWrapper<ExamQuestion>()
-                .eq(ExamQuestion::getExamPaperId, id);
-        List<ExamQuestion> examQuestionList = examQuestionService.list(queryWrapper);
-        List<ExamPaperQuestionVO> resultList = new ArrayList<>();
-
-        // 答案可见性按角色区分（2026-09-23 修正）：学生只看作答所需字段（去答案/解析），
-        // 教师/管理员可见完整题目——讲评试卷需要标准答案。
-        // 此前 P0 修复为「对所有角色统一脱敏」，误伤了教师视角（实测教师也取不到 correctAnswers）。
-        boolean answerVisible = RoleUtil.isTeacherOrAdmin(auth);
-        for (ExamQuestion examQuestion : examQuestionList) {
-            Question question = questionService.getById(examQuestion.getQuestionId());
-            if (question == null) {
-                continue;
-            }
-            resultList.add(new ExamPaperQuestionVO(
-                    examQuestion.getId(), examQuestion.getOrderIndex(),
-                    examQuestion.getPoints(),
-                    answerVisible ? question : toAnswerHidden(question)));
-        }
-        return ApiResponse.success(resultList);
-    }
-
-    /**
-     * 作答可见的题目投影：<b>白名单</b>保留作答所需字段，剔除标准答案与解析。
-     *
-     * <p><b>安全修复（2026-09-21，P0）</b>：本端点此前直接下发 {@code Question} 实体（含
-     * {@code correctAnswers} / {@code explanation}），实测学生在考前/考中调接口即可获取全部答案。
-     * 现改为白名单投影——{@code correctAnswers}、{@code explanation}、{@code knowledgePoints}
-     * 等字段在返回体中根本不存在，从结构上杜绝泄露（而非依赖调用方自觉）。</p>
-     *
-     * <p>{@code options} 保持原始 JSON 字符串形态，与前端 {@code parseOptions} 的解析逻辑一致
-     * （避免二次序列化导致含逗号的选项被错误拆分）。教师如需查看答案与解析，走题库接口。</p>
-     */
-    private static Question toAnswerHidden(Question q) {
-        Question safe = new Question();
-        safe.setId(q.getId());
-        safe.setCourseId(q.getCourseId());
-        safe.setType(q.getType());
-        safe.setContent(q.getContent());
-        safe.setOptions(q.getOptions());
-        safe.setDifficulty(q.getDifficulty());
-        safe.setScore(q.getScore());
-        safe.setUsageCount(q.getUsageCount());
-        safe.setCorrectRate(q.getCorrectRate());
-        return safe;
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "归档试卷",
+            description = "PUBLISHED → ARCHIVED，幂等；用于已产生考试记录、不可物理删除的试卷")
+    public ApiResponse<ExamPaper> archive(@PathVariable Long id, Authentication auth) {
+        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
+        examPaperService.archiveExamPaper(id);
+        return ApiResponse.success("已归档", examPaperService.getById(id));
     }
 
     /**
@@ -462,24 +360,6 @@ public class ExamPaperController {
         String reason = body == null ? null : body.get("reason");
         examPaperService.rejectExamPaper(id, reason);
         return ApiResponse.success("已驳回", examPaperService.getById(id));
-    }
-
-    /**
-     * 批量替换试卷题目（教师/管理员权限，手动选题保存通道）。
-     * @param id 试卷ID
-     * @param body 题目清单（questionId/points/orderIndex，与 ExamQuestion 实体对齐）
-     * @param auth 认证信息
-     * @return 写入后的关联行列表
-     */
-    @PostMapping("/{id}/questions")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "批量替换试卷题目")
-    public ApiResponse<List<ExamQuestion>> replaceQuestions(@PathVariable Long id,
-            @Valid @RequestBody ExamQuestionBatchDTO body, Authentication auth) {
-        // 归属校验：与 update/delete/publish 同口径，仅试卷所属课程的授课教师或管理员可操作
-        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
-        List<ExamQuestion> saved = examPaperService.replaceExamQuestions(id, body.getQuestions());
-        return ApiResponse.success("保存成功", saved);
     }
 
     /**

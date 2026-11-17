@@ -60,6 +60,10 @@ public class CacheConfig {
                 // 以下缓存名此前在服务层已使用但未显式注册（走默认 30min），现统一显式声明 TTL
                 .withCacheConfiguration("users", config.entryTtl(Duration.ofMinutes(30)))
                 .withCacheConfiguration("questions", config.entryTtl(Duration.ofMinutes(10)))
+                // 2026-11-17 B-04：题库搜索/详情实际使用这两个缓存名，此前未显式注册而落到默认 30min；
+                // 显式登记后 TTL 与题库写侧失效节奏一致（写入即 evict，不依赖 TTL 兜底）。
+                .withCacheConfiguration("questionSearch", config.entryTtl(Duration.ofMinutes(10)))
+                .withCacheConfiguration("questionDetail", config.entryTtl(Duration.ofMinutes(10)))
                 .withCacheConfiguration("proctor-config", config.entryTtl(Duration.ofHours(1)))
                 .withCacheConfiguration("rag-retrieve", config.entryTtl(Duration.ofMinutes(10)))
                 .build();

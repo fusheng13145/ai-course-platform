@@ -219,6 +219,42 @@ class ExamPaperServiceImplTest {
         assertThrows(BusinessException.class, () -> service.rejectExamPaper(1L, "x"));
     }
 
+    // ===================== archiveExamPaper =====================
+
+    @Test
+    @DisplayName("archiveExamPaper 已发布卷改为已归档，保留下游记录")
+    void archive_ok() {
+        paper.setStatus("PUBLISHED");
+        service.archiveExamPaper(1L);
+        ArgumentCaptor<ExamPaper> captor = ArgumentCaptor.forClass(ExamPaper.class);
+        verify(examPaperMapper).updateById(captor.capture());
+        assertEquals("ARCHIVED", captor.getValue().getStatus());
+        verify(examPaperMapper, never()).deleteById(anyLong());
+        verify(notificationService, never()).onEvent(eq("EXAM_ARCHIVED"), any());
+    }
+
+    @Test
+    @DisplayName("archiveExamPaper 已归档幂等，不重复写库")
+    void archive_idempotent() {
+        paper.setStatus("ARCHIVED");
+        assertDoesNotThrow(() -> service.archiveExamPaper(1L));
+        verify(examPaperMapper, never()).updateById(any(ExamPaper.class));
+    }
+
+    @Test
+    @DisplayName("archiveExamPaper 非已发布态拒绝")
+    void archive_wrongStatus() {
+        paper.setStatus("DRAFT");
+        assertThrows(BusinessException.class, () -> service.archiveExamPaper(1L));
+    }
+
+    @Test
+    @DisplayName("archiveExamPaper 试卷不存在抛异常")
+    void archive_null() {
+        when(examPaperMapper.selectById(anyLong())).thenReturn(null);
+        assertThrows(BusinessException.class, () -> service.archiveExamPaper(1L));
+    }
+
     // ===================== copyExamPaper =====================
 
     @Test

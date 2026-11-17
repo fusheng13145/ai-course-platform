@@ -128,6 +128,9 @@ export const publishExam = (id: number | string): Promise<ApiEnvelope<ApiData>> 
 /** 审核通过试卷（管理员） */
 export const approveExam = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.patch(`/exam-papers/${id}/approve`) as Promise<ApiEnvelope<ApiData>>
+/** 归档试卷（教师/管理员；已产生考试记录的试卷不可删除，只能归档） */
+export const archiveExamPaper = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/exam-papers/${id}/archive`) as Promise<ApiEnvelope<ApiData>>
 /** 审核驳回试卷（管理员，可带驳回原因） */
 export const rejectExam = (id: number | string, reason = ''): Promise<ApiEnvelope<ApiData>> =>
   request.post(`/exam-papers/${id}/reject`, { reason }) as Promise<ApiEnvelope<ApiData>>
@@ -194,6 +197,7 @@ export default {
   getExamDetail,
   publishExam,
   approveExam,
+  archiveExamPaper,
   rejectExam,
   copyExam,
   getExamStatistics,
