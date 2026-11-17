@@ -3,7 +3,6 @@
     <template #form>
       <header class="av-form-head">
         <h2>创建账号</h2>
-        <p>学生账号可自助注册；教师与管理员账号由学校统一分配。</p>
       </header>
 
       <form class="av-form" @submit.prevent="submit">
@@ -125,7 +124,6 @@
       </form>
 
       <p class="av-switch">已有账号？<router-link to="/login">返回登录</router-link></p>
-      <p class="av-note">注册需邮箱验证码，5 分钟内有效；注册成功即建立学生登录态。</p>
     </template>
   </AuthShell>
 </template>

@@ -50,14 +50,12 @@
               {{ approvalView(course).text }}
             </span>
             <span v-else class="course-progress">
-              {{ course.progress === null ? '--' : course.progress
-              }}<small v-if="course.progress !== null">%</small>
+              {{ course.progress === null ? '--' : `${course.progress}%` }}
             </span>
           </button>
         </div>
         <div v-else class="empty-state compact">
           <b>暂无课程</b>
-          <p>{{ courseEmptyHint }}</p>
         </div>
       </section>
 
@@ -95,15 +93,14 @@
               </button>
             </li>
           </ul>
-          <p v-if="queueTruncated" class="card-hint">{{ queueTruncated }}</p>
         </template>
         <div v-else class="empty-state compact">
           <b>{{ queueEmptyTitle }}</b>
-          <p>{{ queueEmptyHint }}</p>
         </div>
 
         <div class="card-foot">
           <span class="mono">{{ queueCountLabel }}</span>
+          <span v-if="queueTruncated">{{ queueTruncated }}</span>
         </div>
       </section>
 
@@ -114,7 +111,6 @@
           </div>
           <span class="chart-unit">{{ chartUnit }}</span>
         </header>
-        <p class="card-sub">{{ chartSub }}</p>
 
         <div v-if="courseLoading" class="empty-state compact"><b>正在加载图表…</b></div>
         <div v-else-if="courseError" class="callout danger" role="alert">
@@ -122,39 +118,17 @@
           <p>{{ courseError }}</p>
           <button class="btn btn-sm" @click="loadHome">重试</button>
         </div>
-        <div v-else-if="chartBars.length" class="bar-chart" role="img" :aria-label="chartLabel">
+        <div v-else-if="chartHasData" class="bar-chart" role="img" :aria-label="chartLabel">
           <div v-for="bar in chartBars" :key="bar.label" class="bar-col">
             <span class="bar-val">{{ bar.display }}</span>
-            <i class="bar" :style="{ '--v': `${Math.round((bar.value / chartMax) * 100)}%` }"></i>
-            <span>{{ bar.label }}</span>
+            <span class="bar-track">
+              <i class="bar" :style="{ '--v': `${Math.round((bar.value / chartMax) * 100)}%` }"></i>
+            </span>
+            <span class="bar-axis">{{ bar.label }}</span>
           </div>
         </div>
         <div v-else class="empty-state compact">
-          <b>暂无可视化数据</b>
-          <p>{{ chartEmptyHint }}</p>
-        </div>
-
-        <div class="card-foot">
-          <span>{{ role === 'admin' ? '按审批状态' : '按课程进度' }}</span>
-        </div>
-      </section>
-
-      <section class="card card-ai">
-        <header class="card-head">
-          <div>
-            <h2>{{ aiTitle }}</h2>
-          </div>
-          <span class="ai-mini"><Icon name="sparkle" /></span>
-        </header>
-        <div class="ai-panel">
-          <p class="ai-quote">“{{ aiSummary }}”</p>
-          <div v-if="aiTags.length" class="ai-tags">
-            <span v-for="tag in aiTags" :key="tag">{{ tag }}</span>
-          </div>
-          <button class="btn btn-primary btn-block" @click="aiAction">
-            {{ aiActionLabel }} <Icon name="arrow" />
-          </button>
-          <p class="ai-caveat">{{ aiCaveat }}</p>
+          <b>暂无数据</b>
         </div>
       </section>
 
@@ -179,9 +153,26 @@
             <span class="weak-bar"><i :style="{ '--p': `${item.pct}%` }"></i></span>
           </li>
         </ul>
-        <p v-else-if="courseError" class="card-hint">{{ courseError }}</p>
-        <p v-else class="card-hint">暂无符合条件的记录。</p>
-        <p class="card-hint">{{ weakHint }}</p>
+        <div v-else-if="courseError" class="callout danger" role="alert">
+          <span>风险学生</span>
+          <p>{{ courseError }}</p>
+          <button class="btn btn-sm" @click="loadHome">重试</button>
+        </div>
+        <div v-else class="empty-state compact">
+          <b>暂无记录</b>
+        </div>
+      </section>
+
+      <section v-if="showAiCard" class="card card-ai">
+        <header class="card-head">
+          <div>
+            <h2>{{ aiTitle }}</h2>
+          </div>
+          <button class="text-btn" @click="aiAction">
+            {{ aiActionLabel }} <Icon name="arrow" />
+          </button>
+        </header>
+        <p class="ai-quote">{{ aiSummary }}</p>
       </section>
 
       <section class="card card-feed">
@@ -203,14 +194,12 @@
             <span class="feed-dot" :class="`tone-${item.tone}`"></span>
             <span class="feed-main">
               <b>{{ item.title }}</b>
-              <small>{{ item.meta }}</small>
             </span>
             <time>{{ item.time }}</time>
           </li>
         </ul>
         <div v-else class="empty-state compact">
           <b>暂无通知</b>
-          <p>课程通知、考试安排与系统公告会出现在这里。</p>
         </div>
       </section>
     </div>
@@ -279,7 +268,6 @@ interface WeakRow {
 interface FeedRow {
   key: string
   title: string
-  meta: string
   time: string
   tone: string
 }
@@ -291,7 +279,6 @@ const def = computed(() => pageDef(role.value as Role, 'home'))
 const studentData = ref<Dict | null>(null)
 const teacherDashboard = ref<Dict | null>(null)
 const teacherAiOverview = ref<Dict | null>(null)
-const teacherAiLoading = ref(false)
 const teacherPending = ref<Dict[] | null>(null)
 const teacherPapers = ref<Dict[] | null>(null)
 const teacherPapersPartial = ref(false)
@@ -542,14 +529,13 @@ const studentMetrics = computed<Metric[]>(() => {
   return [
     courseCount === null
       ? unavailable('已选课程', 'book')
-      : { label: '已选课程', value: courseCount, unit: '门', note: '本学期', icon: 'book' },
+      : { label: '已选课程', value: courseCount, unit: '门', icon: 'book' },
     progress === null
       ? unavailable('学习进度', 'chart')
       : {
           label: '学习进度',
           value: progress,
           unit: '%',
-          note: '按课程进度平均',
           icon: 'chart',
           tone: 'ok',
         },
@@ -559,7 +545,6 @@ const studentMetrics = computed<Metric[]>(() => {
           label: '待办事项',
           value: todoCount,
           unit: '项',
-          note: `${lists.assignments.length} 作业 · ${lists.exams.length} 考试 · ${lists.signIns.length} 签到`,
           icon: 'check',
           tone: 'warn',
         },
@@ -577,14 +562,13 @@ const teacherMetrics = computed<Metric[]>(() => {
   return [
     courseCount === null
       ? unavailable('我的课程', 'book')
-      : { label: '我的课程', value: courseCount, unit: '门', note: '本人负责', icon: 'book' },
+      : { label: '我的课程', value: courseCount, unit: '门', icon: 'book' },
     pending === null
       ? unavailable('待批阅任务', 'check')
       : {
           label: '待批阅任务',
           value: pending,
           unit: '项',
-          note: '有待批提交',
           icon: 'check',
           tone: 'warn',
         },
@@ -594,13 +578,13 @@ const teacherMetrics = computed<Metric[]>(() => {
           label: '近期考试',
           value: upcoming,
           unit: '场',
-          note: teacherPapersPartial.value ? '部分课程未加载' : '已发布未结束',
+          note: teacherPapersPartial.value ? '部分课程未加载' : undefined,
           icon: 'clipboard',
           tone: 'info',
         },
     students === null
       ? unavailable('学生', 'users')
-      : { label: '学生', value: students, unit: '人', note: '选课人次', icon: 'users' },
+      : { label: '学生', value: students, unit: '人', icon: 'users' },
   ]
 })
 
@@ -612,20 +596,18 @@ const adminMetrics = computed<Metric[]>(() => {
     num(overview.totalCourses) ??
     num(dashboard.totalCourses) ??
     (adminCourses.value ? adminCourses.value.length : null)
-  const activeCourses = num(overview.activeCourses) ?? num(dashboard.activeCourses)
   const pending = adminCourses.value ? adminPendingCourses.value.length : null
   const activeUsers = num(dashboard.activeUsers)
   return [
     totalUsers === null
       ? unavailable('平台用户', 'users')
-      : { label: '平台用户', value: totalUsers, unit: '人', note: '全校账号', icon: 'users' },
+      : { label: '平台用户', value: totalUsers, unit: '人', icon: 'users' },
     totalCourses === null
       ? unavailable('课程总数', 'book')
       : {
           label: '课程总数',
           value: totalCourses,
           unit: '门',
-          note: activeCourses === null ? '平台总额' : `${activeCourses} 门活跃`,
           icon: 'book',
         },
     pending === null
@@ -634,7 +616,6 @@ const adminMetrics = computed<Metric[]>(() => {
           label: '待审批课程',
           value: pending,
           unit: '门',
-          note: '待审批中',
           icon: 'check',
           tone: 'warn',
         },
@@ -644,7 +625,6 @@ const adminMetrics = computed<Metric[]>(() => {
           label: '启用用户',
           value: activeUsers,
           unit: '人',
-          note: '账号状态',
           icon: 'user',
           tone: 'ok',
         },
@@ -688,6 +668,8 @@ const chartBars = computed<ChartBar[]>(() => {
 })
 
 const chartMax = computed(() => Math.max(...chartBars.value.map((bar) => bar.value), 1))
+/* 全 0 的柱图等于空白：宁可一行空态，也不摆一排 0% 标签 */
+const chartHasData = computed(() => chartBars.value.some((bar) => bar.value > 0))
 const chartLabel = computed(
   () =>
     `${chartTitle.value}：${chartBars.value.map((bar) => `${bar.label} ${bar.display}`).join('，')}`,
@@ -697,16 +679,26 @@ const weakRows = computed<WeakRow[]>(() => {
   if (role.value === 'teacher') {
     const list = teacherDashboard.value?.atRiskStudents
     const rows = Array.isArray(list) ? list.filter(isDict) : []
-    return rows.slice(0, 6).map((row) => {
-      const progress = num(row.progress)
-      const score = num(row.finalScore)
-      return {
-        label: `${str(row.studentName, '学生')} · ${str(row.courseName, '课程')}`,
-        value: progress !== null ? `${progress}%` : score !== null ? `${score} 分` : '—',
-        pct: progress !== null ? clampPct(progress) : score !== null ? clampPct(score) : 0,
-        tone: str(row.level) === 'HIGH' ? 'danger' : 'warn',
-      }
-    })
+    // 后端按「学生 × 课程」给记录，同一人同一课可能出现多条；同一对象只留一条
+    const seen = new Set<string>()
+    return rows
+      .filter((row) => {
+        const key = `${str(row.studentName)}|${str(row.courseName)}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .slice(0, 6)
+      .map((row) => {
+        const progress = num(row.progress)
+        const score = num(row.finalScore)
+        return {
+          label: `${str(row.studentName, '学生')} · ${str(row.courseName, '课程')}`,
+          value: progress !== null ? `${progress}%` : score !== null ? `${score} 分` : '—',
+          pct: progress !== null ? clampPct(progress) : score !== null ? clampPct(score) : 0,
+          tone: str(row.level) === 'HIGH' ? 'danger' : 'warn',
+        }
+      })
   }
   if (role.value === 'admin') {
     const rows = adminCourses.value ?? []
@@ -752,7 +744,6 @@ const feedRows = computed<FeedRow[]>(() =>
   notifications.value.slice(0, 6).map((item) => ({
     key: String(item.id),
     title: item.title,
-    meta: item.kind || '通知',
     time: formatDateTime(item.time),
     tone: item.unread ? 'accent' : 'info',
   })),
@@ -761,9 +752,6 @@ const feedRows = computed<FeedRow[]>(() =>
 const unreadCount = computed(() => notifications.value.filter((item) => item.unread).length)
 
 const courseTitle = computed(() => (role.value === 'admin' ? '课程目录' : '课程'))
-const courseEmptyHint = computed(() =>
-  role.value === 'admin' ? '课程目录为空。' : '当前账号下暂无课程。',
-)
 
 const queueTitle = computed(() => {
   if (role.value === 'teacher') return '待批阅任务'
@@ -775,11 +763,6 @@ const queueEmptyTitle = computed(() => {
   if (role.value === 'admin') return '暂无待审批课程'
   return '暂无待办'
 })
-const queueEmptyHint = computed(() => {
-  if (role.value === 'teacher') return '学生提交后，有待批提交的任务会出现在这里。'
-  if (role.value === 'admin') return '课程提交审批后会出现在这里。'
-  return '当前没有未完成的作业、考试或签到。'
-})
 const queueCountLabel = computed(() => {
   if (queueLoading.value) return '加载中'
   if (queueError.value) return '暂不可用'
@@ -788,67 +771,24 @@ const queueCountLabel = computed(() => {
 
 const chartTitle = computed(() => (role.value === 'admin' ? '审批状态分布' : '课程进度'))
 const chartUnit = computed(() => (role.value === 'admin' ? '门' : '%'))
-const chartSub = computed(() =>
-  role.value === 'admin' ? '按课程审批状态统计。' : '按课程当前进度展示，无进度的课程不计入。',
-)
-const chartEmptyHint = computed(() =>
-  role.value === 'admin' ? '暂无课程审批状态可统计。' : '暂无课程进度可统计。',
-)
 
-const aiTitle = computed(() => {
-  if (role.value === 'teacher') return 'AI 教学总览'
-  if (role.value === 'admin') return '治理入口'
-  return 'AI 助手'
-})
+/* AI 块只在教师拿到真实总览时出现：没有内容就不占一行，入口在页头次动作 */
+const aiTitle = 'AI 教学总览'
 const aiSummary = computed(() => {
-  if (role.value === 'student') {
-    return '基于课程资料与个人学习数据，提供问答与复习建议。'
-  }
-  if (role.value === 'admin') {
-    return '课程审批、考试治理与内容审核集中处理；治理操作会写入审计日志。'
-  }
   const overview = teacherAiOverview.value
-  const summary = isDict(overview) ? str(overview.summary) : ''
-  if (summary) return summary
-  return teacherAiLoading.value ? 'AI 教学总览生成中…' : '暂不可用'
+  const summary = isDict(overview) ? str(overview.summary).trim() : ''
+  // 模型未配置 / 调用失败时后端回的是一句固定说明，不是总览内容：不摆进卡里
+  if (summary.startsWith('暂不可用') || summary.startsWith('暂无')) return ''
+  return summary
 })
-const aiTags = computed<string[]>(() => {
-  if (role.value === 'student') return ['课程问答', '复习路径']
-  if (role.value === 'admin') return ['课程审批', '考试治理', '内容审核']
-  const tags: string[] = []
-  if (teacherPending.value) tags.push(`待批阅 ${teacherPending.value.length} 项`)
-  if (weakRows.value.length) tags.push(`风险学生 ${weakRows.value.length} 人`)
-  return tags
-})
-const aiCaveat = computed(() => {
-  if (role.value === 'student') return '回答以课程资料为准，不替代教师批阅。'
-  if (role.value === 'admin') return '治理操作会写入审计日志。'
-  if (!teacherDashboard.value) return '教学数据加载失败，AI 概览暂不可用。'
-  return teacherAiLoading.value
-    ? 'AI 教学总览生成中，教学统计已先展示。'
-    : '由服务端教学数据生成，采纳前需教师确认。'
-})
-const aiActionLabel = computed(() => {
-  if (role.value === 'teacher') return '查看学情分析'
-  if (role.value === 'admin') return '进入考试治理'
-  return '打开 AI 助手'
-})
-const aiTo = computed(() => {
-  if (role.value === 'teacher') return '/teacher/analytics'
-  if (role.value === 'admin') return '/admin/exam-governance'
-  const id = courses.value[0]?.id
-  return id ? `/student/courses/${id}/ai` : '/student/assistant'
-})
+const showAiCard = computed(() => role.value === 'teacher' && !!aiSummary.value)
+const aiActionLabel = '查看学情分析'
+const aiTo = '/teacher/analytics'
 
 const weakTitle = computed(() => {
   if (role.value === 'teacher') return '风险学生'
   if (role.value === 'admin') return '课程状态'
   return '进度偏低课程'
-})
-const weakHint = computed(() => {
-  if (role.value === 'teacher') return '进度 < 40% 或总评 < 60% 自动列为风险，按严重度排序。'
-  if (role.value === 'admin') return '按课程启用状态统计，最多展示 4 类。'
-  return '掌握度低于 60% 自动标红，按进度升序。'
 })
 
 const feedChip = computed(() => {
@@ -945,7 +885,7 @@ function secondaryAction() {
 }
 
 function aiAction() {
-  go(aiTo.value)
+  go(aiTo)
 }
 
 async function fetchFeed() {
@@ -964,7 +904,6 @@ function resetState() {
   studentData.value = null
   teacherDashboard.value = null
   teacherAiOverview.value = null
-  teacherAiLoading.value = false
   teacherPending.value = null
   teacherPapers.value = null
   teacherPapersPartial.value = false
@@ -1017,7 +956,6 @@ async function loadTeacherHome(seq: number) {
     courseError.value = '课程数据加载失败，请重试'
   } else {
     // AI 教学总览异步补数：不阻塞主统计首屏
-    teacherAiLoading.value = true
     teacherApi
       .getTeacherDashboardAiOverview()
       .then((res) => {
@@ -1027,9 +965,6 @@ async function loadTeacherHome(seq: number) {
       })
       .catch(() => {
         if (seq === loadSeq) teacherAiOverview.value = null
-      })
-      .finally(() => {
-        if (seq === loadSeq) teacherAiLoading.value = false
       })
   }
 

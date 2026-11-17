@@ -22,18 +22,6 @@
 
     <main class="av-main">
       <section class="av-card">
-        <aside class="av-story">
-          <h1>让每一次提问，<br /><em>都有据可依的答案。</em></h1>
-          <p class="lede">
-            知识图谱与 LLM 双引擎，答疑、出题、批改、学情一条线；AI 只给建议，教师保留最终确认权。
-          </p>
-          <ul class="av-feat" aria-hidden="true">
-            <li><Icon name="graph" /><b>课程知识图谱</b><small>答疑与出题有据可依</small></li>
-            <li><Icon name="message" /><b>智能答疑</b><small>回答附引用来源</small></li>
-            <li><Icon name="check" /><b>AI 预批建议</b><small>教师保留最终确认权</small></li>
-            <li><Icon name="chart" /><b>学情诊断</b><small>逐周跟踪与预警</small></li>
-          </ul>
-        </aside>
         <section class="av-panel">
           <slot name="form" />
         </section>
@@ -41,7 +29,9 @@
     </main>
 
     <footer class="av-foot">
-      <span>云枢 AI 助教 · 知识图谱 + LLM 驱动</span>
+      <router-link to="/agreement">用户协议</router-link>
+      <span>·</span>
+      <router-link to="/privacy">隐私政策</router-link>
     </footer>
   </div>
 </template>

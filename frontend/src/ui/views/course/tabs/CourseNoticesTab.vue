@@ -39,10 +39,7 @@
           </button>
         </div>
       </div>
-      <p class="hint">
-        发布即写入 announcements
-        表，并扇出到全部选课学生与主讲教师的站内信（不入教学班/行政班维度）。
-      </p>
+      <p class="hint">发布后通知全部选课学生与主讲教师。</p>
     </div>
 
     <section class="card">

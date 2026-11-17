@@ -161,10 +161,6 @@
         </table>
       </div>
       <div v-else class="empty-state compact"><b>暂无封禁作者</b></div>
-      <p class="hint">
-        隐藏/删除会留痕（V11 审核状态与封禁留痕列）；封禁作者 =
-        停用账号，立即无法登录，可在用户与账号页恢复。
-      </p>
     </section>
   </section>
 </template>

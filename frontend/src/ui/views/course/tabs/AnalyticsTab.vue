@@ -1,9 +1,6 @@
 <template>
   <section class="analytics">
     <div class="course-tab-bar">
-      <div>
-        <h2>成绩与学情</h2>
-      </div>
       <div class="course-tab-actions">
         <select
           v-if="!courseId"
@@ -40,22 +37,21 @@
               分数段分布 <span class="chip chip-mute">{{ extra.count ?? 0 }} 人</span>
             </h2>
           </div>
-          <span class="head-hint">仅统计已录入成绩的学生</span>
         </header>
         <div v-if="buckets.length" class="bar-chart">
           <div v-for="bucket in buckets" :key="bucket.range" class="bar-col">
             <span class="bar-val">{{ bucket.count }}</span>
-            <i class="bar" :style="{ '--v': `${bucket.pct}%` }"></i>
+            <span class="bar-track">
+              <i class="bar" :style="{ '--v': `${bucket.pct}%` }"></i>
+            </span>
             <span class="bar-label">{{ bucket.range }}</span>
           </div>
         </div>
         <div v-else-if="histError" class="empty-state compact">
           <b>成绩分布未能加载</b>
-          <p>请查看上方提示后重试。</p>
         </div>
         <div v-else class="empty-state compact">
           <b>尚无人成绩可统计</b>
-          <p>批阅完成并录入总评后，这里会出现分数段分布。</p>
         </div>
         <footer v-if="extra.count" class="card-foot">
           <span>均分 {{ display(extra.avgScore) }}</span>
@@ -69,7 +65,7 @@
             <h2>及格与优秀</h2>
           </div>
         </header>
-        <ul class="rate-list">
+        <ul v-if="extra.count" class="rate-list">
           <li>
             <span class="r-label">及格率（≥60）</span>
             <span class="r-track"><i :style="{ width: `${passRatePct}%` }" /></span>
@@ -83,8 +79,9 @@
             <b class="r-num">{{ rateText(excellentRate) }}</b>
           </li>
         </ul>
-        <p v-if="histError" class="modal-hint">读数不可用，未回退成 0%。</p>
-        <p v-else-if="!extra.count" class="modal-hint">没有成绩样本，比率不计。</p>
+        <div v-if="!extra.count" class="empty-state compact">
+          <b>暂无成绩样本</b>
+        </div>
       </section>
     </div>
   </section>
@@ -290,13 +287,9 @@ onMounted(() => {
   grid-template-columns: 1.4fr 1fr;
   gap: 14px;
 }
-.head-hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
 .bar-chart {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 14px;
   height: 190px;
   padding: 8px 4px 0;
@@ -307,7 +300,6 @@ onMounted(() => {
   flex: 1;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
   height: 100%;
 }
@@ -316,22 +308,12 @@ onMounted(() => {
   max-width: 46px;
   height: var(--v, 0%);
   min-height: 2px;
-  border-radius: var(--r-bar) var(--r-bar) 0 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 66%, var(--surface)),
-    var(--accent)
-  );
-  box-shadow: 0 2px 7px color-mix(in srgb, var(--accent) 22%, transparent);
-  transition:
-    height 0.3s var(--ease),
-    filter 0.15s ease,
-    transform 0.15s ease;
-  transform-origin: bottom;
+  border-radius: var(--r-chip) var(--r-chip) 0 0;
+  background: var(--accent);
+  transition: opacity 0.15s ease;
 }
 .bar-col:hover .bar {
-  filter: brightness(1.05);
-  transform: translateY(-2px);
+  opacity: 0.7;
 }
 .bar-val {
   font-family: var(--font-display);
@@ -339,7 +321,7 @@ onMounted(() => {
   color: var(--ink-2);
 }
 .bar-label {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--ink-3);
   text-align: center;
 }
@@ -369,11 +351,7 @@ onMounted(() => {
 .r-track i {
   display: block;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent) 64%, var(--surface)),
-    var(--accent)
-  );
+  background: var(--accent);
   border-radius: inherit;
   transition: width 0.3s var(--ease);
 }
@@ -381,7 +359,7 @@ onMounted(() => {
   background: var(--ok-soft);
 }
 .r-track--ok i {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 64%, var(--surface)), var(--ok));
+  background: var(--ok);
 }
 .r-num {
   font-family: var(--font-display);

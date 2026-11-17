@@ -1,15 +1,7 @@
 <template>
   <section class="audit-body">
-    <!-- 口径先摆在前头：这一页只有「查」——没有删除、改写或导出日志的入口。
-         审计记录的完整性由后端保证，前端不提供任何会让留痕变浅的操作。 -->
-    <div class="card caveat-card">
-      <p class="card-kicker">审计面</p>
-      <p class="scope-line">操作日志记录关键写操作；登录日志记录每一次登录尝试（含失败原因）。</p>
-      <p class="scope-note">
-        本页只提供查询与筛选，<b>不提供删除或改写日志</b>；模块与操作按<b>精确匹配</b>筛选，
-        需与系统内记录的取值一致。
-      </p>
-    </div>
+    <!-- 页面纪律：只有「查」，没有删除、改写或导出日志的入口 -->
+    <p class="scope-line">仅支持查询与筛选，不提供删除或改写日志；模块与操作按精确值匹配。</p>
 
     <div class="tabs" role="tablist" aria-label="审计视图">
       <button

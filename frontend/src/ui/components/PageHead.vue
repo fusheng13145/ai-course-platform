@@ -11,9 +11,9 @@
 
 <script setup lang="ts">
 /**
- * 页头只保留「中文大标题 + 动作区」。
- * 英文 kicker、「接口数据」来源章与标题下那行副标题都已按展示层清理要求移除；
- * 全局 CSS 里的 .page-kicker / .page-sub 仍保留，供以后需要时复用，不在此删除。
+ * 页头只有「标题 + 动作区」，一个字段，一条渲染路径。
+ * 副标题、kicker、来源章都不在这里，也不在全局 CSS 里——要表达上下文就改布局，
+ * 不要往标题下面塞一行解释（守卫见 __tests__/copyLaw.test.ts）。
  */
 defineProps<{ title: string }>()
 </script>

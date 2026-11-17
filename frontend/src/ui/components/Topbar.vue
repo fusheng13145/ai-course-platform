@@ -13,7 +13,7 @@
         @click="paletteOpen = true"
       >
         <Icon name="search" />
-        <span class="search-label">搜索页面、课程、教学班</span>
+        <span class="search-label">搜索</span>
         <kbd>Ctrl K</kbd>
       </button>
       <button

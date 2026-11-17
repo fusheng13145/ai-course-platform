@@ -201,40 +201,33 @@ export interface Table {
 
 export interface PageDef {
   title: string
-  desc: string
   special?: string
 }
 
 const STUDENT_PAGES: Record<string, PageDef> = {
-  home: { title: '工作台', desc: '课程进度、待办任务与未读通知概览。' },
+  home: { title: '工作台' },
   courses: {
     title: '我的课程',
-    desc: '在修课程、教学班与进度；课程卡片可进入课程空间。',
     special: 'courses',
   },
   tasks: {
     title: '学习任务',
-    desc: '跨课程作业、考试与提醒；按截止时间排序。',
     special: 'tasks',
   },
   academic: {
     title: '学业档案',
-    desc: '成绩、错题与学习路径；成绩以教师提交批阅为准。',
     special: 'academic',
   },
   exams: {
     title: '我的考试',
-    desc: '跨课程的考试：开考、作答、倒计时与断线续考；交卷以服务端判分为准。',
     special: 'exams',
   },
   messages: {
     title: '消息',
-    desc: '课程通知、考试安排、AI 分析与批阅结果。',
     special: 'messages',
   },
   profile: {
     title: '个人',
-    desc: '查看资料、学习进展与账号设置。',
     special: 'profile',
   },
   // 全局 AI 助手页已判下线（M-30）：导航不挂入口，深链接落到「待扩展」空态。
@@ -242,7 +235,6 @@ const STUDENT_PAGES: Record<string, PageDef> = {
   // 随本次死码清理删除；页面定义保留，只为让空态的标题/描述仍取自本表。
   assistant: {
     title: 'AI 助手',
-    desc: '跨课程的全局 AI 问答；课程内精准问答仍走课程空间的「AI 助手」页签。',
     special: 'assistant',
   },
 }
@@ -250,192 +242,153 @@ const STUDENT_PAGES: Record<string, PageDef> = {
 const TEACHER_PAGES: Record<string, PageDef> = {
   home: {
     title: '教学工作台',
-    desc: '待批阅、课程进度与班级风险的单一入口。',
   },
   courses: {
     title: '我的课程',
-    desc: '我负责的课程、教学班与待批阅；进入课程空间完成教学动作。',
     special: 'courses',
   },
   createCourse: {
     title: '创建课程',
-    desc: '填写课程基本信息，提交后进入审核流程。',
   },
   bank: {
     title: '题库管理',
-    desc: '课程题库的筛选、创建、审核、复制与 AI 出题。',
   },
   exams: {
     title: '试卷库',
-    desc: '试卷的创建、编辑、题目明细、统计与发布。',
   },
   grades: {
     title: '成绩管理',
-    desc: '按课程查看学情与正式总评，导出成绩并进入待批阅任务。',
   },
   interaction: {
     title: '课堂互动',
-    desc: '发起签到与投票，查看签到记录、补签与投票结果。',
   },
   knowledge: {
     title: '知识点管理',
-    desc: '维护知识点结构、层级、前置依赖与批量导入。',
   },
   inbox: {
     title: '教学任务',
-    desc: '跨课程的批阅、发布、监考与提醒聚合；每条带课程深链。',
     special: 'inbox',
   },
   analytics: {
     title: '学情分析',
-    desc: '跨课程的成绩分布、薄弱点与可执行建议。',
     special: 'analytics',
   },
   resources: {
     title: '资源中心',
-    desc: '跨课程的资源汇总：上传、下载、可见性与删除；课程内挂载仍在课程空间。',
     special: 'resources',
   },
   advising: {
     title: '我的班级',
-    desc: '班主任视角：行政班人数、课程进度与预警；与教学班分离。',
     special: 'advising',
   },
   advisingProfile: {
     title: '班级画像',
-    desc: '行政班的课程进度、均分与风险结构；只读。',
     special: 'advising',
   },
   advisingAlerts: {
     title: '学生预警',
-    desc: '学业、进度与活跃度预警；作为线索，由班主任核实。',
     special: 'advising',
   },
   advisingNotices: {
     title: '班级通知',
-    desc: '面向行政班学生的通知；与课程通知、系统公告分属不同受众。',
     special: 'advising',
   },
   messages: {
     title: '消息',
-    desc: '课程通知、批阅结果与监考风险事件。',
     special: 'messages',
   },
   profile: {
     title: '个人',
-    desc: '查看资料、通知与账号设置。',
     special: 'profile',
   },
 }
 
 const ADMIN_PAGES: Record<string, PageDef> = {
-  home: { title: '治理总览', desc: '平台规模、审批队列与运行风险。' },
+  home: { title: '治理总览' },
   colleges: {
     title: '学院与专业',
-    desc: '学校 → 学院 → 专业；行政班只负责学生归属，不绑定课程。',
     special: 'colleges',
   },
   adminClasses: {
     title: '行政班',
-    desc: '行政班、班主任与学生归属；行政班与教学班分离。',
     special: 'adminClasses',
   },
   users: {
     title: '用户与账号',
-    desc: '全校用户、角色与账号状态；管理员只做治理。',
     special: 'users',
   },
   roles: {
     title: '角色与权限',
-    desc: '角色矩阵与权限边界；院系级只读。',
     special: 'roles',
   },
   semesters: {
     title: '学期管理',
-    desc: '学期注册表与归档；课程编号按学期唯一。',
     special: 'semesters',
   },
   approvals: {
     title: '课程审批',
-    desc: '待审批课程、风险提示与审批流水；审批后才可发布教学班。',
     special: 'approvals',
   },
   courses: {
     title: '课程目录',
-    desc: '全校课程、审批状态与教学班规模；进入课程治理只读。',
     special: 'courses',
   },
   teachingClasses: {
     title: '教学班监管',
-    desc: '课程下的开课单元；学生来源与主讲教师。',
     special: 'teachingClasses',
   },
   enrollments: {
     title: '选课与名单',
-    desc: '教学班名单与自助选课审批；名单可回溯来源。',
     special: 'enrollments',
   },
   supervision: {
     title: '教学监督',
-    desc: '课程运行、完成度与异常；只读。',
     special: 'supervision',
   },
   examGovernance: {
     title: '考试治理',
-    desc: '全校试卷与进行中考试会话：筛选、题目与统计、强制交卷与作弊检测；不替代教师批阅。',
     special: 'examGovernance',
   },
   grades: {
     title: '成绩与预警',
-    desc: '课程与班级维度的成绩概览；管理员只读，不改分。',
     special: 'grades',
   },
   adminQuestions: {
     title: '题库管理',
-    desc: '全校题目维护：筛选、编辑、AI 出题、统计与易错题榜单。',
   },
   adminUploads: {
     title: '上传会话监控',
-    desc: '上传会话的状态与磁盘分片进度：本地分片上传、合并已齐片的会话、取消仍在进行的会话。',
   },
   aiUsage: {
     title: 'AI 使用与治理',
-    desc: '按课程、按日、按能力聚合的调用量、成功率与耗时（近 N 天），以及教师出题治理。',
     special: 'aiUsage',
   },
   adminAi: {
     title: 'AI 供应商',
-    desc: 'LLM 供应商运行时热切换与连通性探测；密钥由环境变量注入，不在此页管理。',
     special: 'adminAi',
   },
   moderation: {
     title: '内容审核',
-    desc: '讨论与资源审核；处置需留痕。',
     special: 'moderation',
   },
   notices: {
     title: '通知公告',
-    desc: '按课程 / 教学班 / 行政班三类受众发布公告；扇出到站内通知，非受众不可见。',
     special: 'notices',
   },
   audit: {
     title: '操作与登录日志',
-    desc: '关键写操作与每一次登录尝试的查询面（只读，不提供删除或改写日志）。',
     special: 'audit',
   },
   sessions: {
     title: '会话管理',
-    desc: '在线会话、设备与最近活动；强制下线会立即失效刷新令牌。',
     special: 'sessions',
   },
   system: {
     title: '系统设置',
-    desc: '平台参数与依赖服务状态；改值只影响单个配置键。',
     special: 'system',
   },
   profile: {
     title: '个人',
-    desc: '查看资料、通知与账号设置。',
     special: 'profile',
   },
 }

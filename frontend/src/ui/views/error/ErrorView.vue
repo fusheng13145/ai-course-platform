@@ -35,10 +35,6 @@
           <button class="btn btn-ghost" @click="goHome">返回工作台</button>
           <router-link class="text-btn" to="/login">登录页</router-link>
         </div>
-        <p v-if="code === '503'" class="ev-note">
-          服务恢复后会自动跳转；本页每 3 秒检测一次，预算耗尽后改为手动重试。
-        </p>
-        <p v-else class="ev-note">如果是账号权限问题，请退出后更换账号登录。</p>
       </section>
     </main>
 
@@ -75,21 +71,12 @@ useRoot(theme)
 const code = computed(() => String(route.meta.errorCode || '404'))
 const copy = computed(() => {
   if (code.value === '403') {
-    return {
-      title: '没有访问权限',
-      desc: '当前账号无权访问该页面。请返回工作台，或退出后更换账号登录。',
-    }
+    return { title: '没有访问权限', desc: '当前账号无权访问该页面。' }
   }
   if (code.value === '503') {
-    return {
-      title: '后端服务连接失败',
-      desc: '服务可能仍在启动中（Spring Boot 冷启动通常需要 30–60 秒），或已经停止运行。',
-    }
+    return { title: '服务暂时不可用', desc: '后端可能仍在启动，或已停止运行。' }
   }
-  return {
-    title: '页面不存在',
-    desc: '你访问的页面不存在或已经被移动。',
-  }
+  return { title: '页面不存在', desc: '页面不存在或已移动。' }
 })
 
 const redirectTarget = computed(() => {
@@ -112,11 +99,8 @@ const exhausted = ref(false)
 let timer: number | undefined
 
 const statusText = computed(() => {
-  if (exhausted.value) {
-    return '仍未连接到后端服务。请确认启动脚本正在运行，且 8080 端口已监听。'
-  }
-  if (checking.value) return `正在连接后端服务…（第 ${polls.value + 1} 次检测）`
-  return `等待后端服务就绪…（已检测 ${polls.value} / ${MAX_POLLS} 次）`
+  if (exhausted.value) return '仍未连接到后端服务，请确认服务已启动。'
+  return checking.value ? '正在重试…' : `正在等待服务（已检测 ${polls.value} 次）`
 })
 
 function home(): string {
@@ -260,18 +244,18 @@ onBeforeUnmount(() => {
   color: var(--ink-3);
 }
 .ev-card h1 {
-  margin: 10px 0 0;
-  font-family: 'Noto Serif SC', Georgia, serif;
-  font-size: clamp(64px, 10vw, 96px);
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 40px;
   font-weight: 600;
-  line-height: 1;
-  letter-spacing: -0.04em;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
   color: var(--accent);
 }
 .ev-card h2 {
-  margin: 14px 0 0;
-  font-family: 'Noto Serif SC', Georgia, serif;
-  font-size: 22px;
+  margin: 12px 0 0;
+  font-family: var(--font-display);
+  font-size: 20px;
   font-weight: 600;
 }
 .ev-desc {
@@ -296,12 +280,6 @@ onBeforeUnmount(() => {
   gap: 10px;
   margin-top: 20px;
 }
-.ev-note {
-  margin: 14px 0 0;
-  font-size: 10px;
-  line-height: 1.7;
-  color: var(--ink-4);
-}
 .ev-foot {
   display: flex;
   justify-content: space-between;
@@ -309,8 +287,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   padding-top: 14px;
   border-top: 1px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .ev-foot a {

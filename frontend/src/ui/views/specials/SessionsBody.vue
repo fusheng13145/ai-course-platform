@@ -1,18 +1,10 @@
 <template>
   <section class="sessions-body">
-    <!-- 口径必须写在页面上：GET /user-sessions/online 实际返回**全部**会话记录
-         （后端当前未按 is_active / expires_at 过滤，注释与实现不一致）。
-         前端不能把这件事藏起来，否则「在线 531 个会话」就是一句假话。 -->
-    <div class="card caveat-card">
-      <p class="card-kicker">会话口径</p>
-      <p class="scope-line">默认只展示<b>有效且未过期</b>的会话，可用「显示全部」查看全部记录。</p>
-      <p class="scope-note">
-        失效会话不会被说成在线；强制下线会让该会话的令牌立即失效，操作前二次确认。
-      </p>
-      <p v-if="currentFlagUnreliable" class="scope-note warn-text">
-        为避免误踢自己，请核对账号与设备后再执行下线。
-      </p>
-    </div>
+    <!-- 口径：GET /user-sessions/online 实际返回全部会话（后端未按 is_active 过滤）。
+         默认隐藏失效会话由工具条的「显示全部」承担，不在页头重复解释。 -->
+    <p v-if="currentFlagUnreliable" class="scope-note warn-text" role="alert">
+      为避免误踢自己，请核对账号与设备后再执行下线。
+    </p>
 
     <div v-if="listError" class="callout" role="alert">
       <span>会话列表</span>

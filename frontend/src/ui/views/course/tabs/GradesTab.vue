@@ -103,9 +103,7 @@
       </section>
     </template>
 
-    <p v-if="!loading" class="export-note">
-      「导出成绩」待扩展：后端学生成绩导出端点尚未落地，本页不提供该动作。
-    </p>
+    <p v-if="!loading" class="export-note">成绩导出待扩展。</p>
   </div>
 
   <!-- 教师 / 管理员：原为硬编码演示视图（batch 24 死示例层清算时整段删除）。
@@ -114,7 +112,6 @@
   <div v-else class="card empty-state">
     <span class="e-ico"><Icon name="award" /></span>
     <b>该角色暂无此页签</b>
-    <p>教师在课程空间用「批阅」处理成绩；管理员在课程页签看到的是只读视图。</p>
   </div>
 </template>
 

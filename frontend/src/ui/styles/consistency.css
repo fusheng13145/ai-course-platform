@@ -18,23 +18,23 @@ body[data-app='ui'][data-style='record'][data-theme='dark'] {
 
 /* ---------- 壳层 ---------- */
 body[data-app='ui'][data-style='record'] .main-inner {
-  padding: 26px 30px 56px;
+  padding: 24px 28px 48px;
 }
 body[data-app='ui'][data-style='record'] .topbar {
-  padding: 0 22px;
-  gap: 16px;
+  padding: 0 16px;
+  gap: 12px;
 }
 body[data-app='ui'][data-style='record'] .context-kicker {
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.14em;
 }
 body[data-app='ui'][data-style='record'] .crumb {
   font-size: 13px;
 }
 body[data-app='ui'][data-style='record'] .search-trigger {
-  min-height: 36px;
-  padding: 0 11px;
-  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  gap: 7px;
   font-size: 12px;
 }
 body[data-app='ui'][data-style='record'] .search-trigger .icon {
@@ -42,57 +42,40 @@ body[data-app='ui'][data-style='record'] .search-trigger .icon {
   height: 15px;
 }
 body[data-app='ui'][data-style='record'] .icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
 }
 body[data-app='ui'][data-style='record'] .icon-btn .icon {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
 }
 
 /* ---------- 侧栏：导航密度（账户区已上移顶栏） ---------- */
 body[data-app='ui'][data-style='record'] .sidenav {
-  padding: 16px 12px 12px;
-}
-body[data-app='ui'][data-style='record'] .workspace {
-  padding: 9px 10px;
-  margin-bottom: 14px;
-  gap: 9px;
-}
-body[data-app='ui'][data-style='record'] .ws-mark {
-  width: 26px;
-  height: 26px;
-  font-size: 11px;
-}
-body[data-app='ui'][data-style='record'] .ws-text b {
-  font-size: 11.5px;
-}
-body[data-app='ui'][data-style='record'] .ws-text small {
-  margin-top: 3px;
-  font-size: 9.5px;
+  padding: 12px 10px 10px;
 }
 body[data-app='ui'][data-style='record'] .nav-group {
-  margin-bottom: 13px;
+  margin-bottom: 12px;
 }
 body[data-app='ui'][data-style='record'] .nav-group-label {
   padding: 0 10px;
-  margin-bottom: 5px;
-  font-size: 10.5px;
+  margin-bottom: 4px;
+  font-size: 11px;
 }
 body[data-app='ui'][data-style='record'] .nav-item {
-  padding: 9px 10px;
-  gap: 9px;
+  padding: 8px 10px;
+  gap: 8px;
 }
 body[data-app='ui'][data-style='record'] .nav-item .icon {
   width: 16px;
   height: 16px;
 }
 body[data-app='ui'][data-style='record'] .nav-label {
-  font-size: 12.5px;
+  font-size: var(--fs-ui);
 }
 body[data-app='ui'][data-style='record'] .nav-badge {
   padding: 2px 6px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 /* 退出登录按钮已移除：入口收敛到顶栏右上角账号菜单（.user-dropdown） */
@@ -100,36 +83,25 @@ body[data-app='ui'][data-style='record'] .nav-badge {
 /* ---------- 页面标题体系 ---------- */
 body[data-app='ui'][data-style='record'] .page-head,
 body[data-app='ui'][data-style='record'] .module-head {
-  padding: 8px 0 20px;
-  margin-bottom: 22px;
-}
-body[data-app='ui'][data-style='record'] .page-kicker,
-body[data-app='ui'][data-style='record'] .card-kicker {
-  font-size: 10px;
-  letter-spacing: 0.13em;
+  padding: 4px 0 14px;
+  margin-bottom: 18px;
 }
 body[data-app='ui'][data-style='record'] .page-head h1,
 body[data-app='ui'][data-style='record'] .module-head h1,
 body[data-app='ui'][data-style='record'] .course-title-line h1 {
-  font-size: clamp(27px, 2.4vw, 32px);
-}
-body[data-app='ui'][data-style='record'] .page-sub {
-  max-width: 72ch;
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.75;
+  font-size: var(--fs-title);
 }
 body[data-app='ui'][data-style='record'] .page-head-actions {
-  gap: 10px;
+  gap: 8px;
 }
 body[data-app='ui'][data-style='record'] .back {
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
 /* ---------- 卡片与栅格 ---------- */
 body[data-app='ui'][data-style='record'] .card {
-  padding: 20px;
+  padding: 16px;
 }
 body[data-app='ui'][data-style='record'] .dash-grid {
   gap: 16px;
@@ -144,22 +116,15 @@ body[data-app='ui'][data-style='record'] .course-grid {
   gap: 16px;
 }
 body[data-app='ui'][data-style='record'] .card-head {
-  margin-bottom: 15px;
+  margin-bottom: 12px;
 }
 body[data-app='ui'][data-style='record'] .card-head h2 {
-  font-size: 15px;
-}
-body[data-app='ui'][data-style='record'] .card-sub {
-  margin: -1px 0 10px;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
 }
 body[data-app='ui'][data-style='record'] .card-foot {
-  margin-top: 14px;
-  padding-top: 11px;
-  font-size: 10.5px;
-}
-body[data-app='ui'][data-style='record'] .card-hint {
-  font-size: 10.5px;
+  margin-top: 12px;
+  padding-top: 10px;
+  font-size: var(--fs-meta);
 }
 
 /* ---------- KPI ---------- */
@@ -171,32 +136,33 @@ body[data-app='ui'][data-style='record'] .stat {
   padding: 16px 18px 15px;
 }
 body[data-app='ui'][data-style='record'] .stat-label {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 body[data-app='ui'][data-style='record'] .stat-note {
-  margin-top: 8px;
-  font-size: 10.5px;
-  line-height: 1.55;
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
-/* ---------- 按钮：桌面 36 / 紧凑 30，同一行内不换行 ---------- */
+/* ---------- 按钮：统一 32，同一行内不换行 ---------- */
 body[data-app='ui'][data-style='record'] .btn {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 12px;
   font-size: 12.5px;
 }
 body[data-app='ui'][data-style='record'] .btn:hover {
-  transform: none;
+  border-color: var(--ink-4);
+  background: var(--surface);
 }
 body[data-app='ui'][data-style='record'] .btn-sm {
-  min-height: 30px;
+  min-height: 28px;
   padding: 0 10px;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 body[data-app='ui'][data-style='record'] .text-btn {
-  min-height: 26px;
+  min-height: 24px;
   padding: 2px 3px;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 body[data-app='ui'][data-style='record'] .row-actions {
   flex-wrap: nowrap;
@@ -219,28 +185,28 @@ body[data-app='ui'][data-style='record'] .tabs button {
 }
 body[data-app='ui'][data-style='record'] .chip {
   padding: 3px 8px;
-  font-size: 10.5px;
+  font-size: 11px;
 }
 
-/* ---------- 表单控件：统一高度、字号与暖白输入面 ---------- */
+/* ---------- 表单控件：统一高度、字号与中性输入面 ---------- */
 body[data-app='ui'][data-style='record'] .field {
   gap: 6px;
   margin-top: 12px;
-  font-size: 10.5px;
+  font-size: 12px;
 }
 body[data-app='ui'][data-style='record'] .input,
 body[data-app='ui'][data-style='record'] .textarea {
-  min-height: 36px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 7px 10px;
   background: var(--input-bg);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 body[data-app='ui'][data-style='record'] .textarea {
   min-height: 96px;
   line-height: 1.7;
 }
 body[data-app='ui'][data-style='record'] .hint {
-  font-size: 10.5px;
+  font-size: 12px;
 }
 body[data-app='ui'][data-style='record'] .form-error {
   font-size: 12px;
@@ -249,7 +215,7 @@ body[data-app='ui'][data-style='record'] .modal-text {
   font-size: 13px;
 }
 body[data-app='ui'][data-style='record'] .modal-hint {
-  font-size: 11px;
+  font-size: 12px;
 }
 body[data-app='ui'][data-style='record'] .table-search {
   height: 34px;
@@ -260,7 +226,7 @@ body[data-app='ui'][data-style='record'] .table-search input {
   font-size: 12px;
 }
 body[data-app='ui'][data-style='record'] .course-switcher-wrap > span {
-  font-size: 9.5px;
+  font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .class-switcher {
   font-size: 10.5px;
@@ -359,11 +325,6 @@ body[data-app='ui'][data-style='record'] .weak-bar i {
 }
 
 /* ---------- 课程空间与个人中心的次级交互 ---------- */
-body[data-app='ui'][data-style='record'] .quick-links button {
-  min-height: 34px;
-  padding: 8px 10px;
-  font-size: 11.5px;
-}
 body[data-app='ui'][data-style='record'] .course-back {
   font-size: 11.5px;
 }
@@ -375,19 +336,19 @@ body[data-app='ui'][data-style='record'] .course-meta {
 }
 body[data-app='ui'][data-style='record'] .class-badge {
   padding: 3px 7px;
-  font-size: 9.5px;
+  font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .course-nav-kicker {
-  font-size: 9px;
+  font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .course-nav-meta {
   font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .course-cover {
-  font-size: 9.5px;
+  font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .bar-val {
-  font-size: 9px;
+  font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .ai-caveat {
   font-size: 10px;
@@ -445,7 +406,7 @@ body[data-app='ui'][data-style='record'] .ev-kicker {
   font-size: 10px;
 }
 body[data-app='ui'][data-style='record'] .ev-foot {
-  font-size: 9.5px;
+  font-size: 10px;
 }
 
 /* 无 hover：回归静息态外观，保留 focus-visible 与 is-active 表达状态 */
@@ -496,10 +457,6 @@ body[data-app='ui'][data-style='record'] .text-btn.danger:hover {
 body[data-app='ui'][data-style='record'] .back:hover,
 body[data-app='ui'][data-style='record'] .course-back:hover {
   color: var(--ink-3);
-}
-body[data-app='ui'][data-style='record'] .quick-links button:hover {
-  border-color: var(--line);
-  color: var(--ink-2);
 }
 body[data-app='ui'][data-style='record'] .grade-row:not(.is-active):hover,
 body[data-app='ui'][data-style='record'] .chapter-item:not(.is-active):hover {

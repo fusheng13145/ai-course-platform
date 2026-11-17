@@ -1,22 +1,18 @@
-/* 登录/注册：AI 助教工作台的入口页，不依赖旧端 auth 样式。 */
+/* 登录 / 注册 / 找回：一张居中卡片。品牌在左上，主题开关在右上，其余全是表单。 */
 .auth {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 22px clamp(18px, 4vw, 56px) 26px;
-  /* v2 点阵背景：1px 点 + 22px 网格，透明度压低不抢卡片 */
-  background-color: var(--bg);
-  background-image: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--ink-3) 28%, transparent) 1px,
-    transparent 1.2px
-  );
-  background-size: 22px 22px;
+  padding: 0 20px;
+  background: var(--bg);
   color: var(--ink);
 }
 
 .av-top {
+  width: 100%;
+  max-width: 1040px;
+  height: 56px;
+  margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -32,16 +28,15 @@
 }
 
 .av-brand .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-ctl);
   background: var(--brand-mark-bg);
   color: #fff;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .av-brand-text {
@@ -52,15 +47,8 @@
 
 .av-brand-text b {
   font-size: 14px;
-  letter-spacing: 0.03em;
-}
-
-.av-brand-text small {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  color: var(--ink-3);
-  margin-top: 3px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .av-actions {
@@ -70,150 +58,49 @@
 }
 
 .av-actions .icon-btn {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
 }
 
 .av-main {
   flex: 1;
   display: grid;
   place-items: center;
-  padding: 20px 0;
+  padding: 32px 0;
 }
 
 .av-card {
-  width: min(1060px, 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 1.04fr) minmax(360px, 0.96fr);
+  width: min(440px, 100%);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--surface);
-  box-shadow: var(--sh-pop);
-  overflow: hidden;
-}
-
-.av-story {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  padding: clamp(28px, 3.2vw, 46px);
-  /* v2 浅色故事面板：淡蓝洗 + 点阵延续，与页面同体系（弃 #141922 深底）；
-     暗色主题下令牌自动切到暗面，无需独立配色 */
-  border-right: 1px solid var(--line);
-  background-color: color-mix(in srgb, var(--accent) 5%, var(--surface-2));
-  background-image: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--accent) 16%, transparent) 1px,
-    transparent 1.2px
-  );
-  background-size: 22px 22px;
-  color: var(--ink);
-}
-
-.av-story .eyebrow {
-  color: var(--ink-3);
-  margin: 0;
-}
-
-.av-story h1 {
-  margin: 0;
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: clamp(30px, 3vw, 42px);
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
-}
-
-/* em 用皮肤 accent 提亮而非独立蓝色，保证与工作台内的 accent 同源 */
-.av-story h1 em {
-  font-style: normal;
-  color: var(--accent);
-}
-
-.av-story .lede {
-  margin: 0;
-  max-width: 40ch;
-  color: var(--ink-3);
-  font-size: 12.5px;
-  line-height: 1.9;
-}
-
-/* 底部能力格：2x2（图标 + sans 标签 + 一行说明），替代原规格清单 */
-.av-feat {
-  list-style: none;
-  margin: auto 0 0;
-  padding: 14px 0 0;
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px 18px;
-}
-
-.av-feat li {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 4px 10px;
-  align-items: start;
-}
-
-.av-feat .icon {
-  width: 16px;
-  height: 16px;
-  color: var(--accent);
-  margin-top: 2px;
-  grid-row: span 2;
-}
-
-.av-feat b {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.av-feat small {
-  font-size: 10.5px;
-  color: var(--ink-3);
-  line-height: 1.6;
-}
-
-.av-motto {
-  margin: 2px 0 0;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  color: var(--ink-3);
+  padding: clamp(22px, 3vw, 32px);
 }
 
 .av-panel {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 18px;
-  padding: clamp(26px, 3vw, 44px);
 }
 
 .av-form-head h2 {
   margin: 0;
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: 30px;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1.25;
-}
-
-.av-form-head p {
-  margin: 7px 0 0;
-  color: var(--ink-3);
-  font-size: 12px;
-  line-height: 1.8;
+  line-height: 1.3;
 }
 
 .av-form {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.av-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .av-field {
@@ -223,22 +110,18 @@
 }
 
 .av-field > span {
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
 .av-input {
-  height: 44px;
+  height: 40px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl);
   background: var(--surface);
   color: var(--ink);
   font-size: 14px;
-  transition:
-    border-color 0.18s,
-    box-shadow 0.18s;
 }
 
 .av-input:focus {
@@ -251,12 +134,26 @@
   color: var(--ink-4);
 }
 
+.av-code-row {
+  display: flex;
+  gap: 8px;
+}
+
+.av-code-row .av-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.av-code-btn {
+  flex: none;
+}
+
 .av-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
@@ -264,7 +161,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
   cursor: pointer;
 }
@@ -281,12 +178,12 @@
   border-radius: var(--r-ctl);
   background: var(--danger-soft);
   color: var(--danger);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
 .av-submit {
-  height: 44px;
+  height: 40px;
   margin-top: 2px;
   font-size: 13px;
 }
@@ -294,7 +191,7 @@
 .av-switch {
   margin: 0;
   text-align: center;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
@@ -309,62 +206,33 @@
   text-decoration: underline;
 }
 
-.av-note {
-  margin: 0;
-  font-size: 10.5px;
-  line-height: 1.7;
-  color: var(--ink-4);
-}
-
 .av-foot {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
 .av-foot a {
-  color: var(--ink-2);
+  color: var(--ink-3);
+  text-decoration: none;
 }
 
-@media (max-width: 900px) {
-  .av-card {
-    grid-template-columns: 1fr;
-  }
-  .av-story {
-    gap: 16px;
-    padding: 24px;
-  }
-  .av-story h1 {
-    font-size: 30px;
-  }
-  .av-feat {
-    display: none;
-  }
-  .av-main {
-    padding: 14px 0;
-  }
+.av-foot a:hover {
+  color: var(--ink);
 }
 
 @media (max-width: 520px) {
   .auth {
-    padding: 16px 14px 20px;
-  }
-  .av-top {
-    flex-wrap: wrap;
+    padding: 0 14px;
   }
   .av-panel {
-    padding: 22px 18px;
+    padding: 0;
   }
-  .av-form-head h2 {
-    font-size: 25px;
-  }
-  .av-story {
-    padding: 20px 18px;
+  .av-foot {
+    height: 44px;
   }
 }

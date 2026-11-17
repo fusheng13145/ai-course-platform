@@ -1,4 +1,4 @@
-# AGENTS.md · AI 代理入口（2026-11-15）
+# AGENTS.md · AI 代理入口（2026-11-17）
 
 > **先读这一份**。5 分钟拿全"这个仓库是什么、怎么跑、什么不能碰、现在做到哪"。
 > **单文件入口**：本文件是代理唯一入口。原 `AGENT.md`（工程纪律、验证命令、证据纪律、机械守卫写法）已于 2026-11-15 并入本文件 **§10–§12**，原文件删除；文档索引在 [`docs/README.md`](./docs/README.md)。
@@ -14,11 +14,13 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | 598 Java 文件 / 61,670 行；**53 控制器 / 518 端点**；**61 张表**（PRD 47 + 扩展 14） |
-| **当前阶段** | 四阶段接管：阶段 1/2/3 已交付；阶段 4 已完成 P0-A1/A2/A3/B/C，P0-D 文档/CI 收口进行中；P0-E 结题材料独立并行 |
+| **规模（实测）** | **599 main Java / 267 test Java；55 Controller / 520 方法级 HTTP 映射；61 张表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec** |
+| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `fix/frontend-loading-spinner`，PR #107 待合并 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
 **一句话记住优先级**：`PRD > 泛化课程平台 > 多课程 > 软著`，但**结题材料（三指标 + 数据集 + 报告 + 论文）排在最前**。
+
+**当前任务唯一总表**：[`docs/当前状态与待办.md`](./docs/当前状态与待办.md)；本文件 §5 只保留接手必须知道的基线快照。
 
 ---
 
@@ -72,17 +74,20 @@ python -m pytest scripts/tests -q
 python scripts/audit-stats.py
 ```
 
+> Windows 本机：系统 `python` 可能指向无 pytest 的 sandbox runtime，改用 `C:\Users\ASUS\AppData\Local\Programs\Python\Python311\python.exe`；PowerShell 用 `;` 连接命令，`-Dkey=value` 前加 `--%`。测试读数口径与最近结果见 [`docs/测试文档.md`](./docs/测试文档.md) §2。
+
 ### 2.3 端口与地址
 
 | 端口 | 用途 | 注意 |
 | --- | --- | --- |
-| **8081** | 后端 API | |
+| **8080** | 后端 API | 当前文档口径；`8081` 是 e2e 并行端口 |
+| 8081 | e2e 后端 | 不要与日常 8080 混用 |
 | **5173** | 前端 Vite | **必须用 `localhost`**，`127.0.0.1` 连不上（只绑 `[::1]`） |
 | 5174 / 5175 | e2e / 视觉 | **5176+ 会被 CORS 白名单拒登录** |
 | **8001** | Python KG 服务 | |
 | **8002** | Python RAG 服务 | **本项目核心中的核心** |
-| 8003 | LoRA 微调 | 存在但未入编排（D5） |
-| 3306 / 6379 / 7687 | MySQL / Redis / Neo4j | **Redis 视为必选**（用户裁定，文档口径待回写） |
+| 8003 | LoRA 微调 | compose `ft` profile 已编排；目标环境未 `up` |
+| 3306 / 6379 / 7687 | MySQL / Redis / Neo4j | **Redis 为必选依赖**（用户裁定，文档已回写） |
 
 ---
 
@@ -100,11 +105,11 @@ python scripts/audit-stats.py
 
 ### 4.1 可自主做
 
-读代码 / 检索 / 跑只读验证；在同批次内改源码、测试、文档并跑完整验证；新增或**收紧**机械守卫；修复验证暴露的真实缺陷（补测试锁住）；删除**本轮自己创建的**临时产物。
+读代码 / 检索 / 跑只读验证；在同批次内改源码、测试、文档并跑完整验证；新增或**收紧**机械守卫；修复验证暴露的真实缺陷（补测试锁住）；删除**本轮自己创建的**临时产物；按批次本地 `git commit`（默认不推送；推送与 PR 仅在里程碑，PR 由项目主提交）。
 
 ### 4.2 必须先取得授权
 
-- 任何**不可逆或影响共享状态**的动作：`git commit` / `push`、删除跟踪文件、删分支、`reset --hard`、`clean -fd`、`DROP` / `TRUNCATE`、改库结构、装/升依赖、改 `.env` 语义、**放宽任何阈值**。
+- 任何**不可逆或影响共享状态**的动作：`git push`、开 PR、删除跟踪文件、删分支、`reset --hard`、`clean -fd`、`DROP` / `TRUNCATE`、改库结构、装/升依赖、改 `.env` 语义、**放宽任何阈值**。
 - 产品口径取舍（某能力对外怎么说、某条待办做还是挂账）。
 - **跨批次边界的清理**。
 
@@ -123,9 +128,27 @@ python scripts/audit-stats.py
 
 ---
 
-## 5. 当前基线（2026-11-15，接手必读）
+## 5. 当前基线（2026-11-17，接手必读）
 
-### 5.1 已完成
+> 当前任务、负责人、阻塞项以 [`docs/当前状态与待办.md`](./docs/当前状态与待办.md) 为唯一总表；本章只给基线快照与历史批次入口。
+
+### 5.1 当前快照
+
+| 项 | 当前事实 |
+| --- | --- |
+| 分支 / 基线 | `fix/frontend-loading-spinner`（本地领先 `origin`；当前提交以 `git log -1` 为准）；`main` 本地与远程均 `35a1df2d`；PR #107 待合并 |
+| 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
+| 结构 | 599 main Java / 267 test Java；55 Controller / 520 方法级 HTTP 映射；61 表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec |
+| 后端门禁 | 3661 例 / 0 失败 / 0 错误 / 1 跳过；LINE 87.24%、BRANCH 68.43%（门禁 85/65）；SpotBugs 0；ArchUnit 8 |
+| 前端门禁 | Vitest 98 文件 / 1221 例；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过 |
+| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` 113 passed |
+| CI | `ci.yml` 13 job；PR 跑核心 3 spec；最新 PR #107 run 12 success / 1 skipped（`Docker Images Build` skipped 属设计） |
+| 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
+| Compose | 15 服务 / 16 卷 / 8 healthcheck；CI 已构建镜像，目标环境未 `up` |
+| 存储 | 新上传写 `AICOURSE_DATA_DIR/storage`，分片写 `chunks`；根 `uploads/` 已移除；`backend/uploads/` 只读兼容，余 11 个压测临时 PDF |
+| 文档 | `docs` 21 个 Markdown + `assets/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
+
+### 5.2 历史批次（B0–B11）
 
 | 批次 | 内容 | 结果 |
 | --- | --- | --- |
@@ -133,7 +156,7 @@ python scripts/audit-stats.py
 | 阶段 2 | 代码审计 | 585 Java × 12 类模式扫描 + 12 关键类深读；三处系统性错位（A-1 越权 / I-1 503 嗅探 / V-1,V-2 资源） |
 | 阶段 3 | 差距分析 + 结构整理方案 + 云端精读 + 论文取全 | 已通过；P0–P2 重排；DB squash 后移 P2 |
 | **B0** | 只读取证 | 47 表 **100% 存在**；实测 61 表 = 47 + 14；62 Mapper（`MetricsMapper` 无实体） |
-| **B1** | 零风险清理 | 释放 **12,790,578B ≈ 12.20MB**；`logs/` 剩 4 个被进程占用（35.05MB）未删 |
+| **B1** | 零风险清理 | 释放 **12,790,578B ≈ 12.20MB**；`logs/` 剩 4 个被进程占用（当时 35.05MB；当前约 37.60MB）未删 |
 | **B2** | 文档整合 | 根目录 md **6 → 2**；4 份孤儿移入 `docs/engine`、`docs/archive`；新建 `docs/README.md`；**删除 0 个** |
 | **B3** | 双引擎优先 Python | `application.yaml` + `RAGServiceImpl` + `HttpRagProvider` + `CourseKnowledgeBaseServiceImpl` + 新增 `RagEngineModeTest`；**26/26 测试绿** |
 | **B4** | HyDE + Cross-Encoder | `rag_engine.py` v1.1：HyDE（假设答案替换向量查询）+ `bge-reranker-base` 重排；**79/79 测试绿**；实测 `retrieval=HYDE`、`rerank_score=0.7545`；顺带修复 D1（pyarrow 16.1→24.0） |
@@ -145,7 +168,7 @@ python scripts/audit-stats.py
 | **B10** | 交付链收口（2026-11-16） | ①**#88 冲突**：`main` 新增 `V20__exam_session_question_comments.sql`，结构迁移白名单测试与契约 yml 迁移清单同步补该文件（`d838f2bd`）；②**#89 冲突**：`ClassroomController` 补 `RoleUtil` 引入、`ExamSessionController` 构造器取 main 侧（#95 的 `TrustedClientIpResolver`，取分支侧等于回退监考 IP 单源）（`aac43f5d`）；③**#90 CI 红灯**：`ProfileBody.vue` 的 `String(ui.role ?? '')` 对 ref 恒得 `[object Object]`，`uiRole` 整层失效、角色判定只能靠异步 `profileRole`，profile 未就绪时教师按 student 兜底发一次 `/student/**` → 改为兼容 ref／值两种形态取值并保留 `onMounted` 串行（`3e13075c`）。**RED→GREEN：`--coverage` 下 1 failed → 22 passed；全量带 coverage 91 files passed；`vue-tsc` EXIT=0**；④**P1 三件**：E-05 Neo4j 真连取证（`backend=neo4j`／4178 图 59 节点／`path/plan` 真实 PREREQUISITE 边 1 hop，启动器路径亦复验）、I-01 IT 口径选定②、I-02 Actions 取证步骤入 `docs/测试文档.md` §7.3（`c55dde16`） |
 | **B11** | 数据库一致性修复 + Linux 启动器（2026-11-16） | ①**V20 缺位**：本地库 `flyway_schema_history` 21 条、19 之后直接跳 21，`exam_sessions.question_comments` 列不存在 ⇒ #96 的「人工阅卷评语」在本地库实质不可用。按裁定 **A**（`--spring.flyway.out-of-order=true` 一次性）补跑：`Migrating ... to version "20 - exam session question comments" [out of order]` → `Successfully applied 1 migration`；列已存在、历史 `success=1`、总行数 21→22。**过程中踩到并纠正一处**：先用旧 jar 启动，Flyway 应用的是 jar 内残留的旧名 `V20__resources_file_type_len.sql`（与 V21 同内容），已删该错误历史行并改用 `target/classes` 重跑；随后 `mvn package` 重建 jar（校验：含 `V20__exam_session_question_comments.sql`、无旧名残留）。**未留持久配置**（`out-of-order` 仅作启动参数，未写入 yaml）。②**Linux 启动器**：新增 `start.sh`（100755、`sh -n` 通）+ `start-engines.py` 的 `neo4j_bin()` 按平台选（`47282c8e`、`fbb641c2`）。③文档：`项目手册.md` 迁移盘点 21→22（结构 17→18，删「V20 为空号，不补」）；`start.sh` 进 §2.1 上手 |
 
-### 5.2 双引擎的真实含义（**M-13，别搞错**）
+### 5.3 双引擎的真实含义（**M-13，别搞错**）
 
 - **Java 侧没有任何 RAG 引擎实现**：`integration/rag` 只有 `HttpRagProvider` / `DisabledRagProvider` / `RagContract`，全仓无 BM25 实现类。
 - 因此"双引擎" = **Python RAG（8002）** ↔ **纯 LLM（无检索）**，不是"Java 也有一套检索"。
@@ -154,25 +177,22 @@ python scripts/audit-stats.py
   - `RAG_PROVIDER=java` → 不调 Python，直接纯 LLM（**唯一回退手段，无需改代码**）
   - `RAG_ENABLED` 仅在 `rag.provider` 未配置时生效（老配置兼容）
 
-### 5.3 未完成（按优先级）
+### 5.4 当前优先级（摘要）
 
-| 优先级 | 事项 | 对应需求编号 |
+| 优先级 | 事项 | 去向 |
 | --- | --- | --- |
-| **P0** | KG 真实构建（IPA + IREM） | R-C1（**B6 已落代码并实测，但见下方“能力边界”**：IPA 可用、IREM 五类判定质量不足） |
-| **P0** | R-D2 数据集抽取（语料已入库；IPA 已能产点，剩“说明补写 + 近义合并 + 冲 5000 实体”） | R-D2 |
-| **P0** | 三指标实测（85% / 90% / 85%） | R-K1 / K2 / K3 |
-| **P0** | ~~A-1 跨院系越权~~（B8 已修，31/31 绿） | — |
-| **P0** | ~~资源可见性 V-2 + 删除后物理删盘 V-1~~（B8 已修） | — |
-| P1 | ~~73 处 `@Transactional` 缺 `rollbackFor`~~（B9 实测真实缺口 6 处，已补齐） | — |
-| P1 | ~~503 → 契约化~~（B9 已完成：HTTP 503 + 契约判定唯一来源） | I-1 |
-| P1 | ~~Redis 必选文档化~~（已完成：`docs/PRD产品规划.md §14` OV-1 对照行已写「按必选执行，已落地」） | OV-1 |
-| P2 | DB squash / 泛化 / 多课程 / `.git` 瘦身 | — |
+| **P0** | 结题材料：三指标实测、数据集/标注、研究报告/测试报告/论文/软著 | `docs/当前状态与待办.md` §3 K-01–K-04 |
+| **P1** | 前端尾量：C-07 完整 e2e 连续 3 轮、P-10 响应式、P-12 XSS 处置 | 同上 §5 |
+| **P1** | 目标环境上线闭环：E-01 起栈、E-03 备份异地、E-04 告警演练 | 同上 §4 |
+| **P2** | DB squash、泛化平台 / 多课程、`.git` 瘦身 | 同上 §4 |
 
-### 5.4 待项目主裁定（不得自行决定）
+> 已关闭的 A-1 越权、V-1/V-2 资源、B9 事务与 503 契约、Redis 必选文档化等不再列为本表待办。
+
+### 5.5 待项目主裁定（不得自行决定）
 
 1. **样例课程口径 —— 已裁定（A）**：**新建《计算机网络》课程 + 灌语料**；课程 1（Python 程序设计）保持不动。
 2. **C9 LoRA 基座 —— 已裁定**：以答辩 PPT 的 `deepseek-r1:7b`（训 0.1% 参数）为申报口径。
-3. **`logs/` 残留 35.05MB —— 已裁定（B）**：留待下次重启前清，不停服。
+3. **`logs/` 运行期日志 —— 已裁定（B）**：留待下次重启前清理，不停服；当前约 37.60MB。
 4. **【新增，B4 取证】DeepSeek 额度**：实测 `POST /v1/chat/completions` 返回 **402 Payment Required**，`/ask` 与 HyDE 全部降级（有资料→`EXTRACTIVE`）。需项目主处理账户额度，否则三指标实测与答辩演示都拿不到真实生成质量。
 
 ---
@@ -203,8 +223,8 @@ python scripts/audit-stats.py
 
 | 不能这么说 | 原因 |
 | --- | --- |
-| "CI 已绿 / 受 CI 门禁保护" | 本机对 Actions 结果不可观测；`frontend-e2e` PR 只跑核心 smoke，完整套件在 main／手动 |
-| "集成层本机验证过" | 本机只跑 `-DskipITs`，12 例 IT 由 CI 取数 |
+| "CI 已绿 / 受 CI 门禁保护" | Actions 页面可观测，但匿名 API 受限流；`main` 无分支保护/required checks；`frontend-e2e` PR 只跑核心 3 spec，完整套件在 main／手动 |
+| "集成层本机验证过" | 本机只跑 `-DskipITs`，16 例 IT 由 CI 取数 |
 | "依赖无漏洞" | Trivy 漏洞库侧只在 CI 有读数 |
 | "无障碍已达标 / WCAG 合规" | 只有近似控制台读数，非 axe、非门禁 |
 | "全站无视觉回归" | 基线只覆盖 5 个锚点页（10 张） |
@@ -223,10 +243,10 @@ python scripts/audit-stats.py
 | 项目是什么、角色权限、术语、审计台账 | `docs/项目手册.md` |
 | 需求、验收标准、14 维度 140 项 | `docs/PRD产品规划.md` |
 | 进程拓扑、数据模型、接口契约 | `docs/系统架构设计.md` |
-| 后端 / 前端怎么写 | `docs/后端开发规范.md` / `docs/前端开发规范.md` |
+| 后端 / 前端怎么写 | `docs/开发规范.md` |
 | 怎么起、密钥、上线预案 | `docs/部署文档.md` |
 | 测试怎么跑、门禁判什么、读数 | `docs/测试文档.md` |
-| 还剩什么没做 | `docs/后端待办项.md` / `docs/前端待办项.md` |
+| 还剩什么没做 | **`docs/当前状态与待办.md`（唯一总表）**；`docs/后端待办项.md` / `docs/前端待办项.md` 为证据库 |
 | **战略决策、功能边界、三条红线** | `docs/alignment/01-决策对齐总表.md`（最高层需求） |
 | 引擎侧真实链路与 D1–D10 断点 | `docs/系统架构设计.md` §8（D1 已修，D3–D10 由 B3–B6 关闭） |
 | 代理操作细则（证据纪律、机械守卫、验证命令） | 本文件 §10–§12 |
@@ -236,7 +256,7 @@ python scripts/audit-stats.py
 ## 9. 新会话接手 5 步
 
 1. `git status --porcelain` + `git log --oneline -8`：确认工作树与最近批次。
-2. 读本文件 §1、§3、§5；读 `docs/alignment/01-决策对齐总表.md`；读对应端待办项。
+2. 读本文件 §1、§3、§5；读 [`docs/当前状态与待办.md`](./docs/当前状态与待办.md)（唯一总表）与 `docs/alignment/01-决策对齐总表.md`。
 3. 跑最小读数：`python -m pytest scripts/tests -q`、`cd frontend && npm run lint && npm run typecheck`；需要后端时 `start.bat status`。
 4. 确认本批是否触碰 §4.2；触碰就先问。
 5. 开工；收口按 §10.1 第 5 步交付（改了什么 / 实跑了什么与没跑什么 / 行为变化 / 下一步）。
@@ -253,7 +273,7 @@ python scripts/audit-stats.py
 2. **建改前证据**：需要视觉／性能／行为对比的，先跑一次留改前读数，再动手。
 3. **动手**：最小实现；同批改测试；不把无关清理夹带进来。
 4. **验证**：跑齐 §11 里与本批相关的每一层，记录命令与时点。
-5. **收口**：更新唯一来源的读数、把结论写成“可主张／不可主张”两栏、给 commit 建议信息（**不自行提交**）。
+5. **收口**：更新唯一来源的读数、把结论写成“可主张／不可主张”两栏、按批次本地 `git commit`（**不推送**；推送与 PR 只在里程碑，PR 由项目主提交）。
 
 ### 10.2 第一性原理与批判性（不可跳过）
 
@@ -338,6 +358,7 @@ python scripts/sync-kg-to-python.py <courseId>
 
 - `.github/workflows/ci.yml` 13 个作业；连 `deploy.yml`／`eval-nightly.yml`／`release.yml` 共 **17 个唯一作业键**；`frontend-e2e` 在 PR 跑核心 3 spec，push `main`／`workflow_dispatch` 跑完整流程套件。
 - push 事件对 `docs/**`、`archive/**`、`*.md` 走 `paths-ignore` ⇒ **纯文档改动不触发 CI**，不能拿“CI 没红”当验证。
+- `main` 当前**无分支保护**（GitHub API 返回 404 Branch not protected），无强制评审、无 required checks；合并采用“CI 可执行 job 全绿”的团队约定。
 - 开 PR 走浏览器；GitHub MCP 的写类工具在本仓历史实测报 schema 错且真的没生效，用之前先做一次无害写入复验。
 
 ---
@@ -346,8 +367,8 @@ python scripts/sync-kg-to-python.py <courseId>
 
 | 不能这么说 | 原因 | 出处 |
 | --- | --- | --- |
-| “CI 已绿／受 CI 门禁保护” | 本机对 Actions 结果不可观测；`frontend-e2e` PR 只跑核心 smoke，完整套件在 main／手动 | `docs/测试文档.md` §7、§11 |
-| “集成层本机验证过” | 本机自 2026-10-08 只跑 `-DskipITs`；12 例 IT 由 CI 取数 | `docs/测试文档.md` §2.1 |
+| “CI 已绿／受 CI 门禁保护” | Actions 页面可观测，但匿名 API 受限流；`main` 无分支保护/required checks；`frontend-e2e` PR 只跑核心 3 spec，完整套件在 main／手动 | `docs/测试文档.md` §7、§11 |
+| “集成层本机验证过” | 本机自 2026-10-08 只跑 `-DskipITs`；16 例 IT 由 CI 取数 | `docs/测试文档.md` §2.1 |
 | “依赖无漏洞” | Trivy 漏洞库侧只在 CI 有读数 | `docs/后端待办项.md` I-05 |
 | “无障碍已达标／WCAG 合规” | 只有近似控制台读数，非 axe、非门禁 | `docs/测试文档.md` §4.5 |
 | “全站无视觉回归” | 基线只覆盖 5 个锚点页（10 张，明暗各一） | `docs/前端待办项.md` §1 |
@@ -357,3 +378,16 @@ python scripts/sync-kg-to-python.py <courseId>
 | “跨设备完成率” | 引导三态只落本地 `localStorage` | `docs/前端待办项.md` §4 |
 | “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §14.2 R-C1 |
 | “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §14.2 R-K1/K2/K3 |
+
+---
+
+## 13. 界面纪律（2026-11-17）
+
+**一句话**：页面靠布局自解释，不靠解释性文字。像 Linear 官网／苹果备忘录那样干净，同时改善 UX、DX、AX。
+
+- 一页 = `PageHead(title)` + 动作 + 内容；页头没有副标题／kicker／来源章，`PageDef` 没有 `desc`。
+- 加文案先过三问：动作标签？数据？改不了的事实（不可撤回／仅查询）？都不是就删。删了看不懂就改布局，不要加回一句话。
+- 空态一行 `<b>`，错误态一行 + 重试；不写「XX 会出现在这里」。
+- 视觉：一套系统字族、四档字号（22／14／13／12）、无衬线标题、无渐变／入场动画／hover 位移／辉光，分隔只用 1px 线。
+- 退役类名（模板出现即红）：`page-kicker`／`page-sub`／`card-kicker`／`card-sub`／`card-hint`／`ai-caveat`／`eyebrow`／`lede`／`av-*`（story／feat／motto）。
+- 守卫：`frontend/src/ui/__tests__/copyLaw.test.ts`（文案，含阴性对照）＋ `visualLaw.test.ts`（静态视觉）。规则全文见 `docs/开发规范.md` §8.2。

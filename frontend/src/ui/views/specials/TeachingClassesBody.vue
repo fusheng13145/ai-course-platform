@@ -62,15 +62,14 @@
       <div v-else-if="loading" class="empty-state compact"><b>正在加载教学班…</b></div>
       <div v-else-if="courseId" class="empty-state compact">
         <b>该课程暂无教学班</b>
-        <p>每门落库课程都会自动带一个默认教学班；此处为空属数据异常。</p>
+        <p class="hint">每门课程应自带一个默认教学班，此处为空属数据异常。</p>
       </div>
       <div v-else class="empty-state compact">
-        <b>请先在右上角选择课程</b>
-        <p>监管视图按课程逐个查看教学班与成员。</p>
+        <b>选择课程查看教学班</b>
       </div>
 
       <div v-if="openMembersId" class="members-panel">
-        <p class="card-kicker">教学班 #{{ openMembersId }} 成员</p>
+        <h3 class="members-title">教学班 #{{ openMembersId }} 成员</h3>
         <div v-if="members.length" class="table-wrap">
           <table>
             <thead>
@@ -243,6 +242,11 @@ init()
 }
 .members-panel {
   padding: 8px 16px 14px;
-  border-top: 1px dashed var(--line);
+  border-top: 1px solid var(--line);
+}
+.members-title {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
 }
 </style>
