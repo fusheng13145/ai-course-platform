@@ -23,8 +23,6 @@
     </div>
 
     <template v-if="activeTab === 'provider'">
-      <p class="scope-line">切换供应商即时生效；密钥在服务端维护，本页只做选择与连通性探测。</p>
-
       <div v-if="loadError" class="callout" role="alert">
         <span>当前供应商</span>
         <p>{{ loadError }}</p>
