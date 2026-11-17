@@ -77,7 +77,8 @@ const host = ref<HTMLElement | null>(null)
 
 const metaText = computed(() => {
   const parts = [props.course.semester, props.course.teacher].filter(Boolean) as string[]
-  if (props.role !== 'student' && props.course.students) parts.push(`${props.course.students} 名学生`)
+  if (props.role !== 'student' && props.course.students)
+    parts.push(`${props.course.students} 名学生`)
   if (!parts.length) parts.push('课程信息')
   return parts.join(' · ')
 })
@@ -251,15 +252,17 @@ onUnmounted(() => {
   z-index: 0;
   border-radius: var(--r-card);
   overflow: hidden;
-  background:
-    linear-gradient(
-      148deg,
-      color-mix(in srgb, var(--tone, var(--tone-1)) 62%, var(--tone-ink, var(--tone-1-ink)) 38%) 0%,
-      color-mix(in srgb, var(--tone, var(--tone-1)) 88%, var(--tone-ink, var(--tone-1-ink)) 12%) 58%,
-      var(--tone, var(--tone-1)) 100%
-    );
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-ink, var(--tone-1-ink)) 22%, transparent);
-  transition: filter 0.7s var(--cf-ease), transform 1s var(--cf-ease);
+  background: linear-gradient(
+    148deg,
+    color-mix(in srgb, var(--tone, var(--tone-1)) 62%, var(--tone-ink, var(--tone-1-ink)) 38%) 0%,
+    color-mix(in srgb, var(--tone, var(--tone-1)) 88%, var(--tone-ink, var(--tone-1-ink)) 12%) 58%,
+    var(--tone, var(--tone-1)) 100%
+  );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--tone-ink, var(--tone-1-ink)) 22%, transparent);
+  transition:
+    filter 0.7s var(--cf-ease),
+    transform 1s var(--cf-ease);
 }
 .cf[data-tone='1'] {
   --tone: var(--tone-1);
@@ -355,11 +358,7 @@ onUnmounted(() => {
   color: #18181b;
   transform-origin: 50% 100%;
   /* 默认整页藏在前袋后面，只留一条边 */
-  transform: translate(
-      calc((var(--i) - 1) * 6px),
-      calc(44px + var(--i) * 3px)
-    )
-    rotate(0deg)
+  transform: translate(calc((var(--i) - 1) * 6px), calc(44px + var(--i) * 3px)) rotate(0deg)
     scale(0.95);
   opacity: 0;
   transition:
@@ -385,8 +384,7 @@ onUnmounted(() => {
       calc((var(--i) - 1) * 50px + var(--cf-px) * 4px),
       calc(-19px + var(--i) * -6px)
     )
-    rotate(calc((var(--i) - 1) * 2.8deg + var(--cf-py) * 0.8deg))
-    scale(1);
+    rotate(calc((var(--i) - 1) * 2.8deg + var(--cf-py) * 0.8deg)) scale(1);
 }
 
 .cf-sheet-no {
@@ -466,7 +464,9 @@ body[data-theme='dark'] .cf-sheet[data-empty='1'] .cf-sheet-title {
     0 8px 22px -14px rgba(10, 12, 20, 0.3);
   transform-origin: 50% 100%;
   transform: perspective(900px) rotateX(0deg) translateY(0);
-  transition: transform 0.72s var(--cf-spring), box-shadow 0.5s var(--cf-ease);
+  transition:
+    transform 0.72s var(--cf-spring),
+    box-shadow 0.5s var(--cf-ease);
 }
 
 .cf--open .cf-front {
