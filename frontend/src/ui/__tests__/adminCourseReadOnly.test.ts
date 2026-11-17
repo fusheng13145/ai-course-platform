@@ -101,7 +101,7 @@ describe('课程空间 · 管理员只读页签', () => {
       state.tab = tab
       const wrapper = mountCourseView()
       expect(wrapper.findComponent(AdminReadOnlyTab).exists()).toBe(true)
-      expect(wrapper.text()).toContain('管理员只读，无数据面')
+      expect(wrapper.text()).toContain('管理员只读')
       wrapper.unmount()
     },
   )

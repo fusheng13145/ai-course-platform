@@ -543,8 +543,8 @@ describe('管理员 / 角色与权限', () => {
     await flushPromises()
 
     expect(wrapper.find('.callout').text()).toContain('权限列表加载失败')
-    expect(wrapper.text()).toContain('无法确认权限数据')
-    expect(wrapper.text()).not.toContain('该角色暂无权限配置')
+    expect(wrapper.text()).not.toContain('暂无权限项')
+    expect(wrapper.find('.empty-state').exists()).toBe(false)
     expect(toast).toHaveBeenCalledWith('权限列表加载失败', 'danger')
     wrapper.unmount()
   })

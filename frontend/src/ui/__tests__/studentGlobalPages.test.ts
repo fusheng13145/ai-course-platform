@@ -13,6 +13,7 @@ const authApi = vi.hoisted(() => ({
   changePassword: vi.fn(),
 }))
 const userApi = vi.hoisted(() => ({ getProfile: vi.fn() }))
+const xlsxExport = vi.hoisted(() => ({ downloadXlsx: vi.fn() }))
 const router = vi.hoisted(() => ({ push: vi.fn() }))
 
 const uiState = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ vi.mock('@/api/student', () => ({ default: studentApi }))
 vi.mock('@/api/task', () => ({ default: taskApi }))
 vi.mock('@/api/auth', () => ({ default: authApi }))
 vi.mock('@/api/user', () => ({ default: userApi }))
+vi.mock('@/utils/xlsxExport', () => xlsxExport)
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: router.push }) }))
 
 // ui 组合式函数持有共享 ref：主题开关与角色必须给真 ref，否则模板不会更新
@@ -419,7 +421,7 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     ],
   })
 
-  it('按课程渲染成绩并支持切换课程；不提供导出，学习中心/错题本各归其页签', async () => {
+  it('按课程渲染成绩并支持切换课程；可导出成绩，学习中心/错题本各归其页签', async () => {
     studentApi.getGrades.mockResolvedValue(gradesPayload)
 
     const wrapper = mountAcademic()
@@ -443,8 +445,30 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(text).toContain('错题本')
     expect(text).not.toContain('学习路径')
     expect(text).not.toContain('示例数据')
-    expect(findButton(wrapper, '导出')).toBeUndefined()
-    expect(findButton(wrapper, '导出成绩')).toBeUndefined()
+    const exportButton = findButton(wrapper, '导出成绩')
+    expect(exportButton).toBeTruthy()
+    await exportButton?.trigger('click')
+    await settle()
+    expect(xlsxExport.downloadXlsx).toHaveBeenCalledTimes(1)
+    const [exportRows, sheetName, fileName] = xlsxExport.downloadXlsx.mock.calls[0]
+    expect(sheetName).toBe('成绩')
+    expect(fileName).toContain('学业成绩-')
+    expect(exportRows).toHaveLength(3)
+    expect(exportRows[0]).toMatchObject({
+      课程: '计算机网络',
+      成绩项: '实验一',
+      类型: '作业',
+      得分: '88',
+      满分: '100',
+      状态: '已批改',
+    })
+    expect(exportRows[2]).toMatchObject({
+      课程: '数据结构',
+      成绩项: '单元测验',
+      类型: '考试',
+      得分: '90',
+      满分: '100',
+    })
 
     const dataStructureChip = wrapper
       .findAll('.course-chip')

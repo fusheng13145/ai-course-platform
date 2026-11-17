@@ -105,16 +105,9 @@
         <div v-else-if="loading" class="empty-state compact">
           <b>正在加载权限…</b>
         </div>
-        <div v-else class="empty-state compact">
+        <div v-else-if="!listError" class="empty-state compact">
           <span class="e-ico"><Icon name="shield" /></span>
-          <b>{{ emptyDescription() }}</b>
-          <p>
-            {{
-              listError
-                ? '请查看上方提示后重试。'
-                : '该角色尚未配置权限，可用右上角「分配权限」写入第一条。'
-            }}
-          </p>
+          <b>暂无权限项</b>
         </div>
       </section>
     </div>
@@ -272,7 +265,7 @@ const form = reactive({
   isActive: true,
 })
 
-const { loading, listError, run, emptyDescription } = useListFeedback({
+const { loading, listError, run } = useListFeedback({
   failMessage: '权限列表加载失败，请稍后重试。',
   toastMessage: '权限列表加载失败',
   emptyText: '该角色暂无权限配置',
