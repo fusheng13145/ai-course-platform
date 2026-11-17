@@ -19,8 +19,8 @@
       <span class="file-name">{{ pickedFile ? pickedFile.name : '未选择文件' }}</span>
     </div>
     <p class="upload-hint">
-      支持 PDF / Word / Excel / JPG / PNG / GIF / MP4 / MP3；50MB 以内直传，
-      超过 50MB 自动分片续传（单文件上限 2GB）；上传后学生可在课程资源区下载。
+      支持 PDF / Word / Excel / JPG / PNG / GIF / MP4 / MP3；50MB 以内直传， 超过 50MB
+      自动分片续传（单文件上限 2GB）；上传后学生可在课程资源区下载。
     </p>
     <label class="field">
       <span>资源描述</span>
@@ -36,7 +36,15 @@
     <template #footer>
       <button class="btn btn-ghost" :disabled="submitting" @click="requestClose">取消</button>
       <button class="btn btn-primary" :disabled="submitting || !pickedFile" @click="submit">
-        {{ submitting ? (isChunked ? `上传中 ${uploadPercent}%` : '上传中…') : failed ? '重试上传' : '上传' }}
+        {{
+          submitting
+            ? isChunked
+              ? `上传中 ${uploadPercent}%`
+              : '上传中…'
+            : failed
+              ? '重试上传'
+              : '上传'
+        }}
       </button>
     </template>
   </Modal>
