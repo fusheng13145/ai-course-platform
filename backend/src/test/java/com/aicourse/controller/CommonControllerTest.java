@@ -68,7 +68,8 @@ class CommonControllerTest extends ControllerTestBase {
                 .thenReturn("test-uuid.png");
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", "fake-image-bytes".getBytes());
+                "file", "test.png", "image/png",
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
 
         mockMvc.perform(multipart("/common/upload").file(file)
                         .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
@@ -115,7 +116,8 @@ class CommonControllerTest extends ControllerTestBase {
                 .thenThrow(new RuntimeException("磁盘已满"));
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", "test".getBytes());
+                "file", "test.png", "image/png",
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
 
         mockMvc.perform(multipart("/common/upload").file(file)
                         .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))

@@ -2,7 +2,10 @@ package com.aicourse.service;
 
 import com.aicourse.common.StorageLayout;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * 文件存储服务统一接口
@@ -23,6 +26,20 @@ public interface FileStorageService {
      * @return 成功则返回存储路径或 object name；失败抛异常
      */
     String upload(String objectName, InputStream inputStream, String contentType, long size);
+
+    /**
+     * 从本地临时文件上传（分片合并等已落盘场景）。
+     *
+     * <p>默认实现以流方式委托 {@link #upload}，Local/MinIO 均复用；调用方负责在成功后
+     * 清理临时文件。这样合并路径不再自行 {@code Files.move} 到存储根，避免绕过存储抽象。</p>
+     */
+    default String uploadFromPath(String objectName, Path source, String contentType, long size) {
+        try (InputStream in = Files.newInputStream(source)) {
+            return upload(objectName, in, contentType, size);
+        } catch (IOException e) {
+            throw new RuntimeException("读取待上传文件失败: " + source, e);
+        }
+    }
 
     /**
      * 下载文件

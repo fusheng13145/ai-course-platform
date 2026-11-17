@@ -133,7 +133,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
             new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 1, 2, 3, 4};
     private static final byte[] GIF_BYTES = "GIF89a!!".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] OLE2_BYTES =
-            new byte[]{(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, 0, 0, 0, 0};
+            new byte[]{(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0,
+                    (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1};
     private static final byte[] ZIP_BYTES =
             new byte[]{'P', 'K', 0x03, 0x04, 0, 0, 0, 0};
     private static final byte[] MP4_BYTES =
@@ -233,6 +234,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         uploadAndAssert("新文档.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ZIP_BYTES, ".docx");
         uploadAndAssert("旧表格.xls", "application/vnd.ms-excel", OLE2_BYTES, ".xls");
+        uploadAndAssert("新表格.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ZIP_BYTES, ".xlsx");
     }
 
     @Test
@@ -325,12 +328,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
                 new Pair("m3.jpg", "image/jpeg", GIF_BYTES),         // jpeg 声明、gif 内容
                 new Pair("m4.gif", "image/gif", JPEG_BYTES),         // gif 声明、jpeg 内容
                 new Pair("m5.mp4", "video/mp4", PDF_BYTES),          // mp4 声明、pdf 内容
-                // xlsx：ZIP 容器但白名单 contains 判定不含 "word"/"excel" -> magicMatches 落最终 false
-                new Pair("m6.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ZIP_BYTES),
                 // 旧表格声明但给 PDF 内容 -> zip/ole2 双假侧，落最终 return false
                 // （注：ZIP 容器对 application/vnd.ms-excel 是**放行**的——office 分支只要求
-                //  zip 或 ole2 二者之一，见 magicMatchesContentType 的 word/excel 判定）
+                //  zip 或 ole2 二者之一，见 UploadMagic.matchesMime 的 office 判定）
                 new Pair("m7.xls", "application/vnd.ms-excel", PDF_BYTES),
                 // 魔数不识别（8 字节无魔数）-> detectMagicType null -> 一律拒绝
                 new Pair("m8.pdf", "application/pdf", NO_MAGIC_BYTES));
@@ -396,7 +396,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("上传（直接调用）：getBytes 抛 IOException -> code 500 读取失败包装")
+    @DisplayName("上传（直接调用）：getInputStream 抛 IOException -> code 500 读取失败包装")
     void uploadResource_getBytesIoException_wrappedAs500() throws Exception {
         ResourceService rs = mock(ResourceService.class);
         CourseService cs = mock(CourseService.class);
@@ -405,7 +405,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         when(f.isEmpty()).thenReturn(false);
         when(f.getSize()).thenReturn(10L);
         when(f.getContentType()).thenReturn("application/pdf");
-        when(f.getBytes()).thenThrow(new IOException("磁盘读取故障"));
+        when(f.getInputStream()).thenThrow(new IOException("磁盘读取故障"));
 
         var resp = directController(rs, cs, mock(CourseEnrollmentService.class))
                 .uploadResource(f, COURSE_ID, null, teacherAuth());
@@ -416,7 +416,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("上传（直接调用）：getBytes 返回 null -> detectMagicType null 入参侧 -> code 400")
+    @DisplayName("上传（直接调用）：文件头输入流为 null -> code 400")
     void uploadResource_nullBytes_rejected() throws Exception {
         ResourceService rs = mock(ResourceService.class);
         CourseService cs = mock(CourseService.class);
@@ -425,7 +425,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         when(f.isEmpty()).thenReturn(false);
         when(f.getSize()).thenReturn(0L);
         when(f.getContentType()).thenReturn("application/pdf");
-        when(f.getBytes()).thenReturn(null);
+        when(f.getInputStream()).thenReturn(null);
 
         var resp = directController(rs, cs, mock(CourseEnrollmentService.class))
                 .uploadResource(f, COURSE_ID, null, teacherAuth());

@@ -291,6 +291,11 @@ class ResourceControllerTest extends ControllerTestBase {
         // 首版必须带资源ID、文件名、类型、地址、上传人与真实字节数，否则版本历史无法溯源大小
         verify(resourceVersionService).createNewVersion(eq(9L), eq("a.pdf"), eq("application/pdf"),
                 anyString(), eq("初始上传"), eq(1L), eq(8L));
+        org.mockito.ArgumentCaptor<Resource> resourceCaptor =
+                org.mockito.ArgumentCaptor.forClass(Resource.class);
+        verify(resourceService).save(resourceCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(1L,
+                resourceCaptor.getValue().getUploaderId().longValue());
 
         JsonNode node = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
         String url = node.path("data").path("url").asText();

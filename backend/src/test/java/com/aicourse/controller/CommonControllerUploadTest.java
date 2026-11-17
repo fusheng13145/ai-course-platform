@@ -48,7 +48,8 @@ class CommonControllerUploadTest extends ControllerTestBase {
     private com.aicourse.service.SemesterService semesterService;
 
     private static MockMultipartFile png(String name) {
-        return new MockMultipartFile("files", name, "image/png", "bytes".getBytes());
+        return new MockMultipartFile("files", name, "image/png",
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
     }
 
     @Test
@@ -119,7 +120,8 @@ class CommonControllerUploadTest extends ControllerTestBase {
         when(fileStorageService.upload(anyString(), any(InputStream.class), any(), anyLong()))
                 .thenReturn("stored.png");
         MockMultipartFile traversal = new MockMultipartFile("files",
-                "../../etc/passwd.png", "image/png", "x".getBytes());
+                "../../etc/passwd.png", "image/png",
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
         mockMvc.perform(multipart("/common/upload/batch").file(traversal)
                         .with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
@@ -135,7 +137,8 @@ class CommonControllerUploadTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /common/upload - 未登录返回401（单文件同样需认证）")
     void single_unauthenticated_returns401() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "a.png", "image/png", "b".getBytes());
+        MockMultipartFile file = new MockMultipartFile("file", "a.png", "image/png",
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
         mockMvc.perform(multipart("/common/upload").file(file))
                 .andExpect(status().isUnauthorized());
         verify(fileStorageService, never()).upload(anyString(), any(), any(), anyLong());

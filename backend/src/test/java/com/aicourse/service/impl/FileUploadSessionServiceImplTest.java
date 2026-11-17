@@ -44,12 +44,14 @@ class FileUploadSessionServiceImplTest {
     void setUp() {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), FileUploadSession.class);
-        service = new FileUploadSessionServiceImpl();
+        LocalFileStorageServiceImpl storage = new LocalFileStorageServiceImpl();
+        service = new FileUploadSessionServiceImpl(storage);
         ReflectionTestUtils.setField(service, "baseMapper", fileUploadSessionMapper);
         uploadRoot = tempRoot.resolve("uploads");
         chunkRoot = tempRoot.resolve("upload-chunks");
         ReflectionTestUtils.setField(service, "uploadDir", uploadRoot.toString());
         ReflectionTestUtils.setField(service, "chunkDir", chunkRoot.toString());
+        ReflectionTestUtils.setField(storage, "uploadDir", uploadRoot.toString());
     }
 
     private FileUploadSession session(Long id, Long uploaderId, String status, int uploaded, int total) {
@@ -134,6 +136,36 @@ class FileUploadSessionServiceImplTest {
     @DisplayName("createUploadSession 分片数超限")
     void create_tooManyChunks() {
         assertThrows(BusinessException.class, () -> service.createUploadSession("big.txt", 1024L, 5000L, 99L));
+    }
+
+    @Test
+    @DisplayName("createUploadSession 单用户并发会话超限返回 429")
+    void create_tooManyActiveSessions() {
+        List<FileUploadSession> active = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            FileUploadSession s = session((long) i, 99L, "UPLOADING", 0, 2);
+            s.setFileSize(10L);
+            active.add(s);
+        }
+        when(fileUploadSessionMapper.selectList(any())).thenReturn(active);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.createUploadSession("a.txt", 10L, 2L, 99L));
+        assertEquals(429, ex.getCode());
+        verify(fileUploadSessionMapper, never()).insert(any(FileUploadSession.class));
+    }
+
+    @Test
+    @DisplayName("createUploadSession 单用户未完成字节超限返回 429")
+    void create_activeBytesQuotaExceeded() {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 0, 2);
+        s.setFileSize(3L * 1024 * 1024 * 1024);
+        when(fileUploadSessionMapper.selectList(any())).thenReturn(List.of(s));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.createUploadSession("a.txt", 2L * 1024 * 1024 * 1024, 2L, 99L));
+        assertEquals(429, ex.getCode());
+        verify(fileUploadSessionMapper, never()).insert(any(FileUploadSession.class));
     }
 
     // ===== uploadChunk =====
@@ -221,6 +253,19 @@ class FileUploadSessionServiceImplTest {
 
         assertEquals(1, r.getUploadedChunks());
         assertTrue(Files.exists(chunkRoot.resolve("1").resolve("0.part")));
+    }
+
+    @Test
+    @DisplayName("uploadChunk 单个分片超过 50MB 返回 413，且不落盘")
+    void chunk_tooLarge_rejected() {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 0, 2);
+        s.setFileSize(200L * 1024 * 1024);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.uploadChunk(
+                1L, 0, new ByteArrayInputStream(new byte[1]), 50L * 1024 * 1024 + 1, null, 99L));
+        assertEquals(413, ex.getCode());
+        assertFalse(Files.exists(chunkRoot.resolve("1").resolve("0.part")));
     }
 
     @Test

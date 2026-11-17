@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.UploadMagic;
 import com.aicourse.service.AuthService;
 import com.aicourse.vo.FeatureItemVO;
 import com.aicourse.vo.FeatureRoadmapVO;
@@ -40,6 +41,28 @@ public class CommonController {
             ".txt", ".csv", ".md", ".zip", ".rar", ".7z",
             ".mp3", ".mp4", ".avi", ".mov"
     );
+
+    /** 通用上传单文件上限，与 ResourceController 的 50MB 口径一致。 */
+    private static final long MAX_FILE_SIZE = 50L * 1024 * 1024;
+
+    /**
+     * 扩展名白名单 + 文件头魔数校验；返回错误文案，合法返回 null。
+     */
+    private String validateFile(MultipartFile file, String ext) {
+        if (file.getSize() > MAX_FILE_SIZE) {
+            return "文件大小不能超过50MB";
+        }
+        try {
+            String magic = UploadMagic.detect(UploadMagic.readHeader(file));
+            if (!UploadMagic.matchesExtension(ext, magic)) {
+                return "文件内容与扩展名不符，已拒绝上传";
+            }
+        } catch (java.io.IOException e) {
+            log.error("读取上传文件头失败: {}", e.getMessage(), e);
+            return "读取上传文件失败";
+        }
+        return null;
+    }
 
     private static boolean isAllowedExtension(String ext) {
         return ext != null && ALLOWED_EXTENSIONS.contains(ext.toLowerCase());
@@ -111,6 +134,10 @@ public class CommonController {
                     (originalName != null && originalName.contains(".")
                             ? originalName.substring(originalName.lastIndexOf(".")) : "无后缀"));
         }
+        String validationError = validateFile(file, ext);
+        if (validationError != null) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, validationError);
+        }
 
         String objectName = UUID.randomUUID() + ext;
         try {
@@ -143,6 +170,11 @@ public class CommonController {
             String ext = extractSafeExt(originalName);
             if (ext.isEmpty()) {
                 results.add(new UploadResultVO("", safeName, "0", "不支持的文件类型"));
+                continue;
+            }
+            String validationError = validateFile(file, ext);
+            if (validationError != null) {
+                results.add(new UploadResultVO("", safeName, "0", validationError));
                 continue;
             }
 

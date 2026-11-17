@@ -24,6 +24,8 @@ node_modules/
 backups/
 # mysql-backup 服务的定时备份卷数据
 mysql-backups/
+# 上传存量迁移的 zip 备份（运行期数据，不入库）
+backup/uploads-migration/
 # 运行时生成的数据库文件
 *.sql.gz
 
