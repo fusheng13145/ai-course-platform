@@ -2,7 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 加载指示走浏览器标签图标的动画（见 src/utils/loadingIndicator.ts），页面内不再渲染任何浮层 -->
+    <link id="app-favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- PWA manifest（2026-11-07 P3 批次）：可安装 + 独立窗口；不含 Service Worker（无离线承诺）。
          theme-color 与 manifest theme_color 保持一致，暗色模式由运行时主题类处理。 -->
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -18,76 +19,8 @@
       content="default-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'"
     />
     <title>AI智能课程平台</title>
-    <!-- 全局加载指示器：路由跳转与接口请求共用，只显示转圈、不再有顶部进度条。
-         样式写在这里而不是打包产物里，保证首屏（JS 尚未执行）也能立即使用。 -->
-    <style>
-      #global-loading-indicator {
-        position: fixed;
-        top: 16px;
-        left: 50%;
-        z-index: 9999;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 9px;
-        border: 1px solid rgba(15, 23, 42, 0.06);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-        pointer-events: none;
-        transform: translateX(-50%);
-      }
-      #global-loading-indicator.is-visible {
-        display: flex;
-        animation: gli-fade-in 0.16s ease both;
-      }
-      #global-loading-indicator .gli-spinner {
-        width: 18px;
-        height: 18px;
-        border: 2px solid rgba(15, 23, 42, 0.14);
-        border-top-color: #4b5563;
-        border-radius: 50%;
-        animation: gli-spin 0.72s linear infinite;
-      }
-      [data-theme='dark'] #global-loading-indicator {
-        border-color: rgba(255, 255, 255, 0.08);
-        background: rgba(24, 24, 27, 0.9);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-      }
-      [data-theme='dark'] #global-loading-indicator .gli-spinner {
-        border-color: rgba(255, 255, 255, 0.16);
-        border-top-color: #e5e7eb;
-      }
-      @keyframes gli-spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      @keyframes gli-fade-in {
-        from {
-          opacity: 0;
-          transform: translateX(-50%) translateY(-6px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(-50%) translateY(0);
-        }
-      }
-      /* 尊重系统「减少动效」偏好：转圈放慢，不做位移淡入 */
-      @media (prefers-reduced-motion: reduce) {
-        #global-loading-indicator.is-visible {
-          animation: none;
-        }
-        #global-loading-indicator .gli-spinner {
-          animation-duration: 1.6s;
-        }
-      }
-    </style>
   </head>
   <body>
-    <div id="global-loading-indicator" role="status" aria-live="polite" aria-label="加载中">
-      <span class="gli-spinner" aria-hidden="true"></span>
-    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
