@@ -146,7 +146,7 @@ python scripts/audit-stats.py
 | 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
 | Compose | 15 服务 / 16 卷 / 8 healthcheck；CI 已构建镜像，目标环境未 `up` |
 | 存储 | 新上传写 `AICOURSE_DATA_DIR/storage`，分片写 `chunks`；根 `uploads/` 已移除；`backend/uploads/` 只读兼容，余 11 个压测临时 PDF |
-| 文档 | `docs` 21 个 Markdown + `assets/`；`接管材料` 13 项（00–10 共 11 个 Markdown + 2 个 `.patch`） |
+| 文档 | `docs` 21 个 Markdown + `assets/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
 
 ### 5.2 历史批次（B0–B11）
 
