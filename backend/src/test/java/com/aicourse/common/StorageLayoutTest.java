@@ -13,7 +13,8 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * StorageLayout 单元测试：钉住「默认仓库外根、URL/key 解析、穿越拒绝、旧目录兼容」四条口径。
+ * StorageLayout 单元测试：钉住「默认仓库外根、URL/key 解析、穿越拒绝」三条口径，
+ * 以及「仓库内 uploads/ 目录已移除、不再参与读写」这一约束。
  */
 class StorageLayoutTest {
 
@@ -44,8 +45,6 @@ class StorageLayoutTest {
         Path chunk = StorageLayout.chunkRoot();
         assertTrue(upload.startsWith(tempDir), "上传根应在数据目录内：" + upload);
         assertTrue(chunk.startsWith(tempDir), "分片根应在数据目录内：" + chunk);
-        assertFalse(upload.startsWith(StorageLayout.legacyUploadRoot()),
-                "默认上传根不得落在仓库 uploads/");
     }
 
     @Test
@@ -82,18 +81,25 @@ class StorageLayoutTest {
     }
 
     @Test
-    @DisplayName("旧仓库 uploads/ 作为只读兼容位置可回读与删除")
-    void legacyUploadDirIsFallback() throws IOException {
-        Path legacy = StorageLayout.legacyUploadRoot().resolve("legacy-note.txt");
-        Files.createDirectories(legacy.getParent());
-        Files.writeString(legacy, "old");
-        try {
-            Path resolved = StorageLayout.resolveUrl("/uploads/legacy-note.txt");
-            assertEquals(legacy.toAbsolutePath().normalize(), resolved);
-            assertTrue(StorageLayout.deleteByUrl("/uploads/legacy-note.txt"));
-            assertFalse(Files.exists(legacy));
-        } finally {
-            Files.deleteIfExists(legacy);
+    @DisplayName("历史 uploads/ 无前导斜杠形态仍映射到外部根，仓库目录不参与")
+    void relativeUploadsFormMapsToExternalRoot() throws IOException {
+        Path written = StorageLayout.writeBytes("legacy-form.txt", "new".getBytes());
+        Path resolved = StorageLayout.resolveUrl("uploads/legacy-form.txt");
+        assertEquals(written.toAbsolutePath().normalize(), resolved);
+        assertTrue(resolved.startsWith(tempDir), "解析结果必须落在外部根：" + resolved);
+        try (var in = StorageLayout.openRead("uploads/legacy-form.txt")) {
+            assertNotNull(in, "历史形态应按 URL 回读外部根");
+            assertEquals("new", new String(in.readAllBytes()));
         }
+    }
+
+    @Test
+    @DisplayName("不存在的对象解析为外部根路径，不回退仓库 uploads/")
+    void missingObjectStaysInExternalRoot() {
+        Path missing = StorageLayout.resolveUrl("/uploads/__never_exists__.pdf");
+        assertNotNull(missing);
+        assertTrue(missing.startsWith(tempDir.resolve("storage")),
+                "不得回退到仓库目录：" + missing);
+        assertFalse(Files.exists(missing));
     }
 }

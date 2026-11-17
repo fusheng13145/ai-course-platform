@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -200,22 +199,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("上传（pdf）：uploads 目录不存在时 mkdirs 创建成功并落盘")
+    @DisplayName("上传（pdf）：外部存储根不存在时 mkdirs 创建成功并落盘")
     void upload_createsUploadDirWhenAbsent() throws Exception {
-        // 尽力清空目录以稳定走到 !dir.exists() && dir.mkdirs() 分支；目录非空删除失败时不影响其余断言。
-        try {
-            Path dir = Paths.get("uploads");
-            if (Files.isDirectory(dir)) {
-                try (var s = Files.list(dir)) {
-                    List<Path> leftovers = s.toList();
-                    if (leftovers.isEmpty()) {
-                        Files.delete(dir);
-                    }
-                }
-            }
-        } catch (IOException ignored) {
-            // 清理失败不阻断本用例：后续上传仍会成功
-        }
+        // 仓库内 uploads/ 已移除，落盘根固定为外部存储根（写入路径由 StorageLayout 自动 mkdirs）。
         uploadAndAssert("讲义.pdf", "application/pdf", PDF_BYTES, ".pdf");
     }
 
@@ -464,10 +450,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("下载：成功 200，Content-Disposition 文件名 CRLF/引号被清洗（防头注入）")
     void downloadResource_sanitizesHeaderFileName() throws Exception {
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_dl_ok.pdf");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_dl_ok.pdf", PDF_BYTES);
         try {
             when(resourceService.getById(7L))
                     .thenReturn(resourceOf(7L, COURSE_ID, "/uploads/cov_dl_ok.pdf", "evil\r\nname\"x.pdf"));
@@ -483,10 +466,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("下载：fileName 为 null -> sanitizeHeaderValue 回退 \"file\"")
     void downloadResource_nullFileName_fallsToFile() throws Exception {
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_dl_nullname.pdf");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_dl_nullname.pdf", PDF_BYTES);
         try {
             when(resourceService.getById(8L))
                     .thenReturn(resourceOf(8L, COURSE_ID, "/uploads/cov_dl_nullname.pdf", null));
@@ -548,10 +528,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("下载：已报名学生 -> 200（canAccessResource 学生放行侧）")
     void downloadResource_enrolledStudent_ok() throws Exception {
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_dl_student.pdf");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_dl_student.pdf", PDF_BYTES);
         try {
             when(resourceService.getById(16L))
                     .thenReturn(resourceOf(16L, COURSE_ID, "/uploads/cov_dl_student.pdf", "s.pdf"));
@@ -659,10 +636,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(403))
                 .andExpect(jsonPath("$.message").value("无权删除该课程资源"));
 
-        Path dir = Paths.get("uploads");
-        Files.createDirectories(dir);
-        Path file = dir.resolve("cov_del.tmp");
-        Files.write(file, PDF_BYTES);
+        Path file = StorageLayout.writeBytes("cov_del.tmp", PDF_BYTES);
         when(resourceService.getById(29L)).thenReturn(resourceOf(29L, COURSE_ID, "/uploads/cov_del.tmp", "d.tmp"));
         when(resourceService.removeById(29L)).thenReturn(true);
         // WP9 只读矩阵：资源删除面已摘除 ADMIN，真实删除路径由课程负责教师走通

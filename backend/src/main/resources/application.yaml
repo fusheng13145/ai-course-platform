@@ -469,7 +469,7 @@ fine-tune:
   health-path: ${FT_HEALTH_PATH:/api/v1/fine-tune/health}
 
 # 本地文件上传路径与大小
-# 默认不落仓库 uploads/：空值由 StorageLayout 解析到仓库外
+# 仓库内不保留 uploads/ 目录：空值由 StorageLayout 解析到仓库外
 #   ~/.aicourse-platform/storage 与 ~/.aicourse-platform/chunks
 # 也可用 AICOURSE_DATA_DIR 整体改根，或用 FILE_UPLOAD_DIR / FILE_CHUNK_DIR 单独覆盖。
 file:

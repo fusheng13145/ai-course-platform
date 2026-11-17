@@ -66,9 +66,7 @@ frontend/coverage/
 # WorkBuddy 过程性工作区（调试脚本、探针、构建输出，可随时清空）
 .workbuddy/tmp/
 
-# 应用运行期上传目录（内容为运行时产物，仅保留目录占位）
-uploads/*
-!uploads/.gitkeep
+# 应用运行期上传已全部迁到仓库外（~/.aicourse-platform/storage），仓库内不再保留 uploads/ 目录
 
 # 分片上传临时分片（进程在仓库根目录启动时落此，运行期产物不入库）
 upload-chunks/

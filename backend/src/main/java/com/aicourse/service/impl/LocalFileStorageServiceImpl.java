@@ -18,8 +18,8 @@ import java.nio.file.StandardCopyOption;
  * 本地磁盘文件存储实现
  *
  * <p>写入 {@code file.upload-dir}；该值默认留空，由 {@link StorageLayout} 解析到
- * 仓库外的 {@code ~/.aicourse-platform/storage}。仓库内旧 {@code uploads/} 只作为
- * 历史文件回读/删除的兼容位置，新文件不再写入。</p>
+ * 仓库外的 {@code ~/.aicourse-platform/storage}。仓库内不保留 {@code uploads/} 目录，
+ * 读与删同样只走该根，不再有历史目录回退。</p>
  */
 @Slf4j
 @Service
@@ -52,7 +52,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
     }
 
 
-    /** 下载本地文件存储；外部根缺失时回退旧仓库 uploads/。 */
+    /** 下载本地文件存储；只查外部存储根。 */
     @Override
     public InputStream download(String objectName) {
         Path root = StorageLayout.uploadRoot(uploadDir);
@@ -60,12 +60,6 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         if (path == null) {
             log.warn("拒绝非法文件路径: {}", objectName);
             return null;
-        }
-        if (!Files.isRegularFile(path)) {
-            Path legacy = StorageLayout.resolveKey(StorageLayout.legacyUploadRoot(), objectName);
-            if (legacy != null && Files.isRegularFile(legacy)) {
-                path = legacy;
-            }
         }
         if (!Files.isRegularFile(path)) {
             log.warn("本地文件不存在: {}", path);
@@ -80,7 +74,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
     }
 
 
-    /** 删除本地文件存储；外部根没有时回退旧仓库 uploads/。 */
+    /** 删除本地文件存储；只查外部存储根。 */
     @Override
     public boolean delete(String objectName) {
         Path root = StorageLayout.uploadRoot(uploadDir);
@@ -88,12 +82,6 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         if (path == null) {
             log.warn("拒绝删除非法文件路径: {}", objectName);
             return false;
-        }
-        if (!Files.isRegularFile(path)) {
-            Path legacy = StorageLayout.resolveKey(StorageLayout.legacyUploadRoot(), objectName);
-            if (legacy != null && Files.isRegularFile(legacy)) {
-                path = legacy;
-            }
         }
         if (!Files.exists(path)) {
             log.warn("删除失败，文件不存在: {}", path);
@@ -113,7 +101,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         }
     }
 
-    /** 按落库 URL 下载；委托 StorageLayout 做外部根优先 + 旧 uploads/ 兼容。 */
+    /** 按落库 URL 下载；委托 StorageLayout 解析到外部存储根。 */
     @Override
     public InputStream downloadByUrl(String storedUrl) {
         Path path = StorageLayout.resolveUrl(uploadDir, storedUrl);
@@ -128,7 +116,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         }
     }
 
-    /** 按落库 URL 删除；委托 StorageLayout 做外部根优先 + 旧 uploads/ 兼容。 */
+    /** 按落库 URL 删除；委托 StorageLayout 解析到外部存储根。 */
     @Override
     public boolean deleteByUrl(String storedUrl) {
         return StorageLayout.deleteByUrl(uploadDir, storedUrl);

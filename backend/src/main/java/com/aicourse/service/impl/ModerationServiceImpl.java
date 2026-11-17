@@ -221,7 +221,7 @@ public class ModerationServiceImpl implements ModerationService {
             writeDeleteSnapshot("resource", resourceId, adminId, reason, resourceSnapshot);
             resourceMapper.deleteById(resourceId);
             // V-1（2026-11-15）：删除后立即物理删盘；存储根由 StorageLayout 统一解析，
-            // 外部存储根优先，历史仓库 uploads/ 作为只读兼容位置兜底。
+            // 仓库内已不保留 uploads/ 目录，只删外部存储根中的对象。
             boolean fileDeleted = fileStorageService.deleteByUrl(resource.getUrl());
             data.put("fileDeleted", fileDeleted);
             data.put("moderationStatus", "DELETED");
