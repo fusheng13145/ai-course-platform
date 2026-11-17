@@ -423,7 +423,7 @@ public class ResourceController {
         resourceService.save(resource);
         resourceVersionService.createNewVersion(resource.getId(), originalFilename, contentType,
                 resource.getUrl(), "分片上传", operatorId,
-                session.getFileSize() == null ? 0L : session.getFileSize());
+                session.getFileSize() == null ? Long.valueOf(0L) : session.getFileSize());
         return ApiResponse.success("文件上传成功", resource);
     }
 
