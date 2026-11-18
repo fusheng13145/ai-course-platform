@@ -2,7 +2,6 @@ package com.aicourse.service.impl;
 
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.service.AIService;
-import com.aicourse.service.ClassroomService;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;

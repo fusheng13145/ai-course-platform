@@ -42,6 +42,8 @@ class CourseControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.CourseApprovalService courseApprovalService;
     @MockitoBean
+    private com.aicourse.service.CourseDefinitionService courseDefinitionService;
+    @MockitoBean
     private UserService userService;
 
     @BeforeEach
@@ -117,7 +119,7 @@ class CourseControllerTest extends ControllerTestBase {
         created.setTeacherId(1L);
         when(courseService.createCourse(any(), eq(1L))).thenReturn(created);
         mockMvc.perform(post("/courses").contentType(MediaType.APPLICATION_JSON).content("{}")
-                        .with(withUser(1L, "TEACHER", "ADMIN")))
+                        .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.teacherId").value(1));

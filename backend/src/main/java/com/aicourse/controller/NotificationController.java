@@ -56,6 +56,25 @@ public class NotificationController {
     }
 
     /**
+     * 获取当前用户在指定课程下的通知（课程页「通知」数据源）。
+     * @param courseId 课程ID
+     * @param auth 认证信息
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @return 课程维度通知分页
+     */
+    @GetMapping("/course/{courseId}")
+    public ApiResponse<PagedResponse<Notification>> getCourseNotifications(
+            @PathVariable Long courseId,
+            Authentication auth,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Long userId = (Long) auth.getPrincipal();
+        Page<Notification> result = notificationService.getCourseNotifications(userId, courseId, page, size);
+        return ApiResponse.success(PagedResponse.of(result));
+    }
+
+    /**
      * 获取当前用户未读通知数量
      * @param auth 认证信息
      * @return 未读数量

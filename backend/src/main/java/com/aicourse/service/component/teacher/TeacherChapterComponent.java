@@ -1,18 +1,16 @@
 package com.aicourse.service.component.teacher;
 
 import com.aicourse.constant.SubmissionStatus;
-import com.aicourse.entity.Classroom;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
-import com.aicourse.entity.User;
-import com.aicourse.service.ClassroomService;
+import com.aicourse.entity.TeachingClass;
+import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
-import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +26,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 教师章节/班级协作者：完整章节树（提交率聚合）与课程关联班级列表。
+ * 教师章节/班级协作者：完整章节树（提交率聚合）与课程教学班列表。
  * <p>由 {@code TeacherCourseServiceImpl} 门面委托调用。</p>
  */
 @Component
@@ -38,23 +36,20 @@ public class TeacherChapterComponent {
     private final CourseEnrollmentService enrollmentService;
     private final TaskService taskService;
     private final SubmissionService submissionService;
-    private final UserService userService;
-    private final ClassroomService classroomService;
+    private final TeachingClassMapper teachingClassMapper;
     private final TeacherCourseComponent support;
 
     public TeacherChapterComponent(CourseChapterService chapterService,
                                    CourseEnrollmentService enrollmentService,
                                    TaskService taskService,
                                    SubmissionService submissionService,
-                                   UserService userService,
-                                   ClassroomService classroomService,
+                                   TeachingClassMapper teachingClassMapper,
                                    TeacherCourseComponent support) {
         this.chapterService = chapterService;
         this.enrollmentService = enrollmentService;
         this.taskService = taskService;
         this.submissionService = submissionService;
-        this.userService = userService;
-        this.classroomService = classroomService;
+        this.teachingClassMapper = teachingClassMapper;
         this.support = support;
     }
 
@@ -138,79 +133,54 @@ public class TeacherChapterComponent {
         return roots;
     }
 
-    /** 课程关联班级列表（按班级聚合学生 + 待批改数） */
+    /** 课程教学班列表（按教学班聚合有效学生 + 待批改数）。 */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getCourseClasses(Long courseId) {
-        List<CourseEnrollment> enrollments = enrollmentService.list(
-                new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId));
+        List<TeachingClass> classes = teachingClassMapper.selectList(new LambdaQueryWrapper<TeachingClass>()
+                .eq(TeachingClass::getCourseId, courseId)
+                .orderByAsc(TeachingClass::getCode)
+                .orderByAsc(TeachingClass::getId));
 
-        List<Long> studentIds = enrollments.stream()
-                .map(CourseEnrollment::getStudentId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        Map<Long, Long> studentClassMap = new HashMap<>();
-        if (!studentIds.isEmpty()) {
-            List<User> users = userService.list(new LambdaQueryWrapper<User>()
-                    .in(User::getId, studentIds)
-                    .select(User::getId, User::getClassId));
-            for (User u : users) {
-                if (u.getClassId() != null) {
-                    studentClassMap.put(u.getId(), u.getClassId());
-                }
-            }
-        }
+        List<CourseEnrollment> enrollments = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(CourseEnrollment::getCourseId, courseId)
+                .eq(CourseEnrollment::getIsActive, true)
+                .eq(CourseEnrollment::getApprovalStatus, "APPROVED"));
 
         Map<Long, List<Long>> classStudentIds = new LinkedHashMap<>();
-        for (CourseEnrollment e : enrollments) {
-            Long clsId = studentClassMap.get(e.getStudentId());
-            if (clsId != null) {
-                classStudentIds.computeIfAbsent(clsId, k -> new ArrayList<>()).add(e.getStudentId());
-            }
-        }
-
-        Map<Long, Classroom> classroomMap = new HashMap<>();
-        if (!classStudentIds.isEmpty()) {
-            List<Classroom> classrooms = classroomService.listByIds(new ArrayList<>(classStudentIds.keySet()));
-            for (Classroom c : classrooms) {
-                if (c != null) {
-                    classroomMap.put(c.getId(), c);
-                }
+        for (CourseEnrollment enrollment : enrollments) {
+            Long classId = enrollment.getTeachingClassId();
+            if (classId != null) {
+                classStudentIds.computeIfAbsent(classId, key -> new ArrayList<>())
+                        .add(enrollment.getStudentId());
             }
         }
 
         List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>().eq(Task::getCourseId, courseId))
                 .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
-
-        Map<Long, Long> pendingByClass = new HashMap<>();
+        Map<Long, Long> pendingByStudent = new HashMap<>();
         if (!taskIds.isEmpty()) {
-            for (Map.Entry<Long, List<Long>> entry : classStudentIds.entrySet()) {
-                Long pending = submissionService.count(new LambdaQueryWrapper<Submission>()
-                        .in(Submission::getTaskId, taskIds)
-                        .in(Submission::getStudentId, entry.getValue())
-                        .eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
-                pendingByClass.put(entry.getKey(), pending);
-            }
+            submissionService.list(new LambdaQueryWrapper<Submission>()
+                            .in(Submission::getTaskId, taskIds)
+                            .eq(Submission::getStatus, SubmissionStatus.SUBMITTED))
+                    .forEach(submission -> pendingByStudent.merge(submission.getStudentId(), 1L, Long::sum));
         }
 
         List<Map<String, Object>> result = new ArrayList<>();
-        for (Map.Entry<Long, List<Long>> entry : classStudentIds.entrySet()) {
-            Classroom c = classroomMap.get(entry.getKey());
-            if (c == null) {
-                continue;
-            }
-            List<Long> students = entry.getValue();
+        for (TeachingClass teachingClass : classes) {
+            List<Long> students = classStudentIds.getOrDefault(teachingClass.getId(), List.of());
+            long pending = students.stream()
+                    .mapToLong(studentId -> pendingByStudent.getOrDefault(studentId, 0L))
+                    .sum();
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("key", String.valueOf(c.getId()));
-            item.put("name", c.getName());
-            item.put("code", c.getCode());
+            item.put("key", String.valueOf(teachingClass.getId()));
+            item.put("name", teachingClass.getName());
+            item.put("code", teachingClass.getCode());
             item.put("students", students.size());
-            item.put("pending", pendingByClass.getOrDefault(entry.getKey(), 0L));
-            item.put("schedule", c.getDescription() != null ? c.getDescription() : "");
+            item.put("pending", pending);
+            item.put("schedule", "");
+            item.put("status", teachingClass.getStatus());
             result.add(item);
         }
-
         result.sort(Comparator.comparing(m -> {
             String code = (String) m.get("code");
             return code != null && !code.isBlank() ? code : String.valueOf(m.get("name"));

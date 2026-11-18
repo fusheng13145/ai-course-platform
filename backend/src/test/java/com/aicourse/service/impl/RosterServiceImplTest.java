@@ -243,6 +243,18 @@ class RosterServiceImplTest {
         assertNotNull(service.listSources(30L, 1L));
     }
 
+    @Test
+    @DisplayName("候选列表：读课程行政班候选前先校验本班名单管理权")
+    void listCandidates_delegatesToAcl() {
+        course.setCollegeId(1L);
+        when(adminClassMapper.selectList(any())).thenReturn(List.of(adminClass));
+
+        List<AdminClass> candidates = service.listCandidates(30L, 100L);
+
+        assertEquals(1, candidates.size());
+        verify(accessControl).assertRosterManage(30L, 100L);
+    }
+
     private static User student(Long id) {
         User user = new User();
         user.setId(id);
