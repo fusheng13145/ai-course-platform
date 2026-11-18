@@ -69,7 +69,7 @@
 | UI 层 | 自研 `src/ui/components/` 原语 + CSS 变量令牌 | **无第三方组件库**（Element Plus／echarts 已随旧前端在 `15fb858` 整体摘除） |
 | 状态 / 路由 / 图表 | Pinia / Vue Router / 内联 SVG（`Sparkline`／`Sprite`） | 2.1.x / 4.2.x / — |
 | 测试 | Vitest / Playwright / Testcontainers | 3.2.7 / **1.64.1（精确锁定）** / — |
-| 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥65%（阻断）／0 bug（阻断）／8 条架构守护 |
+| 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥75%（阻断）／0 bug（阻断）／8 条架构守护 |
 | 实时通信 | Spring WebSocket | 通知与监考 |
 | 限流熔断 | Sentinel | 下游流控 + 慢调用熔断 |
 | AI 引擎 | Python FastAPI | KG 8001 / RAG 8002 / LoRA 8003 |
