@@ -22,6 +22,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -42,7 +43,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 断言 status().isOk() + jsonPath($.code)=200 + 至少一处 $.data 透传字段 + verify(...) 委托与参数透传。
  * 401 测试保持原样；所有接口（类级 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")）均补 STUDENT→403 越权测试。
  */
-@WebMvcTest(TeacherController.class)
+@WebMvcTest(controllers = {
+        TeacherController.class,
+        TeacherAssignmentController.class,
+        TeacherQuestionController.class,
+        TeacherImportController.class,
+        TeacherAnalyticsController.class
+})
+@Import(com.aicourse.security.TeacherAccessGuard.class)
 class TeacherControllerTest extends ControllerTestBase {
 
     @MockitoBean
