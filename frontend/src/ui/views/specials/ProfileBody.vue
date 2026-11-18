@@ -6,7 +6,7 @@
     </div>
 
     <section class="card profile-card" :aria-busy="profileLoading">
-      <header class="profile-head">
+      <header class="profile-hero">
         <div class="profile-person">
           <span v-if="avatarPreview && !avatarBroken" class="profile-avatar">
             <img :src="avatarPreview" alt="" @error="avatarBroken = true" />
@@ -18,6 +18,7 @@
               <b class="profile-name">{{ displayName }}</b>
               <span class="chip chip-mute">{{ roleLabel }}</span>
             </div>
+
             <div class="profile-uid-row">
               <span class="profile-uid mono">UID {{ uidText || '—' }}</span>
               <button
@@ -30,6 +31,8 @@
                 复制
               </button>
             </div>
+
+            <p v-if="affiliationText" class="profile-affiliation">{{ affiliationText }}</p>
           </div>
         </div>
 
@@ -41,12 +44,19 @@
         </div>
       </header>
 
-      <dl class="profile-fields">
-        <div v-for="row in fields" :key="row.label" class="profile-field">
-          <dt>{{ row.label }}</dt>
-          <dd :class="{ 'is-empty': !row.value }">{{ row.value || '—' }}</dd>
-        </div>
-      </dl>
+      <div class="profile-detail">
+        <section v-for="group in fieldGroups" :key="group.title" class="profile-group">
+          <h2>{{ group.title }}</h2>
+          <dl class="profile-fields">
+            <div v-for="row in group.fields" :key="row.label" class="profile-field">
+              <dt>{{ row.label }}</dt>
+              <dd :class="{ 'is-empty': !row.value }" :title="row.value || undefined">
+                {{ row.value || '—' }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </div>
     </section>
 
     <Modal v-model:open="profileOpen" title="编辑资料" width="480px" @close="closeProfileModal">
@@ -218,6 +228,11 @@ interface ProfileField {
   value: string
 }
 
+interface ProfileGroup {
+  title: string
+  fields: ProfileField[]
+}
+
 const GENDERS = [
   { value: 'MALE', label: '男' },
   { value: 'FEMALE', label: '女' },
@@ -310,36 +325,67 @@ const adminScopeText = computed(() => {
   return ''
 })
 
-const fields = computed<ProfileField[]>(() => {
-  const rows: ProfileField[] = [
-    { label: '性别', value: genderLabel(profile.value.gender) },
-    { label: '手机号', value: profile.value.phone ?? '' },
-    { label: '邮箱', value: profile.value.email ?? '' },
-    { label: '用户名', value: profile.value.username ?? '' },
-    { label: '所属学校', value: profile.value.schoolName ?? '' },
-    { label: '学院', value: collegeText.value },
+const affiliationText = computed(() => {
+  const parts = isStudent.value
+    ? [collegeText.value, majorText.value, profile.value.grade]
+    : isTeacher.value
+      ? [collegeText.value, profile.value.title]
+      : [profile.value.schoolName]
+  return parts
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .join(' · ')
+})
+
+const fieldGroups = computed<ProfileGroup[]>(() => {
+  const groups: ProfileGroup[] = [
+    {
+      title: '基本资料',
+      fields: [
+        { label: '性别', value: genderLabel(profile.value.gender) },
+        { label: '手机号', value: profile.value.phone ?? '' },
+        { label: '邮箱', value: profile.value.email ?? '' },
+        { label: '用户名', value: profile.value.username ?? '' },
+      ],
+    },
+    {
+      title: '组织信息',
+      fields: [
+        { label: '所属学校', value: profile.value.schoolName ?? '' },
+        { label: '学院', value: collegeText.value },
+      ],
+    },
   ]
 
   if (isStudent.value) {
-    rows.push(
-      { label: '学号', value: profile.value.studentId ?? '' },
-      { label: '专业', value: majorText.value },
-      { label: '年级', value: profile.value.grade ?? '' },
-      { label: '行政班', value: profile.value.adminClassName ?? '' },
-    )
+    groups.push({
+      title: '学籍信息',
+      fields: [
+        { label: '学号', value: profile.value.studentId ?? '' },
+        { label: '专业', value: majorText.value },
+        { label: '年级', value: profile.value.grade ?? '' },
+        { label: '行政班', value: profile.value.adminClassName ?? '' },
+      ],
+    })
   } else if (isTeacher.value) {
-    rows.push(
-      { label: '工号', value: profile.value.teacherId ?? '' },
-      { label: '职称', value: profile.value.title ?? '' },
-    )
+    groups.push({
+      title: '任职信息',
+      fields: [
+        { label: '工号', value: profile.value.teacherId ?? '' },
+        { label: '职称', value: profile.value.title ?? '' },
+      ],
+    })
   } else {
-    rows.push(
-      { label: '工号', value: profile.value.teacherId ?? '' },
-      { label: '管理范围', value: adminScopeText.value },
-    )
+    groups.push({
+      title: '管理信息',
+      fields: [
+        { label: '工号', value: profile.value.teacherId ?? '' },
+        { label: '管理范围', value: adminScopeText.value },
+      ],
+    })
   }
 
-  return rows
+  return groups
 })
 
 const readonlyHint = computed(() =>
@@ -607,20 +653,29 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 .profile-card {
-  padding: 22px 24px 24px;
+  padding: 0;
+  overflow: hidden;
 }
 
-.profile-head {
+.profile-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 24px;
+  min-width: 0;
+  padding: 24px 26px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .profile-person {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
+  min-width: 0;
+}
+
+.profile-person-main {
   min-width: 0;
 }
 
@@ -628,14 +683,14 @@ function errorMessage(error: unknown, fallback: string) {
   display: grid;
   place-items: center;
   flex: none;
-  width: 64px;
-  height: 64px;
+  width: 96px;
+  height: 96px;
   overflow: hidden;
   border-radius: var(--r-circle);
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-family: var(--font);
-  font-size: 23px;
+  font-size: 32px;
   font-weight: 600;
   line-height: 1;
 }
@@ -652,20 +707,18 @@ function errorMessage(error: unknown, fallback: string) {
   font-size: 20px;
 }
 
-.profile-person-main {
-  min-width: 0;
-}
-
 .profile-name-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
 
 .profile-name {
   overflow: hidden;
-  font-size: 22px;
+  max-width: 100%;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -677,7 +730,7 @@ function errorMessage(error: unknown, fallback: string) {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 5px;
+  margin-top: 6px;
 }
 
 .profile-uid {
@@ -701,39 +754,81 @@ function errorMessage(error: unknown, fallback: string) {
   color: var(--accent-strong);
 }
 
+.profile-affiliation {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink-3);
+}
+
 .profile-actions {
   display: flex;
   flex: none;
   gap: 8px;
 }
 
+.profile-detail {
+  min-width: 0;
+  padding: 24px 26px 26px;
+}
+
+.profile-group + .profile-group {
+  margin-top: 20px;
+}
+
+.profile-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+
+.profile-group h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
 .profile-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px 48px;
-  margin: 20px 0 0;
-  padding: 20px 0 0;
-  border-top: 1px solid var(--line);
+  gap: 0 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .profile-field {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
   min-width: 0;
+  min-height: 40px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .profile-field dt {
+  flex: none;
   font-size: 12px;
   color: var(--ink-3);
 }
 
 .profile-field dd {
+  min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
   color: var(--ink);
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -806,22 +901,32 @@ function errorMessage(error: unknown, fallback: string) {
   color: var(--ink-3);
 }
 
-@media (max-width: 820px) {
-  .profile-fields {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 980px) {
+  .profile-hero {
     gap: 18px;
+    padding: 22px;
+  }
+
+  .profile-avatar {
+    width: 88px;
+    height: 88px;
+    font-size: 29px;
+  }
+
+  .profile-name {
+    font-size: 26px;
+  }
+
+  .profile-detail {
+    padding: 22px 22px 24px;
   }
 }
 
-@media (max-width: 620px) {
-  .profile-card {
-    padding: 18px 16px 20px;
-  }
-
-  .profile-head {
+@media (max-width: 820px) {
+  .profile-hero {
     flex-direction: column;
     align-items: stretch;
-    gap: 14px;
+    gap: 16px;
   }
 
   .profile-actions {
@@ -830,6 +935,31 @@ function errorMessage(error: unknown, fallback: string) {
 
   .profile-actions .btn {
     flex: 1;
+  }
+
+  .profile-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .profile-hero {
+    padding: 20px 18px;
+  }
+
+  .profile-detail {
+    padding: 18px 16px 20px;
+  }
+
+  .profile-avatar {
+    width: 76px;
+    height: 76px;
+    font-size: 26px;
+  }
+
+  .profile-name {
+    font-size: 23px;
   }
 }
 </style>
