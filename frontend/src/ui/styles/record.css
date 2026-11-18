@@ -282,7 +282,7 @@ body[data-app="ui"] .chip-ok { background: var(--ok-soft); color: var(--ok); }
 body[data-app="ui"] .chip-warn { background: var(--warn-soft); color: var(--warn); }
 body[data-app="ui"] .chip-danger { background: var(--danger-soft); color: var(--danger); }
 body[data-app="ui"] .chip-info { background: var(--info-soft); color: var(--info); }
-body[data-app="ui"] .chip-mute { background: var(--mute-soft); color: var(--ink-3); }
+body[data-app="ui"] .chip-mute { background: var(--mute-soft); color: var(--ink-2); }
 body[data-app="ui"] .chip-accent { background: var(--accent-soft); color: var(--accent); }
 body[data-app="ui"] .tone-danger { --tone: var(--danger); }
 body[data-app="ui"] .tone-warn { --tone: var(--warn); }
@@ -450,7 +450,7 @@ body[data-app="ui"] .feed-dot { width: 5px; height: 5px; border-radius: var(--r-
 body[data-app="ui"] .feed-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 body[data-app="ui"] .feed-main b { font-size: 13px; font-weight: 600; line-height: 1.4; }
 body[data-app="ui"] .feed-main small { font-size: 10px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body[data-app="ui"] .feed-item time { font-family: var(--font-mono); font-size: 10px; color: var(--ink-4); flex: none; }
+body[data-app="ui"] .feed-item time { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); flex: none; }
 
 /* ------------------------------ module ------------------------------ */
 
