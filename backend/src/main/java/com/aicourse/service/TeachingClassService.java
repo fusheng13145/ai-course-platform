@@ -2,6 +2,7 @@ package com.aicourse.service;
 
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
+import com.aicourse.vo.TeachingClassMemberVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -42,4 +43,14 @@ public interface TeachingClassService extends IService<TeachingClass> {
      * 教学班主讲查看名单与成绩；其他教学班主讲 403，管理员只读放行。
      */
     List<CourseEnrollment> listMembers(Long teachingClassId, Long operatorId);
+
+    /**
+     * 教学班名单（含学生姓名/学号）；课程负责人、本班主讲或管理员可读。
+     */
+    List<TeachingClassMemberVO> listMemberDetails(Long teachingClassId, Long operatorId);
+
+    /**
+     * 发布课程下所有 DRAFT 教学班（课程负责人或管理员；课程必须已审批通过并启用）。
+     */
+    List<TeachingClass> publishCourseClasses(Long courseId, Long operatorId);
 }

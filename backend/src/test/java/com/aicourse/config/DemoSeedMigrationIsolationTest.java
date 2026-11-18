@@ -85,7 +85,11 @@ class DemoSeedMigrationIsolationTest {
             // V26（2026-11-17，P0-B）：resources.visible_to_all 默认收紧为 0 —— 结构迁移
             "V26__resource_visibility_default_private.sql",
             // V27（2026-11-17，P0-B）：questions 新题课程归属 CHECK + 历史未归属标记 —— 结构迁移
-            "V27__question_course_required.sql");
+            "V27__question_course_required.sql",
+            // V28（2026-11-17）：课程库 course_definitions + courses 开课任务字段 —— 结构迁移
+            "V28__course_lifecycle.sql",
+            // V29（2026-11-18）：退役 classrooms / users.class_id —— 结构迁移
+            "V29__retire_legacy_classrooms.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

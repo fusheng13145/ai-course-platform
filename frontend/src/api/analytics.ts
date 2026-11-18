@@ -67,7 +67,7 @@ export const getExamStatistics = (examPaperId: number | string): Promise<ApiEnve
   request.get(`/analytics/exams/${examPaperId}/statistics`) as Promise<ApiEnvelope<ApiData>>
 
 // 学情预警学生（进度<40% 或 成绩<60 判定，支持多维下钻聚合）
-// params: { groupBy, courseId, department, major, classId }
+// params: { groupBy, courseId, department, major, adminClassId }
 export const getAtRiskStudents = (
   params: Record<string, unknown> = {},
 ): Promise<ApiEnvelope<ApiData>> =>

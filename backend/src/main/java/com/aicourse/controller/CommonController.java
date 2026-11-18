@@ -79,14 +79,17 @@ public class CommonController {
     private final FileStorageService fileStorageService;
     private final ClientInfoResolver clientInfoResolver;
     private final com.aicourse.service.SemesterService semesterService;
+    private final com.aicourse.service.UserService userService;
 
     public CommonController(AuthService authService, FileStorageService fileStorageService,
                             ClientInfoResolver clientInfoResolver,
-                            com.aicourse.service.SemesterService semesterService) {
+                            com.aicourse.service.SemesterService semesterService,
+                            com.aicourse.service.UserService userService) {
         this.authService = authService;
         this.fileStorageService = fileStorageService;
         this.clientInfoResolver = clientInfoResolver;
         this.semesterService = semesterService;
+        this.userService = userService;
     }
 
     /**
@@ -100,6 +103,45 @@ public class CommonController {
                 .findFirst()
                 .map(com.aicourse.vo.SemesterVO::from)
                 .orElse(null));
+    }
+
+    /**
+     * 学期列表（教师发起开课任务时选择；管理员也可见）。
+     */
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @org.springframework.web.bind.annotation.GetMapping("/semesters")
+    @io.swagger.v3.oas.annotations.Operation(summary = "学期列表", description = "返回全部学期，按开始日期倒序")
+    public ApiResponse<List<com.aicourse.vo.SemesterVO>> semesters() {
+        return ApiResponse.success(semesterService.list().stream()
+                .sorted(java.util.Comparator.comparing(
+                        com.aicourse.entity.Semester::getStartDate,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .map(com.aicourse.vo.SemesterVO::from)
+                .toList());
+    }
+
+    /**
+     * 教师目录（开课任务指派主讲、教学班指定主讲时使用）。
+     */
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @org.springframework.web.bind.annotation.GetMapping("/teachers")
+    @io.swagger.v3.oas.annotations.Operation(summary = "教师目录", description = "可按学院筛选；只返回在职教师")
+    public ApiResponse<List<Map<String, Object>>> teachers(
+            @RequestParam(required = false) Long collegeId) {
+        List<com.aicourse.entity.User> teachers = userService.list(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.aicourse.entity.User>()
+                        .eq(com.aicourse.entity.User::getRole, com.aicourse.common.RoleConstants.TEACHER)
+                        .eq(com.aicourse.entity.User::getIsActive, true)
+                        .eq(collegeId != null, com.aicourse.entity.User::getCollegeId, collegeId)
+                        .orderByAsc(com.aicourse.entity.User::getFullName));
+        return ApiResponse.success(teachers.stream().map(user -> {
+            Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("id", user.getId());
+            row.put("name", user.getFullName() == null ? user.getUsername() : user.getFullName());
+            row.put("department", user.getDepartment());
+            row.put("collegeId", user.getCollegeId());
+            return row;
+        }).toList());
     }
 
     /**

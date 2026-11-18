@@ -1,5 +1,6 @@
 package com.aicourse.service;
 
+import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.TeachingClassAdminClass;
 import com.aicourse.vo.RosterSyncResultVO;
 
@@ -17,6 +18,14 @@ public interface RosterService {
      * 查询教学班的行政班来源列表（课程负责人、本班主讲、管理员可读）。
      */
     List<TeachingClassAdminClass> listSources(Long teachingClassId, Long operatorId);
+
+    /**
+     * 查询可导入本教学班的行政班候选：课程所属学院的启用行政班。
+     *
+     * <p>{@link #listSources} 只返回已经建立来源关系的行政班；本方法返回候选全集，
+     * 供教师在本班名单面板里先选班再导入。</p>
+     */
+    List<AdminClass> listCandidates(Long teachingClassId, Long operatorId);
 
     /**
      * 按行政班导入名单：重复导入幂等，已存在有效选课不覆盖。
