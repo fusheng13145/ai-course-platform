@@ -88,7 +88,7 @@
             <dependency>
                 <groupId>com.squareup.okhttp3</groupId>
                 <artifactId>okhttp</artifactId>
-                <version>4.12.0</version>
+                <version>5.5.1</version>
             </dependency>
             <!-- 修复：minio 8.6.0 传递引入 guava 33.4.8-jre，命中 CVE-2026-102554（HIGH，
                  反序列化期间内存分配不受限导致 DoS）。修复版为 33.7.2；Guava 只发布
