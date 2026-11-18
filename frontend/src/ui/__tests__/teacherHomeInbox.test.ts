@@ -392,7 +392,7 @@ describe('教师收件箱三块真实读数', () => {
     expect(mocks.push).toHaveBeenCalledWith('/teacher/courses/1/tasks')
 
     await proctorBlock.find('.text-btn').trigger('click')
-    expect(mocks.push).toHaveBeenCalledWith('/teacher/courses/1/proctor')
+    expect(mocks.push).toHaveBeenCalledWith('/teacher/courses/1/exams?tab=proctor')
   })
 
   it('空：三块各自显示空态，不显示失败提示', async () => {

@@ -16,13 +16,13 @@
             进行中考试会话 <span class="chip chip-mute">{{ filteredSessions.length }}</span>
           </h2>
         </div>
-        <label class="course-only">
+        <label v-if="!embedded" class="course-only">
           <input v-model="onlyThisCourse" type="checkbox" :disabled="!scopedCourseId" />
           <span>仅本课程</span>
         </label>
       </header>
 
-      <p v-if="!scopedCourseId" class="modal-hint">
+      <p v-if="!embedded && !scopedCourseId" class="modal-hint">
         未关联到具体课程，已列出全部进行中的考试会话。
       </p>
 
@@ -218,14 +218,14 @@ interface SessionRow {
   [key: string]: unknown
 }
 
-const props = defineProps<{ courseId?: number | string }>()
+const props = defineProps<{ courseId?: number | string; embedded?: boolean }>()
 
 const loading = ref(false)
 const sessions = ref<SessionRow[]>([])
 const sessionsError = ref('')
 const riskError = ref('')
 const eventsError = ref('')
-const onlyThisCourse = ref(false)
+const onlyThisCourse = ref(Boolean(props.embedded))
 const selected = ref<SessionRow | null>(null)
 const selectedRisk = ref<Record<string, unknown> | null>(null)
 const risk = reactive({ loading: false, list: [] as Record<string, unknown>[] })
@@ -234,7 +234,8 @@ const events = reactive({ loading: false, list: [] as Record<string, unknown>[] 
 const scopedCourseId = computed(() => Number(props.courseId) || 0)
 const loadError = computed(() => sessionsError.value || riskError.value || eventsError.value)
 const filteredSessions = computed(() => {
-  if (!onlyThisCourse.value || !scopedCourseId.value) return sessions.value
+  if (!props.embedded && !onlyThisCourse.value) return sessions.value
+  if (!scopedCourseId.value) return sessions.value
   return sessions.value.filter((row) => Number(row.courseId) === scopedCourseId.value)
 })
 

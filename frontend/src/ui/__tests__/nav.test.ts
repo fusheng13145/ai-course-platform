@@ -72,17 +72,19 @@ describe('导航与路由一致性', () => {
     }
   })
 
-  it('课程页签数量与原型 IA 对齐，并补回教师侧旧端的题库与监考页签', () => {
+  it('课程页签数量与原型 IA 对齐，监考与语料已并入考试/AI 助教', () => {
     expect(COURSE_TABS.student).toHaveLength(10)
-    expect(COURSE_TABS.teacher).toHaveLength(16)
+    expect(COURSE_TABS.teacher).toHaveLength(15)
     expect(ADMIN_COURSE_TABS).toHaveLength(10)
     const teacherTabs = courseTabs('teacher').map((tab) => tab.id)
-    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 2)
+    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 1)
     expect(teacherTabs).toContain('bank')
-    expect(teacherTabs).toContain('proctor')
+    expect(teacherTabs).not.toContain('proctor')
+    expect(teacherTabs).not.toContain('corpus')
     expect(teacherTabs).toContain('grades')
     expect(teacherTabs).toContain('interaction')
     expect(teacherTabs).toContain('knowledge')
+    expect(courseTabs('teacher').find((tab) => tab.id === 'ai')?.label).toBe('AI 助教')
     expect(courseTabs('student').map((tab) => tab.id)).not.toContain('proctor')
     expect(courseTabs('student').map((tab) => tab.id)).toContain('practice')
   })

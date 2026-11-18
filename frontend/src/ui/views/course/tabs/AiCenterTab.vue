@@ -2,7 +2,7 @@
   <section class="ai-center">
     <div class="course-tab-bar">
       <div>
-        <h2>{{ isStudent ? 'AI 学习助手' : 'AI 教学助手' }}</h2>
+        <h2>{{ isStudent ? 'AI 学习助手' : 'AI 助教' }}</h2>
       </div>
       <div class="course-tab-actions">
         <span class="head-hint">{{
@@ -195,6 +195,8 @@
         <pre>{{ pathRaw }}</pre>
       </details>
     </section>
+
+    <AiCorpusTab v-if="active === 'corpus' && !isStudent" :course-id="courseId" />
   </section>
 </template>
 
@@ -204,6 +206,7 @@ import { useUi } from '../../../composables/ui'
 import aiApi from '@/api/ai'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
+import AiCorpusTab from './AiCorpusTab.vue'
 
 interface Source {
   documentName?: string
@@ -223,6 +226,7 @@ const AI_TABS = [
   { key: 'advice', label: '学习建议' },
   { key: 'essay', label: '作文批改', teacherOnly: true },
   { key: 'path', label: '学习路径' },
+  { key: 'corpus', label: '课程语料', teacherOnly: true },
 ] as const
 
 // 学生复用同一套真接口，只裁掉教师专属的「作文批改」（其结论由教师采纳）

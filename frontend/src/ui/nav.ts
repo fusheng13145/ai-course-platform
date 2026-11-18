@@ -129,15 +129,13 @@ export interface CourseTab {
 export const COURSE_TABS = navData.course_tabs as Record<Role, CourseTab[]>
 export const ADMIN_COURSE_TABS = navData.admin_course_tabs as CourseTab[]
 
-const TEACHER_EXTRA_TABS: CourseTab[] = [
-  { id: 'bank', label: '课程题库', icon: 'file' },
-  { id: 'proctor', label: '在线监考', icon: 'shield' },
-]
+const TEACHER_EXTRA_TABS: CourseTab[] = [{ id: 'bank', label: '课程题库', icon: 'file' }]
 
 export function courseTabs(role: Role): CourseTab[] {
   if (role === 'admin') return ADMIN_COURSE_TABS
   const tabs = [...(COURSE_TABS[role] || [])]
-  // 旧端教师课程页签另有「课程题库」「在线监考」，原型 漏了；迁移期补回。
+  // 旧端教师课程页签另有「课程题库」，原型漏了；迁移期补回。
+  // 在线监考、AI 语料不再是独立页签，分别并入「考试」「AI 助教」。
   if (role === 'teacher') {
     const examsIndex = tabs.findIndex((tab) => tab.id === 'exams')
     tabs.splice(examsIndex >= 0 ? examsIndex : 1, 0, ...TEACHER_EXTRA_TABS)

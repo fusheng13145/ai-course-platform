@@ -126,7 +126,7 @@ import {
 import { pickList, unwrap } from '@/utils/response'
 
 /**
- * 教师侧「AI 语料」页签（2026-11-07 P2 批次：语料自助管理闭环）。
+ * 教师侧 AI 助教内的「课程语料」页签（2026-11-07 P2 批次：语料自助管理闭环）。
  * api/rag.ts 的文档六端点此前零消费（语料只能靠 seed 脚本重放）；本页补齐教师自助链路：
  * 增删改查文档 + 重建/清空向量索引。权限与降级语义由后端把守（assertCanManageCourse / 503）。
  */

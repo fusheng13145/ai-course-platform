@@ -139,7 +139,7 @@ function openAssistant() {
       router.push(`/teacher/courses/${courseId.value}/ai`)
       return
     }
-    toast('AI 教学助手在课程上下文中打开', 'info')
+    toast('AI 助教在课程上下文中打开', 'info')
     router.push('/teacher/courses')
     return
   }
