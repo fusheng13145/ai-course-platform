@@ -265,7 +265,8 @@ test.describe.serial('教师写链路（真栈）', () => {
     const page = await context.newPage()
     const calls = watchApi(page)
     await page.goto('/teacher/courses/create', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: '创建课程' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '新建开课任务' })).toBeVisible()
+    await page.locator('.field', { hasText: '课程库' }).locator('select').selectOption('__new__')
 
     const created = await clickWrite(
       page,
@@ -277,7 +278,7 @@ test.describe.serial('教师写链路（真栈）', () => {
         await fieldInput(page, '课程名称', 'input').fill(course.name)
         await fieldInput(page, '课程编码', 'input').fill(course.code)
         await fieldInput(page, '课程分类', 'select').selectOption('其他')
-        await page.getByRole('button', { name: '提交审核' }).click()
+        await page.getByRole('button', { name: '提交开课任务' }).click()
       },
     )
     course.id = Number(created.id)
@@ -290,6 +291,16 @@ test.describe.serial('教师写链路（真栈）', () => {
     // 两者按 API 落账，属本轮取证声明的前置条件而非「教师写链路」断言对象。
     const approved = await apiJson(apiAdmin!, 'POST', `/api/courses/${course.id}/approve`)
     expect(approved.status, `审批被拒：code=${approved.code} message=${approved.message}`).toBe(200)
+    // V28 生命周期：审批通过后按 plannedSections 生成 DRAFT 教学班，发布后才可报名。
+    const published = await apiJson(
+      apiAdmin!,
+      'POST',
+      `/api/teaching-classes/course/${course.id}/publish`,
+    )
+    expect(
+      published.status,
+      `教学班发布被拒：code=${published.code} message=${published.message}`,
+    ).toBe(200)
     const enrolled = await apiJson(apiStudent!, 'POST', `/api/student/courses/${course.id}/enroll`)
     expect(enrolled.status, `学生选课被拒：code=${enrolled.code} message=${enrolled.message}`).toBe(
       200,

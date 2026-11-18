@@ -7,11 +7,7 @@
       </span>
     </button>
     <div class="topbar-actions">
-      <button
-        class="search-trigger"
-        aria-label="全局搜索：搜索页面、课程、教学班 Ctrl K"
-        @click="paletteOpen = true"
-      >
+      <button class="search-trigger" aria-label="搜索 Ctrl K" @click="paletteOpen = true">
         <Icon name="search" />
         <span class="search-label">搜索</span>
         <kbd>Ctrl K</kbd>

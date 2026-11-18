@@ -111,7 +111,17 @@ for (const role of ROLES) {
       for (const forbidden of FORBIDDEN_TEXT) {
         expect(bodyText, `${role}「${label}」出现了兜底文案：${forbidden}`).not.toContain(forbidden)
       }
-      expect(bodyText.trim().length, `${role}「${label}」正文是空白`).toBeGreaterThan(20)
+      // 空态是合法正文（如教师「消息」没有通知时只显示一行「暂无消息」）。
+      // 真正的空壳既没有正文、也没有空态，仍会被这条判红。
+      const hasEmptyState = await page
+        .locator('main.main .empty-state')
+        .first()
+        .isVisible()
+        .catch(() => false)
+      expect(
+        bodyText.trim().length > 20 || hasEmptyState,
+        `${role}「${label}」正文是空白`,
+      ).toBeTruthy()
       landed.push({ label, path })
     }
 
