@@ -32,3 +32,29 @@ export const updateTeachingClass = (
 /** 删除教学班 */
 export const deleteTeachingClass = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.delete(`/teaching-classes/${id}`) as Promise<ApiEnvelope<ApiData>>
+
+/** 教学班已导入的行政班来源 */
+export const getRosterSources = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/teaching-classes/${id}/admin-classes`) as Promise<ApiEnvelope<ApiData>>
+
+/** 可导入本教学班的行政班候选 */
+export const getRosterCandidates = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/teaching-classes/${id}/roster/candidates`) as Promise<ApiEnvelope<ApiData>>
+
+/** 按行政班导入名单 */
+export const importRoster = (
+  id: number | string,
+  adminClassId: number | string,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/teaching-classes/${id}/roster/import`, null, {
+    params: { adminClassId },
+  }) as Promise<ApiEnvelope<ApiData>>
+
+/** 重同步名单；adminClassId 省略时同步全部来源 */
+export const resyncRoster = (
+  id: number | string,
+  adminClassId?: number | string | null,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/teaching-classes/${id}/roster/resync`, null, {
+    params: adminClassId ? { adminClassId } : undefined,
+  }) as Promise<ApiEnvelope<ApiData>>

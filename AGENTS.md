@@ -139,8 +139,8 @@ python scripts/audit-stats.py
 | 分支 / 基线 | `fix/frontend-loading-spinner`（本地领先 `origin`；当前提交以 `git log -1` 为准）；`main` 本地与远程均 `35a1df2d`；PR #107 待合并 |
 | 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
 | 结构 | 604 main Java / 267 test Java；56 Controller / 528 方法级 HTTP 映射；63 表；88 `.vue` / 98 `.test.ts` / 12 Playwright spec |
-| 后端门禁 | 3661 例 / 0 失败 / 0 错误 / 1 跳过；LINE 87.24%、BRANCH 68.43%（门禁 85/65）；SpotBugs 0；ArchUnit 8 |
-| 前端门禁 | Vitest 98 文件 / 1221 例；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过 |
+| 后端门禁 | 3667 例 / 0 失败 / 0 错误 / 1 跳过；LINE 86.25%、BRANCH 66.89%（门禁 85/65）；SpotBugs 0；ArchUnit 8 |
+| 前端门禁 | Vitest 100 文件 / 1238 例；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过 |
 | Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` 113 passed |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；最新 PR #107 run 12 success / 1 skipped（`Docker Images Build` skipped 属设计） |
 | 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |

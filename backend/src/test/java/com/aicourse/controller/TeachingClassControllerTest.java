@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
 import com.aicourse.security.AdminScopeGuard;
@@ -168,5 +169,21 @@ class TeachingClassControllerTest extends ControllerTestBase {
         mockMvc.perform(withUser(get("/teaching-classes/30/admin-classes"), 1L, "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @DisplayName("WP5：教师读取行政班候选，供名单面板选班")
+    void teacherCanReadRosterCandidates() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(100L);
+        AdminClass candidate = new AdminClass();
+        candidate.setId(5L);
+        candidate.setName("计算机2201班");
+        candidate.setCode("CS2201");
+        when(rosterService.listCandidates(30L, 100L)).thenReturn(List.of(candidate));
+
+        mockMvc.perform(withUser(get("/teaching-classes/30/roster/candidates"), 100L, "TEACHER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(5))
+                .andExpect(jsonPath("$.data[0].code").value("CS2201"));
     }
 }

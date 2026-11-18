@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.TeachingClassCreateDTO;
 import com.aicourse.dto.TeachingClassUpdateDTO;
+import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
@@ -132,6 +133,13 @@ public class TeachingClassController {
     @Operation(summary = "教学班的行政班来源", description = "课程负责人/本班主讲/管理员可读")
     public ApiResponse<List<TeachingClassAdminClass>> listAdminClasses(@PathVariable Long id) {
         return ApiResponse.success(rosterService.listSources(id, adminScopeGuard.currentUserId()));
+    }
+
+    @GetMapping("/{id}/roster/candidates")
+    @Operation(summary = "可导入的行政班", description = "课程所属学院的启用行政班；课程负责人/本班主讲/管理员可读")
+    public ApiResponse<List<AdminClass>> rosterCandidates(@PathVariable Long id) {
+        return ApiResponse.success(
+                rosterService.listCandidates(id, adminScopeGuard.currentUserId()));
     }
 
     @PostMapping("/{id}/roster/import")

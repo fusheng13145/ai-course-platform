@@ -79,6 +79,16 @@ public class RosterServiceImpl implements RosterService {
     }
 
     @Override
+    public List<AdminClass> listCandidates(Long teachingClassId, Long operatorId) {
+        TeachingClass teachingClass = accessControl.assertRosterManage(teachingClassId, operatorId);
+        Course course = accessControl.requireCourse(teachingClass.getCourseId());
+        return adminClassMapper.selectList(new LambdaQueryWrapper<AdminClass>()
+                .eq(course.getCollegeId() != null, AdminClass::getCollegeId, course.getCollegeId())
+                .eq(AdminClass::getStatus, ADMIN_CLASS_ACTIVE)
+                .orderByAsc(AdminClass::getCode));
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public RosterSyncResultVO importFromAdminClass(Long teachingClassId, Long adminClassId, Long operatorId) {
         TeachingClass teachingClass = accessControl.assertRosterManage(teachingClassId, operatorId);

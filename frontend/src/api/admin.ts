@@ -159,6 +159,15 @@ export const getOrgAdminClasses = (
   params: Record<string, unknown> = {},
 ): Promise<ApiEnvelope<ApiData>> =>
   request.get('/admin/org/admin-classes', { params }) as Promise<ApiEnvelope<ApiData>>
+export const createOrgAdminClass = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/org/admin-classes', data) as Promise<ApiEnvelope<ApiData>>
+export const updateOrgAdminClass = (
+  id: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/admin/org/admin-classes/${id}`, data) as Promise<ApiEnvelope<ApiData>>
+export const archiveOrgAdminClass = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.delete(`/admin/org/admin-classes/${id}`) as Promise<ApiEnvelope<ApiData>>
 
 // 管理员端 - 通知公告（WP8，2026-11-07 全量实现批接入）
 /** 全量公告分页（管理端治理视图，不受受众过滤） */
@@ -325,6 +334,9 @@ export default {
   updateMajor,
   archiveMajor,
   getOrgAdminClasses,
+  createOrgAdminClass,
+  updateOrgAdminClass,
+  archiveOrgAdminClass,
   getAllAnnouncements,
   publishAnnouncement,
   listAllEnrollments,

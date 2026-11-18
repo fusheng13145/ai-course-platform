@@ -189,7 +189,7 @@
           <select v-model="form.adminClassId" class="input" data-testid="user-admin-class">
             <option value="">未分班</option>
             <option v-for="item in classrooms" :key="String(item.id)" :value="String(item.id)">
-              {{ item.name }}
+              {{ item.name }}{{ item.code ? ` · ${item.code}` : '' }}
             </option>
           </select>
         </label>
@@ -252,8 +252,13 @@ import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import { useListFeedback } from '@/composables/useListFeedback'
-import { createUser, getUsers, resetUserPassword, updateUser } from '@/api/admin'
-import { getClassroomList } from '@/api/classroom'
+import {
+  createUser,
+  getOrgAdminClasses,
+  getUsers,
+  resetUserPassword,
+  updateUser,
+} from '@/api/admin'
 import { updateUserStatus } from '@/api/user'
 import { pickList, readTotal, unwrap } from '@/utils/response'
 
@@ -272,6 +277,8 @@ interface UserRow {
 interface ClassroomOption {
   id?: number | string
   name?: string
+  code?: string
+  status?: string
 }
 
 const ROLE_OPTIONS = [
@@ -557,8 +564,10 @@ async function setStatus(row: UserRow, next: boolean) {
 
 async function loadClassrooms() {
   try {
-    const payload = unwrap(await getClassroomList())
-    classrooms.value = pickList<ClassroomOption>(payload)
+    const payload = unwrap(await getOrgAdminClasses())
+    classrooms.value = pickList<ClassroomOption>(payload).filter(
+      (item) => String(item.status || 'ACTIVE').toUpperCase() !== 'ARCHIVED',
+    )
   } catch {
     classrooms.value = []
   }

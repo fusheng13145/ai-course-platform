@@ -68,10 +68,58 @@
             {{ statusLabel(row.status) }}
           </span>
           <span class="section-cap">{{ row.capacity ?? '—' }} 人</span>
+          <button v-if="role === 'teacher'" class="text-btn" @click="openRoster(row)">名单</button>
         </div>
       </div>
       <div v-else class="empty-state compact"><b>暂无教学班</b></div>
     </section>
+
+    <Modal
+      v-model:open="rosterOpen"
+      :title="`${rosterTarget?.name || '教学班'} · 名单`"
+      width="620px"
+    >
+      <div v-if="rosterLoading" class="empty-state compact"><b>正在加载名单来源…</b></div>
+      <template v-else>
+        <div class="roster-actions">
+          <select v-model="rosterSelected" class="input" aria-label="选择行政班">
+            <option value="" disabled>选择行政班</option>
+            <option
+              v-for="item in rosterCandidates"
+              :key="String(item.id)"
+              :value="String(item.id)"
+            >
+              {{ item.name }}{{ item.code ? ` · ${item.code}` : '' }}
+            </option>
+          </select>
+          <button
+            class="btn btn-primary"
+            :disabled="!rosterSelected || rosterBusy"
+            @click="doImport"
+          >
+            {{ rosterBusy ? '处理中…' : '导入' }}
+          </button>
+          <button
+            class="btn btn-ghost"
+            :disabled="!rosterSources.length || rosterBusy"
+            @click="doResync"
+          >
+            重同步
+          </button>
+        </div>
+        <p v-if="rosterResult" class="roster-result">{{ rosterResult }}</p>
+        <p v-if="rosterError" class="form-error" role="alert">{{ rosterError }}</p>
+        <div v-if="rosterSources.length" class="source-list">
+          <span v-for="source in rosterSources" :key="String(source.id)" class="chip">
+            {{ sourceLabel(source.adminClassId) }}
+          </span>
+        </div>
+        <div v-else class="empty-state compact"><b>尚未导入行政班</b></div>
+      </template>
+      <template #footer>
+        <button class="btn btn-ghost" @click="rosterOpen = false">关闭</button>
+      </template>
+    </Modal>
 
     <!-- 开课设置 -->
     <Modal v-model:open="editOpen" title="开课设置" width="560px">
@@ -138,7 +186,15 @@ import Modal from '../../../components/Modal.vue'
 import { useUi } from '../../../composables/ui'
 import courseApi, { completeCourse, getCourseById } from '@/api/course'
 import commonApi from '@/api/common'
-import { getTeachingClasses, publishCourseClasses, assignLeadTeacher } from '@/api/teachingClass'
+import {
+  getRosterCandidates,
+  getRosterSources,
+  getTeachingClasses,
+  importRoster,
+  publishCourseClasses,
+  assignLeadTeacher,
+  resyncRoster,
+} from '@/api/teachingClass'
 import { pickList, unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 import type { Role } from '../../../nav'
@@ -164,6 +220,24 @@ interface SectionRow {
 interface TeacherRow {
   id?: number | string
   name?: string
+}
+
+interface RosterCandidate {
+  id?: number | string
+  name?: string
+  code?: string
+}
+
+interface RosterSource {
+  id?: number | string
+  adminClassId?: number | string | null
+}
+
+interface RosterResult {
+  added?: number
+  removed?: number
+  skipped?: number
+  conflicted?: number
 }
 
 const ENROLLMENT_OPTIONS = [
@@ -196,6 +270,16 @@ const form = reactive({
   plannedSections: 1,
   questionPracticeEnabled: false,
 })
+
+const rosterOpen = ref(false)
+const rosterLoading = ref(false)
+const rosterBusy = ref(false)
+const rosterError = ref('')
+const rosterTarget = ref<SectionRow | null>(null)
+const rosterCandidates = ref<RosterCandidate[]>([])
+const rosterSources = ref<RosterSource[]>([])
+const rosterSelected = ref('')
+const rosterResult = ref('')
 
 function enrollmentLabel(value: unknown): string {
   const key = String(value ?? '')
@@ -339,6 +423,89 @@ async function assignLead(row: SectionRow, teacherId: string) {
   }
 }
 
+function resultText(result: RosterResult | null): string {
+  if (!result) return ''
+  return `新增 ${result.added ?? 0} · 跳过 ${result.skipped ?? 0} · 冲突 ${result.conflicted ?? 0} · 移除 ${result.removed ?? 0}`
+}
+
+function sourceLabel(adminClassId: unknown): string {
+  const item = rosterCandidates.value.find(
+    (candidate) => String(candidate.id) === String(adminClassId ?? ''),
+  )
+  if (item?.name) return String(item.name)
+  return `行政班 #${String(adminClassId ?? '—')}`
+}
+
+async function openRoster(row: SectionRow) {
+  if (row.id === undefined || row.id === null) return
+  rosterTarget.value = row
+  rosterOpen.value = true
+  rosterLoading.value = true
+  rosterError.value = ''
+  rosterResult.value = ''
+  try {
+    const [candidatePayload, sourcePayload] = await Promise.all([
+      getRosterCandidates(row.id),
+      getRosterSources(row.id),
+    ])
+    rosterCandidates.value = pickList<RosterCandidate>(unwrap(candidatePayload))
+    rosterSources.value = pickList<RosterSource>(unwrap(sourcePayload))
+    rosterSelected.value =
+      rosterCandidates.value[0]?.id == null ? '' : String(rosterCandidates.value[0].id)
+  } catch (error) {
+    logger.error('加载名单来源失败', error)
+    rosterCandidates.value = []
+    rosterSources.value = []
+    rosterSelected.value = ''
+    rosterError.value = '名单来源加载失败'
+  } finally {
+    rosterLoading.value = false
+  }
+}
+
+async function refreshRosterSources() {
+  const row = rosterTarget.value
+  if (!row || row.id === undefined || row.id === null) return
+  const payload = await getRosterSources(row.id)
+  rosterSources.value = pickList<RosterSource>(unwrap(payload))
+}
+
+async function doImport() {
+  const row = rosterTarget.value
+  if (!row || row.id === undefined || row.id === null || !rosterSelected.value) return
+  rosterBusy.value = true
+  rosterError.value = ''
+  try {
+    const result = unwrap(await importRoster(row.id, rosterSelected.value)) as RosterResult
+    rosterResult.value = resultText(result)
+    await refreshRosterSources()
+    toast('名单已导入', 'ok')
+  } catch (error) {
+    logger.error('导入名单失败', error)
+    rosterError.value = '导入失败'
+  } finally {
+    rosterBusy.value = false
+  }
+}
+
+async function doResync() {
+  const row = rosterTarget.value
+  if (!row || row.id === undefined || row.id === null) return
+  rosterBusy.value = true
+  rosterError.value = ''
+  try {
+    const result = unwrap(await resyncRoster(row.id)) as RosterResult
+    rosterResult.value = resultText(result)
+    await refreshRosterSources()
+    toast('名单已重同步', 'ok')
+  } catch (error) {
+    logger.error('重同步名单失败', error)
+    rosterError.value = '重同步失败'
+  } finally {
+    rosterBusy.value = false
+  }
+}
+
 onMounted(async () => {
   if (props.role === 'student') return
   await fetchRecord()
@@ -409,5 +576,27 @@ onMounted(async () => {
   text-align: right;
   font-size: 12px;
   color: var(--ink-3);
+}
+
+.roster-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.roster-actions .input {
+  flex: 1;
+}
+
+.roster-result {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
 }
 </style>
