@@ -599,14 +599,19 @@ class AIControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /ai/learning-path/generate-personalized - STUDENT 角色不符 403（写操作仅教师/管理员）")
-    void personalized_student_forbidden403() throws Exception {
-        mockMvc.perform(post("/ai/learning-path/generate-personalized")
+    @DisplayName("POST /ai/learning-path/generate-personalized - STUDENT 自助生成返回 200")
+    void personalized_student_self_service_200() throws Exception {
+        when(learningPathService.generatePathPersonalized(any(), any(), anyString(), anyString(), any()))
+                .thenReturn(null);
+        MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate-personalized")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"7\"}").with(withUser(9L, "STUDENT")))
-                .andExpect(status().isForbidden());
-        verify(learningPathService, never()).generatePathPersonalized(
-                any(), any(), anyString(), anyString(), any());
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(learningPathService).generatePathPersonalized(
+                eq(9L), eq(7L), anyString(), anyString(), any());
     }
 
     // ==================== Authentication 参数为 null（withUser(null, …) 注入的切片可复现） ====================

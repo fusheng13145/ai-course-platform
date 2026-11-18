@@ -320,6 +320,9 @@ public class StudentDashboardComponent {
                 Map<String, Object> cm = new LinkedHashMap<>();
                 cm.put("courseId", cid);
                 cm.put("courseName", c.getName());
+                cm.put("courseCode", c.getCode());
+                cm.put("credits", c.getCredits());
+                cm.put("semester", c.getSemester());
                 cm.put("finalScore", en != null ? en.getFinalScore() : null);
                 cm.put("progress", en != null ? en.getProgress() : null);
                 cm.put("assignments", assignments);

@@ -203,7 +203,7 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
     wrapper.unmount()
   })
 
-  it('学业档案三个页签（成绩／学习中心／错题本），且不提供导出成绩动作', async () => {
+  it('学业档案五个页签（成绩／学情报告／学习路径／学习中心／错题本），且不提供导出成绩动作', async () => {
     route.meta.pageKey = 'academic'
     const wrapper = mountPage()
     await settle()
@@ -212,9 +212,15 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
     })
 
     const tabs = wrapper.findAll('.academic-body .tabs button')
-    expect(tabs.map((node) => node.text())).toEqual(['成绩', '学习中心', '错题本'])
+    expect(tabs.map((node) => node.text())).toEqual([
+      '成绩',
+      '学情报告',
+      '学习路径',
+      '学习中心',
+      '错题本',
+    ])
     const bodyText = wrapper.find('.academic-body').text()
-    expect(bodyText).not.toContain('学习路径')
+    expect(bodyText).toContain('学习路径')
     const exportAction = wrapper
       .findAll('.page-head-actions button')
       .find((node) => node.text().includes('导出成绩'))

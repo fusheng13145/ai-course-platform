@@ -35,7 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对 service 方法打桩并用 jsonPath 校验响应体关键字段透传，verify 确认路由委托与参数透传。
  * 所有接口返回 Callable（异步），故采用 asyncDispatch 解析最终响应。
  * 安全规则（SecurityConfig）：POST /ai/qa/ask、/ai/qa/continue、/ai/essay/correct、/ai/essay/polish
- * 放行给任意已登录角色（学生可用 AI 助教）；其余 POST/PUT/DELETE /ai/** 需 TEACHER/ADMIN；GET /ai/** 任意已认证角色。
+ * 以及 /ai/learning-path/generate、/ai/learning-path/generate-personalized 放行给任意已登录角色
+ * （学生可用 AI 助教与自助学习路径）；其余 POST/PUT/DELETE /ai/** 需 TEACHER/ADMIN；GET /ai/** 任意已认证角色。
  */
 @WebMvcTest(AIController.class)
 class AIControllerTest extends ControllerTestBase {
@@ -559,10 +560,23 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/learning-path/generate - STUDENT角色返回403")
-    void generateLearningPath_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/ai/learning-path/generate").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
-                .andExpect(status().isForbidden());
+    @DisplayName("POST /ai/learning-path/generate - STUDENT 自助生成返回 code=200")
+    void generateLearningPath_student_self_service_200() throws Exception {
+        LearningPath lp = new LearningPath();
+        lp.setId(100L);
+        when(learningPathService.generatePathPersonalized(eq(2L), eq(5L), anyString(), anyString(), isNull()))
+                .thenReturn(lp);
+
+        MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":\"5\",\"goal\":\"补齐薄弱点\"}").with(withUser(2L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.status").value("created"));
+
+        verify(learningPathService).generatePathPersonalized(
+                eq(2L), eq(5L), anyString(), eq("补齐薄弱点"), isNull());
     }
 
 
