@@ -117,13 +117,7 @@
 
         <label class="field">
           <span>手机号</span>
-          <input
-            v-model="form.phone"
-            class="input"
-            type="tel"
-            maxlength="11"
-            data-field="phone"
-          />
+          <input v-model="form.phone" class="input" type="tel" maxlength="11" data-field="phone" />
         </label>
 
         <label class="field">
@@ -136,8 +130,15 @@
       <p class="profile-readonly">{{ readonlyHint }}</p>
 
       <template #footer>
-        <button class="btn" type="button" :disabled="saving" @click="closeProfileModal">取消</button>
-        <button class="btn btn-primary" type="button" :disabled="saving || avatarUploading" @click="submitProfile">
+        <button class="btn" type="button" :disabled="saving" @click="closeProfileModal">
+          取消
+        </button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          :disabled="saving || avatarUploading"
+          @click="submitProfile"
+        >
           {{ saving ? '保存中…' : '保存' }}
         </button>
       </template>
@@ -181,7 +182,9 @@
       <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
 
       <template #footer>
-        <button class="btn" type="button" :disabled="changing" @click="closePasswordModal">取消</button>
+        <button class="btn" type="button" :disabled="changing" @click="closePasswordModal">
+          取消
+        </button>
         <button class="btn btn-primary" type="button" :disabled="changing" @click="submitPassword">
           {{ changing ? '提交中…' : '确认修改' }}
         </button>
@@ -389,9 +392,7 @@ const fieldGroups = computed<ProfileGroup[]>(() => {
 })
 
 const readonlyHint = computed(() =>
-  isStudent.value
-    ? '身份、学校、学院与学号由管理员维护。'
-    : '身份、学校、学院与工号由管理员维护。',
+  isStudent.value ? '身份、学校、学院与学号由管理员维护。' : '身份、学校、学院与工号由管理员维护。',
 )
 
 watch(
@@ -586,9 +587,7 @@ async function submitPassword() {
     passwordError.value = '请填写完整的密码信息'
     return
   }
-  if (
-    !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,32}$/.test(password.newPassword)
-  ) {
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,32}$/.test(password.newPassword)) {
     passwordError.value = '新密码需 8–32 位，且包含大小写字母、数字与特殊字符'
     return
   }

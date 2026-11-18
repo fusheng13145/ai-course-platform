@@ -91,40 +91,7 @@ export function navGroups(role: Role): NavGroup[] {
       path: PATHS[role][item.id] || ROLE_HOME[role],
     })),
   }))
-  // 原型 的学生侧栏「学业」组只有学业档案，旧端另有跨课程的考试入口；
-  // 迁移期按旧端功能面补齐，避免删旧前端时丢入口（与 M-02 课程空间那一路同源）。
-  if (role === 'student') {
-    const academic = groups.find((group) => group.items.some((item) => item.id === 'academic'))
-    const item = { id: 'exams', label: '我的考试', icon: 'clipboard', path: PATHS.student.exams }
-    if (academic) academic.items.push(item)
-    else
-      groups.splice(1, 0, {
-        label: '学业',
-        items: [item],
-      })
-  }
-  // 原型 的教师侧栏只有「资源中心」，旧端另有题库／试卷／成绩与课堂互动等真实能力；
-  // 迁移期按旧端功能面补齐，避免删旧前端时丢入口。
-  if (role === 'teacher') {
-    const insertAt = groups.findIndex((group) => group.label === '平台')
-    const at = insertAt >= 0 ? insertAt : groups.length
-    groups.splice(at, 0, {
-      label: '试题与学情',
-      items: [
-        { id: 'bank', label: '题库管理', icon: 'file', path: PATHS.teacher.bank },
-        { id: 'exams', label: '试卷库', icon: 'clipboard', path: PATHS.teacher.exams },
-        { id: 'grades', label: '成绩管理', icon: 'award', path: PATHS.teacher.grades },
-      ],
-    })
-    groups.splice(at + 1, 0, {
-      label: '课堂与知识',
-      items: [
-        { id: 'interaction', label: '课堂互动', icon: 'message', path: PATHS.teacher.interaction },
-        { id: 'knowledge', label: '知识点管理', icon: 'path', path: PATHS.teacher.knowledge },
-      ],
-    })
-  }
-  // 管理员侧栏同理：原型只有治理类入口，旧端另有题库/试卷/资源等内容面
+  // 侧栏只保留全局入口：课程内的作业、考试、成绩、互动、知识点等一律由课程空间页签承接。
   if (role === 'admin') {
     const insertAt = groups.findIndex((group) => group.label === '平台')
     groups.splice(insertAt >= 0 ? insertAt : groups.length, 0, {
@@ -223,7 +190,7 @@ const STUDENT_PAGES: Record<string, PageDef> = {
     special: 'exams',
   },
   messages: {
-    title: '消息',
+    title: '系统消息',
     special: 'messages',
   },
   profile: {
@@ -294,7 +261,7 @@ const TEACHER_PAGES: Record<string, PageDef> = {
     special: 'advising',
   },
   messages: {
-    title: '消息',
+    title: '系统消息',
     special: 'messages',
   },
   profile: {

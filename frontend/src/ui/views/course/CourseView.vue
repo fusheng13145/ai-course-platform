@@ -55,12 +55,24 @@
         :course-id="courseId"
         :mode="role === 'student' ? 'student' : 'teacher'"
       />
+      <KnowledgeManagementView
+        v-else-if="currentTab === 'knowledge' && role === 'teacher'"
+        :embed-course-id="courseId"
+      />
       <AiCenterTab
         v-else-if="currentTab === 'ai' && (role === 'teacher' || role === 'student')"
         :course-id="courseId"
         :mode="role === 'student' ? 'student' : 'teacher'"
       />
-      <GradesTab v-else-if="currentTab === 'grades'" :role="role" :course-id="courseId" />
+      <GradesTab
+        v-else-if="currentTab === 'grades' && role === 'student'"
+        :role="role"
+        :course-id="courseId"
+      />
+      <TeacherGradesView
+        v-else-if="currentTab === 'grades' && role === 'teacher'"
+        :embed-course-id="courseId"
+      />
       <TeacherBankView
         v-else-if="currentTab === 'bank' && role === 'teacher'"
         :course-id="courseId"
@@ -89,6 +101,10 @@
         v-else-if="currentTab === 'discussion' && (role === 'teacher' || role === 'student')"
         :course-id="courseId"
         :role="role"
+      />
+      <InteractionView
+        v-else-if="currentTab === 'interaction' && role === 'teacher'"
+        :embed-course-id="courseId"
       />
       <CourseNoticesTab
         v-else-if="currentTab === 'notices' && (role === 'teacher' || role === 'student')"
@@ -121,6 +137,9 @@ import CourseNoticesTab from './tabs/CourseNoticesTab.vue'
 import AiCorpusTab from './tabs/AiCorpusTab.vue'
 import TeacherBankView from '../teacher/TeacherBankView.vue'
 import TeacherExamsView from '../teacher/TeacherExamsView.vue'
+import TeacherGradesView from '../teacher/TeacherGradesView.vue'
+import InteractionView from '../teacher/InteractionView.vue'
+import KnowledgeManagementView from '../teacher/KnowledgeManagementView.vue'
 import ProctorTab from './tabs/ProctorTab.vue'
 import ChaptersTab from './tabs/ChaptersTab.vue'
 import TasksTab from './tabs/TasksTab.vue'
