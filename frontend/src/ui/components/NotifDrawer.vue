@@ -33,7 +33,7 @@
           <time>{{ item.time }}</time>
         </li>
       </ul>
-      <button class="btn btn-ghost btn-block" @click="openCenter">打开通知中心</button>
+      <button class="btn btn-ghost btn-block" @click="openCenter">打开系统消息</button>
     </aside>
   </div>
 </template>

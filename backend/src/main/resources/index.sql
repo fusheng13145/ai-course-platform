@@ -117,6 +117,7 @@ CREATE TABLE users (
   is_verified TINYINT(1) NOT NULL DEFAULT 0 COMMENT '邮箱是否验证：0-未验证，1-已验证',
   avatar_url VARCHAR(500) NULL COMMENT '用户头像URL',
   phone VARCHAR(20) NULL COMMENT '手机号码',
+  gender VARCHAR(16) NULL COMMENT '性别：MALE/FEMALE/OTHER（V30）',
   student_id VARCHAR(50) NULL COMMENT '学号（仅学生）',
   major VARCHAR(100) NULL COMMENT '专业（仅学生）',
   grade VARCHAR(20) NULL COMMENT '年级（仅学生）',
@@ -146,7 +147,8 @@ CREATE TABLE users (
   admin_scope VARCHAR(16) NULL COMMENT '管理员作用域 SCHOOL/COLLEGE，仅 ADMIN 使用（V12）',
   KEY idx_users_college (college_id) COMMENT '学院索引（V12）',
   KEY idx_users_admin_class (admin_class_id) COMMENT '行政班索引（V12）',
-  KEY idx_users_admin_scope (admin_scope, college_id) COMMENT '管理员作用域索引（V12）'
+  KEY idx_users_admin_scope (admin_scope, college_id) COMMENT '管理员作用域索引（V12）',
+  CONSTRAINT ck_users_gender CHECK (gender IS NULL OR gender IN ('MALE', 'FEMALE', 'OTHER'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';;
 
 -- ── 2.1.1 组织架构模块（V12 / B-12-P-08 WP1） ──

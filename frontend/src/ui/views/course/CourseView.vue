@@ -55,12 +55,24 @@
         :course-id="courseId"
         :mode="role === 'student' ? 'student' : 'teacher'"
       />
+      <KnowledgeManagementView
+        v-else-if="currentTab === 'knowledge' && role === 'teacher'"
+        :embed-course-id="courseId"
+      />
       <AiCenterTab
         v-else-if="currentTab === 'ai' && (role === 'teacher' || role === 'student')"
         :course-id="courseId"
         :mode="role === 'student' ? 'student' : 'teacher'"
       />
-      <GradesTab v-else-if="currentTab === 'grades'" :role="role" :course-id="courseId" />
+      <GradesTab
+        v-else-if="currentTab === 'grades' && role === 'student'"
+        :role="role"
+        :course-id="courseId"
+      />
+      <TeacherGradesView
+        v-else-if="currentTab === 'grades' && role === 'teacher'"
+        :embed-course-id="courseId"
+      />
       <TeacherBankView
         v-else-if="currentTab === 'bank' && role === 'teacher'"
         :course-id="courseId"
@@ -68,8 +80,8 @@
       <TeacherExamsView
         v-else-if="currentTab === 'exams' && role === 'teacher'"
         :course-id="courseId"
+        :initial-tab="route.query.tab === 'proctor' ? 'proctor' : 'papers'"
       />
-      <ProctorTab v-else-if="currentTab === 'proctor'" :course-id="courseId" />
       <StudentExamPanel
         v-else-if="currentTab === 'exams' && role === 'student'"
         :course-id="courseId"
@@ -90,14 +102,14 @@
         :course-id="courseId"
         :role="role"
       />
+      <InteractionView
+        v-else-if="currentTab === 'interaction' && role === 'teacher'"
+        :embed-course-id="courseId"
+      />
       <CourseNoticesTab
         v-else-if="currentTab === 'notices' && (role === 'teacher' || role === 'student')"
         :course-id="courseId"
         :role="role"
-      />
-      <AiCorpusTab
-        v-else-if="currentTab === 'corpus' && role === 'teacher'"
-        :course-id="courseId"
       />
       <TabUnavailable v-else />
     </div>
@@ -118,10 +130,11 @@ import SettingsTab from './tabs/SettingsTab.vue'
 import TeacherClassesTab from './tabs/TeacherClassesTab.vue'
 import TabUnavailable from './tabs/TabUnavailable.vue'
 import CourseNoticesTab from './tabs/CourseNoticesTab.vue'
-import AiCorpusTab from './tabs/AiCorpusTab.vue'
 import TeacherBankView from '../teacher/TeacherBankView.vue'
 import TeacherExamsView from '../teacher/TeacherExamsView.vue'
-import ProctorTab from './tabs/ProctorTab.vue'
+import TeacherGradesView from '../teacher/TeacherGradesView.vue'
+import InteractionView from '../teacher/InteractionView.vue'
+import KnowledgeManagementView from '../teacher/KnowledgeManagementView.vue'
 import ChaptersTab from './tabs/ChaptersTab.vue'
 import TasksTab from './tabs/TasksTab.vue'
 import DiscussionTab from './tabs/DiscussionTab.vue'
@@ -140,7 +153,14 @@ const { role, courseContext, setCourseContext } = useUi()
 const detail = ref<CourseDetail | null>(null)
 const fallbackName = ref('')
 const courseId = computed(() => Number(route.params.id) || 0)
-const currentTab = computed(() => String(route.params.tab || 'overview'))
+const LEGACY_TAB_TARGETS: Record<string, { tab: string; query?: Record<string, string> }> = {
+  proctor: { tab: 'exams', query: { tab: 'proctor' } },
+  corpus: { tab: 'ai' },
+}
+const currentTab = computed(() => {
+  const raw = String(route.params.tab || 'overview')
+  return LEGACY_TAB_TARGETS[raw]?.tab || raw
+})
 const tabs = computed(() => courseTabs(role.value as Role))
 const validTab = computed(() => tabs.value.some((tab) => tab.id === currentTab.value))
 
@@ -238,9 +258,18 @@ watch(() => route.params.id, load)
 watch(
   () => route.params.tab,
   (tab) => {
+    const target = LEGACY_TAB_TARGETS[String(tab || '')]
+    if (target) {
+      router.replace({
+        path: `/${role.value}/courses/${courseId.value}/${target.tab}`,
+        query: target.query,
+      })
+      return
+    }
     if (tab && !tabs.value.some((item) => item.id === tab)) {
       router.replace(`/${role.value}/courses/${courseId.value}/overview`)
     }
   },
+  { immediate: true },
 )
 </script>

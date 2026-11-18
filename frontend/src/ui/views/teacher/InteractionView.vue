@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead title="课堂互动">
+    <PageHead v-if="!embedded" title="课堂互动">
       <template #actions>
         <select v-model="courseId" class="input course-pick" aria-label="选择课程">
           <option value="">请选择课程</option>
@@ -334,10 +334,16 @@ interface CourseOption {
   [key: string]: unknown
 }
 
+const props = defineProps<{ embedCourseId?: number | string }>()
+const embedded = computed(
+  () =>
+    props.embedCourseId !== undefined && props.embedCourseId !== null && props.embedCourseId !== '',
+)
+
 const { toast } = useUi()
 
 const courses = ref<CourseOption[]>([])
-const courseId = ref<number | string>('')
+const courseId = ref<number | string>(props.embedCourseId ?? '')
 const tab = ref<'sign' | 'vote'>('sign')
 
 const signList = ref<Record<string, unknown>[]>([])
@@ -716,18 +722,22 @@ async function openResult(row: Record<string, unknown>) {
   }
 }
 
-watch(courseId, () => {
-  signList.value = []
-  voteList.value = []
-  signError.value = ''
-  voteError.value = ''
-  if (courseId.value) {
-    void loadSignInList()
-    void loadVoteList()
-  }
-})
+watch(
+  courseId,
+  () => {
+    signList.value = []
+    voteList.value = []
+    signError.value = ''
+    voteError.value = ''
+    if (courseId.value) {
+      void loadSignInList()
+      void loadVoteList()
+    }
+  },
+  { immediate: true },
+)
 
-void loadCourses()
+if (!embedded.value) void loadCourses()
 </script>
 
 <style scoped>

@@ -7,112 +7,137 @@
     </PageHead>
     <div v-else class="course-tab-bar">
       <div>
-        <h2>课程试卷</h2>
+        <h2>考试</h2>
       </div>
       <div class="course-tab-actions">
-        <button class="btn btn-primary" @click="openCreate">新建试卷</button>
+        <button v-if="examTab === 'papers'" class="btn btn-primary" @click="openCreate">
+          新建试卷
+        </button>
       </div>
     </div>
 
-    <div class="stat-grid kpi-grid">
-      <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="teacher" />
+    <div v-if="isCourseScope" class="tabs" role="tablist" aria-label="考试">
+      <button
+        :class="{ 'is-active': examTab === 'papers' }"
+        role="tab"
+        :aria-selected="examTab === 'papers'"
+        @click="setExamTab('papers')"
+      >
+        试卷
+      </button>
+      <button
+        :class="{ 'is-active': examTab === 'proctor' }"
+        role="tab"
+        :aria-selected="examTab === 'proctor'"
+        @click="setExamTab('proctor')"
+      >
+        在线监考
+      </button>
     </div>
 
-    <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>试卷列表</h2>
-        </div>
-        <span class="chip chip-mute">{{ total }} 条</span>
-      </header>
-      <div class="table-toolbar">
-        <div class="filter-row">
-          <select
-            v-if="!isCourseScope"
-            v-model="filters.courseId"
-            class="input filter-course"
-            aria-label="按课程筛选试卷"
-            @change="applyFilters"
-          >
-            <option value="">全部课程</option>
-            <option v-for="course in courses" :key="course.id" :value="course.id">
-              {{ course.name || course.title }}
-            </option>
-          </select>
-          <button class="btn btn-sm" @click="applyFilters">查询</button>
-          <button class="btn btn-sm btn-ghost" @click="resetFilters">重置</button>
-        </div>
+    <div v-show="examTab === 'papers'">
+      <div class="stat-grid kpi-grid">
+        <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="teacher" />
       </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>试卷</th>
-              <th v-if="!isCourseScope" class="w-140">课程</th>
-              <th class="w-80">时长</th>
-              <th class="w-80">总分</th>
-              <th class="w-80">题量</th>
-              <th class="w-96">状态</th>
-              <th class="w-260 th-actions">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in exams" :key="row.id">
-              <td>
-                <b class="exam-title">{{ row.title || '未命名试卷' }}</b>
-                <small class="cell-sub">{{ row.description || '—' }}</small>
-              </td>
-              <td v-if="!isCourseScope">{{ courseNameOf(row) }}</td>
-              <td>{{ row.duration ?? '—' }} 分</td>
-              <td>{{ row.totalScore ?? '—' }}</td>
-              <td>{{ questionCountOf(row) }}</td>
-              <td>
-                <span class="chip" :class="statusChipClass(row.status)">{{
-                  statusView(row).label
-                }}</span>
-              </td>
-              <td>
-                <div class="row-actions">
-                  <button class="text-btn" @click="openQuestions(row)">题目</button>
-                  <button class="text-btn" @click="openStats(row)">统计</button>
-                  <button class="text-btn" :disabled="copyingId === row.id" @click="copyRow(row)">
-                    {{ copyingId === row.id ? '复制中…' : '复制' }}
-                  </button>
-                  <button v-if="canArchive(row)" class="text-btn" @click="archiveRow(row)">
-                    归档
-                  </button>
-                  <template v-if="statusView(row).canPublish">
-                    <button class="text-btn" @click="openEdit(row)">编辑</button>
-                    <button class="text-btn" @click="publishRow(row)">提交审核</button>
-                    <button class="text-btn danger" @click="removeRow(row)">删除</button>
-                  </template>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div v-if="!loading && !exams.length" class="empty-state compact">
-        <span class="e-ico"><Icon name="clipboard" /></span>
-        <b>暂无试卷</b>
-        <p>点击「新建试卷」开始创建；提交审核并通过后学生才可见。</p>
-      </div>
-      <div v-else-if="loading" class="empty-state compact">
-        <b>正在加载试卷…</b>
-      </div>
-
-      <footer class="card-foot">
-        <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-          <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-            下一页
-          </button>
+      <section class="card table-card">
+        <header class="card-head">
+          <div>
+            <h2>试卷列表</h2>
+          </div>
+          <span class="chip chip-mute">{{ total }} 条</span>
+        </header>
+        <div class="table-toolbar">
+          <div class="filter-row">
+            <select
+              v-if="!isCourseScope"
+              v-model="filters.courseId"
+              class="input filter-course"
+              aria-label="按课程筛选试卷"
+              @change="applyFilters"
+            >
+              <option value="">全部课程</option>
+              <option v-for="course in courses" :key="course.id" :value="course.id">
+                {{ course.name || course.title }}
+              </option>
+            </select>
+            <button class="btn btn-sm" @click="applyFilters">查询</button>
+            <button class="btn btn-sm btn-ghost" @click="resetFilters">重置</button>
+          </div>
         </div>
-      </footer>
-    </section>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>试卷</th>
+                <th v-if="!isCourseScope" class="w-140">课程</th>
+                <th class="w-80">时长</th>
+                <th class="w-80">总分</th>
+                <th class="w-80">题量</th>
+                <th class="w-96">状态</th>
+                <th class="w-260 th-actions">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in exams" :key="row.id">
+                <td>
+                  <b class="exam-title">{{ row.title || '未命名试卷' }}</b>
+                  <small class="cell-sub">{{ row.description || '—' }}</small>
+                </td>
+                <td v-if="!isCourseScope">{{ courseNameOf(row) }}</td>
+                <td>{{ row.duration ?? '—' }} 分</td>
+                <td>{{ row.totalScore ?? '—' }}</td>
+                <td>{{ questionCountOf(row) }}</td>
+                <td>
+                  <span class="chip" :class="statusChipClass(row.status)">{{
+                    statusView(row).label
+                  }}</span>
+                </td>
+                <td>
+                  <div class="row-actions">
+                    <button class="text-btn" @click="openQuestions(row)">题目</button>
+                    <button class="text-btn" @click="openStats(row)">统计</button>
+                    <button class="text-btn" :disabled="copyingId === row.id" @click="copyRow(row)">
+                      {{ copyingId === row.id ? '复制中…' : '复制' }}
+                    </button>
+                    <button v-if="canArchive(row)" class="text-btn" @click="archiveRow(row)">
+                      归档
+                    </button>
+                    <template v-if="statusView(row).canPublish">
+                      <button class="text-btn" @click="openEdit(row)">编辑</button>
+                      <button class="text-btn" @click="publishRow(row)">提交审核</button>
+                      <button class="text-btn danger" @click="removeRow(row)">删除</button>
+                    </template>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="!loading && !exams.length" class="empty-state compact">
+          <span class="e-ico"><Icon name="clipboard" /></span>
+          <b>暂无试卷</b>
+          <p>点击「新建试卷」开始创建；提交审核并通过后学生才可见。</p>
+        </div>
+        <div v-else-if="loading" class="empty-state compact">
+          <b>正在加载试卷…</b>
+        </div>
+
+        <footer class="card-foot">
+          <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条</span>
+          <div class="pager">
+            <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
+            <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
+              下一页
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+
+    <ProctorTab v-if="examTab === 'proctor'" :course-id="courseId" embedded />
 
     <!-- 新建 / 编辑试卷 -->
     <Modal v-model:open="formOpen" :title="editingId ? '编辑试卷' : '新建试卷'" width="680px">
@@ -243,6 +268,7 @@ import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
 import PaperStats from '../../components/PaperStats.vue'
+import ProctorTab from '../course/tabs/ProctorTab.vue'
 import { useUi } from '../../composables/ui'
 import type { Metric } from '../../nav'
 
@@ -274,8 +300,14 @@ interface CourseRow {
   title?: string
 }
 
-const props = defineProps<{ courseId?: number }>()
+const props = defineProps<{ courseId?: number; initialTab?: 'papers' | 'proctor' }>()
 const { toast } = useUi()
+
+const examTab = ref<'papers' | 'proctor'>(props.initialTab || 'papers')
+
+function setExamTab(tab: 'papers' | 'proctor') {
+  examTab.value = tab
+}
 
 const isCourseScope = computed(() => Number(props.courseId) > 0)
 const allExams = ref<ExamRow[]>([])
@@ -645,6 +677,13 @@ function removeRow(row: ExamRow) {
     },
   })
 }
+
+watch(
+  () => props.initialTab,
+  (tab) => {
+    if (tab) examTab.value = tab
+  },
+)
 
 watch(
   () => props.courseId,

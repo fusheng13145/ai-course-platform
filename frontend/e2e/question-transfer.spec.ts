@@ -450,13 +450,9 @@ test.describe.serial('题库导入导出（真栈）', () => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.teacher })
     const page = await context.newPage()
     const calls = watchApi(page)
-    await page.goto('/teacher/bank', { waitUntil: 'domcontentloaded' })
+    // 题库已归入课程页签；courseId 由路由锁定，不再依赖全局筛选下拉
+    await page.goto(`/teacher/courses/${target.courseId}/bank`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('button', { name: '导出', exact: true })).toBeVisible()
-
-    // 课程筛选定到取证课程：导出与导入都按 filters.courseId 打，他人课程会被后端 403
-    const courseSelect = page.locator('select.filter-course')
-    await expect(courseSelect, '题库页没有课程筛选下拉').toBeVisible()
-    await courseSelect.selectOption(String(target.courseId))
 
     const exportRespWaiter = page.waitForResponse(
       (res) =>
@@ -518,8 +514,7 @@ test.describe.serial('题库导入导出（真栈）', () => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.teacher })
     const page = await context.newPage()
     const calls = watchApi(page)
-    await page.goto('/teacher/bank', { waitUntil: 'domcontentloaded' })
-    await page.locator('select.filter-course').selectOption(String(target.courseId))
+    await page.goto(`/teacher/courses/${target.courseId}/bank`, { waitUntil: 'domcontentloaded' })
 
     const imported = await clickWrite(
       page,
@@ -597,8 +592,7 @@ test.describe.serial('题库导入导出（真栈）', () => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.teacher })
     const page = await context.newPage()
     const calls = watchApi(page)
-    await page.goto('/teacher/bank', { waitUntil: 'domcontentloaded' })
-    await page.locator('select.filter-course').selectOption(String(target.courseId))
+    await page.goto(`/teacher/courses/${target.courseId}/bank`, { waitUntil: 'domcontentloaded' })
 
     const downloadWaiter = page.waitForEvent('download', { timeout: 30000 })
     await page.getByRole('button', { name: '导出', exact: true }).click()

@@ -31,13 +31,7 @@ const AdminQuestionsView = () => import('./views/admin/AdminQuestionsView.vue')
 const AdminUploadsView = () => import('./views/admin/AdminUploadsView.vue')
 const CoursesView = () => import('./views/CoursesView.vue')
 const CourseView = () => import('./views/course/CourseView.vue')
-const TeacherBankView = () => import('./views/teacher/TeacherBankView.vue')
-const TeacherExamsView = () => import('./views/teacher/TeacherExamsView.vue')
 const CreateCourseView = () => import('./views/teacher/CreateCourseView.vue')
-const TeacherGradesView = () => import('./views/teacher/TeacherGradesView.vue')
-const InteractionView = () => import('./views/teacher/InteractionView.vue')
-const KnowledgeManagementView = () => import('./views/teacher/KnowledgeManagementView.vue')
-const StudentExamsView = () => import('./views/student/StudentExamsView.vue')
 
 const page = (
   path: string,
@@ -120,14 +114,18 @@ export const routes: RouteRecordRaw[] = [
         component: CourseView,
         meta: { role: 'STUDENT', courseSpace: true, title: '课程空间' },
       },
-      page('student/tasks', 'STUDENT', 'tasks', '学习任务'),
+      {
+        path: 'student/tasks',
+        redirect: '/student/courses',
+        meta: { role: 'STUDENT', pageKey: 'tasks', title: '学习任务' },
+      },
       page('student/academic', 'STUDENT', 'academic', '学业档案'),
       {
         path: 'student/exams',
-        component: StudentExamsView,
+        redirect: '/student/courses',
         meta: { role: 'STUDENT', pageKey: 'exams', title: '我的考试' },
       },
-      page('student/messages', 'STUDENT', 'messages', '消息'),
+      page('student/messages', 'STUDENT', 'messages', '系统消息'),
       page('student/profile', 'STUDENT', 'profile', '个人中心'),
       page('student/assistant', 'STUDENT', 'assistant', 'AI 助手'),
 
@@ -153,37 +151,45 @@ export const routes: RouteRecordRaw[] = [
       },
       {
         path: 'teacher/bank',
-        component: TeacherBankView,
+        redirect: '/teacher/courses',
         meta: { role: 'TEACHER', pageKey: 'bank', title: '题库管理' },
       },
       {
         path: 'teacher/exams',
-        component: TeacherExamsView,
+        redirect: '/teacher/courses',
         meta: { role: 'TEACHER', pageKey: 'exams', title: '试卷库' },
       },
       {
         path: 'teacher/grades',
-        component: TeacherGradesView,
+        redirect: '/teacher/courses',
         meta: { role: 'TEACHER', pageKey: 'grades', title: '成绩管理' },
       },
       {
         path: 'teacher/interaction',
-        component: InteractionView,
+        redirect: '/teacher/courses',
         meta: { role: 'TEACHER', pageKey: 'interaction', title: '课堂互动' },
       },
       {
         path: 'teacher/knowledge-management',
-        component: KnowledgeManagementView,
+        redirect: '/teacher/courses',
         meta: { role: 'TEACHER', pageKey: 'knowledge', title: '知识点管理' },
       },
       page('teacher/inbox', 'TEACHER', 'inbox', '教学任务'),
-      page('teacher/analytics', 'TEACHER', 'analytics', '学情分析'),
-      page('teacher/resources', 'TEACHER', 'resources', '资源中心'),
+      {
+        path: 'teacher/analytics',
+        redirect: '/teacher/courses',
+        meta: { role: 'TEACHER', pageKey: 'analytics', title: '学情分析' },
+      },
+      {
+        path: 'teacher/resources',
+        redirect: '/teacher/courses',
+        meta: { role: 'TEACHER', pageKey: 'resources', title: '资源中心' },
+      },
       page('teacher/advising', 'TEACHER', 'advising', '我的班级'),
       page('teacher/advising/profile', 'TEACHER', 'advisingProfile', '班级画像'),
       page('teacher/advising/alerts', 'TEACHER', 'advisingAlerts', '学生预警'),
       page('teacher/advising/notices', 'TEACHER', 'advisingNotices', '班级通知'),
-      page('teacher/messages', 'TEACHER', 'messages', '消息'),
+      page('teacher/messages', 'TEACHER', 'messages', '系统消息'),
       page('teacher/profile', 'TEACHER', 'profile', '个人中心'),
 
       {

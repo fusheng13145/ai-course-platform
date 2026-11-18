@@ -1,6 +1,12 @@
 <template>
   <section class="module">
-    <PageHead :title="def.title" />
+    <PageHead :title="def.title">
+      <template #actions>
+        <button v-if="page === 'inbox'" class="btn btn-sm" @click="router.push('/teacher/home')">
+          返回工作台
+        </button>
+      </template>
+    </PageHead>
 
     <div v-if="tabs.length" class="tabs page-tabs" role="tablist" :aria-label="def.title">
       <button
@@ -79,7 +85,7 @@ interface TabDef {
 const tabs = computed<TabDef[]>(() => {
   // 学业档案的分区页签由 AcademicBody 自己持有（成绩／学习中心／错题本）；
   // 壳层只在页面本身没有正文分区时才出页签条，否则同页会出现两条 tablist。
-  if (page.value === 'advising') {
+  if (page.value.startsWith('advising')) {
     return [
       { id: 'overview', label: '我的班级' },
       { id: 'profile', label: '班级画像' },
@@ -91,7 +97,7 @@ const tabs = computed<TabDef[]>(() => {
 })
 
 const sub = computed(() => {
-  if (page.value === 'advising') {
+  if (page.value.startsWith('advising')) {
     const map: Record<string, string> = {
       advising: 'overview',
       advisingProfile: 'profile',
@@ -111,7 +117,7 @@ function tabActive(id: string): boolean {
 }
 
 function selectTab(id: string) {
-  if (page.value === 'advising') {
+  if (page.value.startsWith('advising')) {
     const target = id === 'overview' ? '/teacher/advising' : `/teacher/advising/${id}`
     router.push(target)
     return

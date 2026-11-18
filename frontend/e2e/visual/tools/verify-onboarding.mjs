@@ -534,7 +534,7 @@ for (const role of ROLES) {
     storageState: 'e2e/visual/.auth/teacher.json',
   })
   const pageD = await ctxD.newPage()
-  await pageD.goto(`${BASE}/teacher/bank`)
+  await pageD.goto(`${BASE}/teacher/courses/1/bank`)
   await pageD.waitForTimeout(1500)
   await pageD.evaluate(GUIDE_KEY_CLEAN)
   await pageD.reload()

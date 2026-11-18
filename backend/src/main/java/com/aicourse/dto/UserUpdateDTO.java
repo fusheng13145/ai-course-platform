@@ -25,6 +25,10 @@ public class UserUpdateDTO {
     @Schema(description = "电子邮箱", example = "zhangsan@example.com")
     private String email;
 
+    @Pattern(regexp = "^(MALE|FEMALE|OTHER)$", message = "性别取值不合法")
+    @Schema(description = "性别：MALE / FEMALE / OTHER", example = "MALE")
+    private String gender;
+
     @Schema(description = "头像URL地址", example = "https://example.com/avatar.jpg")
     private String avatar;
 
@@ -56,6 +60,14 @@ public class UserUpdateDTO {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
     }
 
     public String getAvatar() {

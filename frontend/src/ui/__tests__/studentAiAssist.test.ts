@@ -68,7 +68,9 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     const teacher = mount(AiCenterTab, { props: { courseId: COURSE_ID, mode: 'teacher' } })
     await flushPromises()
     expect(tabLabels(teacher)).toContain('作文批改')
-    expect(teacher.text()).toContain('AI 教学助手')
+    expect(tabLabels(teacher)).toContain('课程语料')
+    expect(tabLabels(student)).not.toContain('课程语料')
+    expect(teacher.text()).toContain('AI 助教')
   })
 
   it('学生 AI 页签用的是真接口：挂载即拉薄弱点与学习建议', async () => {

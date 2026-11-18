@@ -47,9 +47,10 @@ describe('不提供清单的判定', () => {
     }
   })
 
-  it('学生侧栏不再出现 AI 助手入口', () => {
+  it('学生侧栏不再出现跨课程作业/考试入口', () => {
     expect(navIds('student')).not.toContain('assistant')
-    expect(navIds('student')).toContain('exams')
+    expect(navIds('student')).not.toContain('tasks')
+    expect(navIds('student')).not.toContain('exams')
   })
 
   it('管理端侧栏摘掉本轮不迁入的治理页，保留已转真的页面', () => {
@@ -81,12 +82,11 @@ describe('不提供清单的判定', () => {
     }
   })
 
-  it('教师班主任那组入口保留但标为待扩展，不静默消失', () => {
+  it('教师班主任那组入口不再占侧栏，页面能力与 disposition 仍保留', () => {
     const ids = navIds('teacher')
-    expect(ids).toContain('advising')
+    expect(ids).not.toContain('advising')
+    expect(ids).not.toContain('resources')
     expect(pageDisposition('teacher', 'advising')).toBe('provided')
-    // 2026-11-07 全量实现批二：resources 已接真，入口恢复
-    expect(ids).toContain('resources')
   })
 
   it('空掉的分组不再渲染标题', () => {

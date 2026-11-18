@@ -348,7 +348,7 @@ function openPublish(row: PublishRow) {
 }
 
 function openProctor(courseId: number) {
-  router.push(`/teacher/courses/${courseId}/proctor`)
+  router.push(`/teacher/courses/${courseId}/exams?tab=proctor`)
 }
 
 async function loadGrading(seq: number) {

@@ -209,12 +209,18 @@ function serverRoute(type: string, id?: number | string | null): string | null {
     return `/${current}/courses/${courseId}/overview`
   }
   if (type === 'question') {
-    if (current === 'teacher') return '/teacher/bank'
+    if (current === 'teacher') {
+      const courseId = Number(route.params.id)
+      return courseId ? `/teacher/courses/${courseId}/bank` : '/teacher/courses'
+    }
     if (current === 'admin') return '/admin/questions'
     return null
   }
   if (type === 'knowledge') {
-    if (current === 'teacher') return '/teacher/knowledge-management'
+    if (current === 'teacher') {
+      const courseId = Number(route.params.id)
+      return courseId ? `/teacher/courses/${courseId}/knowledge` : '/teacher/courses'
+    }
     // 学生没有独立知识点页，落到自己的课程列表
     if (current === 'student') return '/student/courses'
     return null
