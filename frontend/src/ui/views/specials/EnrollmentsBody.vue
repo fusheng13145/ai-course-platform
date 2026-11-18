@@ -29,6 +29,7 @@
             <option value="">全部状态</option>
             <option value="PENDING">待审批</option>
             <option value="APPROVED">已通过</option>
+            <option value="CANCELLED">已取消</option>
             <option value="REJECTED">已驳回</option>
           </select>
           <input
@@ -89,6 +90,14 @@
                     驳回
                   </button>
                 </div>
+                <button
+                  v-else-if="row.approvalStatus === 'APPROVED'"
+                  class="text-btn danger"
+                  :disabled="acting === String(row.id)"
+                  @click="askCancel(row)"
+                >
+                  取消选课
+                </button>
                 <span v-else class="hint-inline">—</span>
               </td>
             </tr>
@@ -117,15 +126,49 @@
         </div>
       </footer>
     </section>
+
+    <Modal v-model:open="cancelOpen" title="取消选课" width="520px" :close-on-backdrop="false">
+      <p class="modal-text">
+        取消 <b>{{ cancelTarget ? studentLabel(cancelTarget) : '该学生' }}</b> 的选课？
+        记录会保留为「已取消」，学生可重新选课。
+      </p>
+      <label class="field">
+        <span>取消原因 *</span>
+        <textarea
+          v-model="cancelReason"
+          class="input textarea"
+          maxlength="200"
+          rows="3"
+          data-testid="cancel-reason"
+          placeholder="2–200 字，写入审批记录"
+        />
+      </label>
+      <label class="check-row">
+        <input v-model="cancelConfirmed" type="checkbox" data-testid="cancel-confirm" />
+        <span>我已核对学生与课程，确认取消选课</span>
+      </label>
+      <p v-if="cancelError" class="form-error" role="alert">{{ cancelError }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="cancelling" @click="closeCancel">返回</button>
+        <button
+          class="btn btn-danger"
+          :disabled="cancelling || !cancelConfirmed || cancelReason.trim().length < 2"
+          @click="confirmCancel"
+        >
+          {{ cancelling ? '取消中…' : '确认取消选课' }}
+        </button>
+      </template>
+    </Modal>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import Modal from '../../components/Modal.vue'
 import Stat from '../../components/Stat.vue'
 import { useUi } from '../../composables/ui'
 import { getAllUsers, listAllEnrollments } from '@/api/admin'
-import { approveEnrollment, rejectEnrollment } from '@/api/enrollment'
+import { approveEnrollment, cancelEnrollment, rejectEnrollment } from '@/api/enrollment'
 import { pickList, readTotal, unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
 
@@ -150,6 +193,12 @@ const keyword = ref('')
 const courseId = ref<number | null>(null)
 const acting = ref('')
 const studentNames = new Map<string, string>()
+const cancelOpen = ref(false)
+const cancelTarget = ref<EnrollmentRow | null>(null)
+const cancelReason = ref('')
+const cancelConfirmed = ref(false)
+const cancelError = ref('')
+const cancelling = ref(false)
 
 const pendingCount = computed(
   () => rows.value.filter((row) => row.approvalStatus === 'PENDING').length,
@@ -188,14 +237,21 @@ function errorText(error: unknown, fallback: string): string {
 
 function statusLabel(status: unknown): string {
   return (
-    ({ PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回' } as Record<string, string>)[
-      String(status ?? '')
-    ] || String(status ?? '—')
+    (
+      {
+        PENDING: '待审批',
+        APPROVED: '已通过',
+        REJECTED: '已驳回',
+        CANCELLED: '已取消',
+      } as Record<string, string>
+    )[String(status ?? '')] || '未知状态'
   )
 }
 
 function statusClass(status: unknown): string {
-  return status === 'APPROVED' ? 'chip-ok' : status === 'REJECTED' ? 'chip-mute' : 'chip-warn'
+  if (status === 'APPROVED') return 'chip-ok'
+  if (status === 'CANCELLED' || status === 'REJECTED') return 'chip-mute'
+  return 'chip-warn'
 }
 
 function studentLabel(row: EnrollmentRow): string {
@@ -266,6 +322,44 @@ async function act(row: EnrollmentRow, action: 'approve' | 'reject') {
   }
 }
 
+function askCancel(row: EnrollmentRow) {
+  cancelTarget.value = row
+  cancelReason.value = ''
+  cancelConfirmed.value = false
+  cancelError.value = ''
+  cancelOpen.value = true
+}
+
+function closeCancel() {
+  if (cancelling.value) return
+  cancelOpen.value = false
+  cancelTarget.value = null
+  cancelError.value = ''
+}
+
+async function confirmCancel() {
+  const row = cancelTarget.value
+  if (!row || row.id === undefined || row.id === null || !cancelConfirmed.value) return
+  const reason = cancelReason.value.trim()
+  if (reason.length < 2 || reason.length > 200) {
+    cancelError.value = '取消原因需为 2–200 字'
+    return
+  }
+  cancelling.value = true
+  cancelError.value = ''
+  try {
+    await cancelEnrollment(row.id, reason)
+    toast(`已取消 ${studentLabel(row)} 的选课`, 'ok')
+    cancelOpen.value = false
+    cancelTarget.value = null
+    await load()
+  } catch (error) {
+    cancelError.value = errorText(error, '取消选课失败，请稍后重试')
+  } finally {
+    cancelling.value = false
+  }
+}
+
 onMounted(() => {
   void loadStudentDirectory()
   void load()
@@ -291,5 +385,20 @@ onMounted(() => {
 }
 input.filter-select {
   width: 100px;
+}
+.textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.check-row input {
+  width: 16px;
+  height: 16px;
 }
 </style>

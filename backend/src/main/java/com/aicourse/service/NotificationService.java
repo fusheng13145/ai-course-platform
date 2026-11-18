@@ -77,6 +77,16 @@ public interface NotificationService extends IService<Notification> {
     Page<Notification> getUserNotifications(Long userId, String category, Boolean isRead, int page, int size);
 
     /**
+     * 分页获取当前用户在指定课程下的通知（课程页「通知」数据源）。
+     * @param userId 用户ID
+     * @param courseId 课程ID
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @return 课程维度通知分页
+     */
+    Page<Notification> getCourseNotifications(Long userId, Long courseId, int page, int size);
+
+    /**
      * 删除通知
      * @param notificationId 通知ID
      * @param userId 当前用户ID（权限校验）

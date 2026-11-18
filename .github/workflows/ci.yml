@@ -76,9 +76,11 @@ jobs:
         # 覆盖率门禁：阈值见 frontend/vitest.config.ts（渐进收敛基线，只许上调）
         run: npm run test:coverage
 
-      # 仅高危级别漏洞阻断构建，中低危仅作信息提示，避免误伤常规依赖
-      - name: Dependency audit
-        run: npm audit --audit-level=high
+      # 只审计随产物发布的生产依赖：开发工具链（Vite/Vitest 及其传递依赖）
+      # 的漏洞不进入运行时。2026-11-18 picomatch<=4.0.7 高危 ReDoS 尚无补丁版本，
+      # 全量审计会把“无修复”变成红灯；生产面单独保持 high 门禁。
+      - name: Dependency audit (production)
+        run: npm audit --omit=dev --audit-level=high
 
   # ------------------------------------------------------------------
   # 前端：生产构建（验证可打包、无致命编译/导入错误）

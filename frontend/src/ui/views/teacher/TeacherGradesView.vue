@@ -2,6 +2,9 @@
   <section class="module">
     <PageHead title="成绩管理">
       <template #actions>
+        <button class="btn btn-ghost" :disabled="!selectedCourseId" @click="openPolicy">
+          成绩方案
+        </button>
         <button class="btn btn-ghost" :disabled="!filteredGradeList.length" @click="handleExport">
           导出成绩
         </button>
@@ -142,6 +145,77 @@
     </div>
 
     <Modal
+      v-model:open="policyOpen"
+      :title="`成绩方案 · ${policyCourseName}`"
+      width="680px"
+      :close-on-backdrop="false"
+    >
+      <div v-if="policyLoading" class="empty-state compact"><b>正在读取成绩方案…</b></div>
+      <div v-else-if="policyError" class="callout">
+        <span>成绩方案</span>
+        <p>{{ policyError }}</p>
+        <button class="btn btn-ghost btn-sm" @click="loadPolicy">重试</button>
+      </div>
+      <template v-else>
+        <table v-if="policyComponents.length" class="policy-table">
+          <thead>
+            <tr>
+              <th>构成项</th>
+              <th class="w-140">权重 %</th>
+              <th class="w-64"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(component, index) in policyComponents" :key="component.key">
+              <td>
+                <input
+                  v-model="component.name"
+                  class="input"
+                  :data-testid="`policy-name-${index}`"
+                  maxlength="40"
+                  placeholder="如 作业"
+                />
+              </td>
+              <td>
+                <input
+                  v-model.number="component.weight"
+                  class="input"
+                  :data-testid="`policy-weight-${index}`"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                />
+              </td>
+              <td>
+                <button class="text-btn danger" @click="removePolicyComponent(index)">移除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="empty-state compact"><b>尚无成绩构成项</b></div>
+        <div class="policy-foot">
+          <button class="btn btn-ghost btn-sm" @click="addPolicyComponent">添加构成项</button>
+          <span class="policy-sum" :class="{ danger: policyWeightSum !== 100 }">
+            合计 {{ policyWeightSum }}%
+          </span>
+        </div>
+      </template>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="policyBusy" @click="policyOpen = false">
+          取消
+        </button>
+        <button
+          class="btn btn-primary"
+          :disabled="policyBusy || policyLoading || Boolean(policyError)"
+          @click="savePolicy"
+        >
+          {{ policyBusy ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </Modal>
+
+    <Modal
       v-model:open="detailDialogVisible"
       :title="currentStudent ? `成绩构成 · ${currentStudent.studentName}` : '成绩构成'"
       width="680px"
@@ -206,7 +280,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHead from '../../components/PageHead.vue'
 import Modal from '../../components/Modal.vue'
@@ -214,6 +288,8 @@ import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
 import { useUi } from '../../composables/ui'
 import { useTeacherGrades, type TeacherGradesTone } from '@/composables/useTeacherGrades'
+import gradeApi from '@/api/grade'
+import { unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
 
 const router = useRouter()
@@ -250,6 +326,155 @@ const {
     router.push(`/teacher/courses/${task.courseId}/grading?taskId=${String(task.id)}`)
   },
 })
+
+interface PolicyComponent {
+  key: string
+  name: string
+  weight: number
+  source?: string
+}
+
+interface PolicyComponentInput {
+  key?: string
+  name?: string
+  weight?: number | string
+  source?: string
+}
+
+interface GradePolicyResponse {
+  name?: string
+  components?: PolicyComponentInput[] | null
+}
+
+const policyOpen = ref(false)
+const policyLoading = ref(false)
+const policyBusy = ref(false)
+const policyError = ref('')
+const policyComponents = ref<PolicyComponent[]>([])
+let policyKeySeq = 0
+
+const policyCourseName = computed(() => {
+  const course = courseList.value.find(
+    (item) => String(item.id) === String(selectedCourseId.value || ''),
+  )
+  return course?.name || '当前课程'
+})
+
+const policyWeightSum = computed(() =>
+  policyComponents.value.reduce((sum, component) => {
+    const weight = Number(component.weight)
+    return sum + (Number.isFinite(weight) ? weight : 0)
+  }, 0),
+)
+
+function defaultPolicyComponents(): PolicyComponent[] {
+  return [
+    { key: 'SIGN_IN', name: '出勤', weight: 10, source: 'sign_in' },
+    { key: 'HOMEWORK', name: '作业', weight: 30, source: 'submission' },
+    { key: 'EXAM', name: '考试', weight: 60, source: 'exam' },
+  ]
+}
+
+function policyErrorText(error: unknown): string {
+  const err = error as { response?: { data?: { message?: string } }; message?: string } | null
+  return err?.response?.data?.message || '成绩方案读取失败，请稍后重试'
+}
+
+function normalizePolicyComponent(row: PolicyComponentInput, index: number): PolicyComponent {
+  return {
+    key: String(row.key || `ITEM_${index + 1}`),
+    name: String(row.name || row.key || `构成项 ${index + 1}`),
+    weight: Number(row.weight ?? 0),
+    source: row.source,
+  }
+}
+
+async function loadPolicy() {
+  const courseId = selectedCourseId.value
+  if (!courseId) return
+  policyLoading.value = true
+  policyError.value = ''
+  try {
+    const data = unwrap<GradePolicyResponse | null>(await gradeApi.getGradePolicy(courseId))
+    const components = Array.isArray(data?.components) ? data.components : []
+    policyComponents.value =
+      components.length > 0
+        ? components.map((component, index) => normalizePolicyComponent(component, index))
+        : defaultPolicyComponents()
+  } catch (error) {
+    policyComponents.value = []
+    policyError.value = policyErrorText(error)
+  } finally {
+    policyLoading.value = false
+  }
+}
+
+function openPolicy() {
+  policyOpen.value = true
+  void loadPolicy()
+}
+
+function addPolicyComponent() {
+  policyKeySeq += 1
+  policyComponents.value.push({
+    key: `CUSTOM_${policyKeySeq}`,
+    name: '',
+    weight: 0,
+    source: 'manual',
+  })
+}
+
+function removePolicyComponent(index: number) {
+  policyComponents.value.splice(index, 1)
+}
+
+async function savePolicy() {
+  const courseId = selectedCourseId.value
+  if (!courseId || policyBusy.value) return
+  if (policyComponents.value.length === 0) {
+    toast('请至少添加一个成绩构成项', 'warn')
+    return
+  }
+  const components = policyComponents.value.map((component, index) => ({
+    key: component.key || `ITEM_${index + 1}`,
+    name: component.name.trim(),
+    weight: Number(component.weight),
+    source: component.source || 'manual',
+  }))
+  if (components.some((component) => !component.name)) {
+    toast('构成项名称不能为空', 'warn')
+    return
+  }
+  if (
+    components.some(
+      (component) =>
+        !Number.isFinite(component.weight) || component.weight < 0 || component.weight > 100,
+    )
+  ) {
+    toast('权重必须是 0–100 的数字', 'warn')
+    return
+  }
+  if (Math.abs(policyWeightSum.value - 100) > 0.01) {
+    toast('权重合计须为 100%', 'warn')
+    return
+  }
+  policyBusy.value = true
+  policyError.value = ''
+  try {
+    await gradeApi.saveGradePolicy({
+      courseId,
+      name: '默认方案',
+      components,
+    })
+    toast('成绩方案已保存', 'ok')
+    policyOpen.value = false
+    await loadGradeData()
+  } catch (error) {
+    policyError.value = policyErrorText(error)
+  } finally {
+    policyBusy.value = false
+  }
+}
 
 const metrics = computed<Metric[]>(() => [
   {
@@ -396,6 +621,24 @@ function levelChip(level: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+}
+.policy-table {
+  width: 100%;
+}
+.policy-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.policy-sum {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.policy-sum.danger {
+  color: var(--danger);
 }
 .detail-body {
   display: flex;

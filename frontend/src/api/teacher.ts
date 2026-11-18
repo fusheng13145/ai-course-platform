@@ -220,33 +220,20 @@ export const cloneCourse = (
     ApiEnvelope<ApiData>
   >
 
-// 课程驾驶舱：按课程获取班级维度（用于切换班级维度的教学概览）。
-// 真实数据来源：后端 GET /classrooms/by-course/{courseId}（Classroom 实体已新增 courseId 关联字段，
-// 绑定课程的班级将返回）。映射驾驶舱结构 { key←id, name, students←studentCount, pending, schedule:'' }。
-// pending（待批改作业数）已真实化：并行请求 GET /classrooms/by-course/{courseId}/pending
-// （按 submissions.status=SUBMITTED 聚合，见 ClassroomService.countPendingByCourse）；
-// 该端点不可用/未绑定时回退 0（真实零值，非占位）。
-// schedule（课表）数据模型尚未沉淀，如实占位 ''（非伪造数据）。
-// 若某课程未绑定任何班级（返回空或 404），调用方 CourseCockpit 不渲染班级页签，
-// 头部如实显示「未绑定行政班」，学生数改用 GET /courses/{id}/stats 的 totalStudents。
+// 课程教学班：GET /teacher/courses/{courseId}/classes
+// 后端按 teaching_classes 聚合有效 APPROVED 选课，返回
+// [{key,name,code,students,pending,schedule,status}]；不再依赖已退役的 classrooms。
 export const getCourseClasses = async (courseId: number | string): Promise<ApiData[]> => {
-  const [classesRes, pendingRes] = await Promise.all([
-    request.get(`/classrooms/by-course/${courseId}`),
-    request.get(`/classrooms/by-course/${courseId}/pending`).catch(() => ({ data: [] })),
-  ])
-  const list = Array.isArray(classesRes?.data) ? classesRes.data : []
-  const pendingMap = new Map(
-    (Array.isArray(pendingRes?.data) ? pendingRes.data : []).map((p: ApiData) => [
-      p.classroomId,
-      p.pendingCount || 0,
-    ]),
-  )
+  const res = await request.get(`/teacher/courses/${courseId}/classes`)
+  const list = Array.isArray(res?.data) ? res.data : []
   return list.map((c: ApiData) => ({
-    key: c.id,
+    key: String(c.key ?? c.id ?? ''),
     name: c.name,
-    students: c.studentCount || 0,
-    pending: pendingMap.get(c.id) || 0,
-    schedule: '',
+    code: c.code,
+    students: c.students || 0,
+    pending: c.pending || 0,
+    schedule: c.schedule || '',
+    status: c.status,
   }))
 }
 

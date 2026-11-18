@@ -173,45 +173,45 @@ describe('teacher API 契约（方法 / URL / 参数）', () => {
   })
 })
 
-describe('teacher.getCourseClasses - 班级维度聚合', () => {
+describe('teacher.getCourseClasses - 教学班维度聚合', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('把 pending 数按 classroomId 映射进班级卡片（真实数据来源，非占位）', async () => {
-    mocks.get.mockImplementation((url: string) => {
-      if (url.endsWith('/pending')) {
-        return Promise.resolve({ data: [{ classroomId: 11, pendingCount: 4 }] })
-      }
-      return Promise.resolve({
-        data: [
-          { id: 11, name: '计科2101', studentCount: 38 },
-          { id: 12, name: '计科2102' },
-        ],
-      })
+  it('读取 /teacher/courses/{id}/classes 并保留教学班字段', async () => {
+    mocks.get.mockResolvedValue({
+      data: [
+        { key: '11', name: '计科2101', code: 'C1', students: 38, pending: 4, status: 'ACTIVE' },
+        { key: '12', name: '计科2102', code: 'C2' },
+      ],
     })
 
     const list = await teacherApi.getCourseClasses(3)
 
-    expect(mocks.get).toHaveBeenCalledWith('/classrooms/by-course/3')
+    expect(mocks.get).toHaveBeenCalledWith('/teacher/courses/3/classes')
     expect(list).toEqual([
-      { key: 11, name: '计科2101', students: 38, pending: 4, schedule: '' },
-      { key: 12, name: '计科2102', students: 0, pending: 0, schedule: '' },
+      {
+        key: '11',
+        name: '计科2101',
+        code: 'C1',
+        students: 38,
+        pending: 4,
+        schedule: '',
+        status: 'ACTIVE',
+      },
+      {
+        key: '12',
+        name: '计科2102',
+        code: 'C2',
+        students: 0,
+        pending: 0,
+        schedule: '',
+        status: undefined,
+      },
     ])
   })
 
-  it('pending 端点失败时回退 0，不影响班级列表主流程', async () => {
-    mocks.get.mockImplementation((url: string) => {
-      if (url.endsWith('/pending')) return Promise.reject(new Error('503'))
-      return Promise.resolve({ data: [{ id: 11, name: '计科2101', studentCount: 5 }] })
-    })
-
-    const list = await teacherApi.getCourseClasses(3)
-
-    expect(list).toEqual([{ key: 11, name: '计科2101', students: 5, pending: 0, schedule: '' }])
-  })
-
-  it('班级/待批接口返回非数组时返回空列表，不抛异常', async () => {
+  it('接口返回非数组时返回空列表，不抛异常', async () => {
     mocks.get.mockResolvedValue({ data: null })
 
     await expect(teacherApi.getCourseClasses(3)).resolves.toEqual([])
