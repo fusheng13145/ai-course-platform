@@ -37,9 +37,11 @@ fi
 echo "============================================================"
 echo " AI Course Platform - unified launcher"
 echo " subcommand: $SUB"
-echo " ports: Neo4j 7687 / KG 8001 / RAG 8002 / LoRA 8003 / API 8080 / Web 5173-5175"
+echo " ports: Ollama 11434 / MinIO 9000 / Neo4j 7687 / KG 8001 / RAG 8002"
+echo "        LoRA 8003 / API 8080 (API_PORT=8081 for parallel) / Web 5173-5175"
 echo " services already listening are adopted, never restarted, never killed."
 echo " Ctrl+C terminates only the processes this launcher started."
+echo " Local MySQL 3306 and Redis 6379: auto-started if down (never Docker)."
 echo "============================================================"
 echo
 

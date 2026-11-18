@@ -4,15 +4,15 @@
 单窗口统一启动器：一个控制台拉起完整演示栈（或按子命令只起后端 / 只起前端）。
 =================================================================
 为什么要它：旧的两份分步启动器（`start-backend.bat` + `start-frontend.bat`，已合并进本文件）
-的结构本身就是 **5 个 cmd 窗口**：
+的结构本身就是 **多个 cmd 窗口**：
   ① start-backend.bat 自己（第 6 步 `mvnw.cmd spring-boot:run` 前台占住控制台）
   ②③④ scripts/start-engines.py 的 `spawn_detached()` 用 `CREATE_NEW_CONSOLE` 给
      Neo4j console / KG / RAG 各开一个新窗口
   ⑤ start-frontend.bat 自己（Vite 前台）
-三个引擎窗口的唯一价值是"日志能滚"（两个 FastAPI 服务在 Windows 下没有任何日志文件，
-`python-services/*/*.log` 实测为空），所以收窗的正确做法不是砍日志，而是**把五路输出
-用管道接进同一个控制台**，逐行加 `[neo4j] [kg] [rag] [api] [web]` 前缀，同时各自落一份
-`logs/<name>.log`（仓库根 `.gitignore` 已忽略 `*.log`）。
+现在把 **Ollama / MinIO / Neo4j / KG / RAG / LoRA 微调 / Spring Boot / Vite** 全部收进
+同一控制台，逐行加服务前缀，同时各自落一份 `logs/<name>.log`（仓库根 `.gitignore`
+已忽略 `*.log`）。MySQL 与 Redis 仍是本机服务，但脚本会在端口未监听时**尝试启动
+Windows 服务/Linux systemd 服务**，不再要求用户先手动起库。
 
 与旧三份启动器的关系：**本文件是唯一实现**。`start-all.bat` / `start-backend.bat` /
 `start-frontend.bat` 已于 2026-10-27 合并成一份 `start.bat`（只做 python 定位与子命令透传），
@@ -22,27 +22,28 @@ importlib 显式加载），`.env` 解析、`sk-` 形状门、离线位门、"�
 真跑取证的规则不复制第二份。
 
 语义口径（与手册 §17/§18.5/§25、DR-36/DR-37/DR-38/DR-39/DR-50 对齐）：
-  - **接管不重启**：端口已在监听的服务一律不拉起、不杀（双实例共用一套 MySQL/Redis
-    却各自计限流、日志分叉，DR-36 实测）；收尸清单只含本启动器真正起的子进程。
-    合并后连"要不要强起第二个实例"的询问也没有了——那个选项本身就是 DR-36 的病根。
+  - **接管不重启**：端口已在监听且探针认主的服务一律不拉起、不杀（双实例共用一套
+    MySQL/Redis 却各自计限流、日志分叉，DR-36 实测）；收尸清单只含本启动器真正起的
+    子进程。8080 被别的应用占用但 `/probe` 不认主时直接报冲突，不把别人的后端当成本项目。
   - **子树收尸**：`mvnw.cmd` 下面挂着 java，只杀父会让 java 被重生并抢不到 8080（本机实测），
-    因此 Ctrl+C 走 `taskkill /T /F`。用鼠标点 X 关窗时，子进程与本进程共用同一控制台，
-    Windows 会给它们投递 CTRL_CLOSE_EVENT，仍然会断——与"关窗即断演示"的既有口径一致。
-  - **依赖缺失只上报**：MySQL(3306)/Redis(6379) 是手工本机服务，缺了就 fail-fast 并回项目主，
-    绝不拉容器（本阶段 Docker 搁置，§17）。缺 `sk-` 形态的 AI Key 只是降级，不阻塞。
-  - **就绪判据**：引擎=端口在听**且**探针有响应（uvicorn 先绑口后装载）；后端=`/probe` 返 200
-    （复合 `/health` 无 Key 恒 503，拿它判存活会把健康后端判成死，DR-28）；
-    前端=5173/5174/5175 双栈探测（Vite 实测只绑 `[::1]`，单栈探测是假 DOWN）。
-  - **按子命令收窄依赖门**：`frontend` 不需要 JDK/MySQL/Redis，只查 Node；
-    `backend` 需要 MySQL/Redis/JDK，缺 Node 只降级（原本也起不了前端）。
+    因此 Ctrl+C 走 `taskkill /T /F`。
+  - **依赖可自愈**：MySQL(3306)/Redis(6379) 端口未监听时先尝试启动本机服务；仍失败才
+    fail-fast 并回项目主，绝不拉容器（本阶段 Docker 搁置，§17）。
+  - **全量服务**：`all/backend` 默认编排 MinIO、Ollama（当 AI/FT 需要时）、Neo4j、KG、
+    RAG、LoRA 微调、Spring Boot；`frontend` 只起 Vite。
+  - **就绪判据**：引擎=端口在听**且**探针有响应（uvicorn 先绑口后装载）；MinIO=`/minio/health/live`
+    200；Ollama=`/api/tags` 200；后端=`/probe` 返 200（复合 `/health` 无 Key 恒 503，
+    拿它判存活会把健康后端判成死，DR-28）；前端=5173/5174/5175 双栈探测。
+  - **按子命令收窄依赖门**：`frontend` 不需要 JDK/MySQL/Redis/MinIO，只查 Node。
 
 用法（仓库根双击 `start.bat`，或手动）：
     python scripts\\start-all.py               # = all：拉起缺的，接管在跑的，一个窗口看全部日志
-    python scripts\\start-all.py backend       # 只起引擎 + 后端（原 start-backend.bat 的姿态）
+    python scripts\\start-all.py backend       # 引擎 + MinIO + 微调 + 后端
     python scripts\\start-all.py frontend      # 只起 Vite（原 start-frontend.bat 的姿态）
-    python scripts\\start-all.py status        # 只报五进程状态，不起任何进程、不注入环境（同 --status）
+    python scripts\\start-all.py status        # 只报全量服务状态，不起任何进程、不注入环境（同 --status）
     python scripts\\start-all.py --no-color     # 控制台不支持 ANSI 时用纯文本前缀
     start.bat backend --no-color               # 薄壳把子命令与开关原样透传
+    API_PORT=8081 python scripts\\start-all.py  # 8080 被别的项目占用时的并行口方案
 
 守卫测试：`python -m pytest scripts/tests -q`（决策与形态；起进程与等端口由真跑取证）。
 """
@@ -73,18 +74,33 @@ for _s in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "logs"
 
-# 依赖序即启动序：KG 要接图库，Java 只在启动那一刻探测引擎，前端最后（代理要能打到 8080）
-SERVICES = ("neo4j", "kg", "rag", "api", "web")
-PORTS = {"neo4j": 7687, "kg": 8001, "rag": 8002, "api": 8080}
+# 依赖序即启动序：Ollama（AI/FT 本地生成）→ MinIO（对象存储）→ Neo4j →
+# KG → RAG → LoRA 微调 → Java → 前端（代理要能打到 API）
+ENGINE_SERVICES = ("neo4j", "kg", "rag", "ft")
+SERVICES = ("ollama", "minio", *ENGINE_SERVICES, "api", "web")
+PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "rag": 8002, "ft": 8003, "api": 8080}
 WEB_PORTS = (5173, 5174, 5175)
 DB_PORT, CACHE_PORT = 3306, 6379
 
+# 可选并行口：8080 被别的课程作业后端占用时，API_PORT=8081 起本项目后端；
+# 启动器同时把 VITE_PROXY_TARGET 指到同一个口，避免页面打到别人的 8080。
+DEFAULT_API_PORT = 8080
 API_READY_TIMEOUT = 240.0
 WEB_READY_TIMEOUT = 120.0
 MAX_PENDING = 8192
 
 # 后端启动必备的两把钥匙：缺任何一把都必须 fail-fast，且报错文本只准出现变量名
 REQUIRED_KEYS = ("MYSQL_ROOT_PASSWORD", "JWT_SECRET")
+
+# MinIO 原生服务与本地平台服务名（可用 .env 覆盖；缺省按本机实测值）
+DEFAULT_MINIO_BIN = Path.home() / "minio" / ("minio.exe" if os.name == "nt" else "minio")
+DEFAULT_MINIO_DATA = Path.home() / ".aicourse-platform" / "minio-data"
+DEFAULT_SERVICE_NAMES = {
+    "mysql": "MySQL84" if os.name == "nt" else "mysql",
+    "redis": "redis" if os.name == "nt" else "redis",
+}
+MINIO_HEALTH_URL = "http://127.0.0.1:9000/minio/health/live"
+OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 
 # 子命令：三份 .bat 合并后，唯一入口是 start.bat，它把第一个参数原样透传到这里
 MODE_ALL, MODE_BACKEND, MODE_FRONTEND, MODE_STATUS = "all", "backend", "frontend", "status"
@@ -111,11 +127,20 @@ def parse_args(argv: list) -> tuple:
 def wanted_services(mode: str) -> dict:
     """子命令该管哪些服务——依赖门、接管判定与收尸清单都按这张表收窄。
 
-    引擎组跟着 api 走：`backend` 也要拉引擎，这正是旧 start-backend.bat 第 5 步的语义。
+    全量后端链包含 Ollama / MinIO / Neo4j / KG / RAG / LoRA / Spring Boot；
+    `frontend` 只保留 Vite，不能因为 .env 写了 KG_ENABLED=true 就把后端偷拉起来。
     """
-    api = mode in (MODE_ALL, MODE_BACKEND)
-    web = mode in (MODE_ALL, MODE_FRONTEND)
-    return {"neo4j": api, "kg": api, "rag": api, "api": api, "web": web}
+    managed = mode in (MODE_ALL, MODE_BACKEND)
+    return {
+        "ollama": managed,
+        "minio": managed,
+        "neo4j": managed,
+        "kg": managed,
+        "rag": managed,
+        "ft": managed,
+        "api": managed,
+        "web": mode in (MODE_ALL, MODE_FRONTEND),
+    }
 
 
 def color_enabled(flags: list, vt_available: bool) -> bool:
@@ -126,10 +151,10 @@ def color_enabled(flags: list, vt_available: bool) -> bool:
 
 def usage(sink: "Sink") -> None:
     sink.info("用法：start.bat [all|backend|frontend|status] [--no-color]")
-    sink.info("      all       起缺的、接管在跑的，一个窗口看全部日志（默认）")
-    sink.info("      backend   只起 Python 引擎 + Spring Boot")
+    sink.info("      all       起缺的、接管在跑的：Ollama/MinIO/Neo4j/KG/RAG/LoRA/API/Web")
+    sink.info("      backend   起 Ollama/MinIO/引擎/LoRA/API，不起 Vite")
     sink.info("      frontend  只起 Vite（5173/5174/5175 择口）")
-    sink.info("      status    只报五进程状态，不起任何进程")
+    sink.info("      status    只报全量服务状态，不起任何进程")
 
 
 class MissingCredential(RuntimeError):
@@ -154,7 +179,7 @@ eng = _load_engines()
 def take_lines(buffers: dict, name: str, chunk: str) -> list:
     """把管道里任意切分的 chunk 组装成整行；半行留在 buffers 里等下一段。
 
-    五路流各自一个 buffers 槽，所以一个服务的残段不会影响另一个服务的行。
+    八路流各自一个 buffers 槽，所以一个服务的残段不会影响另一个服务的行。
     行尾认 `\\n` 与 `\\r\\n`，行内残留的裸 `\\r` 原样留在正文里（不当行尾：npm/Vite 的进度
     输出只用裸 `\\r` 复位光标，当行尾会把一行刷成几十行）。上限兜底见 MAX_PENDING。
     """
@@ -199,6 +224,20 @@ def pick_dev_port(in_use, candidates=WEB_PORTS) -> int:
     """取第一个空闲开发口；探活口径由调用方注入（必须双栈，见 port_in_use）。"""
     for port in candidates:
         if not in_use(port):
+            return port
+    return None
+
+
+def own_dev_port(in_use, fetch_title, app_title: str, candidates=WEB_PORTS) -> int:
+    """只返回**标题认主**的本项目开发口；不认主一律 None（区别于 prefer_own_dev_port 的兜底）。
+
+    用于“接管不启动”的判定：5174 常被别的项目占着，若只看端口在听就接管，本项目的
+    Vite 永远不会起来（一键启动实测踩到：状态报 web UP，点进去却是别人的页面）。
+    """
+    if not app_title:
+        return None
+    for port in candidates:
+        if in_use(port) and app_title in (fetch_title(port) or ""):
             return port
     return None
 
@@ -248,13 +287,95 @@ def health_ok(status) -> bool:
     return status == 200
 
 
-API_PROBE_URL = "http://127.0.0.1:8080/api/actuator/health/probe"
+API_PROBE_PATH = "/api/actuator/health/probe"
 
 
-def api_is_up(timeout: float = 3.0) -> bool:
-    """8080 上是否有能返 200 的 `/probe`。单独一个口是为了让"起 Vite 前的实话"
-    与"就绪判定"共用同一把尺，而不是在两个地方各写一遍 URL。"""
-    return health_ok(http_probe_status(API_PROBE_URL, timeout=timeout))
+def api_port(env: dict) -> int:
+    """后端监听口：默认 8080；8080 被别的项目占用时可用 API_PORT=8081 并行。
+
+    前端代理目标会跟着这个口走（start_web 注入 VITE_PROXY_TARGET），否则页面仍会打到
+    别人的 8080，表现为“启动器全绿但登录 404”。
+    """
+    raw = (env.get("API_PORT") or "").strip()
+    try:
+        port = int(raw) if raw else DEFAULT_API_PORT
+    except ValueError:
+        return DEFAULT_API_PORT
+    return port if 1 <= port <= 65535 else DEFAULT_API_PORT
+
+
+def api_probe_url(port: int = DEFAULT_API_PORT) -> str:
+    return f"http://127.0.0.1:{port}{API_PROBE_PATH}"
+
+
+def api_is_up(port: int = DEFAULT_API_PORT, timeout: float = 3.0) -> bool:
+    """该口上是否有能返 200 的 `/probe`；端口在听不等于本项目后端。"""
+    return health_ok(http_probe_status(api_probe_url(port), timeout=timeout))
+
+
+def minio_enabled(dotenv: dict) -> bool:
+    return eng.should_start(dotenv.get("MINIO_ENABLED"))
+
+
+def minio_credentials(dotenv: dict) -> tuple:
+    """MinIO 原生进程/后端共用的凭据；优先 ACCESS/SECRET，回退 ROOT。"""
+    access = (dotenv.get("MINIO_ACCESS_KEY") or dotenv.get("MINIO_ROOT_USER") or "").strip()
+    secret = (dotenv.get("MINIO_SECRET_KEY") or dotenv.get("MINIO_ROOT_PASSWORD") or "").strip()
+    return access, secret
+
+
+def discover_minio_binary(env: dict, exists=None, which=None) -> str | None:
+    """定位原生 minio 可执行文件：显式 MINIO_BIN → MINIO_HOME → 本机默认位 → PATH。"""
+    exists = exists or (lambda p: Path(p).is_file())
+    which = which or shutil.which
+    configured = (env.get("MINIO_BIN") or "").strip()
+    if configured:
+        return configured if exists(configured) else None
+    home = (env.get("MINIO_HOME") or "").strip()
+    if home:
+        candidate = str(Path(home) / ("minio.exe" if os.name == "nt" else "minio"))
+        return candidate if exists(candidate) else None
+    if exists(str(DEFAULT_MINIO_BIN)):
+        return str(DEFAULT_MINIO_BIN)
+    return which("minio")
+
+
+def minio_data_dir(env: dict) -> Path:
+    configured = (env.get("MINIO_DATA_DIR") or "").strip()
+    if configured:
+        return Path(configured)
+    data_root = (env.get("AICOURSE_DATA_DIR") or "").strip()
+    if data_root:
+        return Path(data_root) / "minio-data"
+    return DEFAULT_MINIO_DATA
+
+
+def ollama_needed(env: dict) -> bool:
+    """本地 Ollama 是否被当前配置需要：RAG 生成或 LoRA 的 ollama provider。"""
+    ai = (env.get("AI_PROVIDER") or "deepseek").strip().lower()
+    ft_provider = (env.get("FT_LLM_PROVIDER") or "engine").strip().lower()
+    ft_on = eng.should_start(env.get("FT_ENABLED"))
+    return ai in ("ollama", "local") or (ft_on and ft_provider == "ollama")
+
+
+def discover_ollama_binary(env: dict, exists=None, which=None) -> str | None:
+    exists = exists or (lambda p: Path(p).is_file())
+    which = which or shutil.which
+    configured = (env.get("OLLAMA_BIN") or "").strip()
+    if configured:
+        return configured if exists(configured) else None
+    found = which("ollama")
+    if found:
+        return found
+    if os.name == "nt":
+        candidate = Path(env.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama.exe"
+        if exists(str(candidate)):
+            return str(candidate)
+    return None
+
+
+def dependency_service_name(kind: str, env: dict) -> str:
+    return (env.get(f"{kind.upper()}_SERVICE_NAME") or DEFAULT_SERVICE_NAMES[kind]).strip()
 
 
 def apply_java_home(env: dict, java_home: str) -> dict:
@@ -321,6 +442,13 @@ def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_
                 f"{key} 未配置（.env 与环境变量都没有）。它是后端启动的必需项，"
                 f"请 copy .env.example .env 后填入强随机值；本脚本从不打印它的值。"
             )
+    if minio_enabled(dotenv):
+        access, secret = minio_credentials(dotenv)
+        if not (access and secret):
+            raise MissingCredential(
+                "MINIO_ROOT_USER / MINIO_ROOT_PASSWORD（或 MINIO_ACCESS_KEY / MINIO_SECRET_KEY）"
+                "未配置；minio.enabled=true 时后端会在启动期 fail-fast。本脚本从不打印凭据值。"
+            )
 
     env = dict(base)
     env.update(dotenv)
@@ -337,6 +465,10 @@ def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_
     env["COOKIE_SECURE"] = "false"
     env["REQUIRE_HTTPS"] = "false"
     env["CSRF_ENABLED"] = "false"
+    # 并行口：Spring Boot 的 server.port 用环境变量覆盖（默认仍是 8080）
+    api_port_value = api_port(dotenv)
+    if api_port_value != DEFAULT_API_PORT:
+        env["SERVER_PORT"] = str(api_port_value)
     # 无密码的本地 Redis 收到 AUTH 会让 RedisStartupValidator fail-fast、应用根本起不来（已观测）；
     # .env 里的 REDIS_PASSWORD 是给容器 requirepass 写的，端口探明免密时必须摘掉。
     if redis_open:
@@ -396,7 +528,16 @@ def enable_vt_colors() -> bool:
         return False
 
 
-COLORS = {"neo4j": "36", "kg": "32", "rag": "33", "api": "34", "web": "35"}
+COLORS = {
+    "ollama": "35",
+    "minio": "36",
+    "neo4j": "36",
+    "kg": "32",
+    "rag": "33",
+    "ft": "31",
+    "api": "34",
+    "web": "35",
+}
 
 
 def format_line(name, line: str, color_on: bool) -> str:
@@ -409,7 +550,7 @@ def format_line(name, line: str, color_on: bool) -> str:
 
 
 class Sink:
-    """单写者队列：五个读管道线程 + 主线程都往这里投，只有一个线程真正 print。
+    """单写者队列：八个读管道线程 + 主线程都往这里投，只有一个线程真正 print。
 
     多线程各自 print 会把两行日志在控制台上咬成一行，那比丢色难查得多。
     """
@@ -530,15 +671,42 @@ def wait_for_engine(name: str) -> bool:
     return eng.wait_for_engine(name)
 
 
-def wait_for_api(sink: Sink, proc, timeout: float = API_READY_TIMEOUT) -> bool:
+def wait_for_port(port: int, timeout: float = 30.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if port_in_use(port):
+            return True
+        time.sleep(1.0)
+    return False
+
+
+def wait_for_api(sink: Sink, proc, port: int = DEFAULT_API_PORT, timeout: float = API_READY_TIMEOUT) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if proc is not None and proc.poll() is not None:
             sink.info(f"[FAIL] 后端进程提前退出（exit {proc.returncode}），见 logs/api.log 末尾")
             return False
-        if health_ok(http_probe_status(API_PROBE_URL)):
+        if api_is_up(port):
             return True
         time.sleep(2.0)
+    return False
+
+
+def wait_for_minio(timeout: float = 60.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if health_ok(http_probe_status(MINIO_HEALTH_URL)):
+            return True
+        time.sleep(1.0)
+    return False
+
+
+def wait_for_ollama(timeout: float = 60.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if health_ok(http_probe_status(OLLAMA_TAGS_URL)):
+            return True
+        time.sleep(1.0)
     return False
 
 
@@ -551,11 +719,90 @@ def wait_for_web(port: int, timeout: float = WEB_READY_TIMEOUT) -> bool:
     return False
 
 
+def ensure_dependency(kind: str, port: int, env: dict, sink: Sink) -> bool:
+    """MySQL/Redis 端口未监听时尝试启动本机服务；仍失败才让主流程 fail-fast。
+
+    不拉容器（本阶段 Docker 搁置，§17）。`sc start` / `systemctl start` 可能需要管理员，
+    失败时只报命令退出码与变量名，不把服务输出拼进日志。
+    """
+    if port_in_use(port):
+        return True
+    service = dependency_service_name(kind, env)
+    sink.info(f"[..] {kind} :{port} 未监听，尝试启动本机服务 `{service}`（不拉容器）")
+    if os.name == "nt":
+        cmd = ["sc.exe", "start", service]
+    else:  # pragma: no cover - 本机为 Windows
+        cmd = ["systemctl", "start", service]
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=30,
+            check=False,
+        )
+    except Exception as exc:
+        sink.info(f"[WARN] 启动 {kind} 服务失败：{type(exc).__name__}（命令 `{cmd[0]}`）")
+        return False
+    if result.returncode != 0:
+        sink.info(f"[WARN] `{cmd[0]} {service}` 退出码 {result.returncode}（可能需要管理员权限或服务名不匹配）")
+    ok = wait_for_port(port, timeout=30.0)
+    if ok:
+        sink.info(f"[OK]   {kind} :{port} 已监听")
+    return ok
+
+
+def start_minio(env: dict, sink: Sink):
+    """启动原生 MinIO（非 Docker）；返回 (是否就绪, 子进程)。"""
+    binary = discover_minio_binary(env)
+    if not binary:
+        sink.put("minio", "[WARN] 找不到 minio 可执行文件（MINIO_BIN/MINIO_HOME/本机默认位/PATH 都没有）。"
+                         "后端的 MinIO 上传将不可用；可用 MINIO_ENABLED=false 临时回退本地。")
+        return False, None
+    access, secret = minio_credentials(env)
+    if not (access and secret):
+        sink.put("minio", "[WARN] MINIO_ROOT_USER/PASSWORD 未配置，原生 MinIO 不启动。")
+        return False, None
+    data = minio_data_dir(env)
+    if not data.is_absolute():
+        data = ROOT / data
+    data.mkdir(parents=True, exist_ok=True)
+    run_env = dict(os.environ)
+    run_env.update(env)
+    run_env["MINIO_ROOT_USER"] = access
+    run_env["MINIO_ROOT_PASSWORD"] = secret
+    cmd = [
+        binary,
+        "server",
+        str(data),
+        "--address",
+        f"127.0.0.1:{PORTS['minio']}",
+        "--console-address",
+        "127.0.0.1:9001",
+    ]
+    sink.put("minio", f"启动原生 MinIO（:{PORTS['minio']}，数据 {data}，非 Docker）")
+    proc = spawn_captured(cmd, Path(binary).parent, run_env, "minio", sink)
+    return wait_for_minio(), proc
+
+
+def start_ollama(env: dict, sink: Sink):
+    """启动本机 Ollama（仅当 AI/FT 配置为 ollama 时由 build_want 置位）。"""
+    binary = discover_ollama_binary(env)
+    if not binary:
+        sink.put("ollama", "[WARN] 找不到 ollama 可执行文件；RAG/FT 的 ollama 调用会按契约降级。")
+        return False, None
+    run_env = dict(os.environ)
+    run_env.update(env)
+    sink.put("ollama", f"启动 Ollama serve（:{PORTS['ollama']}，本窗口内）")
+    proc = spawn_captured([binary, "serve"], Path(binary).parent, run_env, "ollama", sink)
+    return wait_for_ollama(), proc
+
+
 # ------------------------------------------------------------------ 编排
 
 
 def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
-    """want 里带 `.env` 显式开关与"环境不具备"的判定，缺 Neo4j 安装位只降级不报错。
+    """want 里带 `.env` 显式开关与"环境不具备"的判定，缺 Neo4j/MinIO/Ollama 只降级不报错。
 
     再按子命令收窄：`frontend` 模式下 want["api"] 必须是 False，否则"只起前端"会顺手
     把整个后端拉起来——那正是这次合并要消灭的第二套行为。
@@ -563,9 +810,12 @@ def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
     scope = wanted_services(mode)
     neo4j_home = eng.discover_neo4j_home(env)
     want = {
+        "ollama": scope["ollama"] and ollama_needed(env) and eng.should_start(env.get("OLLAMA_AUTOSTART")),
+        "minio": scope["minio"] and minio_enabled(env),
         "neo4j": scope["neo4j"] and bool(neo4j_home) and eng.should_start(env.get("NEO4J_ENABLED")),
         "kg": scope["kg"] and eng.should_start(env.get("KG_ENABLED")),
         "rag": scope["rag"] and eng.should_start(env.get("RAG_ENABLED")),
+        "ft": scope["ft"] and eng.should_start(env.get("FT_ENABLED")),
         "api": scope["api"],
         "web": scope["web"],
     }
@@ -574,34 +824,59 @@ def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
             "[WARN] 找不到 Neo4j 安装目录（.env 的 NEO4J_HOME 或本机默认位）。"
             "KG 会回落内存图，重启即丢；把 NEO4J_HOME=<安装目录> 写进 .env。"
         )
+    if scope["ollama"] and ollama_needed(env) and not eng.should_start(env.get("OLLAMA_AUTOSTART")):
+        sink.info("[INFO] AI/FT 需要 ollama，但 .env 显式 OLLAMA_AUTOSTART=false -> 只接管已有 Ollama，不主动拉起。")
     return want
 
 
-def snapshot() -> dict:
+def snapshot(api_port_value: int = DEFAULT_API_PORT, app_title: str = "") -> dict:
     return {
+        "ollama": port_in_use(PORTS["ollama"]),
+        "minio": port_in_use(PORTS["minio"]),
         "neo4j": port_in_use(PORTS["neo4j"]),
         "kg": port_in_use(PORTS["kg"]),
         "rag": port_in_use(PORTS["rag"]),
-        "api": port_in_use(PORTS["api"]),
-        "web": any(port_in_use(p) for p in WEB_PORTS),
+        "ft": port_in_use(PORTS["ft"]),
+        # 端口在听不等于本项目后端：只认 /probe 200，避免把 8080 上别人的应用接管成自己的
+        "api": api_is_up(api_port_value),
+        # 同理，5173-5175 只认标题；只看端口会把隔壁项目的 Vite 当成本项目已就绪
+        "web": own_dev_port(port_in_use, http_page_title, app_title) is not None,
     }
 
 
-def print_status(sink: Sink, status: dict, env: dict, app_title: str) -> None:
+def print_status(sink: Sink, status: dict, env: dict, app_title: str, api_port_value: int = DEFAULT_API_PORT) -> None:
     sink.info("-" * 62)
-    for name in ("neo4j", "kg", "rag"):
-        sink.info(f"{name:6s} :{PORTS[name]}  {eng.describe(name, status[name])}")
-    if status["api"]:
-        code = http_probe_status(API_PROBE_URL)
-        sink.info(f"{'api':6s} :8080  {'UP (probe HTTP %s)' % code if health_ok(code) else '端口在听但 /probe 未返 200（HTTP %s）' % code}")
+    for dep, port in (("mysql", DB_PORT), ("redis", CACHE_PORT)):
+        sink.info(f"{dep:6s} :{port}  {'UP' if port_in_use(port) else 'DOWN'}")
+    for name in ("ollama", "minio", "neo4j", "kg", "rag", "ft"):
+        if not status.get(name):
+            sink.info(f"{name:6s} :{PORTS[name]}  DOWN")
+            continue
+        if name in ("kg", "rag", "ft"):
+            detail = eng.describe(name, status[name])
+        elif name == "minio":
+            detail = "UP (health 200)" if health_ok(http_probe_status(MINIO_HEALTH_URL)) else \
+                "UP (端口在听，/minio/health/live 未返 200)"
+        elif name == "ollama":
+            detail = "UP (tags 200)" if health_ok(http_probe_status(OLLAMA_TAGS_URL)) else \
+                "UP (端口在听，/api/tags 未返 200)"
+        else:
+            detail = "UP"
+        sink.info(f"{name:6s} :{PORTS[name]}  {detail}")
+    if status.get("api"):
+        code = http_probe_status(api_probe_url(api_port_value))
+        sink.info(f"{'api':6s} :{api_port_value}  {'UP (probe HTTP %s)' % code if health_ok(code) else '端口在听但 /probe 未返 200（HTTP %s）' % code}")
+    elif port_in_use(api_port_value):
+        sink.info(f"{'api':6s} :{api_port_value}  CONFLICT（端口被占用，但不是本项目 /probe）")
     else:
-        sink.info("api    :8080  DOWN")
-    own_port = prefer_own_dev_port(port_in_use, http_page_title, app_title)
-    sink.info(
-        f"web    :{WEB_PORTS[0]}-{WEB_PORTS[-1]}  "
-        + (f"UP (http://localhost:{own_port}/)" if own_port else "DOWN")
-        + ("" if not own_port or app_title else "  [!] 该口未认出本项目标题，可能属于别的开发服务")
-    )
+        sink.info(f"{'api':6s} :{api_port_value}  DOWN")
+    own_port = own_dev_port(port_in_use, http_page_title, app_title)
+    if own_port:
+        sink.info(f"{'web':6s} :{WEB_PORTS[0]}-{WEB_PORTS[-1]}  UP (http://localhost:{own_port}/)")
+    elif any(port_in_use(p) for p in WEB_PORTS):
+        sink.info(f"{'web':6s} :{WEB_PORTS[0]}-{WEB_PORTS[-1]}  CONFLICT（口被别的开发服务占用，标题未认主）")
+    else:
+        sink.info(f"{'web':6s} :{WEB_PORTS[0]}-{WEB_PORTS[-1]}  DOWN")
     provider = (env.get("AI_PROVIDER") or "deepseek").strip().lower()
     if provider in ("ollama", "local"):
         ollama_url = (env.get("OLLAMA_BASE_URL") or "http://localhost:11434").strip().rstrip("/")
@@ -651,7 +926,7 @@ def start_engine(name: str, env: dict, sink: Sink):
     return wait_for_engine(name), proc
 
 
-def start_api(env: dict, java_home, sink: Sink):
+def start_api(env: dict, java_home, sink: Sink, port: int = DEFAULT_API_PORT):
     backend = ROOT / "backend"
     run_env = dict(env)
     if java_home:
@@ -661,29 +936,36 @@ def start_api(env: dict, java_home, sink: Sink):
         sink.put("api", f"[WARN] PATH 里没有 {gap}（多半是从 Git Bash 之类的壳里启动的）。"
                         f"mvnw.cmd 会报 'powershell 不是内部或外部命令' 之类看不懂的错——"
                         f"请改用 start.bat 在 cmd 窗口里启动。")
+    jvm_args = "-Dfile.encoding=UTF-8"
+    if port != DEFAULT_API_PORT:
+        jvm_args += f" -Dserver.port={port}"
     cmd = [
         "cmd",
         "/c",
         "mvnw.cmd",
         "spring-boot:run",
         "-Dspring-boot.run.profiles=local",
-        "-Dspring-boot.run.jvmArguments=-Dfile.encoding=UTF-8",
+        f"-Dspring-boot.run.jvmArguments={jvm_args}",
     ]
-    sink.put("api", "启动 Spring Boot（mvnw spring-boot:run -Plocal，本窗口内）")
+    sink.put("api", f"启动 Spring Boot（mvnw spring-boot:run -Plocal，:{port}，本窗口内）")
     return spawn_captured(cmd, backend, run_env, "api", sink)
 
 
-def start_web(node, npm_cli, port: int, env: dict, sink: Sink):
+def start_web(node, npm_cli, port: int, env: dict, sink: Sink, api_port_value: int = DEFAULT_API_PORT):
     frontend = ROOT / "frontend"
+    web_env = dict(env)
+    # Vite 的 /api 代理必须跟随后端并行口；否则 8080 被别的项目占用时，页面仍会打到
+    # 别人的后端（表现为登录 404/403，而启动器本身全绿）。
+    web_env["VITE_PROXY_TARGET"] = f"http://127.0.0.1:{api_port_value}/api"
     if not (frontend / "node_modules").is_dir():
         sink.put("web", "node_modules 不存在，先装依赖（首次 2-5 分钟，日志照常在下面滚）")
-        install = spawn_captured([node, npm_cli, "install"], frontend, env, "web", sink)
+        install = spawn_captured([node, npm_cli, "install"], frontend, web_env, "web", sink)
         install.wait()
         if install.returncode:
             sink.info("[FAIL] npm install 失败，前端未启动；后端与引擎不受影响")
             return None
-    sink.put("web", f"启动 Vite（--port {port}，本窗口内）")
-    return spawn_captured([node, npm_cli, "run", "dev", "--", "--port", str(port)], frontend, env, "web", sink)
+    sink.put("web", f"启动 Vite（--port {port}，代理 -> :{api_port_value}，本窗口内）")
+    return spawn_captured([node, npm_cli, "run", "dev", "--", "--port", str(port)], frontend, web_env, "web", sink)
 
 
 def cleanup(children: dict, sink: Sink) -> None:
@@ -705,8 +987,9 @@ def main(argv=None) -> int:
     LOG_DIR.mkdir(exist_ok=True)
 
     env = eng.merged_env()
-    status = snapshot()
+    api_port_value = api_port(env)
     app_title = read_app_title()
+    status = snapshot(api_port_value, app_title)
     scope = wanted_services(mode)
 
     sink.info("=" * 62)
@@ -715,25 +998,28 @@ def main(argv=None) -> int:
         usage(sink)
         sink.close()
         return 2
-    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（neo4j/kg/rag/api/web）")
+    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（ollama/minio/neo4j/kg/rag/ft/api/web）")
     sink.info("=" * 62)
 
     if mode == MODE_STATUS:
-        print_status(sink, status, env, app_title)
+        print_status(sink, status, env, app_title, api_port_value)
         sink.close()
         return 0
 
-    # 依赖门按子命令收窄：MySQL/Redis/JDK 只有真要起后端时才必需（旧 start-frontend.bat 也不查它们）
+    # 依赖门按子命令收窄：MySQL/Redis/JDK 只有真要起后端时才必需（旧 start-frontend.bat 也不查它们）。
+    # 未监听时先尝试启动本机服务，仍然失败才 fail-fast；不拉容器。
     if scope["api"]:
-        if not port_in_use(DB_PORT):
-            sink.info("[ERROR] 本机 3306 无 MySQL 监听。启动：net start MySQL84；"
-                      "服务名不确定用 sc query type=service | findstr /i mysql。"
+        if not ensure_dependency("mysql", DB_PORT, env, sink):
+            sink.info("[ERROR] 本机 3306 无 MySQL 监听，且自动启动失败。请检查服务名 "
+                      f"`{dependency_service_name('mysql', env)}`（可用 MYSQL_SERVICE_NAME 覆盖）；"
                       "本机没有 MySQL 请回项目主，不要起容器（Docker 已搁置，§17）。")
             sink.close()
             return 1
-        if not port_in_use(CACHE_PORT):
-            sink.info("[ERROR] 本机 6379 无 Redis 监听。Redis 是必需依赖（缓存/限流/AI 配额/验证码），"
-                      "后端会 fail-fast。启动：net start Redis。缺件请回项目主（§17）。")
+        if not ensure_dependency("redis", CACHE_PORT, env, sink):
+            sink.info("[ERROR] 本机 6379 无 Redis 监听，且自动启动失败。Redis 是必需依赖"
+                      "（缓存/限流/AI 配额/验证码），后端会 fail-fast。请检查服务名 "
+                      f"`{dependency_service_name('redis', env)}`（可用 REDIS_SERVICE_NAME 覆盖）；"
+                      "缺件请回项目主（§17）。")
             sink.close()
             return 1
 
@@ -741,6 +1027,12 @@ def main(argv=None) -> int:
         if not java_home:
             sink.info("[ERROR] 未找到 JDK 21（JAVA_HOME 指向的目录不存在，且默认位无 java.exe）。"
                       "请设 JAVA_HOME 或安装 Temurin 21；本脚本不会静默回落。")
+            sink.close()
+            return 1
+        if port_in_use(api_port_value) and not status["api"]:
+            sink.info(f"[ERROR] API 口 :{api_port_value} 已被占用，但 `/probe` 不返 200，"
+                      "不是本项目后端。请释放该端口，或设置 API_PORT=8081 并行启动；"
+                      "不要把别人的后端当成本项目接管。")
             sink.close()
             return 1
     else:
@@ -788,16 +1080,24 @@ def main(argv=None) -> int:
         sink.info("[OK] 已在监听，本次接管不重启、也不终止：" + ", ".join(adopted))
 
     for name in todo:
-        if name not in ("neo4j", "kg", "rag"):
+        if name in ENGINE_SERVICES:
+            ok, proc = start_engine(name, env, sink)
+        elif name == "minio":
+            ok, proc = start_minio(env, sink)
+        elif name == "ollama":
+            ok, proc = start_ollama(env, sink)
+        else:
             continue
-        ok, proc = start_engine(name, env, sink)
         children[name] = proc
         sink.info(f"[{'OK' if ok else 'FAIL'}] {name} {'已就绪' if ok else '未在预期时间内就绪'}")
 
     if "api" in todo:
-        if port_in_use(PORTS["api"]):
-            # 起引擎的十几到几十秒里别人可能已经把后端起了；此刻再起就是双实例（DR-36）
-            sink.info("[OK] 起引擎期间 8080 已被占用 -> 改判接管，不起第二个后端")
+        if port_in_use(api_port_value):
+            # 起引擎的几十秒里别人可能已经把后端起了；此刻再起就是双实例（DR-36）
+            if api_is_up(api_port_value):
+                sink.info(f"[OK] 起引擎期间 API :{api_port_value} 已被本项目后端占用 -> 改判接管，不起第二个后端")
+            else:
+                sink.info(f"[FAIL] 起引擎期间 API :{api_port_value} 被非本项目进程占用，不再起第二个后端")
         else:
             # 引擎若是本次拉起来的，开场快照里仍是 False；必须在起后端的前一行现探重算，
             # 否则一键启动出来的后端永远停在 native，mode=ENGINE 还得靠人手重启一次。
@@ -809,19 +1109,19 @@ def main(argv=None) -> int:
                 kg_up=engine_live["kg"],
                 rag_up=engine_live["rag"],
             )
-            children["api"] = start_api(run_env, java_home, sink)
-            ok = wait_for_api(sink, children["api"])
+            children["api"] = start_api(run_env, java_home, sink, api_port_value)
+            ok = wait_for_api(sink, children["api"], api_port_value)
             sink.info(
-                "[OK]   后端就绪 http://localhost:8080/api（Swagger: /api/swagger-ui.html）"
+                f"[OK]   后端就绪 http://localhost:{api_port_value}/api（Swagger: /api/swagger-ui.html）"
                 if ok
                 else "[FAIL] 后端未在预期时间内就绪，见上方日志与 logs/api.log"
             )
 
     web_port = None
     if "web" in todo and node:
-        if mode == MODE_FRONTEND and not api_is_up():
+        if mode == MODE_FRONTEND and not api_is_up(api_port_value):
             # 与旧 start-frontend.bat 同口径：后端不在也照样起 Vite，只把"每个 API 都会失败"说在前面
-            sink.info("[INFO] 8080 上没有在听的后端（复合 /health 无 AI Key 时返 503 属设计，见 §25）。"
+            sink.info(f"[INFO] API :{api_port_value} 上没有在听的本项目后端（复合 /health 无 AI Key 时返 503 属设计，见 §25）。"
                       "Vite 照常起，但页面里每个 API 请求都会失败。"
                       "要连后端一起起：start.bat（不带子命令）。")
         web_port = pick_dev_port(port_in_use)
@@ -829,22 +1129,28 @@ def main(argv=None) -> int:
             sink.info("[ERROR] 5173/5174/5175 全被占用（双栈探测）。不要改用 5176+，"
                       "后端 CORS 白名单只放这三个口，登录会被 403 拒掉。")
         else:
-            children["web"] = start_web(node, npm_cli, web_port, run_env, sink)
+            children["web"] = start_web(node, npm_cli, web_port, run_env, sink, api_port_value)
             if wait_for_web(web_port):
                 sink.info(f"[OK]   前端就绪 http://localhost:{web_port}/（Vite 实测只绑 IPv6 回环，"
-                          f"别用 127.0.0.1:{web_port} 判活）")
+                          f"代理 -> :{api_port_value}）")
             else:
                 sink.info(f"[FAIL] 前端未在预期时间内监听 {web_port}，见上方日志与 logs/web.log")
 
-    final = snapshot()
-    print_status(sink, final, env, app_title)
+    final = snapshot(api_port_value, app_title)
+    print_status(sink, final, env, app_title, api_port_value)
 
-    engines_just_up = any(children[name] is not None for name in ("neo4j", "kg", "rag"))
+    engines_just_up = any(children[name] is not None for name in ENGINE_SERVICES)
     if scope["api"] and engines_just_up and children["api"] is None and final["api"]:
         sink.info("[WARN] 后端是本次之前就在跑的，而引擎刚起：Java 只在启动那一刻探测引擎端口，"
                   "需重启本启动器（start.bat backend）才会切到 mode=ENGINE。")
     if final["kg"] and not final["neo4j"]:
         sink.info("[INFO] Neo4j 未起 -> KG 只能走内存图，图谱重启即丢。")
+    if want.get("ft") and not final["ft"]:
+        sink.info("[WARN] LoRA 微调 :8003 未就绪；检查 logs/ft.log 与 python-services/fine_tune_service/.venv。")
+    if want.get("minio") and not final["minio"]:
+        sink.info("[WARN] MinIO :9000 未就绪；上传会不可用。检查 logs/minio.log 与 MINIO_BIN/MINIO_DATA_DIR。")
+    if want.get("ollama") and not final["ollama"]:
+        sink.info("[WARN] Ollama :11434 未就绪；RAG/FT 的 ollama 调用会按契约降级。检查 logs/ollama.log。")
     if final["web"]:
         entry = web_port or prefer_own_dev_port(port_in_use, http_page_title, app_title)
         if entry:

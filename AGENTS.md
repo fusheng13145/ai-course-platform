@@ -41,11 +41,13 @@
 ### 2.1 启动
 
 ```bat
-start.bat              :: 全栈单窗口（接管不重启、五路日志、Ctrl+C 收子树）
-start.bat backend      :: 引擎 + 后端
+start.bat              :: 全栈单窗口（依赖自愈 + Ollama/MinIO/Neo4j/KG/RAG/FT/API/Web，8 路日志、Ctrl+C 收子树）
+start.bat backend      :: 除前端外的全量后端栈
 start.bat frontend     :: 只起 Vite
-start.bat status       :: 只报五进程状态，不起进程
+start.bat status       :: 只报全量服务状态，不起进程
 ```
+
+> 8080 被别的项目占用时用 `API_PORT=8081`；启动器会同时改 `SERVER_PORT` 与 `VITE_PROXY_TARGET`。
 
 Linux / macOS 用同目录的 `start.sh`，子命令与开关完全一致
 （`./start.sh` / `backend` / `frontend` / `status`；`--no-color`）。
@@ -86,7 +88,9 @@ python scripts/audit-stats.py
 | 5174 / 5175 | e2e / 视觉 | **5176+ 会被 CORS 白名单拒登录** |
 | **8001** | Python KG 服务 | |
 | **8002** | Python RAG 服务 | **本项目核心中的核心** |
-| 8003 | LoRA 微调 | compose `ft` profile 已编排；目标环境未 `up` |
+| 8003 | LoRA 微调 | `start-all.py` 在 `FT_ENABLED=true` 时自动编排；compose `ft` profile 另备 |
+| 9000 / 9001 | 本机 MinIO | `start-all.py` 在 `MINIO_ENABLED=true` 时启动原生进程；非 Docker |
+| 11434 | 本机 Ollama | `AI_PROVIDER=ollama` 或 `FT_LLM_PROVIDER=ollama` 时自动启动；缺模型只告警 |
 | 3306 / 6379 / 7687 | MySQL / Redis / Neo4j | **Redis 为必选依赖**（用户裁定，文档已回写） |
 
 ---
@@ -142,7 +146,7 @@ python scripts/audit-stats.py
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
 | 后端门禁 | 3633 例 / 0 失败 / 0 错误 / 1 跳过；LINE 86.05%、BRANCH 66.76%（门禁 85/65）；SpotBugs 0；ArchUnit 8 |
 | 前端门禁 | Vitest 100 文件 / 1227 例；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
-| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` 113 passed |
+| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` **122 passed**（2026-11-18，含全量服务编排守卫） |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120 检查结果以 Actions 当前 run 为准 |
 | 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
 | Compose | 16 服务 / 17 卷 / 9 healthcheck；CI 已构建镜像，目标环境未 `up` |

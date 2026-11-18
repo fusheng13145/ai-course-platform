@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-一键拉起后端全链：Neo4j(7687) -> KG(8001) -> RAG(8002)，再交给 start.bat backend 起 Java。
-=========================================================================================
+一键拉起后端全链：Neo4j(7687) -> KG(8001) -> RAG(8002) -> LoRA 微调(8003)，再交给 start.bat backend 起 Java。
+==========================================================================================================
 为什么需要它：手册 §18.5 把引擎启动写成五条手工 cmd 步骤，三个坑各自都能把演示判成"AI 没接上"：
   1) 两个 FastAPI 服务**只读进程环境、不读 `.env`**（DR-39，全文无 dotenv），所以
      `NEO4J_URI` / `DEEPSEEK_API_KEY` / `HF_HUB_OFFLINE` 必须由启动器导出；
@@ -83,12 +83,17 @@ ENGINE_EXPORTS = {
         "FT_PUBLIC_BASE",
         "FT_CORPUS_DIR",
         "FT_CORPUS_JSON",
+        "FT_LLM_PROVIDER",
+        "INTERNAL_API_KEY",
         "AI_PROVIDER",
         "OLLAMA_BASE_URL",
         "OLLAMA_MODEL",
+        "OLLAMA_THINK",
         "FT_OLLAMA_BASE_URL",
         "FT_OLLAMA_MODEL",
         "FT_OLLAMA_TIMEOUT",
+        "HF_HOME",
+        "HF_HUB_CACHE",
     ),
     "rag": (
         # DR-84：网关端点必须一起导出，否则 .env 里配了 base-url 也到不了引擎进程（DR-63 同型）
@@ -549,7 +554,7 @@ def main(argv=None) -> int:
         if isinstance(items, list) and not items:
             print("[INFO] RAG 语料为空 -> 问答会返「AI 服务暂时不可用」。重放：python scripts\\seed-rag-corpus.py")
 
-    wanted = [name for name in ("kg", "rag") if want.get(name)]
+    wanted = [name for name in ("kg", "rag", "ft") if want.get(name)]
     missing = [name for name in wanted if not final.get(name)]
     return 1 if missing else 0
 
