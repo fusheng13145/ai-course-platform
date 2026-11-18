@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
@@ -68,7 +69,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>鉴权面断言沿用 SecurityConfig 规则：POST /ai/qa/*、/ai/essay/* 任意已登录角色可用；
  * 其余 POST /ai/** 仅 TEACHER/ADMIN；所有 /ai/** 未认证一律 401。</p>
  */
-@WebMvcTest(AIController.class)
+@WebMvcTest({AIController.class, AIInsightController.class, AILearningPathController.class})
+@Import(com.aicourse.security.AIAccessSupport.class)
 class AIControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean

@@ -18,6 +18,7 @@ import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.common.ApiCode;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
@@ -38,7 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 以及 /ai/learning-path/generate、/ai/learning-path/generate-personalized 放行给任意已登录角色
  * （学生可用 AI 助教与自助学习路径）；其余 POST/PUT/DELETE /ai/** 需 TEACHER/ADMIN；GET /ai/** 任意已认证角色。
  */
-@WebMvcTest(AIController.class)
+@WebMvcTest({AIController.class, AIInsightController.class, AILearningPathController.class})
+@Import(com.aicourse.security.AIAccessSupport.class)
 class AIControllerTest extends ControllerTestBase {
 
     @MockitoBean
