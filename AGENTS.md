@@ -146,7 +146,7 @@ python scripts/audit-stats.py
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120 检查结果以 Actions 当前 run 为准 |
 | 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
 | Compose | 16 服务 / 17 卷 / 9 healthcheck；CI 已构建镜像，目标环境未 `up` |
-| 存储 | 新上传与分片合并产物写 MinIO（bucket `aicourse-uploads`；`/uploads/**` 由后端代理）；本地 `AICOURSE_DATA_DIR/storage` 仅历史只读兼容；分片仍写 `chunks` |
+| 存储 | 新上传与分片合并产物写 MinIO（bucket `aicourse-uploads`；`/uploads/**` 由后端代理）；存量 **155 文件 / 28,816,671B** 已迁入并做 SHA-256 **155/155** 校验，原 `storage` 转备份；本机原生 MinIO 已起（非 Docker）；分片仍写 `chunks` |
 | 文档 | `docs` 21 个 Markdown + `assets/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
 
 ### 5.2 历史批次（B0–B11）
