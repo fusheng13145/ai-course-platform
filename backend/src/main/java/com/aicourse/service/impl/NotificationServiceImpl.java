@@ -189,18 +189,34 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
                 .eq(isRead != null, Notification::getIsRead, isRead)
                 .orderByDesc(Notification::getCreatedAt);
         Page<Notification> result = this.page(pageParam, queryWrapper);
-        // XSS输出编码
-        if (result.getRecords() != null) {
-            for (Notification n : result.getRecords()) {
-                if (n.getTitle() != null) {
-                    n.setTitle(HtmlUtils.htmlEscape(n.getTitle()));
-                }
-                if (n.getContent() != null) {
-                    n.setContent(HtmlUtils.htmlEscape(n.getContent()));
-                }
+        escapeNotificationText(result);
+        return result;
+    }
+
+    /**
+     * 分页获取当前用户在指定课程下的通知（课程页「通知」数据源）。
+     */
+    @Override
+    public Page<Notification> getCourseNotifications(Long userId, Long courseId, int page, int size) {
+        Page<Notification> result = baseMapper.selectCourseNotifications(
+                new Page<>(page, size), userId, courseId);
+        escapeNotificationText(result);
+        return result;
+    }
+
+    /** 通知标题与正文按 XSS 输出编码；列表查询共用一处，避免两套口径分叉。 */
+    private void escapeNotificationText(Page<Notification> result) {
+        if (result.getRecords() == null) {
+            return;
+        }
+        for (Notification n : result.getRecords()) {
+            if (n.getTitle() != null) {
+                n.setTitle(HtmlUtils.htmlEscape(n.getTitle()));
+            }
+            if (n.getContent() != null) {
+                n.setContent(HtmlUtils.htmlEscape(n.getContent()));
             }
         }
-        return result;
     }
 
     /**

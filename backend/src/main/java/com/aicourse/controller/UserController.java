@@ -15,6 +15,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.UserStatsVO;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -252,6 +253,9 @@ public class UserController {
         } else if (dto.getCollegeId() != null) {
             user.setCollegeId(dto.getCollegeId());
         }
+        if (dto.getAdminClassId() != null) {
+            user.setAdminClassId(dto.getAdminClassId() == 0L ? null : dto.getAdminClassId());
+        }
         userService.save(user);
         user.setPassword(null);
         return ApiResponse.success("创建成功", user);
@@ -310,9 +314,18 @@ public class UserController {
         if (dto.getCollegeId() != null) {
             existing.setCollegeId(dto.getCollegeId());
         }
+        if (dto.getAdminClassId() != null) {
+            existing.setAdminClassId(dto.getAdminClassId() == 0L ? null : dto.getAdminClassId());
+        }
         // 注意：始终以 URL 路径 id 为准，且绝不从此处写入 password 字段
         existing.setId(id);
         userService.updateById(existing);
+        if (dto.getAdminClassId() != null && dto.getAdminClassId() == 0L) {
+            // 默认更新策略忽略 null，移出行政班需显式写 null。
+            userService.update(new LambdaUpdateWrapper<User>()
+                    .eq(User::getId, id)
+                    .set(User::getAdminClassId, null));
+        }
         User updatedUser = userService.getById(id);
         if (updatedUser != null) {
             updatedUser.setPassword(null);

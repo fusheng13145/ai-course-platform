@@ -197,6 +197,11 @@ export const routes: RouteRecordRaw[] = [
         meta: { role: 'ADMIN', pageKey: 'courses', title: '课程目录' },
       },
       {
+        path: 'admin/courses/create',
+        component: CreateCourseView,
+        meta: { role: 'ADMIN', pageKey: 'courses', title: '新建开课任务' },
+      },
+      {
         path: 'admin/courses/:id/:tab?',
         component: CourseView,
         meta: { role: 'ADMIN', courseSpace: true, title: '课程治理' },

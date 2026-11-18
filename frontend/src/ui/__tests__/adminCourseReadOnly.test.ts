@@ -43,17 +43,20 @@ const mocks = vi.hoisted(() => {
   const teacher: Record<string, unknown> = { getMyCourseSummaries: empty }
   const resource: Record<string, unknown> = { getResourceList: empty }
   const student: Record<string, unknown> = { getGrades: empty }
+  const teaching: Record<string, unknown> = { getTeachingClasses: empty }
   return {
     empty,
     chapter,
     teacher,
     resource,
     student,
+    teaching,
     stubs: {
       chapter: apiStub(chapter),
       teacher: apiStub(teacher),
       resource: apiStub(resource),
       student: apiStub(student),
+      teaching: apiStub(teaching),
     },
   }
 })
@@ -62,6 +65,9 @@ vi.mock('@/api/chapter', () => ({ default: mocks.stubs.chapter }))
 vi.mock('@/api/teacher', () => ({ default: mocks.stubs.teacher }))
 vi.mock('@/api/resource', () => ({ default: mocks.stubs.resource }))
 vi.mock('@/api/student', () => ({ default: mocks.stubs.student }))
+vi.mock('@/api/teachingClass', () => ({
+  getTeachingClasses: mocks.stubs.teaching.getTeachingClasses,
+}))
 
 import CourseView from '../views/course/CourseView.vue'
 import AdminReadOnlyTab from '../views/course/tabs/AdminReadOnlyTab.vue'
@@ -95,7 +101,7 @@ describe('课程空间 · 管理员只读页签', () => {
       state.tab = tab
       const wrapper = mountCourseView()
       expect(wrapper.findComponent(AdminReadOnlyTab).exists()).toBe(true)
-      expect(wrapper.text()).toContain('管理员只读，无数据面')
+      expect(wrapper.text()).toContain('管理员只读')
       wrapper.unmount()
     },
   )
@@ -149,10 +155,10 @@ describe('课程空间 · 总览三态与去示例兜底', () => {
     wrapper.unmount()
   })
 
-  it('教学班无数据面时明示不可用，不写示例班级与假进度', async () => {
+  it('教学班无数据时只显示空态，不写示例班级与假进度', async () => {
     const wrapper = mountOverview('teacher')
     await flushPromises()
-    expect(wrapper.text()).toContain('教学班数据暂不可用')
+    expect(wrapper.text()).toContain('暂无教学班')
     expect(wrapper.html()).not.toContain('示例数据：教学班')
     wrapper.unmount()
   })

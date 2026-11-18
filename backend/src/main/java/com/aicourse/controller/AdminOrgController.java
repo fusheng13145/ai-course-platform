@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.AdminClassMemberBatchDTO;
 import com.aicourse.dto.OrgAdminClassDTO;
 import com.aicourse.dto.OrgCollegeDTO;
 import com.aicourse.dto.OrgMajorDTO;
@@ -8,6 +9,7 @@ import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.College;
 import com.aicourse.entity.Major;
 import com.aicourse.service.OrgService;
+import com.aicourse.vo.AdminClassMemberBatchVO;
 import com.aicourse.vo.OrgTreeNodeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -128,5 +130,14 @@ public class AdminOrgController {
     public ApiResponse<Void> archiveAdminClass(@PathVariable Long id) {
         orgService.archiveAdminClass(id);
         return ApiResponse.success("行政班已归档", null);
+    }
+
+    @PostMapping("/admin-classes/{id}/members/batch")
+    @Operation(summary = "批量调整行政班成员", description = "ADD / REMOVE；已分班学生默认跳过，可显式允许转入")
+    public ApiResponse<AdminClassMemberBatchVO> batchMembers(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminClassMemberBatchDTO body) {
+        AdminClassMemberBatchVO result = orgService.batchMembers(id, body);
+        return ApiResponse.success("批量操作完成", result);
     }
 }

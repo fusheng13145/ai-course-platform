@@ -9,10 +9,10 @@ import com.aicourse.entity.Question;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
 import com.aicourse.entity.User;
-import com.aicourse.entity.Classroom;
+import com.aicourse.entity.TeachingClass;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.AIService;
-import com.aicourse.service.ClassroomService;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
@@ -68,7 +68,7 @@ class TeacherCourseServiceImplTest {
     @Mock private LearningRecordService learningRecordService;
     @Mock private AIService aiService;
     @Mock private UserService userService;
-    @Mock private ClassroomService classroomService;
+    @Mock private TeachingClassMapper teachingClassMapper;
 
     private TeacherCourseServiceImpl service;
 
@@ -79,7 +79,7 @@ class TeacherCourseServiceImplTest {
     private List<Submission> submissions;
     private List<LearningRecord> records;
     private List<User> users;
-    private List<Classroom> classrooms;
+    private List<TeachingClass> teachingClasses;
 
     @BeforeEach
     void setUp() {
@@ -92,7 +92,7 @@ class TeacherCourseServiceImplTest {
         // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 个组件）
         TeacherCourseComponent courseComponent = new TeacherCourseComponent(courseService, userService);
         TeacherChapterComponent chapterComponent = new TeacherChapterComponent(chapterService, enrollmentService,
-                taskService, submissionService, userService, classroomService, courseComponent);
+                taskService, submissionService, teachingClassMapper, courseComponent);
         service = new TeacherCourseServiceImpl(
                 new TeacherDashboardComponent(courseService, chapterService, enrollmentService, taskService,
                         submissionService, examPaperService, questionService, learningRecordService, aiService,
@@ -110,11 +110,11 @@ class TeacherCourseServiceImplTest {
         CourseEnrollment e1 = new CourseEnrollment();
         e1.setCourseId(1L); e1.setStudentId(11L);
         e1.setProgress(new BigDecimal("80")); e1.setFinalScore(new BigDecimal("75"));
-        e1.setApprovalStatus("APPROVED"); e1.setIsActive(Boolean.TRUE);
+        e1.setApprovalStatus("APPROVED"); e1.setIsActive(Boolean.TRUE); e1.setTeachingClassId(101L);
         CourseEnrollment e2 = new CourseEnrollment();
         e2.setCourseId(1L); e2.setStudentId(12L);
         e2.setProgress(new BigDecimal("30")); e2.setFinalScore(new BigDecimal("50"));
-        e2.setApprovalStatus("PENDING"); e2.setIsActive(Boolean.FALSE);
+        e2.setApprovalStatus("PENDING"); e2.setIsActive(Boolean.FALSE); e2.setTeachingClassId(101L);
         enrollments = List.of(e1, e2);
 
         CourseChapter c1 = new CourseChapter();
@@ -139,14 +139,14 @@ class TeacherCourseServiceImplTest {
         records = List.of(r1);
 
         User u1 = new User();
-        u1.setId(11L); u1.setUsername("stu11"); u1.setFullName("张三"); u1.setClassId(101L);
+        u1.setId(11L); u1.setUsername("stu11"); u1.setFullName("张三"); u1.setAdminClassId(101L);
         User u2 = new User();
-        u2.setId(12L); u2.setUsername("stu12"); u2.setFullName("李四"); u2.setClassId(101L);
+        u2.setId(12L); u2.setUsername("stu12"); u2.setFullName("李四"); u2.setAdminClassId(101L);
         users = List.of(u1, u2);
 
-        Classroom cr = new Classroom();
-        cr.setId(101L); cr.setName("计算机1班"); cr.setCode("C1"); cr.setDescription("周一");
-        classrooms = List.of(cr);
+        TeachingClass tc = new TeachingClass();
+        tc.setId(101L); tc.setName("计算机1班"); tc.setCode("C1"); tc.setCourseId(1L); tc.setStatus("ACTIVE");
+        teachingClasses = List.of(tc);
     }
 
     private void stubCommon() {
@@ -172,7 +172,7 @@ class TeacherCourseServiceImplTest {
         when(submissionService.dailySubmissionsByTasks(anyList(), any(java.time.LocalDateTime.class)))
                 .thenReturn(java.util.List.of());
         when(userService.list(any(Wrapper.class))).thenReturn(users);
-        when(classroomService.listByIds(anyList())).thenReturn(classrooms);
+        when(teachingClassMapper.selectList(any(Wrapper.class))).thenReturn(teachingClasses);
         when(aiService.generateLearningAdviceJson(any(), any())).thenReturn("{\"summary\":\"OK\"}");
         when(aiService.chat(any(), any(), anyLong())).thenReturn("{\"title\":\"大纲\",\"chapters\":[]}");
     }
