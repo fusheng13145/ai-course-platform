@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.entity.Course;
+import com.aicourse.entity.TeachingClass;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.QuestionMapper;
@@ -44,6 +45,15 @@ class CourseServiceImplTest {
     @Mock
     private QuestionMapper questionMapper;
 
+    @Mock
+    private com.aicourse.service.CourseDefinitionService definitionService;
+
+    @Mock
+    private com.aicourse.service.UserService userService;
+
+    @Mock
+    private com.aicourse.service.SemesterService semesterService;
+
     private CourseServiceImpl service;
 
     @BeforeEach
@@ -51,8 +61,7 @@ class CourseServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), Course.class);
         service = new CourseServiceImpl(new CourseDefaultTeachingClassSync(teachingClassMapper),
-                org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class),
-                questionMapper);
+                semesterService, questionMapper, definitionService, userService);
         ReflectionTestUtils.setField(service, "baseMapper", courseMapper);
     }
 
@@ -106,6 +115,30 @@ class CourseServiceImplTest {
     }
 
     @Test
+    @DisplayName("completeCourse 结课写入时间并关闭教学班")
+    void completeCourse_closesClasses() {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(7L);
+        course.setDefinitionId(10L);
+        course.setStatus("ACTIVE");
+        TeachingClass section = new TeachingClass();
+        section.setId(9L);
+        section.setCourseId(1L);
+        section.setStatus("ACTIVE");
+        when(courseMapper.selectById(any(Serializable.class))).thenReturn(course);
+        when(courseMapper.updateById(any(Course.class))).thenReturn(1);
+        when(teachingClassMapper.selectList(any())).thenReturn(List.of(section));
+
+        Course result = service.completeCourse(1L, 7L, false);
+
+        assertEquals("INACTIVE", result.getStatus());
+        assertFalse(result.getIsActive());
+        assertNotNull(result.getCompletedAt());
+        assertEquals("CLOSED", section.getStatus());
+    }
+
+    @Test
     @DisplayName("removeById 成功返回 true")
     void removeById_ok() {
         when(courseMapper.deleteById(any(Serializable.class))).thenReturn(1);
@@ -123,10 +156,34 @@ class CourseServiceImplTest {
     @Test
     @DisplayName("createCourse 设置 teacherId 并保存")
     void createCourse_ok() {
-        Course c = new Course();
+        com.aicourse.entity.User teacher = new com.aicourse.entity.User();
+        teacher.setId(7L);
+        teacher.setRole("TEACHER");
+        when(userService.getById(7L)).thenReturn(teacher);
+
+        com.aicourse.entity.CourseDefinition definition = new com.aicourse.entity.CourseDefinition();
+        definition.setId(10L);
+        definition.setCode("CS101");
+        definition.setName("计算机导论");
+        definition.setCredits(java.math.BigDecimal.valueOf(3));
+        when(definitionService.resolveFromCourse(any(), eq(7L))).thenReturn(10L);
+        when(definitionService.requireActive(10L)).thenReturn(definition);
+
+        com.aicourse.entity.Semester semester = new com.aicourse.entity.Semester();
+        semester.setId(3L);
+        semester.setName("2026-2027-1");
+        semester.setStartDate(java.time.LocalDate.of(2026, 9, 1));
+        semester.setEndDate(java.time.LocalDate.of(2027, 1, 15));
+        when(semesterService.listByStatus("ACTIVE")).thenReturn(List.of(semester));
+        when(semesterService.getById(3L)).thenReturn(semester);
+        when(courseMapper.selectCount(any())).thenReturn(0L);
         when(courseMapper.insert(any(Course.class))).thenReturn(1);
+
+        Course c = new Course();
+        c.setSemesterId(3L);
         Course r = service.createCourse(c, 7L);
         assertEquals(7L, r.getTeacherId());
+        assertEquals(10L, r.getDefinitionId());
         verify(courseMapper).insert(any(Course.class));
     }
 

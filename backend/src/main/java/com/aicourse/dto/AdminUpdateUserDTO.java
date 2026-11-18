@@ -59,4 +59,8 @@ public class AdminUpdateUserDTO {
     @Schema(description = "学院ID（院系管理员只能为本院）", example = "1")
     private Long collegeId;
 
+    /** 行政班ID；传 0 表示移出行政班 */
+    @Schema(description = "行政班ID（0 表示未分班）", example = "12")
+    private Long adminClassId;
+
 }

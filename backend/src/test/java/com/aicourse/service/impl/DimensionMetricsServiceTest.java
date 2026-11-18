@@ -31,7 +31,7 @@ class DimensionMetricsServiceTest {
     void setUp() {
         when(metricsMapper.courseSubmissions())
                 .thenReturn(List.of(Map.of("course", "CS101", "course_name", "计算机网络", "val", 5L)));
-        when(metricsMapper.classroomStudents())
+        when(metricsMapper.adminClassStudents())
                 .thenReturn(List.of(Map.of("class", "C1", "class_name", "计科2301", "val", 46L)));
         service = new DimensionMetricsService(registry, metricsMapper);
     }

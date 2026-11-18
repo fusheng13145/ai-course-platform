@@ -9,9 +9,11 @@ import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseApprovalRecord;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.CourseDefinition;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseApprovalService;
+import com.aicourse.service.CourseDefinitionService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.vo.CourseStatsVO;
@@ -42,13 +44,17 @@ public class CourseController {
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
     private final CourseApprovalService courseApprovalService;
+    private final CourseDefinitionService definitionService;
     private final AdminScopeGuard adminScopeGuard;
 
     public CourseController(CourseService courseService, CourseEnrollmentService enrollmentService,
-                            CourseApprovalService courseApprovalService, AdminScopeGuard adminScopeGuard) {
+                            CourseApprovalService courseApprovalService,
+                            CourseDefinitionService definitionService,
+                            AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
         this.courseApprovalService = courseApprovalService;
+        this.definitionService = definitionService;
         this.adminScopeGuard = adminScopeGuard;
     }
 
@@ -63,10 +69,14 @@ public class CourseController {
             @Parameter(description = "搜索关键词（匹配课程名称）") @RequestParam(required = false) String keyword,
             @Parameter(description = "课程状态筛选") @RequestParam(required = false) String status,
             @Parameter(description = "审批状态筛选（PENDING 即审批队列）") @RequestParam(required = false) String approvalStatus,
-            @Parameter(description = "学院ID筛选（院系管理员只能查本院）") @RequestParam(required = false) Long collegeId) {
+            @Parameter(description = "学院ID筛选（院系管理员只能查本院）") @RequestParam(required = false) Long collegeId,
+            @Parameter(description = "课程库定义ID筛选") @RequestParam(required = false) Long definitionId,
+            @Parameter(description = "学期ID筛选") @RequestParam(required = false) Long semesterId) {
         LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
                 .eq(status != null, Course::getStatus, status)
                 .eq(approvalStatus != null, Course::getApprovalStatus, approvalStatus)
+                .eq(definitionId != null, Course::getDefinitionId, definitionId)
+                .eq(semesterId != null, Course::getSemesterId, semesterId)
                 .like(keyword != null, Course::getName, keyword)
                 .orderByDesc(Course::getCreatedAt);
         applyCollegeFilter(queryWrapper, collegeId);
@@ -86,19 +96,35 @@ public class CourseController {
     }
 
     /**
-     * 新增课程（教师权限；WP9 管理员只读矩阵——管理员对教学写面 403）
+     * 新增开课任务（教师/管理员；V28 三层模型）。
+     * 教师：授课教师固定为本人；管理员：必须显式指定 teacherId，可代建。
      */
     @PostMapping
-    @PreAuthorize("hasRole('TEACHER')")
-    @Operation(summary = "创建新课程", description = "教师创建新课程，自动关联当前登录用户为授课教师")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "创建开课任务",
+            description = "引用课程库定义，指定学期、授课教师与计划教学班数；提交后进入审批")
     public ApiResponse<Course> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
-            description = "课程信息"
+            description = "开课任务信息；至少包含 definitionId、semesterId、teacherId（管理员）"
     ) @Valid @RequestBody Course course, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        // 学院按负责人回填（客户端传入的 collegeId 被覆盖），创建后追加 SUBMIT 流水
-        courseApprovalService.applyOwnerCollege(course, userId);
-        // 绑定授课教师与落库下沉至服务层（事务化）
-        Course saved = courseService.createCourse(course, userId);
+        boolean admin = auth.getAuthorities().stream()
+                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
+        Long teacherId = admin ? course.getTeacherId() : userId;
+        if (teacherId == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "管理员代建时必须指定授课教师");
+        }
+        if (admin && course.getDefinitionId() != null) {
+            // 院系管理员只能在自己学院的课程库下代建；服务层会再次校验教师学院。
+            var definition = definitionService.getById(course.getDefinitionId());
+            if (definition != null) {
+                adminScopeGuard.assertCollegeAccess(definition.getCollegeId());
+            }
+        }
+        // 旧入口（无 definitionId）仍由服务层生成兼容课程定义。
+        if (!admin) {
+            courseApprovalService.applyOwnerCollege(course, userId);
+        }
+        Course saved = courseService.createCourse(course, teacherId);
         courseApprovalService.recordSubmission(saved.getId(), userId);
         return ApiResponse.success("创建成功", saved);
     }
@@ -125,6 +151,21 @@ public class CourseController {
         // 存在性校验/权限校验/更新落库下沉至服务层（事务化）
         Course updatedCourse = courseService.updateCourse(id, course, userId, isAdmin);
         return ApiResponse.success("更新成功", updatedCourse);
+    }
+
+    /**
+     * 结课归档（课程负责人或管理员；结课后教学班关闭，选课入口关闭）
+     */
+    @PostMapping("/{id}/complete")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "结课归档", description = "写入结课时间，关闭课程及其教学班")
+    public ApiResponse<Course> complete(@Parameter(description = "课程ID") @PathVariable Long id,
+                                        Authentication auth) {
+        assertCourseOwner(id, auth);
+        Long operatorId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
+        return ApiResponse.success("已结课", courseService.completeCourse(id, operatorId, isAdmin));
     }
 
     /**

@@ -65,7 +65,9 @@ class CourseServiceImplCacheEvictionTest {
             CourseServiceImpl service = new CourseServiceImpl(
                     new com.aicourse.service.component.org.CourseDefaultTeachingClassSync(teachingClassMapper),
                     org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class),
-                    questionMapper);
+                    questionMapper,
+                    org.mockito.Mockito.mock(com.aicourse.service.CourseDefinitionService.class),
+                    org.mockito.Mockito.mock(com.aicourse.service.UserService.class));
             ReflectionTestUtils.setField(service, "baseMapper", courseMapper);
             return service;
         }

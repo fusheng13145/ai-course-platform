@@ -46,6 +46,8 @@ class CourseControllerPaginationBoundaryTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.CourseApprovalService courseApprovalService;
     @MockitoBean
+    private com.aicourse.service.CourseDefinitionService courseDefinitionService;
+    @MockitoBean
     private UserService userService;
 
     @ParameterizedTest(name = "page={0} size={1} -> current={2} size={3}")

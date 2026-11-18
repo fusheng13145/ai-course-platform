@@ -3,11 +3,16 @@ import com.aicourse.service.component.analytics.CourseAnalyticsComponent;
 import com.aicourse.service.component.analytics.TeachingAnalyticsComponent;
 
 import com.aicourse.entity.Course;
+import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Task;
 import com.aicourse.entity.User;
+import com.aicourse.mapper.AdminClassMapper;
+import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.ExamPaperService;
+import com.aicourse.service.ExamSessionService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.UserService;
@@ -51,8 +56,30 @@ class TeachingAnalyticsComponentFullTest {
     @Mock private SubmissionService submissionService;
     @Mock private UserService userService;
     @Mock private CourseAnalyticsComponent courseAnalytics;
+    @Mock private AdminClassMapper adminClassMapper;
+    @Mock private TeachingClassMapper teachingClassMapper;
+    @Mock private ExamPaperService examPaperService;
+    @Mock private ExamSessionService examSessionService;
 
     @InjectMocks private TeachingAnalyticsComponent teachingAnalytics;
+
+    @BeforeEach
+    void stubAdminClasses() {
+        AdminClass one = new AdminClass();
+        one.setId(1L);
+        one.setName("1班");
+        AdminClass two = new AdminClass();
+        two.setId(2L);
+        two.setName("2班");
+        AdminClass three = new AdminClass();
+        three.setId(3L);
+        three.setName("3班");
+        lenient().when(adminClassMapper.selectById(anyLong()))
+                .thenAnswer(inv -> {
+                    long id = inv.getArgument(0);
+                    return id == 1L ? one : id == 2L ? two : id == 3L ? three : null;
+                });
+    }
 
     private CourseEnrollment enr(long courseId, long studentId, BigDecimal progress, BigDecimal score) {
         CourseEnrollment e = new CourseEnrollment();
@@ -69,7 +96,7 @@ class TeachingAnalyticsComponentFullTest {
         u.setFullName("用户" + id);
         u.setDepartment(department);
         u.setMajor(major);
-        u.setClassName(className);
+        u.setAdminClassId(className == null ? null : Long.valueOf(className.replace("班", "")));
         return u;
     }
 

@@ -52,12 +52,36 @@ public interface CourseEnrollmentService extends IService<CourseEnrollment> {
     void enrollStudent(Long studentId, Long courseId, Long teachingClassId);
 
     /**
-     * 软退课（/enrollments/{id} 接口业务下沉）：校验报名记录归属后置 isActive=false。
+     * 学生软退课（/enrollments/{id} 与 /student/courses/{courseId}/enroll 共用）：
+     * 校验报名记录归属，把状态推进到 CANCELLED 并置 isActive=false。
      *
      * @param id     报名记录ID
-     * @param userId 操作人ID
+     * @param userId 操作人ID（必须是该记录的学生本人）
      */
     void unenroll(Long id, Long userId);
+
+    /**
+     * 取消已通过选课（学生 / 教师 / 管理员共用）。
+     *
+     * <p>只允许 PENDING / APPROVED 的有效记录；取消后 approvalStatus=CANCELLED、
+     * isActive=false，并记录操作人、时间与原因。重复取消、已结课、已驳回均拒绝。</p>
+     *
+     * @param id         报名记录ID
+     * @param operatorId 操作人ID
+     * @param reason     取消原因（2–200 字符）
+     * @return 取消后的记录
+     */
+    CourseEnrollment cancelEnrollment(Long id, Long operatorId, String reason);
+
+    /**
+     * 学生按课程取消（/student/courses/{courseId}/enroll 业务下沉）。
+     *
+     * @param studentId 学生ID
+     * @param courseId  课程ID
+     * @param reason    取消原因
+     * @return 取消后的记录
+     */
+    CourseEnrollment cancelByCourse(Long studentId, Long courseId, String reason);
 
     /**
      * 判断学生是否为课程**有效成员**（选课有效 is_active=1 且审批通过 approval_status=APPROVED）。

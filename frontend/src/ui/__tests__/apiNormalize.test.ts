@@ -169,4 +169,25 @@ describe('课程详情与通知归一', () => {
     expect(rows[4]).toMatchObject({ id: 'demo-4', title: '通知', content: 'E' })
     expect(api.getNotificationList).toHaveBeenCalledWith({ page: 1, size: 20 })
   })
+
+  it('事件码翻中文，公告通知带出 announcementId 供课程页去重', async () => {
+    api.getNotificationList.mockResolvedValue(
+      envelope({
+        records: [
+          {
+            id: 1,
+            title: '收到新的讨论回复',
+            type: 'DISCUSSION_REPLIED',
+            category: 'DISCUSSION',
+            data: '{"announcementId":7}',
+          },
+        ],
+      }),
+    )
+
+    const [row] = await loadNotifications()
+    expect(row!.kind).toBe('讨论回复')
+    expect(row!.type).toBe('DISCUSSION_REPLIED')
+    expect(row!.announcementId).toBe(7)
+  })
 })

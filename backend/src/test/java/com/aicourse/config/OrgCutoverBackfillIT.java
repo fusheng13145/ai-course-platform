@@ -16,7 +16,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,8 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ol>
  *   <li>四类活动记录的 {@code teaching_class_id} 快照列存在（回填口径为 0 空值，空库下即列存在）；</li>
  *   <li>{@code announcements} 表就位（WP8）；</li>
- *   <li>{@code courses.semester_id} NOT NULL 且 {@code uk_courses_semester_code} 生效、
- *       旧 {@code uk_courses_code} 移除；同学期同编号被拒、跨学期同编号放行（4A 行为断言）；</li>
+ *   <li>{@code courses.semester_id} NOT NULL 且 {@code uk_courses_semester_definition} 生效、
+ *       旧 {@code uk_courses_code} / {@code uk_courses_semester_code} 移除；
+ *       同学期同课程定义被拒、跨学期同课程定义放行（V28 行为断言）；</li>
  *   <li>{@code course_enrollments.teaching_class_id} 收紧为 NOT NULL；</li>
  *   <li>重复 migrate 不再执行新版本（幂等）。</li>
  * </ol>
@@ -78,32 +78,32 @@ class OrgCutoverBackfillIT {
                     "courses.semester_id 应回填后收紧为 NOT NULL");
             assertEquals("NO", columnNullable(connection, "course_enrollments", "teaching_class_id"),
                     "course_enrollments.teaching_class_id 应回填后收紧为 NOT NULL");
-            // 3) 4A：唯一键切换
+            // 3) V28：唯一键切换为学期内课程定义
             assertEquals(0, indexCount(connection, "courses", "uk_courses_code"),
                     "全库唯一 uk_courses_code 必须移除");
-            assertEquals(1, indexCount(connection, "courses", "uk_courses_semester_code"),
-                    "学期内唯一键必须就位");
+            assertEquals(0, indexCount(connection, "courses", "uk_courses_semester_code"),
+                    "旧学期内编号唯一键必须移除");
+            assertEquals(1, indexCount(connection, "courses", "uk_courses_semester_definition"),
+                    "学期内课程定义唯一键必须就位");
 
-            // 4A 行为断言：同学期同编号被拒；跨学期同编号放行
+            // 行为断言：同学期同定义被拒；跨学期同定义放行；同学期不同定义放行
             try (Statement statement = connection.createStatement()) {
                 // 不写死学期名/id：V14 已种下 '2025-2026-2' 与 '2026-2027-1'，
                 // 再插同名会撞 uk_semesters_name（CI #244 实测 Duplicate entry '2025-2026-2'）；
                 // 自增 id 也不保证从 1 起。改为造两个本次专属学期并取回真实 id。
                 long spring = insertSemester(statement, "IT-SPRING-" + System.nanoTime(), "2025-09-01", "2026-01-31");
                 long autumn = insertSemester(statement, "IT-AUTUMN-" + System.nanoTime(), "2026-02-23", "2026-07-05");
-                statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
-                        + "max_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络', 'CS101', " + spring + ", 1, 50, 'ACTIVE', 1, '2025-09-10 00:00:00')");
-                // 跨学期同编号：放行
-                statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
-                        + "max_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络（春）', 'CS101', " + autumn + ", 1, 50, 'ACTIVE', 1, '2026-03-01 00:00:00')");
-                // 同学期同编号：唯一键拒绝
-                assertThrows(SQLException.class, () -> statement.execute(
-                        "INSERT INTO courses (name, code, semester_id, teacher_id, "
-                                + "max_students, status, is_active, created_at) VALUES "
-                                + "('重复编号', 'CS101', " + spring + ", 1, 50, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
-                        "同学期内重复编号必须被 uk_courses_semester_code 拒绝");
+                long courseDefinition = insertDefinition(statement, "IT-DEF-" + System.nanoTime());
+                long otherDefinition = insertDefinition(statement, "IT-DEF-OTHER-" + System.nanoTime());
+                insertCourse(statement, "计算机网络", "CS101", spring, courseDefinition, "2025-09-10 00:00:00");
+                // 跨学期同定义：放行
+                insertCourse(statement, "计算机网络（春）", "CS101", autumn, courseDefinition, "2026-03-01 00:00:00");
+                // 同学期不同定义：放行
+                insertCourse(statement, "计算机网络（并行班）", "CS102", spring, otherDefinition, "2025-09-11 00:00:00");
+                // 同学期同定义：唯一键拒绝
+                assertThrows(SQLException.class, () -> insertCourse(
+                        statement, "重复开课", "CS101", spring, courseDefinition, "2025-10-01 00:00:00"),
+                        "同一学期同一课程定义必须被 uk_courses_semester_definition 拒绝");
             }
 
             // 5) 幂等：再次 migrate 无新版本
@@ -152,6 +152,25 @@ class OrgCutoverBackfillIT {
             assertTrue(keys.next(), "插入学期后应能取回自增 id");
             return keys.getLong(1);
         }
+    }
+
+    /** 造一个本次专属课程定义并取回自增 id。 */
+    private static long insertDefinition(Statement statement, String code) throws SQLException {
+        statement.executeUpdate("INSERT INTO course_definitions (code, name, status) VALUES "
+                + "('" + code + "', 'IT 课程定义', 'ACTIVE')",
+                Statement.RETURN_GENERATED_KEYS);
+        try (ResultSet keys = statement.getGeneratedKeys()) {
+            assertTrue(keys.next(), "插入课程定义后应能取回自增 id");
+            return keys.getLong(1);
+        }
+    }
+
+    private static void insertCourse(Statement statement, String name, String code, long semesterId,
+                                     long definitionId, String createdAt) throws SQLException {
+        statement.execute("INSERT INTO courses (name, code, semester_id, definition_id, teacher_id, "
+                + "max_students, status, is_active, created_at) VALUES "
+                + "('" + name + "', '" + code + "', " + semesterId + ", " + definitionId
+                + ", 1, 50, 'ACTIVE', 1, '" + createdAt + "')");
     }
 
     private static int indexCount(Connection connection, String table, String indexName) throws SQLException {

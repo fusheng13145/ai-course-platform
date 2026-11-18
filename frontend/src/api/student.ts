@@ -15,8 +15,20 @@ export const getCourseDetail = (courseId: number | string): Promise<ApiEnvelope<
 /**
  * 导出函数 enrollCourse：业务逻辑处理
  */
-export const enrollCourse = (courseId: number | string): Promise<ApiEnvelope<ApiData>> =>
-  request.post(`/student/courses/${courseId}/enroll`) as Promise<ApiEnvelope<ApiData>>
+export const enrollCourse = (
+  courseId: number | string,
+  teachingClassId?: number | string,
+): Promise<ApiEnvelope<ApiData>> =>
+  teachingClassId
+    ? (request.post(`/student/courses/${courseId}/enroll`, null, {
+        params: { teachingClassId },
+      }) as Promise<ApiEnvelope<ApiData>>)
+    : (request.post(`/student/courses/${courseId}/enroll`) as Promise<ApiEnvelope<ApiData>>)
+/** 加入课程前可选的教学班 */
+export const getAvailableTeachingClasses = (
+  courseId: number | string,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/student/courses/${courseId}/teaching-classes`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 unenrollCourse：业务逻辑处理
  */
@@ -155,6 +167,7 @@ export default {
   getAllMyCourses,
   getCourseDetail,
   enrollCourse,
+  getAvailableTeachingClasses,
   unenrollCourse,
   getPendingAssignments,
   getCompletedAssignments,

@@ -23,6 +23,14 @@
           <button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadSemesters()">
             {{ loading ? '刷新中…' : '刷新' }}
           </button>
+          <button
+            v-if="expiredCount > 0"
+            class="btn btn-sm btn-ghost"
+            :disabled="archivingExpired"
+            @click="openArchiveExpired"
+          >
+            归档过期 {{ expiredCount }}
+          </button>
           <button class="btn btn-sm btn-primary" @click="openCreate">新建学期</button>
         </div>
       </header>
@@ -112,6 +120,32 @@
       </template>
     </Modal>
 
+    <Modal
+      v-model:open="archiveExpiredOpen"
+      title="归档过期学期"
+      width="460px"
+      :close-on-backdrop="false"
+    >
+      <p class="modal-text">
+        将归档 <b>{{ expiredCount }}</b> 个已结束且仍在册的学期。
+      </p>
+      <p v-if="archiveExpiredError" class="form-error" role="alert">
+        {{ archiveExpiredError }}
+      </p>
+      <template #footer>
+        <button
+          class="btn btn-ghost"
+          :disabled="archivingExpired"
+          @click="archiveExpiredOpen = false"
+        >
+          取消
+        </button>
+        <button class="btn btn-danger" :disabled="archivingExpired" @click="confirmArchiveExpired">
+          {{ archivingExpired ? '归档中…' : '确定归档' }}
+        </button>
+      </template>
+    </Modal>
+
     <Modal v-model:open="archiveOpen" title="归档学期" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         确定归档学期 <b>{{ archiveTarget?.name || '该学期' }}</b> 吗？
@@ -135,7 +169,7 @@ import Modal from '../../components/Modal.vue'
 import Stat from '../../components/Stat.vue'
 import { useUi } from '../../composables/ui'
 import { useListFeedback } from '@/composables/useListFeedback'
-import { archiveSemester, createSemester, getSemesters } from '@/api/admin'
+import { archiveExpiredSemesters, archiveSemester, createSemester, getSemesters } from '@/api/admin'
 import { pickList, unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
 
@@ -163,6 +197,10 @@ const archiving = ref(false)
 const archivingId = ref<SemesterRow['id'] | null>(null)
 const archiveError = ref('')
 
+const archiveExpiredOpen = ref(false)
+const archivingExpired = ref(false)
+const archiveExpiredError = ref('')
+
 const { loading, listError, run, emptyDescription } = useListFeedback({
   failMessage: '学期列表加载失败，请稍后重试。',
   toastMessage: '学期列表加载失败',
@@ -177,6 +215,17 @@ const activeCount = computed(
 const archivedCount = computed(
   () => semesters.value.filter((row) => statusOf(row) === 'ARCHIVED').length,
 )
+const expiredCount = computed(() => {
+  const now = new Date()
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+  return semesters.value.filter(
+    (row) => statusOf(row) === 'ACTIVE' && String(row.endDate || '') < today,
+  ).length
+})
 
 const metrics = computed<Metric[]>(() => [
   {
@@ -304,6 +353,27 @@ async function confirmArchive() {
   } finally {
     archiving.value = false
     archivingId.value = null
+  }
+}
+
+function openArchiveExpired() {
+  archiveExpiredError.value = ''
+  archiveExpiredOpen.value = true
+}
+
+async function confirmArchiveExpired() {
+  if (archivingExpired.value) return
+  archivingExpired.value = true
+  archiveExpiredError.value = ''
+  try {
+    await archiveExpiredSemesters()
+    archiveExpiredOpen.value = false
+    toast('过期学期已归档', 'ok')
+    await loadSemesters()
+  } catch (error) {
+    archiveExpiredError.value = errorText(error, '批量归档失败，请稍后重试')
+  } finally {
+    archivingExpired.value = false
   }
 }
 

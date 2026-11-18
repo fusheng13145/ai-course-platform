@@ -285,8 +285,8 @@ public class TeachingAnalyticsComponent {
      * 复用电课程教学服务的预警判定，并按维度下钻聚合。
      */
     public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId,
-                                              String department, String major, Long classId) {
-        return getAtRiskStudents(groupBy, courseId, department, major, classId, null);
+                                              String department, String major, Long adminClassId) {
+        return getAtRiskStudents(groupBy, courseId, department, major, adminClassId, null);
     }
 
     /**
@@ -294,7 +294,7 @@ public class TeachingAnalyticsComponent {
      * @param collegeId 学院ID；null 表示校级
      */
     public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId,
-                                              String department, String major, Long classId,
+                                              String department, String major, Long adminClassId,
                                               Long collegeId) {
         String dim = (groupBy == null || groupBy.isBlank()) ? "school" : groupBy.toLowerCase();
         // 1) 选课集合
@@ -322,8 +322,8 @@ public class TeachingAnalyticsComponent {
             all = enrollmentService.list();
         }
         // 2) 按院系/专业/班级过滤（经 users 映射）
-        if (department != null || major != null || classId != null) {
-            Set<Long> allowed = studentIdSetByProfile(department, major, classId);
+        if (department != null || major != null || adminClassId != null) {
+            Set<Long> allowed = studentIdSetByProfile(department, major, adminClassId);
             all = all.stream().filter(e -> allowed.contains(e.getStudentId())).collect(Collectors.toList());
         }
         int total = all.size();
@@ -361,7 +361,7 @@ public class TeachingAnalyticsComponent {
                     d.put("department", u.getDepartment());
                     d.put("major", u.getMajor());
                     d.put("grade", u.getGrade());
-                    d.put("className", u.getClassName());
+                    d.put("className", adminClassName(u.getAdminClassId()));
                 }
                 details.add(d);
             }
@@ -398,11 +398,11 @@ public class TeachingAnalyticsComponent {
         return result;
     }
 
-    private Set<Long> studentIdSetByProfile(String department, String major, Long classId) {
+    private Set<Long> studentIdSetByProfile(String department, String major, Long adminClassId) {
         LambdaQueryWrapper<User> qw = new LambdaQueryWrapper<>();
         if (department != null) qw.eq(User::getDepartment, department);
         if (major != null) qw.eq(User::getMajor, major);
-        if (classId != null) qw.eq(User::getClassId, classId);
+        if (adminClassId != null) qw.eq(User::getAdminClassId, adminClassId);
         return userService.list(qw).stream().map(User::getId).collect(Collectors.toSet());
     }
 
@@ -417,6 +417,11 @@ public class TeachingAnalyticsComponent {
                 .collect(Collectors.toMap(Course::getId, c -> c.getName() != null ? c.getName() : "", (a, b) -> a));
     }
 
+    private String adminClassName(Long adminClassId) {
+        AdminClass adminClass = adminClassId == null ? null : adminClassMapper.selectById(adminClassId);
+        return adminClass != null ? adminClass.getName() : null;
+    }
+
     private String groupKey(String dim, CourseEnrollment e, User u, Map<Long, String> courseNameMap) {
         switch (dim) {
             case "course":
@@ -426,13 +431,12 @@ public class TeachingAnalyticsComponent {
             case "major":
                 return u != null && u.getMajor() != null ? u.getMajor() : "未知专业";
             case "class":
-                return u != null && u.getClassName() != null ? u.getClassName() : "未知班级";
             case "adminClass": {
                 // WP9：行政班分组（V14 回填的 users.admin_class_id；未回填/未归属 → 未知班级）
                 Long adminClassId = u != null ? u.getAdminClassId() : null;
-                if (adminClassId == null) return "未知班级";
+                if (adminClassId == null) return "未知行政班";
                 com.aicourse.entity.AdminClass adminClass = adminClassMapper.selectById(adminClassId);
-                return adminClass != null && adminClass.getName() != null ? adminClass.getName() : "未知班级";
+                return adminClass != null && adminClass.getName() != null ? adminClass.getName() : "未知行政班";
             }
             case "teachingClass": {
                 // WP9：教学班分组（选课记录上的 teaching_class_id 快照口径）

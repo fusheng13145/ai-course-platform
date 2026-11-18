@@ -55,10 +55,8 @@ public class User {
 
     private String grade;
 
-    private Long classId;
-
     /* ---- 组织归属（V12 / B-12-P-08 WP1）----
-       过渡期与 class_id 并存：V12 只加可空列，V16 才收紧并清理旧列。 */
+       行政班唯一来源为 admin_classes；V29 已退役旧 classrooms / users.class_id。 */
 
     /** 学校ID（V12，过渡期可空） */
     private Long schoolId;
@@ -69,7 +67,7 @@ public class User {
     /** 专业ID（V12，过渡期可空） */
     private Long majorId;
 
-    /** 行政班ID（V12 目标列，过渡期保留 class_id） */
+    /** 行政班ID（唯一来源：admin_classes；V29 已删除旧 class_id 列） */
     private Long adminClassId;
 
     /** 管理员作用域 SCHOOL/COLLEGE，仅 ADMIN 使用（V12） */
@@ -119,9 +117,5 @@ public class User {
     /** 自动填充更新时间 */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
-
-    /** 非数据库字段 */
-    @TableField(exist = false)
-    private String className;
 
 }
