@@ -457,7 +457,7 @@
 
 | 编号 | 任务 | 优先 | 阶段 | 状态 |
 | --- | --- | --- | --- | --- |
-| D5-1 | 后端大控制器拆分（原 6 个 >450 行） | 中 | 二 | ◐（已拆 ExamPaper / SystemAdmin / Teacher / Knowledge / AI 五刀；余 Resource 536 / Question 524） |
+| D5-1 | 后端大控制器拆分（原 6 个 >450 行） | 中 | 二 | ✅（已拆 ExamPaper / SystemAdmin / Teacher / Knowledge / AI / Resource / Question 七刀；当前无 >450 行控制器，最大 `UserController` 425 行） |
 | D5-2 | 前端超大文件拆分（Top10） | 中 | 二 | ✅（6 个巨型 composable 全拆） |
 | D5-3 | CORS 口径收敛 | 中 | 二 | 🟡（dev-fallback 已显式；prod 耦合仍在） |
 | D5-4 | 前端 strict 全量迁移 | 中 | 三 | ✅（2026-11-07 债务清理批：strict 存量 327 错清零，`tsconfig strict:true` 已开启；原 2774/257 口径与 AG-7 随之作废） |

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,13 +29,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * ResourceController 资源列表端点 ACL 否定场景回归测试（DR-16）。
+ * 资源域三控制器列表/上传端点 ACL 否定场景回归测试（DR-16）。
  *
  * <p>既有的 {@link ResourceControllerTest} 使用三角色合一用户（含 ADMIN），
  * {@code canAccessCourse} 恒真，无法暴露越权。本类改用单一角色用户，专测否定路径：
  * 学生未报名 / 教师非本课程 / 匿名 / 学生无 courseId 跨课程搜索 均须被拒。</p>
  */
-@WebMvcTest(ResourceController.class)
+@WebMvcTest({ResourceController.class, ResourceUploadController.class, ResourceMutationController.class})
+@Import(com.aicourse.security.ResourceAccessSupport.class)
 class ResourceEndpointAclTest extends ControllerTestBase {
 
     @MockitoBean

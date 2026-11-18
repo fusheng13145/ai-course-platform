@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,7 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 此处聚焦分页参数：current≤0 兜底为 1，size 原样透传（无上限，风险项）。详见
  * {@link CourseControllerPaginationBoundaryTest} 类注释。</p>
  */
-@WebMvcTest(QuestionController.class)
+@WebMvcTest({QuestionController.class, QuestionCommandController.class, QuestionAiController.class})
+@Import(com.aicourse.security.QuestionAccessSupport.class)
 class QuestionControllerPaginationBoundaryTest extends ControllerTestBase {
 
     @MockitoBean
