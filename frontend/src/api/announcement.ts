@@ -15,6 +15,14 @@ export const listMyAnnouncements = (
 ): Promise<ApiEnvelope<ApiData>> =>
   request.get('/announcements', { params }) as Promise<ApiEnvelope<ApiData>>
 
+/** 管理端按课程读取公告（管理员课程页「通知公告」页签的数据源）。 */
+export const listCourseAnnouncementsForAdmin = (
+  courseId: number | string,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/announcements/admin/all', {
+    params: { page: 1, size: 100, courseId },
+  }) as Promise<ApiEnvelope<ApiData>>
+
 /** 教师向课程发布公告（扇出为站内通知；权限：课程管理.assertCanManageCourse）。 */
 export const publishCourseAnnouncement = (
   courseId: number | string,
@@ -24,5 +32,6 @@ export const publishCourseAnnouncement = (
 
 export default {
   listMyAnnouncements,
+  listCourseAnnouncementsForAdmin,
   publishCourseAnnouncement,
 }

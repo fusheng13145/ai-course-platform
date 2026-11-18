@@ -33,6 +33,8 @@ class CommonControllerTest extends ControllerTestBase {
     /** 10A 当前学期端点（/common/semester/active）注入的学期服务 */
     @MockitoBean
     private com.aicourse.service.SemesterService semesterService;
+    @MockitoBean
+    private com.aicourse.service.UserService userService;
 
     // ==================== 验证码 ====================
 

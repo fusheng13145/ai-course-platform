@@ -26,6 +26,14 @@ export const approveEnrollment = (id: number | string): Promise<ApiEnvelope<ApiD
 export const rejectEnrollment = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.post(`/enrollments/${id}/reject`) as Promise<ApiEnvelope<ApiData>>
 /**
+ * 取消已通过/待审批选课（教师、管理员、学生本人均可，必须带原因）。
+ */
+export const cancelEnrollment = (
+  id: number | string,
+  reason: string,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/enrollments/${id}/cancel`, { reason }) as Promise<ApiEnvelope<ApiData>>
+/**
  * 默认导出对象：模块/组件配置与导出内容
  */
 export default {
@@ -34,4 +42,5 @@ export default {
   getMyEnrollments,
   approveEnrollment,
   rejectEnrollment,
+  cancelEnrollment,
 }

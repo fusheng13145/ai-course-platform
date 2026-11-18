@@ -99,11 +99,13 @@ public class AnnouncementController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<IPage<Announcement>> listAll(@RequestParam(defaultValue = "1") long page,
                                                     @RequestParam(defaultValue = "10") long size,
+                                                    @RequestParam(required = false) Long courseId,
                                                     @RequestParam(required = false) String targetType,
                                                     @RequestParam(required = false) String keyword) {
         // targetType 过滤语义：course/teachingClass/adminClass 分别要求对应目标列非空（无 SCHOOL 全校目标，受众模型只有三型）
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Announcement> wrapper =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Announcement>()
+                        .eq(courseId != null, Announcement::getCourseId, courseId)
                         .isNotNull("course".equals(targetType), Announcement::getCourseId)
                         .isNotNull("teachingClass".equals(targetType), Announcement::getTeachingClassId)
                         .isNotNull("adminClass".equals(targetType), Announcement::getAdminClassId)

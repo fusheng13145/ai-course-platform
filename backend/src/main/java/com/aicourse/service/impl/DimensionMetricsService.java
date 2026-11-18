@@ -46,11 +46,11 @@ public class DimensionMetricsService {
     private final GaugeDimension courseQuestions = new GaugeDimension("aicourse_course_questions", "每门课程题库题目数");
     private final GaugeDimension courseExams = new GaugeDimension("aicourse_course_exams", "每门课程试卷数");
 
-    // ===================== 班级维度（tag: class=班级编号, class_name=班级名）=====================
-    private final GaugeDimension classStudents = new GaugeDimension("aicourse_classroom_students", "每个班级学生总数");
-    private final GaugeDimension classEnrollments = new GaugeDimension("aicourse_classroom_enrollments", "每个班级已审批选课人次");
-    private final GaugeDimension classSubmissions = new GaugeDimension("aicourse_classroom_submissions", "每个班级作业提交总数");
-    private final GaugeDimension classPending = new GaugeDimension("aicourse_classroom_pending_submissions", "每个班级待批改作业数");
+    // ===================== 行政班维度（tag: class=行政班编号, class_name=行政班名）=====================
+    private final GaugeDimension classStudents = new GaugeDimension("aicourse_classroom_students", "每个行政班学生总数");
+    private final GaugeDimension classEnrollments = new GaugeDimension("aicourse_classroom_enrollments", "每个行政班已审批选课人次");
+    private final GaugeDimension classSubmissions = new GaugeDimension("aicourse_classroom_submissions", "每个行政班作业提交总数");
+    private final GaugeDimension classPending = new GaugeDimension("aicourse_classroom_pending_submissions", "每个行政班待批改作业数");
 
     public DimensionMetricsService(MeterRegistry meterRegistry, MetricsMapper metricsMapper) {
         this.meterRegistry = meterRegistry;
@@ -73,10 +73,10 @@ public class DimensionMetricsService {
         safeRefresh(coursePending, metricsMapper::coursePendingSubmissions);
         safeRefresh(courseQuestions, metricsMapper::courseQuestions);
         safeRefresh(courseExams, metricsMapper::courseExams);
-        safeRefresh(classStudents, metricsMapper::classroomStudents);
-        safeRefresh(classEnrollments, metricsMapper::classroomEnrollments);
-        safeRefresh(classSubmissions, metricsMapper::classroomSubmissions);
-        safeRefresh(classPending, metricsMapper::classroomPendingSubmissions);
+        safeRefresh(classStudents, metricsMapper::adminClassStudents);
+        safeRefresh(classEnrollments, metricsMapper::adminClassEnrollments);
+        safeRefresh(classSubmissions, metricsMapper::adminClassSubmissions);
+        safeRefresh(classPending, metricsMapper::adminClassPendingSubmissions);
     }
 
     private void safeRefresh(GaugeDimension dim, Supplier<List<Map<String, Object>>> query) {

@@ -1,100 +1,132 @@
 <template>
   <section class="module">
-    <PageHead title="创建课程" />
+    <PageHead title="新建开课任务" />
 
     <section class="card form-card">
       <div class="form-grid">
         <label class="field span-2">
-          <span>课程名称 *</span>
-          <input v-model="form.name" class="input" type="text" placeholder="输入课程名称" />
+          <span>课程库</span>
+          <select v-model="form.definitionId" class="input">
+            <option value="__new__">新建课程定义</option>
+            <option v-for="item in definitions" :key="String(item.id)" :value="String(item.id)">
+              {{ item.code }} · {{ item.name }}
+            </option>
+          </select>
         </label>
+
+        <template v-if="isNewDefinition">
+          <label class="field span-2">
+            <span>课程名称 *</span>
+            <input v-model="definition.name" class="input" type="text" />
+          </label>
+          <label class="field">
+            <span>课程编码 *</span>
+            <input v-model="definition.code" class="input" type="text" placeholder="如 CS101" />
+          </label>
+          <label class="field">
+            <span>课程性质</span>
+            <select v-model="definition.nature" class="input">
+              <option v-for="item in NATURES" :key="item" :value="item">{{ item }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>课程分类</span>
+            <select v-model="definition.category" class="input">
+              <option value="">未分类</option>
+              <option v-for="item in CATEGORIES" :key="item" :value="item">{{ item }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>学分</span>
+            <input
+              v-model.number="definition.credits"
+              class="input"
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+            />
+          </label>
+          <label class="field">
+            <span>难度</span>
+            <select v-model="definition.difficulty" class="input">
+              <option v-for="item in DIFFICULTY_OPTIONS" :key="item.value" :value="item.value">
+                {{ item.label }}
+              </option>
+            </select>
+          </label>
+          <label class="field">
+            <span>课程简介</span>
+            <textarea v-model="definition.description" class="textarea" rows="3"></textarea>
+          </label>
+          <div class="field span-2">
+            <span>封面图片</span>
+            <input
+              ref="fileInput"
+              class="file-hidden"
+              type="file"
+              accept="image/*"
+              @change="handleCover"
+            />
+            <div class="cover-row">
+              <button class="btn btn-ghost" type="button" @click="pickCover">
+                {{ uploading ? '上传中…' : '选择图片' }}
+              </button>
+              <span class="cover-name">{{ fileName || '未选择文件' }}</span>
+            </div>
+            <span v-if="uploadError" class="form-error">{{ uploadError }}</span>
+            <span v-if="coverRejected" class="form-error">封面地址协议不受支持</span>
+            <img v-if="coverSrc" :src="coverSrc" class="cover-img" alt="课程封面" />
+          </div>
+        </template>
+
         <label class="field">
-          <span>课程编码</span>
-          <input
-            v-model="form.code"
-            class="input"
-            type="text"
-            placeholder="输入课程编码（如：CS101）"
-          />
+          <span>学期 *</span>
+          <select v-model="form.semesterId" class="input">
+            <option value="" disabled>选择学期</option>
+            <option v-for="item in semesters" :key="String(item.id)" :value="String(item.id)">
+              {{ item.name }}
+            </option>
+          </select>
         </label>
-        <label class="field">
-          <span>课程分类 *</span>
-          <select v-model="form.category" class="input">
-            <option value="">选择分类</option>
-            <option v-for="category in CATEGORIES" :key="category" :value="category">
-              {{ category }}
+        <label v-if="isAdmin" class="field">
+          <span>开课教师 *</span>
+          <select v-model="form.teacherId" class="input">
+            <option value="" disabled>选择教师</option>
+            <option v-for="item in teachers" :key="String(item.id)" :value="String(item.id)">
+              {{ item.name }}
             </option>
           </select>
         </label>
         <label class="field">
-          <span>学分</span>
+          <span>计划教学班数</span>
           <input
-            v-model.number="form.credits"
+            v-model.number="form.plannedSections"
             class="input"
             type="number"
-            min="0"
-            max="10"
-            step="0.1"
+            min="1"
+            max="50"
           />
-        </label>
-        <label class="field">
-          <span>难度</span>
-          <select v-model="form.difficulty" class="input">
-            <option v-for="option in DIFFICULTY_OPTIONS" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
         </label>
         <label class="field">
           <span>报名方式</span>
           <select v-model="form.enrollmentType" class="input">
-            <option v-for="option in ENROLLMENT_OPTIONS" :key="option.value" :value="option.value">
-              {{ option.label }}
+            <option v-for="item in ENROLLMENT_OPTIONS" :key="item.value" :value="item.value">
+              {{ item.label }}
             </option>
           </select>
         </label>
         <label class="field">
-          <span>最大人数</span>
-          <input v-model.number="form.maxStudents" class="input" type="number" min="0" step="1" />
+          <span>每班容量</span>
+          <input v-model.number="form.maxStudents" class="input" type="number" min="1" step="1" />
         </label>
-        <label class="field span-2">
-          <span>课程简介</span>
-          <textarea
-            v-model="form.description"
-            class="textarea"
-            rows="4"
-            placeholder="输入课程简介"
-          ></textarea>
-        </label>
-        <div class="field span-2">
-          <span>封面图片</span>
-          <input
-            ref="fileInput"
-            class="file-hidden"
-            type="file"
-            accept="image/*"
-            @change="handleCover"
-          />
-          <div class="cover-row">
-            <button class="btn btn-ghost" type="button" @click="pickCover">
-              {{ uploading ? '上传中…' : '选择图片' }}
-            </button>
-            <span class="cover-name">{{ fileName || '未选择文件' }}</span>
-          </div>
-          <span v-if="uploadError" class="form-error">{{ uploadError }}</span>
-          <span v-else class="modal-hint">仅支持图片，大小不超过 2 MB。</span>
-          <img v-if="coverSrc" :src="coverSrc" class="cover-img" alt="课程封面" />
-          <span v-else-if="form.coverImage" class="form-error"
-            >封面地址协议不受支持，已拒绝预览</span
-          >
-        </div>
       </div>
 
       <p v-if="formError" class="form-error">{{ formError }}</p>
 
       <footer class="form-foot">
         <button class="btn btn-primary" :disabled="submitting" @click="submit">
-          {{ submitting ? '提交中…' : '提交审核' }}
+          {{ submitting ? '提交中…' : '提交开课任务' }}
         </button>
         <button class="btn btn-ghost" @click="cancel">取消</button>
       </footer>
@@ -103,15 +135,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHead from '../../components/PageHead.vue'
 import { useUi } from '../../composables/ui'
-import { createCourse } from '@/api/course'
+import { createCourse, createCourseDefinition, getCourseDefinitions } from '@/api/course'
 import commonApi from '@/api/common'
+import { pickList, unwrap } from '@/utils/response'
 import { safeUrl } from '@/utils/safeUrl'
 
 const CATEGORIES = ['编程开发', '人工智能', '数据分析', '设计创意', '其他']
+const NATURES = ['必修', '选修', '公选']
 const DIFFICULTY_OPTIONS = [
   { value: 'BEGINNER', label: '入门' },
   { value: 'EASY', label: '初级' },
@@ -120,27 +154,25 @@ const DIFFICULTY_OPTIONS = [
   { value: 'EXPERT', label: '专家' },
 ]
 const ENROLLMENT_OPTIONS = [
-  { value: 'OPEN', label: '开放报名' },
+  { value: 'FREE', label: '开放报名' },
   { value: 'APPROVAL', label: '需审核' },
   { value: 'RESTRICTED', label: '限制报名' },
 ]
 
-const DEFAULTS = {
-  name: '',
-  code: '',
-  category: '',
-  description: '',
-  credits: 2,
-  difficulty: 'MEDIUM',
-  enrollmentType: 'OPEN',
-  maxStudents: 100,
-  coverImage: '',
+interface Row {
+  id?: number | string
+  name?: string
+  code?: string
+  status?: string
 }
 
 const router = useRouter()
-const { toast } = useUi()
+const { role, toast } = useUi()
+const isAdmin = computed(() => role.value === 'admin')
 
-const form = reactive({ ...DEFAULTS })
+const definitions = ref<Row[]>([])
+const semesters = ref<Row[]>([])
+const teachers = ref<Row[]>([])
 const submitting = ref(false)
 const uploading = ref(false)
 const uploadError = ref('')
@@ -148,23 +180,38 @@ const formError = ref('')
 const fileName = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
-/**
- * 封面预览地址（F-3）：`form.coverImage` 取自 `POST /upload` 的响应字段，
- * 属外部可控输入，绑定 `:src` 前过协议白名单——`javascript:`／`data:`／`file:`
- * 之类一律解析为空串，`<img>` 不渲染。提交给后端的仍是原值，不改写数据。
- */
-const coverSrc = computed(() => safeUrl(form.coverImage))
+const form = reactive({
+  definitionId: '__new__',
+  semesterId: '',
+  teacherId: '',
+  plannedSections: 1,
+  maxStudents: 100,
+  enrollmentType: 'FREE',
+})
+const definition = reactive({
+  code: '',
+  name: '',
+  description: '',
+  credits: 2,
+  nature: '选修',
+  category: '',
+  difficulty: 'MEDIUM',
+  coverImage: '',
+})
+const isNewDefinition = computed(() => form.definitionId === '__new__')
+const coverSrc = computed(() => safeUrl(definition.coverImage))
+const coverRejected = computed(() => Boolean(definition.coverImage) && !coverSrc.value)
+
+function errMsg(error: unknown, fallback: string): string {
+  const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+  return message || fallback
+}
 
 function pickCover() {
   const input = fileInput.value
   if (!input) return
   input.value = ''
   input.click()
-}
-
-function errMsg(error: unknown, fallback: string): string {
-  const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-  return message || fallback
 }
 
 async function handleCover(event: Event) {
@@ -185,11 +232,10 @@ async function handleCover(event: Event) {
   }
   uploading.value = true
   try {
-    const response = await commonApi.uploadFile(file)
-    const url = (response as { data?: { url?: string } })?.data?.url
+    const response = (await commonApi.uploadFile(file)) as { data?: { url?: string } }
+    const url = response?.data?.url
     if (url) {
-      form.coverImage = url
-      toast('封面上传成功', 'ok')
+      definition.coverImage = url
     } else {
       uploadError.value = '上传失败：响应缺少文件地址'
     }
@@ -201,34 +247,88 @@ async function handleCover(event: Event) {
   }
 }
 
+async function load() {
+  try {
+    const [definitionEnvelope, semesterEnvelope] = await Promise.all([
+      getCourseDefinitions({ status: 'ACTIVE' }),
+      commonApi.getSemesters(),
+    ])
+    definitions.value = pickList<Row>(unwrap(definitionEnvelope))
+    semesters.value = pickList<Row>(unwrap(semesterEnvelope))
+    const active = semesters.value.find(
+      (item) => String(item.status || '').toUpperCase() === 'ACTIVE',
+    )
+    form.semesterId = String(active?.id ?? semesters.value[0]?.id ?? '')
+    form.definitionId = definitions.value.length ? String(definitions.value[0].id) : '__new__'
+    if (isAdmin.value) {
+      teachers.value = pickList<Row>(unwrap(await commonApi.getTeachers()))
+      form.teacherId = String(teachers.value[0]?.id ?? '')
+    }
+  } catch (error) {
+    formError.value = errMsg(error, '课程库或学期加载失败')
+  }
+}
+
+async function resolveDefinitionId(): Promise<number | string> {
+  if (!isNewDefinition.value) return form.definitionId
+  if (!definition.name.trim()) throw new Error('请输入课程名称')
+  if (!definition.code.trim()) throw new Error('请输入课程编码')
+  const created = unwrap<Row>(
+    await createCourseDefinition({
+      code: definition.code.trim(),
+      name: definition.name.trim(),
+      description: definition.description,
+      credits: definition.credits,
+      nature: definition.nature,
+      category: definition.category || null,
+      difficulty: definition.difficulty,
+      coverImage: definition.coverImage || null,
+    }),
+  )
+  const id = created?.id
+  if (!id) throw new Error('课程定义创建失败：缺少 id')
+  return id
+}
+
 async function submit() {
   formError.value = ''
-  if (!form.name.trim()) {
-    formError.value = '请输入课程名称'
+  if (!form.semesterId) {
+    formError.value = '请选择学期'
     return
   }
-  if (!form.category) {
-    formError.value = '请选择课程分类'
+  if (isAdmin.value && !form.teacherId) {
+    formError.value = '请选择开课教师'
+    return
+  }
+  if (form.plannedSections < 1 || form.plannedSections > 50) {
+    formError.value = '计划教学班数需在 1–50 之间'
     return
   }
   submitting.value = true
   try {
-    await createCourse({ ...form, status: 'DRAFT', approvalStatus: 'PENDING' })
-    toast('提交成功，等待审核', 'ok')
-    Object.assign(form, DEFAULTS)
-    fileName.value = ''
-    uploadError.value = ''
-    router.push('/teacher/courses')
+    const definitionId = await resolveDefinitionId()
+    await createCourse({
+      definitionId,
+      semesterId: Number(form.semesterId),
+      teacherId: isAdmin.value ? Number(form.teacherId) : undefined,
+      plannedSections: form.plannedSections,
+      maxStudents: form.maxStudents,
+      enrollmentType: form.enrollmentType,
+    })
+    toast('开课任务已提交，等待审核', 'ok')
+    router.push(isAdmin.value ? '/admin/courses' : '/teacher/courses')
   } catch (error) {
-    formError.value = errMsg(error, '提交失败')
+    formError.value = error instanceof Error ? error.message : errMsg(error, '提交失败')
   } finally {
     submitting.value = false
   }
 }
 
 function cancel() {
-  router.push('/teacher/courses')
+  router.push(isAdmin.value ? '/admin/courses' : '/teacher/courses')
 }
+
+onMounted(load)
 </script>
 
 <style scoped>

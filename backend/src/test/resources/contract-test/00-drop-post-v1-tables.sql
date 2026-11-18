@@ -41,5 +41,7 @@ DROP TABLE IF EXISTS task_teaching_classes;
 
 -- V16__announcement_and_snapshot.sql（WP8）
 DROP TABLE IF EXISTS announcements;
+-- V28__course_lifecycle.sql
+DROP TABLE IF EXISTS course_definitions;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -4,9 +4,21 @@ import { flushPromises, mount } from '@vue/test-utils'
 /** 五个治理页共享的接口 mock：每个模块只暴露页面真实调用的具名导出。 */
 const adminApi = vi.hoisted(() => ({
   getUsers: vi.fn(),
+  getAllUsers: vi.fn(),
+  createUser: vi.fn(),
+  updateUser: vi.fn(),
+  resetUserPassword: vi.fn(),
   getSemesters: vi.fn(),
   createSemester: vi.fn(),
   archiveSemester: vi.fn(),
+  archiveExpiredSemesters: vi.fn(),
+  getOrgAdminClasses: vi.fn(),
+  createOrgAdminClass: vi.fn(),
+  updateOrgAdminClass: vi.fn(),
+  archiveOrgAdminClass: vi.fn(),
+  batchOrgAdminClassMembers: vi.fn(),
+  getColleges: vi.fn(),
+  getMajors: vi.fn(),
 }))
 
 vi.mock('@/api/admin', () => ({ ...adminApi, default: adminApi }))
@@ -17,16 +29,11 @@ vi.mock('@/api/user', () => ({ ...userApi, default: userApi }))
 const permissionApi = vi.hoisted(() => ({
   getAllPermissions: vi.fn(),
   createPermission: vi.fn(),
+  updatePermission: vi.fn(),
+  deletePermission: vi.fn(),
+  togglePermission: vi.fn(),
 }))
 vi.mock('@/api/permission', () => ({ ...permissionApi, default: permissionApi }))
-
-const classroomApi = vi.hoisted(() => ({
-  getClassroomList: vi.fn(),
-  createClassroom: vi.fn(),
-  updateClassroom: vi.fn(),
-  deleteClassroom: vi.fn(),
-}))
-vi.mock('@/api/classroom', () => ({ ...classroomApi, default: classroomApi }))
 
 const courseApi = vi.hoisted(() => ({
   getAllCourses: vi.fn(),
@@ -76,6 +83,8 @@ const USERS = [
     phone: '13900000000',
     role: 'STUDENT',
     isActive: false,
+    adminClassId: 1,
+    studentNo: '20220001',
   },
 ]
 
@@ -132,18 +141,35 @@ const SEMESTERS = [
   },
 ]
 
-const CLASSES = [
+const COLLEGES = [{ id: 1, name: '计算机学院' }]
+const MAJORS = [{ id: 11, collegeId: 1, name: '计算机科学与技术' }]
+
+const ADMIN_CLASSES = [
   {
     id: 1,
+    schoolId: 1,
+    collegeId: 1,
+    majorId: 11,
     name: '计算机2201班',
     code: 'CS2201',
-    major: '计算机科学与技术',
-    gradeLevel: '2022',
-    advisorId: 9,
-    studentCount: 32,
+    gradeYear: '2022',
+    advisorTeacherId: 11,
+    studentCount: 1,
     maxStudents: 50,
-    isActive: true,
-    description: '行政班',
+    status: 'ACTIVE',
+  },
+  {
+    id: 2,
+    schoolId: 1,
+    collegeId: 1,
+    majorId: 11,
+    name: '计算机2202班',
+    code: 'CS2202',
+    gradeYear: '2022',
+    advisorTeacherId: 11,
+    studentCount: 0,
+    maxStudents: 45,
+    status: 'ACTIVE',
   },
 ]
 
@@ -178,16 +204,30 @@ const mountOptions = { global: { stubs } }
 beforeEach(() => {
   vi.clearAllMocks()
   adminApi.getUsers.mockResolvedValue(pageOf(USERS, 2))
+  adminApi.getAllUsers.mockResolvedValue(USERS)
+  adminApi.getOrgAdminClasses.mockResolvedValue(envelope(ADMIN_CLASSES))
+  adminApi.createOrgAdminClass.mockResolvedValue({ code: 200, data: {} })
+  adminApi.updateOrgAdminClass.mockResolvedValue({ code: 200, data: {} })
+  adminApi.archiveOrgAdminClass.mockResolvedValue({ code: 200, data: null })
+  adminApi.batchOrgAdminClassMembers.mockResolvedValue({
+    code: 200,
+    data: { added: 0, removed: 1, skipped: 0 },
+  })
+  adminApi.getColleges.mockResolvedValue(envelope(COLLEGES))
+  adminApi.getMajors.mockResolvedValue(envelope(MAJORS))
   adminApi.getSemesters.mockResolvedValue(envelope(SEMESTERS))
   adminApi.createSemester.mockResolvedValue({ code: 200, data: {} })
   adminApi.archiveSemester.mockResolvedValue({ code: 200, data: {} })
+  adminApi.archiveExpiredSemesters.mockResolvedValue({ code: 200, data: {} })
+  adminApi.createUser.mockResolvedValue({ code: 200, data: {} })
+  adminApi.updateUser.mockResolvedValue({ code: 200, data: {} })
+  adminApi.resetUserPassword.mockResolvedValue({ code: 200, data: {} })
   userApi.updateUserStatus.mockResolvedValue({ code: 200, data: null })
   permissionApi.getAllPermissions.mockResolvedValue(envelope(PERMISSIONS))
   permissionApi.createPermission.mockResolvedValue({ code: 200, data: {} })
-  classroomApi.getClassroomList.mockResolvedValue(envelope(CLASSES))
-  classroomApi.createClassroom.mockResolvedValue({ code: 200, data: {} })
-  classroomApi.updateClassroom.mockResolvedValue({ code: 200, data: {} })
-  classroomApi.deleteClassroom.mockResolvedValue({ code: 200, data: {} })
+  permissionApi.updatePermission.mockResolvedValue({ code: 200, data: {} })
+  permissionApi.deletePermission.mockResolvedValue({ code: 200, data: {} })
+  permissionApi.togglePermission.mockResolvedValue({ code: 200, data: {} })
   courseApi.getAllCourses.mockResolvedValue(COURSES)
   courseApi.approveCourse.mockResolvedValue({ code: 200, data: {} })
   courseApi.rejectCourse.mockResolvedValue({ code: 200, data: {} })
@@ -250,7 +290,7 @@ describe('管理员 / 用户与账号', () => {
     const wrapper = mountUsers()
     await flushPromises()
 
-    await wrapper.findAll('tbody tr')[0].find('.row-actions button').trigger('click')
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="user-toggle"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.modal-stub').text()).toContain('张三')
@@ -270,12 +310,119 @@ describe('管理员 / 用户与账号', () => {
     const wrapper = mountUsers()
     await flushPromises()
 
-    await wrapper.findAll('tbody tr')[1].find('.row-actions button').trigger('click')
+    await wrapper.findAll('tbody tr')[1].find('[data-testid="user-toggle"]').trigger('click')
     await flushPromises()
 
     expect(userApi.updateUserStatus).toHaveBeenCalledWith(12, true)
     expect(wrapper.find('.modal-stub').exists()).toBe(false)
     expect(adminApi.getUsers).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('新建用户提交完整资料，成功后刷新列表', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === '新建用户')!
+      .trigger('click')
+    await wrapper.find('[data-testid="user-username"]').setValue('wangwu')
+    await wrapper.find('[data-testid="user-name"]').setValue('王五')
+    await wrapper.find('[data-testid="user-role"]').setValue('TEACHER')
+    await wrapper.find('[data-testid="user-password"]').setValue('Strong@123')
+    await wrapper.find('[data-testid="user-email"]').setValue('wangwu@example.com')
+    await wrapper.find('[data-testid="user-phone"]').setValue('13700000000')
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.createUser).toHaveBeenCalledWith({
+      username: 'wangwu',
+      fullName: '王五',
+      role: 'TEACHER',
+      email: 'wangwu@example.com',
+      phone: '13700000000',
+      password: 'Strong@123',
+      isActive: true,
+      adminClassId: 0,
+    })
+    expect(adminApi.getUsers).toHaveBeenCalledTimes(2)
+    expect(toast).toHaveBeenCalledWith('用户已创建', 'ok')
+    wrapper.unmount()
+  })
+
+  it('弱密码在提交前被拦截，不发起创建请求', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === '新建用户')!
+      .trigger('click')
+    await wrapper.find('[data-testid="user-username"]').setValue('wangwu')
+    await wrapper.find('[data-testid="user-password"]').setValue('weakpass')
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.form-error').text()).toContain('大写字母')
+    expect(adminApi.createUser).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('学生创建可直接分进行政班', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === '新建用户')!
+      .trigger('click')
+    await wrapper.find('[data-testid="user-username"]').setValue('zhaoliu')
+    await wrapper.find('[data-testid="user-password"]').setValue('Strong@123')
+    await wrapper.find('[data-testid="user-role"]').setValue('STUDENT')
+    await wrapper.find('[data-testid="user-admin-class"]').setValue('1')
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'STUDENT', adminClassId: 1 }),
+    )
+    wrapper.unmount()
+  })
+
+  it('编辑用户调用更新端点，重置密码调用专用端点', async () => {
+    const wrapper = mountUsers()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="user-edit"]').trigger('click')
+    await wrapper.find('[data-testid="user-name"]').setValue('张三丰')
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.updateUser).toHaveBeenCalledWith(11, {
+      username: 'zhangsan',
+      fullName: '张三丰',
+      role: 'TEACHER',
+      email: 'zhangsan@example.com',
+      phone: '13800000000',
+      adminClassId: 0,
+    })
+    expect(wrapper.find('.modal-stub').exists()).toBe(false)
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="user-reset"]').trigger('click')
+    await wrapper.find('[data-testid="user-new-password"]').setValue('Reset@123')
+    const resetButtons = footerButtons(wrapper)
+    await resetButtons[resetButtons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.resetUserPassword).toHaveBeenCalledWith(11, { newPassword: 'Reset@123' })
+    expect(toast).toHaveBeenCalledWith('密码已重置', 'ok')
     wrapper.unmount()
   })
 
@@ -348,7 +495,7 @@ describe('管理员 / 角色与权限', () => {
     )
     expect(permissionApi.getAllPermissions).toHaveBeenCalledTimes(2)
     expect(wrapper.find('.modal-stub').exists()).toBe(false)
-    expect(toast).toHaveBeenCalledWith('权限已分配', 'ok')
+    expect(toast).toHaveBeenCalledWith('权限项已新增', 'ok')
     wrapper.unmount()
   })
 
@@ -372,14 +519,58 @@ describe('管理员 / 角色与权限', () => {
     wrapper.unmount()
   })
 
+  it('编辑权限项调用更新端点并保留角色', async () => {
+    const wrapper = mountRoles()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="permission-edit"]').trigger('click')
+    await wrapper.find('[data-testid="role-assign-name"]').setValue('账号治理')
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(permissionApi.updatePermission).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        role: 'ADMIN',
+        permissionName: '账号治理',
+        permissionKey: 'user:manage',
+        isActive: true,
+      }),
+    )
+    expect(toast).toHaveBeenCalledWith('权限项已更新', 'ok')
+    wrapper.unmount()
+  })
+
+  it('权限项可停用与删除，删除先二次确认', async () => {
+    const wrapper = mountRoles()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="permission-toggle"]').trigger('click')
+    await flushPromises()
+    expect(permissionApi.togglePermission).toHaveBeenCalledWith(1)
+
+    await wrapper.findAll('tbody tr')[0].find('[data-testid="permission-delete"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.modal-stub').text()).toContain('用户管理')
+    expect(permissionApi.deletePermission).not.toHaveBeenCalled()
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+    expect(permissionApi.deletePermission).toHaveBeenCalledWith(1)
+    expect(toast).toHaveBeenCalledWith('权限项已删除', 'ok')
+    wrapper.unmount()
+  })
+
   it('权限列表加载失败时显示失败态而非空角色权限', async () => {
     permissionApi.getAllPermissions.mockRejectedValueOnce(new Error('500'))
     const wrapper = mountRoles()
     await flushPromises()
 
     expect(wrapper.find('.callout').text()).toContain('权限列表加载失败')
-    expect(wrapper.text()).toContain('无法确认权限数据')
-    expect(wrapper.text()).not.toContain('该角色暂无权限配置')
+    expect(wrapper.text()).not.toContain('暂无权限项')
+    expect(wrapper.find('.empty-state').exists()).toBe(false)
     expect(toast).toHaveBeenCalledWith('权限列表加载失败', 'danger')
     wrapper.unmount()
   })
@@ -467,6 +658,39 @@ describe('管理员 / 学期管理', () => {
     wrapper.unmount()
   })
 
+  it('批量归档只处理已结束且仍在册的学期，确认后调用批量端点', async () => {
+    adminApi.getSemesters.mockResolvedValueOnce(
+      envelope([
+        ...SEMESTERS,
+        {
+          id: 3,
+          name: '2025-2026-1',
+          startDate: '2025-09-01',
+          endDate: '2026-01-10',
+          status: 'ACTIVE',
+          archivedAt: null,
+        },
+      ]),
+    )
+    const wrapper = mountSemesters()
+    await flushPromises()
+
+    const batchButton = wrapper.findAll('button').find((item) => item.text().includes('归档过期'))!
+    expect(batchButton.text()).toContain('1')
+    await batchButton.trigger('click')
+    expect(wrapper.find('.modal-stub').text()).toContain('1')
+    expect(adminApi.archiveExpiredSemesters).not.toHaveBeenCalled()
+
+    const buttons = footerButtons(wrapper)
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.archiveExpiredSemesters).toHaveBeenCalledTimes(1)
+    expect(adminApi.getSemesters).toHaveBeenCalledTimes(2)
+    expect(toast).toHaveBeenCalledWith('过期学期已归档', 'ok')
+    wrapper.unmount()
+  })
+
   it('列表加载失败与真正无学期可区分', async () => {
     adminApi.getSemesters.mockRejectedValueOnce(new Error('500'))
     const wrapper = mountSemesters()
@@ -481,126 +705,159 @@ describe('管理员 / 学期管理', () => {
 })
 
 describe('管理员 / 行政班', () => {
-  it('列表按 classrooms 真实字段渲染，不混入学院或教学班列', async () => {
+  it('列表来自 admin_classes，并显示真实成员数、专业名与班主任姓名', async () => {
     const wrapper = mountClasses()
     await flushPromises()
 
     const rows = wrapper.findAll('tbody tr')
-    expect(rows).toHaveLength(1)
+    expect(rows).toHaveLength(2)
     expect(rows[0].text()).toContain('计算机2201班')
     expect(rows[0].text()).toContain('计算机科学与技术')
     expect(rows[0].text()).toContain('2022')
-    expect(rows[0].text()).toContain('32 / 50')
-    expect(rows[0].text()).toContain('教师 #9')
+    expect(rows[0].text()).toContain('1 / 50')
+    expect(rows[0].text()).toContain('张三')
 
     const headers = wrapper.find('thead').text()
     expect(headers).toContain('专业')
     expect(headers).toContain('年级')
     expect(headers).toContain('班主任')
-    expect(headers).not.toContain('学院')
     expect(headers).not.toContain('教学班')
-    expect(classroomApi.getClassroomList).toHaveBeenCalledWith({ keyword: undefined })
+    expect(adminApi.getOrgAdminClasses).toHaveBeenCalled()
+    expect(adminApi.getAllUsers).toHaveBeenCalledWith({})
     wrapper.unmount()
   })
 
-  it('新建班级调用 POST /classrooms 并刷新', async () => {
+  it('新建行政班调用 POST /admin/org/admin-classes 并刷新', async () => {
     const wrapper = mountClasses()
     await flushPromises()
 
     await wrapper.find('button.btn-primary').trigger('click')
-    await wrapper.find('[data-testid="class-name"]').setValue('计算机2202班')
-    await wrapper.find('[data-testid="class-code"]').setValue('CS2202')
-    await wrapper.find('[data-testid="class-major"]').setValue('计算机科学与技术')
-    await wrapper.find('[data-testid="class-grade"]').setValue('2022')
+    await wrapper.find('[data-testid="class-name"]').setValue('计算机2203班')
+    await wrapper.find('[data-testid="class-code"]').setValue('CS2203')
     await wrapper.find('[data-testid="class-max"]').setValue(45)
     const buttons = footerButtons(wrapper)
     await buttons[buttons.length - 1].trigger('click')
     await flushPromises()
 
-    expect(classroomApi.createClassroom).toHaveBeenCalledWith(
+    expect(adminApi.createOrgAdminClass).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: '计算机2202班',
-        code: 'CS2202',
-        major: '计算机科学与技术',
-        gradeLevel: '2022',
+        name: '计算机2203班',
+        code: 'CS2203',
+        collegeId: 1,
+        majorId: 11,
         maxStudents: 45,
-        isActive: true,
+        advisorTeacherId: null,
+        status: 'ACTIVE',
       }),
     )
-    expect(classroomApi.getClassroomList).toHaveBeenCalledTimes(2)
-    expect(toast).toHaveBeenCalledWith('班级已创建', 'ok')
+    expect(adminApi.getOrgAdminClasses).toHaveBeenCalledTimes(2)
+    expect(toast).toHaveBeenCalledWith('行政班已创建', 'ok')
     wrapper.unmount()
   })
 
-  it('编辑班级调用 PUT /classrooms/{id}', async () => {
+  it('编辑行政班调用 PUT /admin/org/admin-classes/{id}', async () => {
     const wrapper = mountClasses()
     await flushPromises()
 
-    await wrapper.findAll('tbody tr')[0].findAll('.row-actions button')[0].trigger('click')
+    await wrapper.findAll('tbody tr')[0].findAll('.row-actions button')[1].trigger('click')
     await wrapper.find('[data-testid="class-name"]').setValue('计算机2201班（改）')
     const buttons = footerButtons(wrapper)
     await buttons[buttons.length - 1].trigger('click')
     await flushPromises()
 
-    expect(classroomApi.updateClassroom).toHaveBeenCalledWith(
+    expect(adminApi.updateOrgAdminClass).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ name: '计算机2201班（改）', code: 'CS2201' }),
+      expect.objectContaining({
+        name: '计算机2201班（改）',
+        code: 'CS2201',
+        collegeId: 1,
+        majorId: 11,
+      }),
     )
-    expect(toast).toHaveBeenCalledWith('班级已更新', 'ok')
+    expect(toast).toHaveBeenCalledWith('行政班已更新', 'ok')
     wrapper.unmount()
   })
 
-  it('删除班级先二次确认，确认后才调用 DELETE /classrooms/{id}', async () => {
+  it('成员弹窗列出本班学生，移出需确认并清空行政班归属', async () => {
     const wrapper = mountClasses()
     await flushPromises()
 
-    await wrapper.findAll('tbody tr')[0].findAll('.row-actions button')[1].trigger('click')
+    await wrapper.findAll('tbody tr')[0].findAll('.row-actions button')[0].trigger('click')
     await flushPromises()
-    expect(wrapper.find('.modal-stub').text()).toContain('计算机2201班')
-    expect(classroomApi.deleteClassroom).not.toHaveBeenCalled()
+    expect(wrapper.find('.modal-stub').text()).toContain('李四')
+
+    const removeButton = wrapper
+      .findAll('.modal-stub button')
+      .find((item) => item.text() === '移出')!
+    await removeButton.trigger('click')
+    await flushPromises()
+    const modals = wrapper.findAll('.modal-stub')
+    expect(modals[modals.length - 1].text()).toContain('确定将')
+    expect(modals[modals.length - 1].text()).toContain('移出行政班吗')
+
+    const buttons = modals[modals.length - 1].findAll('button')
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(adminApi.batchOrgAdminClassMembers).toHaveBeenCalledWith(1, {
+      studentIds: [12],
+      action: 'REMOVE',
+    })
+    expect(toast).toHaveBeenCalledWith('已移出行政班', 'ok')
+    wrapper.unmount()
+  })
+
+  it('归档行政班先二次确认，确认后才调用 DELETE /admin/org/admin-classes/{id}', async () => {
+    const wrapper = mountClasses()
+    await flushPromises()
+
+    await wrapper.findAll('tbody tr')[1].findAll('.row-actions button')[2].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.modal-stub').text()).toContain('计算机2202班')
+    expect(adminApi.archiveOrgAdminClass).not.toHaveBeenCalled()
 
     const buttons = footerButtons(wrapper)
     await buttons[buttons.length - 1].trigger('click')
     await flushPromises()
 
-    expect(classroomApi.deleteClassroom).toHaveBeenCalledWith(1)
-    expect(classroomApi.getClassroomList).toHaveBeenCalledTimes(2)
-    expect(toast).toHaveBeenCalledWith('班级已删除', 'ok')
+    expect(adminApi.archiveOrgAdminClass).toHaveBeenCalledWith(2)
+    expect(adminApi.getOrgAdminClasses).toHaveBeenCalledTimes(2)
+    expect(toast).toHaveBeenCalledWith('行政班已归档', 'ok')
     wrapper.unmount()
   })
 
   it('保存失败保留弹窗与输入，并展示后端原因', async () => {
-    classroomApi.createClassroom.mockRejectedValueOnce({
-      response: { data: { message: '班级编号已存在' } },
+    adminApi.createOrgAdminClass.mockRejectedValueOnce({
+      response: { data: { message: '行政班编码已存在' } },
     })
     const wrapper = mountClasses()
     await flushPromises()
 
     await wrapper.find('button.btn-primary').trigger('click')
-    await wrapper.find('[data-testid="class-name"]').setValue('计算机2202班')
-    await wrapper.find('[data-testid="class-code"]').setValue('CS2202')
+    await wrapper.find('[data-testid="class-name"]').setValue('计算机2203班')
+    await wrapper.find('[data-testid="class-code"]').setValue('CS2203')
     const buttons = footerButtons(wrapper)
     await buttons[buttons.length - 1].trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
-    expect(wrapper.find('.modal-stub').text()).toContain('班级编号已存在')
+    expect(wrapper.find('.modal-stub').text()).toContain('行政班编码已存在')
     expect((wrapper.find('[data-testid="class-code"]').element as HTMLInputElement).value).toBe(
-      'CS2202',
+      'CS2203',
     )
-    expect(classroomApi.getClassroomList).toHaveBeenCalledTimes(1)
+    expect(adminApi.getOrgAdminClasses).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
-  it('列表加载失败与真正无班级可区分', async () => {
-    classroomApi.getClassroomList.mockRejectedValueOnce(new Error('500'))
+  it('列表加载失败与真正无行政班可区分', async () => {
+    adminApi.getOrgAdminClasses.mockRejectedValueOnce(new Error('500'))
     const wrapper = mountClasses()
     await flushPromises()
 
-    expect(wrapper.find('.callout').text()).toContain('班级列表加载失败')
-    expect(wrapper.text()).toContain('无法确认班级数据')
+    expect(wrapper.find('.callout').text()).toContain('行政班列表加载失败')
+    expect(wrapper.text()).toContain('无法确认行政班数据')
     expect(wrapper.text()).not.toContain('暂无行政班')
-    expect(toast).toHaveBeenCalledWith('班级列表加载失败', 'danger')
+    expect(toast).toHaveBeenCalledWith('行政班列表加载失败', 'danger')
     wrapper.unmount()
   })
 })

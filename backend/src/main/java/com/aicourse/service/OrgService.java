@@ -1,11 +1,13 @@
 package com.aicourse.service;
 
+import com.aicourse.dto.AdminClassMemberBatchDTO;
 import com.aicourse.dto.OrgAdminClassDTO;
 import com.aicourse.dto.OrgCollegeDTO;
 import com.aicourse.dto.OrgMajorDTO;
 import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.College;
 import com.aicourse.entity.Major;
+import com.aicourse.vo.AdminClassMemberBatchVO;
 import com.aicourse.vo.OrgTreeNodeVO;
 
 import java.util.List;
@@ -83,4 +85,11 @@ public interface OrgService {
      * 归档行政班（院系管理员仅本院；仍有学生归属时拒绝）。
      */
     void archiveAdminClass(Long id);
+
+    /**
+     * 行政班成员批量加入 / 移出。
+     *
+     * <p>已在其他行政班的学生默认跳过；只有 {@code moveExisting=true} 才改变归属。</p>
+     */
+    AdminClassMemberBatchVO batchMembers(Long adminClassId, AdminClassMemberBatchDTO dto);
 }

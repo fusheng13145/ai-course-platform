@@ -32,6 +32,13 @@ const CONTRACT: Array<[string, 'get' | 'post' | 'put' | 'delete', string, unknow
   ['getMyCourses', 'get', '/student/courses', [{ page: 1 }], [{ params: { page: 1 } }]],
   ['getCourseDetail', 'get', '/student/courses/3', [3], []],
   ['enrollCourse', 'post', '/student/courses/3/enroll', [3], []],
+  [
+    'enrollCourse',
+    'post',
+    '/student/courses/3/enroll',
+    [3, 12],
+    [null, { params: { teachingClassId: 12 } }],
+  ],
   ['unenrollCourse', 'delete', '/student/courses/3/enroll', [3], []],
   ['getPendingAssignments', 'get', '/student/assignments/pending', [], []],
   ['getCompletedAssignments', 'get', '/student/assignments/completed', [], []],

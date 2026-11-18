@@ -5,7 +5,9 @@ import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Task;
+import com.aicourse.entity.TeachingClass;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -26,13 +28,16 @@ public class CourseAccessControl {
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
+    private final TeachingClassMapper teachingClassMapper;
     private final AdminScopeGuard adminScopeGuard;
 
     public CourseAccessControl(CourseService courseService,
                                CourseEnrollmentService enrollmentService,
+                               TeachingClassMapper teachingClassMapper,
                                AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
+        this.teachingClassMapper = teachingClassMapper;
         this.adminScopeGuard = adminScopeGuard;
     }
 
@@ -46,8 +51,9 @@ public class CourseAccessControl {
             adminScopeGuard.assertCourseAccess(course);
             return;
         }
-        if (!principalId(auth).equals(course.getTeacherId())) {
-            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程");
+        if (!principalId(auth).equals(course.getTeacherId())
+                && !isCourseSectionLead(course.getId(), principalId(auth))) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程（需为课程负责人或本课程教学班主讲）");
         }
     }
 
@@ -64,8 +70,9 @@ public class CourseAccessControl {
             }
             return;
         }
-        if (!userId.equals(course.getTeacherId())) {
-            throw new BusinessException(ApiCode.FORBIDDEN, "无权查看其他教师课程的内容");
+        if (!userId.equals(course.getTeacherId())
+                && !isCourseSectionLead(course.getId(), userId)) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权查看该课程内容（需为课程负责人或本课程教学班主讲）");
         }
     }
 
@@ -126,18 +133,35 @@ public class CourseAccessControl {
                     .toList();
         }
         if (hasRole(auth, RoleConstants.TEACHER)) {
-            return courseService.list(new LambdaQueryWrapper<Course>()
+            List<Long> ids = new ArrayList<>(courseService.list(new LambdaQueryWrapper<Course>()
                             .eq(Course::getTeacherId, userId))
                     .stream()
                     .map(Course::getId)
                     .filter(Objects::nonNull)
-                    .toList();
+                    .toList());
+            teachingClassMapper.selectList(new LambdaQueryWrapper<TeachingClass>()
+                            .eq(TeachingClass::getLeadTeacherId, userId))
+                    .stream()
+                    .map(TeachingClass::getCourseId)
+                    .filter(Objects::nonNull)
+                    .forEach(ids::add);
+            return ids.stream().distinct().toList();
         }
         return List.of();
     }
 
     public boolean isStudent(Authentication auth) {
         return hasRole(auth, RoleConstants.STUDENT);
+    }
+
+    /** 教师是否是这门课任一教学班的主讲（V28 多教学班模型）。 */
+    private boolean isCourseSectionLead(Long courseId, Long userId) {
+        if (courseId == null || userId == null) {
+            return false;
+        }
+        return teachingClassMapper.selectCount(new LambdaQueryWrapper<TeachingClass>()
+                .eq(TeachingClass::getCourseId, courseId)
+                .eq(TeachingClass::getLeadTeacherId, userId)) > 0;
     }
 
     private Course requireCourse(Long courseId) {

@@ -23,6 +23,7 @@ import com.aicourse.vo.CourseStatisticsVO;
 import com.aicourse.vo.RoleDistributionVO;
 import com.aicourse.vo.StatisticsOverviewVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -166,6 +167,9 @@ public class SystemAdminController {
         } else if (dto.getCollegeId() != null) {
             user.setCollegeId(dto.getCollegeId());
         }
+        if (dto.getAdminClassId() != null) {
+            user.setAdminClassId(dto.getAdminClassId() == 0L ? null : dto.getAdminClassId());
+        }
         userService.save(user);
         user.setPassword(null);
         return ApiResponse.success("创建成功", user);
@@ -204,7 +208,16 @@ public class SystemAdminController {
         if (dto.getCollegeId() != null) {
             user.setCollegeId(dto.getCollegeId());
         }
+        if (dto.getAdminClassId() != null) {
+            user.setAdminClassId(dto.getAdminClassId() == 0L ? null : dto.getAdminClassId());
+        }
         userService.updateById(user);
+        if (dto.getAdminClassId() != null && dto.getAdminClassId() == 0L) {
+            // MyBatis-Plus 默认忽略 null 字段；移出行政班需要显式 set null。
+            userService.update(new LambdaUpdateWrapper<User>()
+                    .eq(User::getId, userId)
+                    .set(User::getAdminClassId, null));
+        }
         User updated = userService.getUserProfile(userId);
         return ApiResponse.success("更新成功", updated);
     }

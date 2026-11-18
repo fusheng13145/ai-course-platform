@@ -43,6 +43,7 @@ public class StudentController {
     private final SubmissionService submissionService;
     private final WrongQuestionService wrongQuestionService;
     private final LearningRecordService learningRecordService;
+    private final TeachingClassService teachingClassService;
     private final CourseAccessControl courseAccessControl;
 
     public StudentController(CourseService courseService,
@@ -51,6 +52,7 @@ public class StudentController {
                              SubmissionService submissionService,
                              WrongQuestionService wrongQuestionService,
                              LearningRecordService learningRecordService,
+                             TeachingClassService teachingClassService,
                              CourseAccessControl courseAccessControl) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
@@ -58,6 +60,7 @@ public class StudentController {
         this.submissionService = submissionService;
         this.wrongQuestionService = wrongQuestionService;
         this.learningRecordService = learningRecordService;
+        this.teachingClassService = teachingClassService;
         this.courseAccessControl = courseAccessControl;
     }
 
@@ -110,6 +113,36 @@ public class StudentController {
     // 进度改由后端基于任务点完成度聚合，详见 StudentLearningController GET /courses/{courseId}/progress-summary。
 
     /**
+     * 加入课程前可选的启用教学班（V28：学生按教学班选课）。
+     */
+    @GetMapping("/courses/{courseId}/teaching-classes")
+    public ApiResponse<List<Map<String, Object>>> availableTeachingClasses(@PathVariable Long courseId) {
+        Course course = courseService.getById(courseId);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+        if (course.getApprovalStatus() != null
+                && !"APPROVED".equalsIgnoreCase(course.getApprovalStatus())) {
+            throw new BusinessException("课程尚未通过审核，暂不可选班");
+        }
+        if (course.getStatus() != null && !"ACTIVE".equalsIgnoreCase(course.getStatus())) {
+            throw new BusinessException("课程已结束，暂不可选班");
+        }
+        List<Map<String, Object>> classes = teachingClassService.listByCourse(courseId).stream()
+                .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                .map(item -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", item.getId());
+                    row.put("name", item.getName());
+                    row.put("code", item.getCode());
+                    row.put("capacity", item.getCapacity());
+                    return row;
+                })
+                .toList();
+        return ApiResponse.success(classes);
+    }
+
+    /**
      * 加入课程（可指定教学班；未指定时自动选中课程下唯一启用的教学班）
      */
     @PostMapping("/courses/{courseId}/enroll")
@@ -131,14 +164,8 @@ public class StudentController {
     @DeleteMapping("/courses/{courseId}/enroll")
     public ApiResponse<Void> unenrollCourse(@PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        CourseEnrollment enrollment = enrollmentService.getOne(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getCourseId, courseId));
-        if (enrollment == null) {
-            throw new BusinessException("未加入该课程");
-        }
-        enrollmentService.unenroll(enrollment.getId(), userId);
+        // 统一状态机：按课程找到有效记录后置 CANCELLED，避免按 id 绕开归属或状态校验
+        enrollmentService.cancelByCourse(userId, courseId, "学生主动退课");
         return ApiResponse.success("已退出课程", null);
     }
 
