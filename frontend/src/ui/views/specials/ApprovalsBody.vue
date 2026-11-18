@@ -43,7 +43,9 @@
             <tr v-for="(row, index) in pending" :key="String(row.id ?? index)">
               <td>
                 <b>{{ row.name || '未命名课程' }}</b>
-                <small class="cell-sub">{{ row.code || '—' }}</small>
+                <small class="cell-sub">
+                  {{ row.code || '—' }} · {{ row.plannedSections ?? 1 }} 个教学班
+                </small>
               </td>
               <td>{{ row.category || '未分类' }}</td>
               <td>{{ row.semester || '—' }}</td>
@@ -67,9 +69,6 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="check" /></span>
         <b>{{ emptyDescription() }}</b>
-        <p>
-          {{ listError ? '请查看上方提示后重试。' : '教师新提交的课程会以待审批状态进入这里。' }}
-        </p>
       </div>
     </section>
 
@@ -77,7 +76,6 @@
       <p class="modal-text">
         确定通过 <b>{{ approveTarget?.name || '该课程' }}</b> 的审批吗？
       </p>
-      <p class="modal-hint">通过后课程状态置为 ACTIVE，教师可开始发布教学班与教学活动。</p>
       <p v-if="approveError" class="form-error" role="alert">{{ approveError }}</p>
       <template #footer>
         <button class="btn btn-ghost" :disabled="approveBusy" @click="closeApprove">取消</button>
@@ -131,6 +129,7 @@ interface CourseRow {
   semester?: string
   teacherId?: number | string | null
   credits?: number | string | null
+  plannedSections?: number | null
   approvalStatus?: string
   status?: string
   createdAt?: string

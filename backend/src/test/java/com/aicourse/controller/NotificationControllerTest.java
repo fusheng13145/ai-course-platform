@@ -59,6 +59,28 @@ class NotificationControllerTest extends ControllerTestBase {
 
 
     @Test
+    @DisplayName("GET /notifications/course/{courseId} - 返回200且课程通知分页透传")
+    void getCourseNotifications_authorized_returns_200() throws Exception {
+        Page<Notification> p = new Page<>(1, 20);
+        p.setRecords(List.of(sampleNotification(11L)));
+        p.setTotal(1);
+        when(notificationService.getCourseNotifications(1L, 4178L, 1, 20)).thenReturn(p);
+        mockMvc.perform(get("/notifications/course/4178").with(withUser(1L, "STUDENT", "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.list[0].id").value(11));
+        verify(notificationService).getCourseNotifications(eq(1L), eq(4178L), eq(1), eq(20));
+    }
+
+    @Test
+    @DisplayName("GET /notifications/course/{courseId} - 未认证返回401")
+    void getCourseNotifications_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(get("/notifications/course/4178"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("GET /notifications/unread-count - 返回200且未读数量透传")
     void getUnreadCount_authorized_returns_200() throws Exception {
         when(notificationService.getUnreadCount(1L)).thenReturn(5L);

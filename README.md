@@ -182,7 +182,7 @@ python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登
 - **读数唯一来源**：`docs/测试文档.md` §2；引用时连同**日期与口径**（单元 vs 含 IT）一起引。
 - **e2e 前置**：流程套件要求后端以 `RATELIMIT_LOGIN_LIMIT=200` 起、三份 `.auth` 会话夹具与端口匹配；视觉套件固定 5175 且**不用 `--update-snapshots` 吸收未知漂移**。缺前置时的红灯是环境问题，不是产品缺陷（判红纪律见 `docs/测试文档.md` §4）。
 - **登录保护是两层**：速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）与尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）；尝试层阈值更低，失败路径下先触发，**必须分层断言**。
-- **CI**：`.github/workflows/ci.yml` 13 个作业；连 `deploy`／`eval-nightly`／`release` 共 17 个唯一作业键（清单见 `docs/测试文档.md` §7）。`frontend-e2e` 在 **PR** 跑 `core`／`knowledge-graph`／`question-transfer` 三个核心 spec，在 `push main`／`workflow_dispatch` 跑完整流程套件；最新 PR #107 的本次 Actions run 为 **12 个可执行 job success、1 个 Docker job skipped**，不代表目标环境已部署。Actions 页面可观测；匿名 API 仍受限流。`main` 当前**无分支保护**（保护 API 返回 404），团队约定为 CI 可执行 job 全绿后合并，不设强制评审。
+- **CI**：`.github/workflows/ci.yml` 13 个作业；连 `deploy`／`eval-nightly`／`release` 共 17 个唯一作业键（清单见 `docs/测试文档.md` §7）。`frontend-e2e` 在 **PR** 跑 `core`／`knowledge-graph`／`question-transfer` 三个核心 spec，在 `push main`／`workflow_dispatch` 跑完整流程套件；当前 PR #120 的检查结果以 Actions 页面为准，不代表目标环境已部署。Actions 页面可观测；匿名 API 仍受限流。`main` 当前**无分支保护**（保护 API 返回 404），团队约定为 CI 可执行 job 全绿后合并，不设强制评审。
 
 ---
 

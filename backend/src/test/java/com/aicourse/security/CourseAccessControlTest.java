@@ -37,6 +37,8 @@ class CourseAccessControlTest {
     @Mock
     private CourseEnrollmentService enrollmentService;
     @Mock
+    private com.aicourse.mapper.TeachingClassMapper teachingClassMapper;
+    @Mock
     private AdminScopeGuard adminScopeGuard;
     @InjectMocks
     private CourseAccessControl accessControl;

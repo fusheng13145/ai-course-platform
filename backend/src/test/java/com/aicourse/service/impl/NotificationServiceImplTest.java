@@ -140,6 +140,26 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    @DisplayName("课程维度通知 - 委托 mapper 并转义标题/正文")
+    void testGetCourseNotifications() {
+        Notification n = new Notification();
+        n.setUserId(100L);
+        n.setTitle("<script>alert</script>");
+        n.setContent("<b>bold</b>");
+        Page<Notification> p = new Page<>(1, 20);
+        p.setRecords(List.of(n));
+        p.setTotal(1);
+        when(notificationMapper.selectCourseNotifications(any(Page.class), eq(100L), eq(4178L)))
+                .thenReturn(p);
+
+        Page<Notification> r = notificationService.getCourseNotifications(100L, 4178L, 1, 20);
+
+        assertFalse(r.getRecords().get(0).getTitle().contains("<script>"), "XSS转义应生效");
+        assertFalse(r.getRecords().get(0).getContent().contains("<b>"), "XSS转义应生效");
+        verify(notificationMapper).selectCourseNotifications(any(Page.class), eq(100L), eq(4178L));
+    }
+
+    @Test
     @DisplayName("删除通知 - 非归属者抛异常")
     void testDeleteNotification_notOwner() {
         Notification n = new Notification(); n.setId(1L); n.setUserId(100L);

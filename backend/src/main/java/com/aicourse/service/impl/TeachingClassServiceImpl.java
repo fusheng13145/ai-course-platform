@@ -12,6 +12,7 @@ import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.TeachingClassService;
 import com.aicourse.service.UserService;
+import com.aicourse.vo.TeachingClassMemberVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.dao.DuplicateKeyException;
@@ -20,13 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * {@link TeachingClassService} 实现（V14 / B-12-P-08 WP4）。
  *
  * <p>关键口径：</p>
  * <ul>
- *     <li>建班人必须是课程负责人（{@code courses.teacher_id}），管理员不代办；</li>
+ *     <li>建班人必须是课程负责人或管理员（管理员按学院治理范围校验）；</li>
  *     <li>课程未通过审批（{@code approval_status<>APPROVED}）或已停用（{@code status<>ACTIVE}）时，
  *         新建教学班一律 DRAFT，不接受客户端指定的 ACTIVE；</li>
  *     <li>主讲只能指派本院教师（2A），跨院 403；</li>
@@ -175,11 +178,63 @@ public class TeachingClassServiceImpl extends ServiceImpl<TeachingClassMapper, T
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<TeachingClass> publishCourseClasses(Long courseId, Long operatorId) {
+        Course course = accessControl.assertCourseOwner(courseId, operatorId);
+        if (!isCourseEnabled(course)) {
+            throw new BusinessException(ApiCode.CONFLICT, "课程未通过审批或已停用，教学班不能发布");
+        }
+        List<TeachingClass> classes = listByCourse(courseId);
+        if (classes.isEmpty()) {
+            throw new BusinessException(ApiCode.CONFLICT, "该课程暂无教学班，请先生成或创建教学班");
+        }
+        for (TeachingClass teachingClass : classes) {
+            if (CLASS_STATUS_DRAFT.equals(teachingClass.getStatus())) {
+                teachingClass.setStatus(CLASS_STATUS_ACTIVE);
+                teachingClass.setUpdatedAt(LocalDateTime.now());
+                this.updateById(teachingClass);
+            }
+        }
+        return listByCourse(courseId);
+    }
+
+    @Override
     public List<CourseEnrollment> listMembers(Long teachingClassId, Long operatorId) {
         accessControl.assertTeachingClassLead(teachingClassId, operatorId);
         return courseEnrollmentMapper.selectList(new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getTeachingClassId, teachingClassId)
                 .orderByAsc(CourseEnrollment::getId));
+    }
+
+    @Override
+    public List<TeachingClassMemberVO> listMemberDetails(Long teachingClassId, Long operatorId) {
+        // 课程负责人也需要看到名单才能做取消选课等管理动作；管理员治理只读。
+        accessControl.assertRosterRead(teachingClassId, operatorId);
+        List<CourseEnrollment> enrollments = courseEnrollmentMapper.selectList(
+                new LambdaQueryWrapper<CourseEnrollment>()
+                        .eq(CourseEnrollment::getTeachingClassId, teachingClassId)
+                        .orderByDesc(CourseEnrollment::getIsActive)
+                        .orderByDesc(CourseEnrollment::getId));
+        if (enrollments.isEmpty()) {
+            return List.of();
+        }
+        List<Long> studentIds = enrollments.stream().map(CourseEnrollment::getStudentId).toList();
+        Map<Long, User> users = userService.listByIds(studentIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user, (a, b) -> a));
+        return enrollments.stream().map(enrollment -> {
+            User student = users.get(enrollment.getStudentId());
+            TeachingClassMemberVO row = new TeachingClassMemberVO();
+            row.setEnrollmentId(enrollment.getId());
+            row.setStudentId(enrollment.getStudentId());
+            row.setStudentName(student == null ? null
+                    : (student.getFullName() != null ? student.getFullName() : student.getUsername()));
+            row.setUsername(student == null ? null : student.getUsername());
+            row.setStudentNo(student == null ? null : student.getStudentId());
+            row.setApprovalStatus(enrollment.getApprovalStatus());
+            row.setIsActive(enrollment.getIsActive());
+            row.setEnrolledAt(enrollment.getEnrolledAt());
+            return row;
+        }).toList();
     }
 
     private static boolean isCourseEnabled(Course course) {

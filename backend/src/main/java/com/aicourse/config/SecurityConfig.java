@@ -263,7 +263,6 @@ public class SecurityConfig {
                 "/tasks/**",
                 "/chapters/**",
                 "/resources/**",
-                "/classrooms/**",
                 "/teacher/**",
                 "/ai/**",
                 "/knowledge/**"

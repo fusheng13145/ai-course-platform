@@ -27,12 +27,6 @@ const permissionApi = vi.hoisted(() => ({
   getAllPermissions: vi.fn(),
   createPermission: vi.fn(),
 }))
-const classroomApi = vi.hoisted(() => ({
-  getClassroomList: vi.fn(),
-  createClassroom: vi.fn(),
-  updateClassroom: vi.fn(),
-  deleteClassroom: vi.fn(),
-}))
 const courseApi = vi.hoisted(() => ({
   getAllCourses: vi.fn(),
   approveCourse: vi.fn(),
@@ -63,7 +57,6 @@ vi.mock('@/api/auth', () => ({ default: authApi }))
 vi.mock('@/api/user', () => ({ default: userApi, ...userApi }))
 vi.mock('@/api/admin', () => adminApi)
 vi.mock('@/api/permission', () => permissionApi)
-vi.mock('@/api/classroom', () => classroomApi)
 vi.mock('@/api/course', () => courseApi)
 vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => router }))
 
@@ -142,7 +135,6 @@ beforeEach(() => {
     }),
   )
   permissionApi.getAllPermissions.mockResolvedValue(envelope([]))
-  classroomApi.getClassroomList.mockResolvedValue(envelope({ records: [], total: 0 }))
   courseApi.getAllCourses.mockResolvedValue(envelope({ records: [], total: 0 }))
 })
 
