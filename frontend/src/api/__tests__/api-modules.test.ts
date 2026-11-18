@@ -127,6 +127,16 @@ describe('API 模块 - notification.js', () => {
     await notifApi.getNotificationList({ page: 1 })
     expect(mockRequest.get).toHaveBeenCalledWith('/notifications', { params: { page: 1 } })
   })
+
+  it('getCourseNotificationList 调用 GET /notifications/course/{courseId}', async () => {
+    const notifApi = (await import('@/api/notification')).default
+    mockRequest.get.mockResolvedValue({ data: [] })
+
+    await notifApi.getCourseNotificationList(4178, { page: 1, size: 20 })
+    expect(mockRequest.get).toHaveBeenCalledWith('/notifications/course/4178', {
+      params: { page: 1, size: 20 },
+    })
+  })
 })
 
 describe('API 模块 - user.js', () => {

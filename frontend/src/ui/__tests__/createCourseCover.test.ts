@@ -7,16 +7,22 @@ import { mount, flushPromises } from '@vue/test-utils'
  * 直接绑进 `:src` 就是 javascript:/data: 的落点，故改为经 utils/safeUrl。
  */
 const uploadFile = vi.hoisted(() => vi.fn())
+const getSemesters = vi.hoisted(() => vi.fn())
 const createCourse = vi.hoisted(() => vi.fn())
+const getCourseDefinitions = vi.hoisted(() =>
+  vi.fn(async () => ({ data: { list: [], records: [] } })),
+)
+const createCourseDefinition = vi.hoisted(() => vi.fn(async () => ({ data: { id: 55 } })))
 const push = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
-vi.mock('@/api/common', () => ({ default: { uploadFile } }))
-vi.mock('@/api/course', () => ({ createCourse }))
-vi.mock('../composables/ui', () => ({
-  useUi: () => ({ toast }),
-}))
+vi.mock('@/api/common', () => ({ default: { uploadFile, getSemesters } }))
+vi.mock('@/api/course', () => ({ createCourse, createCourseDefinition, getCourseDefinitions }))
+vi.mock('../composables/ui', async () => {
+  const { ref } = await import('vue')
+  return { useUi: () => ({ toast, role: ref('teacher') }) }
+})
 
 import CreateCourseView from '../views/teacher/CreateCourseView.vue'
 
@@ -40,6 +46,11 @@ async function uploadCover(url: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  getSemesters.mockResolvedValue({
+    data: { list: [{ id: 2, name: '2026-2027-1', status: 'ACTIVE' }] },
+  })
+  getCourseDefinitions.mockResolvedValue({ data: { list: [], records: [] } })
+  createCourseDefinition.mockResolvedValue({ data: { id: 55 } })
 })
 
 describe('建课页 · 封面地址协议白名单', () => {
@@ -81,20 +92,39 @@ describe('建课页 · 封面地址协议白名单', () => {
     }
   })
 
-  it('提交口径不变：白名单只挡预览绑定，不改写上报给后端的字段', async () => {
+  it('封面写入课程定义，开课任务只带运行字段', async () => {
     const wrapper = await uploadCover('https://cdn.example.com/cover.png')
-    await wrapper.find('input[type="text"]').setValue('计算机网络')
-    const category = wrapper.find('select')
-    await category.setValue('编程开发')
+    const nameField = wrapper
+      .findAll('label.field')
+      .find((node) => node.text().includes('课程名称'))!
+    const codeField = wrapper
+      .findAll('label.field')
+      .find((node) => node.text().includes('课程编码'))!
+    await nameField.find('input').setValue('计算机网络')
+    await codeField.find('input').setValue('CN101')
+    const categoryField = wrapper
+      .findAll('label.field')
+      .find((node) => node.text().includes('课程分类'))!
+    await categoryField.find('select').setValue('编程开发')
 
     await wrapper.find('.form-foot .btn-primary').trigger('click')
     await flushPromises()
 
+    expect(createCourseDefinition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '计算机网络',
+        code: 'CN101',
+        category: '编程开发',
+        coverImage: 'https://cdn.example.com/cover.png',
+      }),
+    )
     expect(createCourse).toHaveBeenCalledTimes(1)
     expect(createCourse.mock.calls[0][0]).toMatchObject({
-      name: '计算机网络',
-      category: '编程开发',
-      coverImage: 'https://cdn.example.com/cover.png',
+      definitionId: 55,
+      semesterId: 2,
+      plannedSections: 1,
+      maxStudents: 100,
+      enrollmentType: 'FREE',
     })
     wrapper.unmount()
   })

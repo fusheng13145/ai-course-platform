@@ -54,4 +54,8 @@ public class AdminCreateUserDTO {
     @Schema(description = "学院ID（院系管理员缺省为本院）", example = "1")
     private Long collegeId;
 
+    /** 行政班ID（学生可入学时直接分班） */
+    @Schema(description = "行政班ID", example = "12")
+    private Long adminClassId;
+
 }

@@ -301,20 +301,20 @@ public class AnalyticsController {
      */
     @GetMapping("/at-risk/students")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "获取掉队预警聚合", description = "按 school/course/department/major/class 维度聚合掉队学生（进度<40% 或 成绩<60），支持院系/专业/班级/课程过滤下钻")
+    @Operation(summary = "获取掉队预警聚合", description = "按 school/course/department/major/adminClass 维度聚合掉队学生（进度<40% 或 成绩<60），支持院系/专业/行政班/课程过滤下钻")
     public ApiResponse<Map<String, Object>> atRiskStudents(
-            @Parameter(description = "聚合维度：school(默认)/course/department/major/class") @RequestParam(required = false) String groupBy,
+            @Parameter(description = "聚合维度：school(默认)/course/department/major/adminClass") @RequestParam(required = false) String groupBy,
             @Parameter(description = "课程ID（可选过滤）") @RequestParam(required = false) Long courseId,
             @Parameter(description = "院系（可选过滤）") @RequestParam(required = false) String department,
             @Parameter(description = "专业（可选过滤）") @RequestParam(required = false) String major,
-            @Parameter(description = "班级ID（可选过滤）") @RequestParam(required = false) Long classId) {
+            @Parameter(description = "行政班ID（可选过滤）") @RequestParam(required = false) Long adminClassId) {
         if (adminScopeGuard.isCollegeAdmin() && courseId != null) {
             assertCollegeCourseAccess(courseId);
         }
         Map<String, Object> data = adminScopeGuard.isCollegeAdmin()
-                ? analyticsService.getAtRiskStudents(groupBy, courseId, department, major, classId,
+                ? analyticsService.getAtRiskStudents(groupBy, courseId, department, major, adminClassId,
                         adminScopeGuard.currentCollegeId())
-                : analyticsService.getAtRiskStudents(groupBy, courseId, department, major, classId);
+                : analyticsService.getAtRiskStudents(groupBy, courseId, department, major, adminClassId);
         return ApiResponse.success(data);
     }
 

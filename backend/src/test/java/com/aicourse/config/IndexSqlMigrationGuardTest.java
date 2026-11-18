@@ -90,10 +90,11 @@ class IndexSqlMigrationGuardTest {
     @Test
     @DisplayName("index.sql 的表集合必须 ⊇ db/migration 建出的全部表")
     void indexSqlCoversEveryMigratedTable() throws IOException {
+        Set<String> retired = droppedMigratedTables();
         List<String> missing = new ArrayList<>();
         for (Set<String> created : migratedTables().values()) {
             for (String table : created) {
-                if (!indexColumns.containsKey(table)) {
+                if (!indexColumns.containsKey(table) && !retired.contains(table)) {
                     missing.add(table);
                 }
             }
@@ -165,6 +166,20 @@ class IndexSqlMigrationGuardTest {
                 .as("db/migration 下没读到任何迁移脚本：目录位置变了，护栏需要跟着改")
                 .isNotEmpty();
         return byScript;
+    }
+
+    /** 迁移脚本最终删掉的表：曾建后退役（V29 classrooms）不需要继续存在于 index.sql。 */
+    private Set<String> droppedMigratedTables() throws IOException {
+        Set<String> dropped = new LinkedHashSet<>();
+        for (Path script : migrationScripts()) {
+            String raw = stripComments(Files.readString(script, StandardCharsets.UTF_8));
+            Matcher matcher = Pattern.compile("(?i)DROP\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?`?(\\w+)`?")
+                    .matcher(raw);
+            while (matcher.find()) {
+                dropped.add(matcher.group(1).toLowerCase(Locale.ROOT));
+            }
+        }
+        return dropped;
     }
 
     private List<Path> migrationScripts() throws IOException {
