@@ -19,9 +19,18 @@
 
     <div v-show="active === 'grades'">
       <div class="academic-toolbar">
-        <button class="btn btn-ghost btn-sm" :disabled="loading" @click="load">
-          {{ loading ? '刷新中…' : '刷新' }}
-        </button>
+        <div class="toolbar-actions">
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="exporting || loading || !hasData"
+            @click="exportGrades"
+          >
+            {{ exporting ? '导出中…' : '导出成绩' }}
+          </button>
+          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="load">
+            {{ loading ? '刷新中…' : '刷新' }}
+          </button>
+        </div>
       </div>
 
       <div v-if="error" class="callout danger" role="alert">
@@ -152,8 +161,6 @@
           </div>
         </section>
       </template>
-
-      <p v-if="loaded && !loading && !error" class="export-note">本页暂不提供成绩导出。</p>
     </div>
 
     <LearningCenterPanel v-if="active === 'learning'" />
@@ -177,6 +184,7 @@ import { useUi } from '../../composables/ui'
 import type { Metric } from '../../nav'
 import studentApi from '@/api/student'
 import { unwrap } from '@/utils/response'
+import { formatDate } from '@/utils/datetime'
 import logger from '@/utils/logger'
 
 type RawRow = Record<string, unknown>
@@ -208,10 +216,10 @@ interface FlatGradeRow extends GradeItem {
   courseName: string
 }
 
-const { role } = useUi()
+const { role, toast } = useUi()
 
 const loading = ref(false)
-const loaded = ref(false)
+const exporting = ref(false)
 const error = ref('')
 const courses = ref<CourseGrades[]>([])
 const flatRows = ref<FlatGradeRow[]>([])
@@ -413,7 +421,47 @@ async function load() {
     error.value = '成绩数据加载失败，请检查网络后重试'
   } finally {
     loading.value = false
-    loaded.value = true
+  }
+}
+
+function gradeExportRows(): Record<string, unknown>[] {
+  const rows = courses.value.length
+    ? courses.value.flatMap((course) =>
+        course.items.map((item) => ({
+          课程: course.courseName,
+          成绩项: item.title,
+          类型: item.kind,
+          得分: scoreText(item),
+          满分: fullScoreText(item.maxScore ?? item.totalScore),
+          状态: item.statusLabel,
+          提交时间: item.submittedAt,
+        })),
+      )
+    : flatRows.value.map((row) => ({
+        课程: row.courseName,
+        成绩项: row.title,
+        类型: row.kind,
+        得分: scoreText(row),
+        满分: fullScoreText(row.maxScore ?? row.totalScore),
+        状态: row.statusLabel,
+        提交时间: row.submittedAt,
+      }))
+  return rows
+}
+
+async function exportGrades() {
+  if (exporting.value || loading.value || !hasData.value) return
+  exporting.value = true
+  try {
+    const rows = gradeExportRows()
+    const { downloadXlsx } = await import('@/utils/xlsxExport')
+    downloadXlsx(rows, '成绩', `学业成绩-${formatDate(new Date())}.xlsx`)
+    toast('成绩已导出', 'ok')
+  } catch (reason) {
+    logger.error('导出成绩失败', reason)
+    toast('导出失败，请稍后重试', 'danger')
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -435,8 +483,12 @@ onMounted(load)
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
+}
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
 }
 .academic-note {
   margin: 0;
@@ -494,10 +546,5 @@ onMounted(load)
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 550;
-}
-.export-note {
-  margin: 0;
-  font-size: 9.5px;
-  color: var(--ink-3);
 }
 </style>

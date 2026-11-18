@@ -359,10 +359,67 @@ class CourseEnrollmentServiceImplTest {
     @DisplayName("unenroll 正常软退课")
     void unenroll_ok() {
         CourseEnrollment e = ce(5L, 1L, 10L, true);
+        e.setApprovalStatus("APPROVED");
         when(enrollmentMapper.selectById(5L)).thenReturn(e);
+        when(courseService.getById(10L)).thenReturn(enrollableCourse(10L, "OPEN"));
         when(enrollmentMapper.updateById(any(CourseEnrollment.class))).thenReturn(1);
         service.unenroll(5L, 1L);
         assertFalse(e.getIsActive());
         verify(enrollmentMapper).updateById(any(CourseEnrollment.class));
+    }
+
+    // ===== cancelEnrollment（三端取消状态机） =====
+    @Test
+    @DisplayName("cancelEnrollment 已通过选课置为 CANCELLED 并留痕")
+    void cancelEnrollment_approvedToCancelled() {
+        CourseEnrollment e = ce(5L, 1L, 10L, true);
+        e.setApprovalStatus("APPROVED");
+        when(enrollmentMapper.selectById(5L)).thenReturn(e);
+        when(courseService.getById(10L)).thenReturn(enrollableCourse(10L, "OPEN"));
+        when(enrollmentMapper.updateById(any(CourseEnrollment.class))).thenReturn(1);
+
+        service.cancelEnrollment(5L, 9L, "管理员取消误选");
+
+        assertEquals("CANCELLED", e.getApprovalStatus());
+        assertFalse(e.getIsActive());
+        assertEquals(9L, e.getApprovedBy());
+        assertEquals("管理员取消误选", e.getApprovalComment());
+        assertNotNull(e.getApprovalTime());
+    }
+
+    @Test
+    @DisplayName("cancelEnrollment 已取消记录拒绝二次取消")
+    void cancelEnrollment_alreadyCancelled() {
+        CourseEnrollment e = ce(5L, 1L, 10L, false);
+        e.setApprovalStatus("CANCELLED");
+        when(enrollmentMapper.selectById(5L)).thenReturn(e);
+
+        assertThrows(BusinessException.class,
+                () -> service.cancelEnrollment(5L, 1L, "重复取消"));
+    }
+
+    @Test
+    @DisplayName("cancelEnrollment 课程已结课拒绝取消")
+    void cancelEnrollment_completedCourseRejected() {
+        CourseEnrollment e = ce(5L, 1L, 10L, true);
+        e.setApprovalStatus("APPROVED");
+        Course completed = enrollableCourse(10L, "OPEN");
+        completed.setCompletedAt(java.time.LocalDateTime.now());
+        when(enrollmentMapper.selectById(5L)).thenReturn(e);
+        when(courseService.getById(10L)).thenReturn(completed);
+
+        assertThrows(BusinessException.class,
+                () -> service.cancelEnrollment(5L, 1L, "结课后取消"));
+    }
+
+    @Test
+    @DisplayName("cancelEnrollment 原因不足 2 字拒绝")
+    void cancelEnrollment_reasonTooShort() {
+        CourseEnrollment e = ce(5L, 1L, 10L, true);
+        e.setApprovalStatus("APPROVED");
+        when(enrollmentMapper.selectById(5L)).thenReturn(e);
+
+        assertThrows(BusinessException.class,
+                () -> service.cancelEnrollment(5L, 1L, " "));
     }
 }

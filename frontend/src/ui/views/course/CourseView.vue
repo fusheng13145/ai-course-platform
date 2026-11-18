@@ -40,6 +40,10 @@
         v-else-if="currentTab === 'chapters' && role === 'teacher'"
         :course-id="courseId"
       />
+      <TeacherClassesTab
+        v-else-if="currentTab === 'classes' && role === 'teacher'"
+        :course-id="courseId"
+      />
       <ReaderTab
         v-else-if="currentTab === 'chapters' && role === 'student'"
         :course-id="courseId"
@@ -111,6 +115,7 @@ import AnalyticsTab from './tabs/AnalyticsTab.vue'
 import AdminReadOnlyTab from './tabs/AdminReadOnlyTab.vue'
 import GradesTab from './tabs/GradesTab.vue'
 import SettingsTab from './tabs/SettingsTab.vue'
+import TeacherClassesTab from './tabs/TeacherClassesTab.vue'
 import TabUnavailable from './tabs/TabUnavailable.vue'
 import CourseNoticesTab from './tabs/CourseNoticesTab.vue'
 import AiCorpusTab from './tabs/AiCorpusTab.vue'
@@ -174,6 +179,7 @@ const courseForSettings = computed<CourseLike | null>(() => {
   }
 })
 const statusChip = computed(() => {
+  if (detail.value?.completedAt) return { text: '已结课', cls: 'chip-mute' }
   const status = String(detail.value?.approvalStatus || detail.value?.status || '')
   if (status === 'APPROVED' || status === '已通过') return { text: '已通过', cls: 'chip-ok' }
   if (status === 'PENDING' || status === '待审批') return { text: '待审批', cls: 'chip-warn' }

@@ -523,7 +523,7 @@ class AnalyticsControllerTest extends ControllerTestBase {
     void atRiskStudents_authorized_returns_200() throws Exception {
         when(analyticsService.getAtRiskStudents(eq("test"), eq(1L), eq("test"), eq("test"), eq(1L)))
                 .thenReturn(Map.of("totalStudents", 100, "atRiskCount", 10));
-        mockMvc.perform(get("/analytics/at-risk/students?groupBy=test&courseId=1&department=test&major=test&classId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+        mockMvc.perform(get("/analytics/at-risk/students?groupBy=test&courseId=1&department=test&major=test&adminClassId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
@@ -535,7 +535,7 @@ class AnalyticsControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /analytics/at-risk/students - 未认证返回401")
     void atRiskStudents_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(get("/analytics/at-risk/students?groupBy=test&courseId=1&department=test&major=test&classId=1"))
+        mockMvc.perform(get("/analytics/at-risk/students?groupBy=test&courseId=1&department=test&major=test&adminClassId=1"))
                 .andExpect(status().isUnauthorized());
     }
 

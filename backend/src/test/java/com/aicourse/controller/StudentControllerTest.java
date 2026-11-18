@@ -46,6 +46,8 @@ class StudentControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.LearningRecordService learningRecordService;
     @MockitoBean
+    private com.aicourse.service.TeachingClassService teachingClassService;
+    @MockitoBean
     private CourseAccessControl courseAccessControl;
 
     // ==================== 学习中心 ====================
@@ -156,19 +158,15 @@ class StudentControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("DELETE /student/courses/1/enroll - STUDENT 退出课程走软删（P1-3 收口，不物理删行）")
+    @DisplayName("DELETE /student/courses/1/enroll - STUDENT 退课走取消状态机（保留历史，不物理删行）")
     void unenrollCourse_authorized_passes_security() throws Exception {
-        CourseEnrollment enrollment = new CourseEnrollment();
-        enrollment.setId(9L);
-        when(enrollmentService.getOne(any())).thenReturn(enrollment);
-
         mockMvc.perform(delete("/student/courses/1/enroll").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 2026-11-14 P1-3：学生端与管理端统一走服务层软删（is_active=false），
-        // 不再 removeById 物理删行（容量统计与历史留痕依赖软删行）
-        verify(enrollmentService).unenroll(eq(9L), eq(1L));
+        // 2026-11-18：学生端与教师/管理员统一走 cancelByCourse，落 CANCELLED 留痕；
+        // 不再 removeById 物理删行（容量统计、审批历史与重复选课恢复依赖软删行）。
+        verify(enrollmentService).cancelByCourse(eq(1L), eq(1L), eq("学生主动退课"));
         verify(enrollmentService, never()).removeById(anyLong());
     }
 

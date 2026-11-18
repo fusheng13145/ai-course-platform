@@ -2,6 +2,7 @@ package com.aicourse.controller;
 import com.aicourse.controller.CourseEnrollmentController;
 import com.aicourse.entity.Course;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.entity.CourseEnrollment;
@@ -42,6 +43,9 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     @MockitoBean
     private AdminScopeGuard adminScopeGuard;
 
+    @MockitoBean
+    private TeachingClassAccessControl teachingClassAccessControl;
+
     private Course course(Long id, Long teacherId) {
         Course c = new Course();
         c.setId(id);
@@ -54,7 +58,8 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
         e.setId(id);
         e.setStudentId(studentId);
         e.setCourseId(courseId);
-        e.setApprovalStatus("APPROVED");
+        e.setApprovalStatus("PENDING");
+        e.setIsActive(true);
         return e;
     }
 
@@ -70,7 +75,7 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.courseId").value(1))
-                .andExpect(jsonPath("$.data.approvalStatus").value("APPROVED"));
+                .andExpect(jsonPath("$.data.approvalStatus").value("PENDING"));
         verify(enrollmentService).enroll(eq(1L), eq(1L), isNull());
     }
 

@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.dto.AdminClassMemberBatchDTO;
 import com.aicourse.dto.OrgAdminClassDTO;
 import com.aicourse.dto.OrgCollegeDTO;
 import com.aicourse.dto.OrgMajorDTO;
@@ -17,6 +18,7 @@ import com.aicourse.mapper.SchoolMapper;
 import com.aicourse.mapper.UserMapper;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.OrgService;
+import com.aicourse.vo.AdminClassMemberBatchVO;
 import com.aicourse.vo.OrgTreeNodeVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 组织架构业务实现（V12 / B-12-P-08 WP1；V14 / WP4 增加组织表 CRUD）。
@@ -332,6 +335,59 @@ public class OrgServiceImpl implements OrgService {
         adminClass.setStatus(STATUS_ARCHIVED);
         adminClass.setUpdatedAt(LocalDateTime.now());
         adminClassMapper.updateById(adminClass);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AdminClassMemberBatchVO batchMembers(Long adminClassId, AdminClassMemberBatchDTO dto) {
+        AdminClass adminClass = requireAdminClass(adminClassId);
+        adminScopeGuard.assertCollegeAccess(adminClass.getCollegeId());
+        if (!STATUS_ACTIVE.equals(adminClass.getStatus())) {
+            throw new BusinessException(ApiCode.CONFLICT, "已归档的行政班不能调整成员");
+        }
+        boolean add = "ADD".equals(dto.getAction());
+        long current = userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getAdminClassId, adminClassId));
+        int added = 0;
+        int removed = 0;
+        int skipped = 0;
+        for (Long studentId : dto.getStudentIds()) {
+            User student = studentId == null ? null : userMapper.selectById(studentId);
+            if (student == null || !"STUDENT".equalsIgnoreCase(student.getRole())) {
+                skipped++;
+                continue;
+            }
+            if (!add) {
+                if (Objects.equals(student.getAdminClassId(), adminClassId)) {
+                    student.setAdminClassId(null);
+                    userMapper.updateById(student);
+                    removed++;
+                } else {
+                    skipped++;
+                }
+                continue;
+            }
+            if (Objects.equals(student.getAdminClassId(), adminClassId)) {
+                skipped++;
+                continue;
+            }
+            if (student.getAdminClassId() != null && !dto.isMoveExisting()) {
+                skipped++;
+                continue;
+            }
+            Integer max = adminClass.getMaxStudents();
+            if (max != null && max > 0 && current + added >= max) {
+                skipped++;
+                continue;
+            }
+            student.setAdminClassId(adminClassId);
+            userMapper.updateById(student);
+            added++;
+        }
+        adminClass.setStudentCount((int) Math.max(0, current + added - removed));
+        adminClass.setUpdatedAt(LocalDateTime.now());
+        adminClassMapper.updateById(adminClass);
+        return new AdminClassMemberBatchVO(added, removed, skipped);
     }
 
     private Long defaultSchoolId() {
