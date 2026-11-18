@@ -7,6 +7,10 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseEnrollmentMapper;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.UserMapper;
+import com.aicourse.mapper.AdminClassMapper;
+import com.aicourse.mapper.CollegeMapper;
+import com.aicourse.mapper.MajorMapper;
+import com.aicourse.mapper.SchoolMapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +45,11 @@ class UserServiceImplTest {
     // 修复 B5：UserServiceImpl 新增「教师授课范围」依赖，构造注入需要这两个 mock
     @Mock private CourseMapper courseMapper;
     @Mock private CourseEnrollmentMapper courseEnrollmentMapper;
+    // 个人中心资料联查：学校/学院/专业/行政班名称
+    @Mock private SchoolMapper schoolMapper;
+    @Mock private CollegeMapper collegeMapper;
+    @Mock private MajorMapper majorMapper;
+    @Mock private AdminClassMapper adminClassMapper;
     @InjectMocks private UserServiceImpl userService;
 
     private User sampleUser;

@@ -227,7 +227,7 @@ const STUDENT_PAGES: Record<string, PageDef> = {
     special: 'messages',
   },
   profile: {
-    title: '个人',
+    title: '个人中心',
     special: 'profile',
   },
   // 全局 AI 助手页已判下线（M-30）：导航不挂入口，深链接落到「待扩展」空态。
@@ -298,7 +298,7 @@ const TEACHER_PAGES: Record<string, PageDef> = {
     special: 'messages',
   },
   profile: {
-    title: '个人',
+    title: '个人中心',
     special: 'profile',
   },
 }
@@ -388,7 +388,7 @@ const ADMIN_PAGES: Record<string, PageDef> = {
     special: 'system',
   },
   profile: {
-    title: '个人',
+    title: '个人中心',
     special: 'profile',
   },
 }

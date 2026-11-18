@@ -409,6 +409,9 @@ public class UserController {
         if (updates.getEmail() != null) {
             user.setEmail(updates.getEmail());
         }
+        if (updates.getGender() != null) {
+            user.setGender(updates.getGender());
+        }
         if (updates.getAvatarUrl() != null) {
             user.setAvatarUrl(updates.getAvatarUrl());
         }

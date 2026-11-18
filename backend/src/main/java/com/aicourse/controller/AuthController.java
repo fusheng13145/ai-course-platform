@@ -250,34 +250,36 @@ public class AuthController {
     public ApiResponse<User> updateCurrentUser(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
         Long userId = requireLogin(auth);
         log.debug("更新个人资料 userId={}", userId);
-        User user = userService.getById(userId);
-        if (user == null) {
+        User existing = userService.getById(userId);
+        if (existing == null) {
             return ApiResponse.error(ApiCode.NOT_FOUND, "用户不存在");
         }
 
-        // 按需白名单更新非空字段（UserUpdateDTO 本身已不含 role/password/id 等敏感列）
+        // 按需白名单更新非空字段（UserUpdateDTO 本身已不含 role/password/id 等敏感列）。
+        // 走 updateProfile 统一路径：邮箱唯一性、缓存失效与字段拷贝只在一处维护。
+        User patch = new User();
         if (updates.getFullName() != null) {
-            user.setFullName(updates.getFullName());
+            patch.setFullName(updates.getFullName());
         }
         if (updates.getPhone() != null) {
-            user.setPhone(updates.getPhone());
+            patch.setPhone(updates.getPhone());
         }
         if (updates.getEmail() != null) {
-            user.setEmail(updates.getEmail());
+            patch.setEmail(updates.getEmail());
+        }
+        if (updates.getGender() != null) {
+            patch.setGender(updates.getGender());
         }
         if (updates.getAvatarUrl() != null) {
-            user.setAvatarUrl(updates.getAvatarUrl());
+            patch.setAvatarUrl(updates.getAvatarUrl());
         }
         if (updates.getBio() != null) {
-            user.setBio(updates.getBio());
+            patch.setBio(updates.getBio());
         }
 
-        userService.updateById(user);
-        User updatedUser = userService.getById(userId);
-        // 密码脱敏，禁止返回
-        if (updatedUser != null) {
-            updatedUser.setPassword(null);
-        }
+        userService.updateProfile(userId, patch);
+        // 返回联查后的完整资料（含学校/学院/专业/行政班名称），前端可直接回填。
+        User updatedUser = userService.getUserProfile(userId);
         return ApiResponse.success("个人资料更新成功", updatedUser);
     }
 

@@ -177,10 +177,16 @@ beforeEach(() => {
       fullName: '林知远',
       email: 'lin@example.com',
       phone: '13800138000',
+      gender: 'MALE',
+      avatarUrl: '/uploads/avatars/1.png',
       studentId: '2023010101',
       major: '计算机科学与技术',
+      majorName: '计算机科学与技术',
       grade: '2023',
       department: '计算机学院',
+      collegeName: '计算机学院',
+      schoolName: '江苏科技大学',
+      adminClassName: '计科 2301',
       role: 'STUDENT',
       lastLogin: '2026-10-20T10:00:00',
     }),
@@ -583,27 +589,30 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
 })
 
 describe('学生全局页 · 个人中心', () => {
-  it('渲染基本资料 / 设置（外观与安全）与按角色收敛的扩展区', async () => {
+  it('只保留一张资料卡，展示本人关键字段且不再渲染旧扩展区', async () => {
     const wrapper = mountProfile()
     await settle()
 
     expect(userApi.getProfile).toHaveBeenCalledWith(11)
-    expect(wrapper.findAll('.profile-card')).toHaveLength(4)
+    expect(wrapper.findAll('.profile-card')).toHaveLength(1)
     const text = wrapper.text()
-    expect(text).toContain('基本资料')
-    expect(text).toContain('编辑资料')
-    expect(text).not.toContain('外观主题')
-    expect(text).toContain('账号安全')
-    expect(text).toContain('修改密码')
+    expect(text).toContain('林知远')
+    expect(text).toContain('UID 11')
+    expect(text).toContain('学生')
+    expect(text).toContain('13800138000')
+    expect(text).toContain('lin@example.com')
+    expect(text).toContain('linzhiyuan')
+    expect(text).toContain('江苏科技大学')
+    expect(text).toContain('计算机学院')
     expect(text).toContain('2023010101')
     expect(text).toContain('计算机科学与技术')
     expect(text).toContain('2023')
-    expect(text).toContain('林知远')
-    expect(text).toContain('2026-10-20 10:00')
-    // M-06 扩展区：学生保留数据概览 / 我的课程 / 学习动态
-    expect(text).toContain('数据概览')
-    expect(text).toContain('我的课程')
-    expect(text).toContain('学习动态')
+    expect(text).toContain('计科 2301')
+    expect(text).not.toContain('数据概览')
+    expect(text).not.toContain('我的课程')
+    expect(text).not.toContain('学习动态')
+    expect(text).not.toContain('账号安全')
+    expect(text).not.toContain('外观主题')
     expect(text).not.toContain('示例数据')
 
     await findButton(wrapper, '编辑资料')?.trigger('click')
@@ -651,15 +660,11 @@ describe('学生全局页 · 个人中心', () => {
     await settle()
 
     expect(authApi.updateCurrentUser).toHaveBeenCalledTimes(1)
-    expect(authApi.updateCurrentUser).toHaveBeenCalledWith({
-      fullName: '林知远',
-      phone: '13800138000',
-    })
     expect(authApi.updateCurrentUser.mock.calls[0][0]).not.toHaveProperty('email', '')
     wrapper.unmount()
   })
 
-  it('教师 / 管理员个人中心不显示学生专属的学号与提示', async () => {
+  it('教师个人中心展示工号与职称，不显示学生专属字段', async () => {
     uiState.role.value = 'teacher'
     userApi.getProfile.mockResolvedValueOnce(
       envelope({
@@ -668,6 +673,9 @@ describe('学生全局页 · 个人中心', () => {
         fullName: '王老师',
         email: 'wang@example.com',
         role: 'TEACHER',
+        teacherId: 'T2019007',
+        title: '副教授',
+        department: '计算机学院',
       }),
     )
     const wrapper = mountProfile()
@@ -675,12 +683,13 @@ describe('学生全局页 · 个人中心', () => {
 
     const text = wrapper.text()
     expect(text).not.toContain('学号')
-    expect(text).not.toContain('用户名、学号由管理员维护')
-    expect(text).toContain('用户名由管理员维护')
+    expect(text).toContain('工号')
+    expect(text).toContain('T2019007')
+    expect(text).toContain('职称')
+    expect(text).toContain('副教授')
     expect(text).toContain('王老师')
-    // 教师端不再渲染学生式概览/动态，也不再发起 /student/** 请求
     expect(text).not.toContain('数据概览')
-    expect(text).toContain('最近通知')
+    expect(text).not.toContain('最近通知')
     expect(studentApi.getPendingAssignments).not.toHaveBeenCalled()
     expect(studentApi.getCompletedAssignments).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -730,7 +739,6 @@ describe('学生全局页 · 个人中心', () => {
       confirmPassword: 'Abc12345!',
     })
     expect(uiState.toast).toHaveBeenCalledWith('密码已修改，请重新登录', 'ok')
-    // 后端改密即吊销会话：本地登录态必须清空并回登录页
     expect(uiState.auth.resetAuthState).toHaveBeenCalledTimes(1)
     expect(router.push).toHaveBeenCalledWith('/login')
     wrapper.unmount()
@@ -755,11 +763,11 @@ describe('学生全局页 · 个人中心', () => {
 
     expect(wrapper.text()).toContain('用户名')
     expect(wrapper.text()).toContain('学号')
-    expect(wrapper.text()).toContain('—')
+    expect(wrapper.findAll('.profile-field dd.is-empty').length).toBeGreaterThan(0)
     await findButton(wrapper, '编辑资料')?.trigger('click')
     await settle()
     expect(wrapper.find('[data-field="fullName"]').element).toHaveProperty('value', '')
-    expect(wrapper.findAll('.profile-card')).toHaveLength(4)
+    expect(wrapper.findAll('.profile-card')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('示例数据')
     wrapper.unmount()
   })
@@ -779,7 +787,7 @@ describe('学生全局页 · 个人中心', () => {
     const phone = wrapper.find('[data-field="phone"]').element as HTMLInputElement
     expect(email.value).toBe('lin@example.com')
     expect(phone.value).toBe('13800138000')
-    expect(wrapper.findAll('.profile-card')).toHaveLength(4)
+    expect(wrapper.findAll('.profile-card')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('示例数据')
     wrapper.unmount()
   })

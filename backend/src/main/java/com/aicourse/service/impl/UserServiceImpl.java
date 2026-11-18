@@ -3,12 +3,22 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.common.RoleConstants;
+import com.aicourse.entity.AdminClass;
+import com.aicourse.entity.College;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.Major;
+import com.aicourse.entity.School;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.AdminClassMapper;
+import com.aicourse.mapper.CollegeMapper;
 import com.aicourse.mapper.CourseEnrollmentMapper;
 import com.aicourse.mapper.CourseMapper;
+import com.aicourse.mapper.MajorMapper;
+import com.aicourse.mapper.SchoolMapper;
 import com.aicourse.mapper.UserMapper;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.UserStatsVO;
@@ -25,7 +35,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import com.aicourse.common.RoleConstants;
 
 /**
  * 用户服务实现类
@@ -45,14 +54,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final CourseMapper courseMapper;
     private final CourseEnrollmentMapper courseEnrollmentMapper;
 
-    public UserServiceImpl(CourseMapper courseMapper, CourseEnrollmentMapper courseEnrollmentMapper) {
+    /** 组织名称联查（个人中心展示学校/学院/专业/行政班） */
+    private final SchoolMapper schoolMapper;
+    private final CollegeMapper collegeMapper;
+    private final MajorMapper majorMapper;
+    private final AdminClassMapper adminClassMapper;
+
+    public UserServiceImpl(CourseMapper courseMapper,
+                           CourseEnrollmentMapper courseEnrollmentMapper,
+                           SchoolMapper schoolMapper,
+                           CollegeMapper collegeMapper,
+                           MajorMapper majorMapper,
+                           AdminClassMapper adminClassMapper) {
         this.courseMapper = courseMapper;
         this.courseEnrollmentMapper = courseEnrollmentMapper;
+        this.schoolMapper = schoolMapper;
+        this.collegeMapper = collegeMapper;
+        this.majorMapper = majorMapper;
+        this.adminClassMapper = adminClassMapper;
     }
 
     /**
-     * 获取用户完整资料（含班级名称关联查询）
-     * 密码字段置空返回以保护隐私
+     * 获取用户完整资料（含组织名称联查）
+     * <p>学校/学院/专业/行政班的权威来源分别是 schools / colleges / majors / admin_classes；
+     * users 表只存 ID，不复制名称。单校部署下 users.school_id 多为空，学校名回退到
+     * schools 的唯一一行；学院/专业在 ID 为空时回退到 users.department / users.major
+     * 的存量文本，避免个人中心出现大片空值。</p>
+     * 密码字段置空返回以保护隐私。
      */
     @Override
     @Cacheable(value = "users", key = "'profile_' + #userId")
@@ -61,9 +89,60 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        enrichOrganization(user);
         // 密码字段置空返回
         user.setPassword(null);
         return user;
+    }
+
+    /**
+     * 回填组织名称（只写 @TableField(exist = false) 的派生字段，不改库）。
+     */
+    private void enrichOrganization(User user) {
+        AdminClass adminClass = user.getAdminClassId() == null
+                ? null : adminClassMapper.selectById(user.getAdminClassId());
+
+        School school = user.getSchoolId() == null
+                ? null : schoolMapper.selectById(user.getSchoolId());
+        if (school == null && adminClass != null && adminClass.getSchoolId() != null) {
+            school = schoolMapper.selectById(adminClass.getSchoolId());
+        }
+        if (school == null) {
+            // 单校部署（schools 表内恰一行）：老账号没有 school_id 时回退到唯一学校。
+            List<School> schools = schoolMapper.selectList(null);
+            if (schools != null && schools.size() == 1) {
+                school = schools.get(0);
+            }
+        }
+        if (school != null) {
+            user.setSchoolName(school.getName());
+        }
+
+        College college = user.getCollegeId() == null
+                ? null : collegeMapper.selectById(user.getCollegeId());
+        if (college == null && adminClass != null && adminClass.getCollegeId() != null) {
+            college = collegeMapper.selectById(adminClass.getCollegeId());
+        }
+        if (college != null) {
+            user.setCollegeName(college.getName());
+        } else if (user.getDepartment() != null && !user.getDepartment().isBlank()) {
+            user.setCollegeName(user.getDepartment());
+        }
+
+        Major major = user.getMajorId() == null
+                ? null : majorMapper.selectById(user.getMajorId());
+        if (major == null && adminClass != null && adminClass.getMajorId() != null) {
+            major = majorMapper.selectById(adminClass.getMajorId());
+        }
+        if (major != null) {
+            user.setMajorName(major.getName());
+        } else if (user.getMajor() != null && !user.getMajor().isBlank()) {
+            user.setMajorName(user.getMajor());
+        }
+
+        if (adminClass != null) {
+            user.setAdminClassName(adminClass.getName());
+        }
     }
 
     /**
@@ -106,13 +185,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 部分字段更新，只更新非空字段
         if (updates.getFullName() != null) {
-            user.setFullName(updates.getFullName());
+            user.setFullName(updates.getFullName().trim());
         }
         if (updates.getPhone() != null) {
-            user.setPhone(updates.getPhone());
+            user.setPhone(updates.getPhone().trim());
+        }
+        if (updates.getEmail() != null) {
+            String email = updates.getEmail().trim();
+            // uk_users_email 是库级唯一键；先给出 409 语义，避免直写触发 500。
+            if (!email.equalsIgnoreCase(user.getEmail())
+                    && this.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getEmail, email)
+                    .ne(User::getId, userId)) > 0) {
+                throw new BusinessException(ApiCode.CONFLICT, "邮箱已被使用");
+            }
+            user.setEmail(email);
+        }
+        if (updates.getGender() != null) {
+            user.setGender(updates.getGender());
         }
         if (updates.getAvatarUrl() != null) {
-            user.setAvatarUrl(updates.getAvatarUrl());
+            user.setAvatarUrl(updates.getAvatarUrl().trim());
         }
         if (updates.getBio() != null) {
             user.setBio(updates.getBio());

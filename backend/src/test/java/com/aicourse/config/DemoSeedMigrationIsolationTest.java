@@ -89,7 +89,9 @@ class DemoSeedMigrationIsolationTest {
             // V28（2026-11-17）：课程库 course_definitions + courses 开课任务字段 —— 结构迁移
             "V28__course_lifecycle.sql",
             // V29（2026-11-18）：退役 classrooms / users.class_id —— 结构迁移
-            "V29__retire_legacy_classrooms.sql");
+            "V29__retire_legacy_classrooms.sql",
+            // V30（2026-11-18）：users.gender 性别列（个人中心）—— 结构迁移
+            "V30__user_gender.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

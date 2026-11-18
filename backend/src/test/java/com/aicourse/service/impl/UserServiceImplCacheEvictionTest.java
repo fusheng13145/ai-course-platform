@@ -1,8 +1,12 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.entity.User;
+import com.aicourse.mapper.AdminClassMapper;
+import com.aicourse.mapper.CollegeMapper;
 import com.aicourse.mapper.CourseEnrollmentMapper;
 import com.aicourse.mapper.CourseMapper;
+import com.aicourse.mapper.MajorMapper;
+import com.aicourse.mapper.SchoolMapper;
 import com.aicourse.mapper.UserMapper;
 import com.aicourse.service.UserService;
 import org.junit.jupiter.api.AfterEach;
@@ -69,7 +73,9 @@ class UserServiceImplCacheEvictionTest {
         UserServiceImpl userService(UserMapper userMapper,
                                     CourseMapper courseMapper,
                                     CourseEnrollmentMapper courseEnrollmentMapper) {
-            return new UserServiceImpl(courseMapper, courseEnrollmentMapper);
+            return new UserServiceImpl(courseMapper, courseEnrollmentMapper,
+                    mock(SchoolMapper.class), mock(CollegeMapper.class),
+                    mock(MajorMapper.class), mock(AdminClassMapper.class));
         }
     }
 
