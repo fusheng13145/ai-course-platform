@@ -12,7 +12,7 @@ test.describe('路由守卫（未登录）', () => {
     })
     await page.goto('/admin/questions')
     await expect(page).toHaveURL(/\/login\?redirect=/)
-    await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '登录' })).toBeVisible()
   })
 
   test('学生端深链接同样被拦到 登录页', async ({ page }) => {
