@@ -48,6 +48,9 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+# 测试不依赖外部 MinIO；显式关闭后回退本地实现，避免上下文启动时连 9000 端口。
+minio:
+  enabled: false
 
 # 限流依赖 Redis（已由容器提供），保持开启即可；如需可在此关闭
 ratelimit:

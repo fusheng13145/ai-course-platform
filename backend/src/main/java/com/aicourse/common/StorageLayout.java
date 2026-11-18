@@ -15,8 +15,9 @@ import java.util.Locale;
  * 或用 {@code FILE_UPLOAD_DIR} / {@code FILE_CHUNK_DIR} 分别覆盖。仓库内已不再保留
  * {@code uploads/} 目录：所有读写只走外部存储根，不存在「外部缺失再回退仓库」的路径。</p>
  *
- * <p>对外 URL 仍保持 {@code /uploads/<key>}，由 {@code UploadResourceConfig}
- * 映射到外部存储根；因此前端与历史数据库 URL 都不需要改前缀。</p>
+ * <p>对外 URL 仍保持 {@code /uploads/<key>}：本地模式由 {@code UploadResourceConfig}
+ * 映射到外部存储根；MinIO 模式由 {@code UploadResourceController} 代理读取对象存储。
+ * 因此前端与历史数据库 URL 都不需要改前缀。</p>
  */
 public final class StorageLayout {
 

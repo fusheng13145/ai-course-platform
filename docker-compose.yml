@@ -1,6 +1,6 @@
 # ============================================================
 # AI 课程平台 - Docker Compose 编排
-# 服务：mysql / redis / backend / frontend
+# 服务：mysql / redis / minio / backend / frontend
 #       + kg-service / rag-service / neo4j（Python 引擎，profiles: python；neo4j 亦属 rag）
 #       + mysql-backup（备份守护，profiles: ops）
 #       + prometheus / grafana / loki / promtail（监控+日志，profiles: monitor）
@@ -188,6 +188,36 @@ services:
       retries: 20
       start_period: 10s
 
+  minio:
+    # 补丁级固定：MinIO 社区版对象存储，只用于本项目上传对象与桶管理。
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: aicourse-minio
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    labels:
+      <<: *labels-infra
+      aicourse.role: object-storage
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER 必须设置（请 cp .env.example .env 后填入）}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD 必须设置（请 cp .env.example .env 后填入强口令）}
+      TZ: Asia/Shanghai
+    ports:
+      # 默认只绑回环：本机 start.bat 走 localhost:9000；容器内 backend 走服务名 minio:9000。
+      - "${MINIO_HOST_BIND:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_HOST_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   backend:
     build:
       context: ./backend
@@ -209,6 +239,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
       # D-A4 ②：Python 引擎随编排上线。required:false 保证 `--profile full`
       # （不带 python profile）仍可单独起后端，行为与之前一致；带 python profile 时
@@ -269,11 +301,18 @@ services:
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       QWEN_MODEL: ${QWEN_MODEL:-qwen-plus}
-      # 上传文件根：默认不落仓库 uploads/，容器内固定到持久卷；对外仍经 /uploads/** 映射。
+      # 上传文件根：MinIO 模式下仅作为历史本地文件的只读兼容目录；新上传写 MinIO。
       FILE_UPLOAD_DIR: ${FILE_UPLOAD_DIR:-/app/storage}
       # 分片上传的中间态目录：application.yaml 读 FILE_CHUNK_DIR。
-      # 改前该目录不在任何卷上，容器重建即丢全部断点续传进度（与 uploads 同类的旧缺陷）。
+      # 分片仍在本地暂存，合并完成后由 FileStorageService 写入 MinIO。
       FILE_CHUNK_DIR: ${FILE_CHUNK_DIR:-/app/chunks}
+      # MinIO 对象存储：默认启用；容器内 endpoint 必须走服务名，不能沿用 localhost。
+      MINIO_ENABLED: ${MINIO_ENABLED:-true}
+      # 容器内必须走 Compose 服务名；不要沿用 .env 里给本机 start.bat 用的 localhost。
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER 必须设置（请 cp .env.example .env 后填入）}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD 必须设置（请 cp .env.example .env 后填入强口令）}
+      MINIO_BUCKET: ${MINIO_BUCKET:-aicourse-uploads}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
       # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由本机启动器经 local profile 放宽」，
       #   该句仅覆盖 start.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
@@ -864,7 +903,9 @@ services:
 volumes:
   mysql-data:
   redis-data:
-  # 上传文件持久卷（backend FILE_UPLOAD_DIR=/app/storage）
+  # MinIO 对象存储持久卷（backend 只经 MinIO SDK 读写，不直接挂载）
+  minio-data:
+  # 历史上传文件卷：MinIO 切换后仅用于旧文件只读兼容，新上传不再写入
   uploads-data:
   # 分片上传中间态（backend FILE_CHUNK_DIR=/app/chunks，2026-11-06 补件）
   upload-chunks-data:

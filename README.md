@@ -135,7 +135,7 @@ start.bat
 - 本地 HTTP 联调需 `COOKIE_SECURE=false`、`REQUIRE_HTTPS=false`、`CSRF_ENABLED=false`（`start.bat` 的 all/backend 模式已代劳）；CSRF 校验失败返回 403 并提示缺失 `X-XSRF-TOKEN`。
 - **依赖源已迁到官方 registry**：`frontend/package-lock.json` 的 `resolved` 全部为 `registry.npmjs.org`（仅 xlsx 的 `cdn.sheetjs.com` tarball 原样保留）。本机**不需要为此改 npm 配置**——npm 默认的 `replace-registry-host=npmjs` 会把官方主机名重写到你所配置的镜像源，同一份 lockfile 同时服务 CI（官方源）与本机（镜像提速），`integrity` 哈希与源无关。
 
-> Docker／Compose 与"一台云主机上线"的全部内容（15 服务与 profile、必填环境变量清单、存量卷 `chown` 一次性迁移、TLS 与两条传输层路径、监控与备份、断链清单）已收在 `docs/部署文档.md` §5／§6／§7／§9。**编排尚未在真实环境实跑**：CI 的 `Docker Images Build` 只在 `main`/手动触发时构建，本机与目标环境均未 `up`；TLS、恢复演练、容量压测与 deploy secrets 仍挂账（2026-11-17 逐项状态见部署文档 §6）。本节不再重复命令。
+> Docker／Compose 与"一台云主机上线"的全部内容（16 服务与 profile、必填环境变量清单、存量卷 `chown` 一次性迁移、TLS 与两条传输层路径、监控与备份、断链清单）已收在 `docs/部署文档.md` §5／§6／§7／§9。**编排尚未在真实环境实跑**：CI 的 `Docker Images Build` 只在 `main`/手动触发时构建，本机与目标环境均未 `up`；TLS、恢复演练、容量压测与 deploy secrets 仍挂账（2026-11-17 逐项状态见部署文档 §6）。本节不再重复命令。
 
 ---
 
@@ -188,7 +188,7 @@ python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登
 
 ## 已知边界（表述不得越过这条线）
 
-- 当前只有**本机原生进程**这一条部署形态可执行；Compose 配置已齐备（15 服务，含 `ft` profile），CI 的 Docker job 只在 `main`/手动触发时构建，本机与目标环境均未 `up` 验证（断链清单见 `docs/部署文档.md` §6 与 `docs/后端待办项.md` §6）。**这条形态只服务开发与验收，不构成生产就绪**：Phase 1 上线必须补齐容器或等价编排、TLS/反代、密钥、备份恢复与监控告警。
+- 当前只有**本机原生进程**这一条部署形态可执行；Compose 配置已齐备（16 服务，含 `minio` 与 `ft` profile），CI 的 Docker job 只在 `main`/手动触发时构建，本机与目标环境均未 `up` 验证（断链清单见 `docs/部署文档.md` §6 与 `docs/后端待办项.md` §6）。**这条形态只服务开发与验收，不构成生产就绪**：Phase 1 上线必须补齐容器或等价编排、TLS/反代、密钥、备份恢复与监控告警。
 - 集成层（16 例 Testcontainers）与 Trivy 漏洞库侧**只在 CI 有读数**。
 - 视觉基线覆盖 5 个锚点页（10 张，明暗各一），非锚点页的渲染缺陷抓不到；无障碍只有近似读数，**不构成 WCAG 合规结论**。
 - 压力读数来自本机笔记本单实例，**不是生产容量结论**。

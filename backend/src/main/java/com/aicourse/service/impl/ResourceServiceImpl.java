@@ -35,6 +35,18 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
         this.resourceVersionService = resourceVersionService;
     }
 
+    @Override
+    public Resource findByUrl(String storedUrl) {
+        if (storedUrl == null || storedUrl.isBlank()) {
+            return null;
+        }
+        String bareUrl = storedUrl.startsWith("/") ? storedUrl.substring(1) : storedUrl;
+        java.util.List<Resource> matches = this.list(new LambdaQueryWrapper<Resource>()
+                .in(Resource::getUrl, storedUrl, bareUrl)
+                .last("LIMIT 1"));
+        return matches.isEmpty() ? null : matches.get(0);
+    }
+
     /**
      * 获取课程的资源树（按章节组织）
      */

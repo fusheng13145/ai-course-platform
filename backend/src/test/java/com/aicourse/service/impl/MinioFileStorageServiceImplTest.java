@@ -8,6 +8,7 @@ import io.minio.RemoveObjectArgs;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -15,7 +16,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -43,12 +48,16 @@ class MinioFileStorageServiceImplTest {
     @Mock
     private MinioClient minioClient;
 
+    @TempDir
+    Path tempRoot;
+
     private MinioFileStorageServiceImpl service;
 
     @BeforeEach
     void setUp() throws Exception {
         service = new MinioFileStorageServiceImpl(minioClient);
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
+        ReflectionTestUtils.setField(service, "uploadDir", tempRoot.toString());
         // 兜底桩（any() 合理）：让不关心 getObject 参数的用例能跑完链路
         lenient().when(minioClient.getObject(any())).thenReturn(mock(GetObjectResponse.class));
     }
@@ -131,5 +140,29 @@ class MinioFileStorageServiceImplTest {
         assertEquals("another-bucket", cap.getValue().bucket());
         assertEquals("dir/file.pdf", cap.getValue().object());
         assertEquals("application/pdf", cap.getValue().contentType());
+    }
+
+    @Test
+    void downloadByUrl_fallsBackToHistoricalLocalFile() throws Exception {
+        Path legacy = tempRoot.resolve("resources/1/legacy.txt");
+        Files.createDirectories(legacy.getParent());
+        Files.writeString(legacy, "legacy-local", StandardCharsets.UTF_8);
+        when(minioClient.getObject(any())).thenThrow(new RuntimeException("NoSuchKey"));
+
+        try (InputStream is = service.downloadByUrl("/uploads/resources/1/legacy.txt")) {
+            assertNotNull(is, "MinIO 未命中时必须回退历史本地文件");
+            assertArrayEquals("legacy-local".getBytes(StandardCharsets.UTF_8), is.readAllBytes());
+        }
+    }
+
+    @Test
+    void downloadByUrl_returnsNullWhenNeitherMinioNorLocalHasFile() throws Exception {
+        when(minioClient.getObject(any())).thenThrow(new RuntimeException("NoSuchKey"));
+        assertNull(service.downloadByUrl("/uploads/resources/1/missing.txt"));
+    }
+
+    @Test
+    void downloadByUrl_rejectsTraversalWithoutTouchingStorage() {
+        assertNull(service.downloadByUrl("/uploads/../secret.txt"));
     }
 }

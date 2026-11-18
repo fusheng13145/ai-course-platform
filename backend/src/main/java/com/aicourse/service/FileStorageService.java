@@ -11,8 +11,8 @@ import java.nio.file.Path;
  * 文件存储服务统一接口
  *
  * 提供 upload / download / delete 三个核心操作，允许在不同存储后端之间透明切换：
- * - LocalFileStorageServiceImpl：本地磁盘（当前默认实现）
- * - MinioFileStorageServiceImpl：MinIO 对象存储（需 minio.enabled=true 激活）
+ * - MinioFileStorageServiceImpl：MinIO 对象存储（默认实现）
+ * - LocalFileStorageServiceImpl：本地磁盘（仅测试或历史文件兼容场景）
  */
 public interface FileStorageService {
 
