@@ -170,6 +170,21 @@ public class Course {
     @TableField("question_practice_enabled")
     private Boolean questionPracticeEnabled;
 
+    /**
+     * 课程库定义ID（V28）：courses 是开课任务，定义层只保存跨学期稳定的课程身份。
+     */
+    private Long definitionId;
+
+    /**
+     * 计划教学班数（V28）：审批通过后按此生成教学班占位。
+     */
+    private Integer plannedSections;
+
+    /**
+     * 结课/归档时间（V28）。
+     */
+    private LocalDateTime completedAt;
+
     public void setIsActive(Boolean active) {
         isActive = active;
     }

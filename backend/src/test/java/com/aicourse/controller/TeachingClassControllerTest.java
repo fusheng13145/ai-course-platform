@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
 import com.aicourse.security.AdminScopeGuard;
@@ -75,12 +76,18 @@ class TeachingClassControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("管理员不能代建教学班（写操作仅课程负责人角色）")
-    void adminCannotCreate() throws Exception {
-        String body = "{\"courseId\":1}";
+    @DisplayName("管理员可代建教学班")
+    void adminCanCreate() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(1L);
+        TeachingClass teachingClass = new TeachingClass();
+        teachingClass.setId(30L);
+        when(teachingClassService.create(anyLong(), anyLong(), any(), any(), any(), any()))
+                .thenReturn(teachingClass);
+
         mockMvc.perform(withUser(post("/teaching-classes")
-                        .contentType(MediaType.APPLICATION_JSON).content(body), 1L, "ADMIN"))
-                .andExpect(status().isForbidden());
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1}"), 1L, "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(30));
     }
 
     @Test
@@ -162,5 +169,21 @@ class TeachingClassControllerTest extends ControllerTestBase {
         mockMvc.perform(withUser(get("/teaching-classes/30/admin-classes"), 1L, "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @DisplayName("WP5：教师读取行政班候选，供名单面板选班")
+    void teacherCanReadRosterCandidates() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(100L);
+        AdminClass candidate = new AdminClass();
+        candidate.setId(5L);
+        candidate.setName("计算机2201班");
+        candidate.setCode("CS2201");
+        when(rosterService.listCandidates(30L, 100L)).thenReturn(List.of(candidate));
+
+        mockMvc.perform(withUser(get("/teaching-classes/30/roster/candidates"), 100L, "TEACHER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(5))
+                .andExpect(jsonPath("$.data[0].code").value("CS2201"));
     }
 }

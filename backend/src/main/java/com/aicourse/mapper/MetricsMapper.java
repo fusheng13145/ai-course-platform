@@ -105,37 +105,37 @@ public interface MetricsMapper {
             "GROUP BY c.id, c.code, c.name, c.teacher_id, u.full_name")
     java.util.List<java.util.Map<String, Object>> courseExams();
 
-    // ===================== 班级维度下钻（tag=班级编号+班级名，val=统计值）=====================
+    // ===================== 行政班维度下钻（tag=班级编号+班级名，val=统计值）=====================
 
-    /** 每个班级的学生总数 */
-    @Select("SELECT cl.code AS `class`, cl.name AS `class_name`, COUNT(u.id) AS val " +
-            "FROM classrooms cl " +
-            "LEFT JOIN users u ON u.class_id = cl.id AND u.role = 'STUDENT' " +
-            "GROUP BY cl.id, cl.code, cl.name")
-    java.util.List<java.util.Map<String, Object>> classroomStudents();
+    /** 每个行政班的学生总数 */
+    @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, COUNT(u.id) AS val " +
+            "FROM admin_classes ac " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id AND u.role = 'STUDENT' " +
+            "GROUP BY ac.id, ac.code, ac.name")
+    java.util.List<java.util.Map<String, Object>> adminClassStudents();
 
-    /** 每个班级已审批选课人次 */
-    @Select("SELECT cl.code AS `class`, cl.name AS `class_name`, COUNT(ce.student_id) AS val " +
-            "FROM classrooms cl " +
-            "LEFT JOIN users u ON u.class_id = cl.id " +
+    /** 每个行政班已审批选课人次 */
+    @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, COUNT(ce.student_id) AS val " +
+            "FROM admin_classes ac " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id " +
             "LEFT JOIN course_enrollments ce ON ce.student_id = u.id AND ce.approval_status = 'APPROVED' " +
-            "GROUP BY cl.id, cl.code, cl.name")
-    java.util.List<java.util.Map<String, Object>> classroomEnrollments();
+            "GROUP BY ac.id, ac.code, ac.name")
+    java.util.List<java.util.Map<String, Object>> adminClassEnrollments();
 
-    /** 每个班级作业提交总数 */
-    @Select("SELECT cl.code AS `class`, cl.name AS `class_name`, COUNT(s.id) AS val " +
-            "FROM classrooms cl " +
-            "LEFT JOIN users u ON u.class_id = cl.id " +
+    /** 每个行政班作业提交总数 */
+    @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, COUNT(s.id) AS val " +
+            "FROM admin_classes ac " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id " +
             "LEFT JOIN submissions s ON s.student_id = u.id " +
-            "GROUP BY cl.id, cl.code, cl.name")
-    java.util.List<java.util.Map<String, Object>> classroomSubmissions();
+            "GROUP BY ac.id, ac.code, ac.name")
+    java.util.List<java.util.Map<String, Object>> adminClassSubmissions();
 
-    /** 每个班级待批改作业数（status=SUBMITTED） */
-    @Select("SELECT cl.code AS `class`, cl.name AS `class_name`, " +
+    /** 每个行政班待批改作业数（status=SUBMITTED） */
+    @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, " +
             "COUNT(CASE WHEN s.status = 'SUBMITTED' THEN s.id END) AS val " +
-            "FROM classrooms cl " +
-            "LEFT JOIN users u ON u.class_id = cl.id " +
+            "FROM admin_classes ac " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id " +
             "LEFT JOIN submissions s ON s.student_id = u.id " +
-            "GROUP BY cl.id, cl.code, cl.name")
-    java.util.List<java.util.Map<String, Object>> classroomPendingSubmissions();
+            "GROUP BY ac.id, ac.code, ac.name")
+    java.util.List<java.util.Map<String, Object>> adminClassPendingSubmissions();
 }

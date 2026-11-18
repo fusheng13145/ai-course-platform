@@ -21,6 +21,7 @@ const studentApi = vi.hoisted(() => ({
   getMyCourses: vi.fn(),
   enrollCourse: vi.fn(),
   unenrollCourse: vi.fn(),
+  getAvailableTeachingClasses: vi.fn(),
 }))
 // 只接管视图真正用到的两个数据面，避免把整条 @/api 依赖图拉进单测
 const dataApi = vi.hoisted(() => ({
@@ -128,6 +129,9 @@ beforeEach(() => {
     return Promise.resolve(envelope(null))
   })
   studentApi.getStudentDashboard.mockResolvedValue(envelope({ courses: [] }))
+  studentApi.getAvailableTeachingClasses.mockResolvedValue(
+    envelope([{ id: 11, name: '默认教学班', capacity: 100 }]),
+  )
 
   dataApi.getCourses.mockImplementation((role: string) =>
     Promise.resolve(role === 'student' ? store.enrollments.map(card) : []),
@@ -252,7 +256,7 @@ describe('学生「加入课程」= 真实选课写口（非演示动作）', ()
 
     const create = wrapper
       .findAll('.page-head-actions button')
-      .find((node) => node.text() === '新建课程')
+      .find((node) => node.text() === '新建开课任务')
     await create!.trigger('click')
 
     expect(router.push).toHaveBeenCalledWith('/teacher/courses/create')
@@ -278,6 +282,14 @@ function tileNames(wrapper: VueWrapper): string[] {
   return wrapper.findAll('.cf-title').map((node) => node.text())
 }
 
+async function confirmDrop(_wrapper: VueWrapper) {
+  const box = document.querySelector('[data-testid="drop-confirm"]') as HTMLInputElement | null
+  if (box && !box.checked) box.click()
+  await settle()
+  modalButton('确定退选')!.click()
+  await settle()
+}
+
 describe('学生「退选课程」= 真实退选写口（二次确认）', () => {
   it('二次确认后按路径参数退选，GET /student/courses 读数移除该课', async () => {
     const wrapper = mountCourses()
@@ -293,8 +305,7 @@ describe('学生「退选课程」= 真实退选写口（二次确认）', () =>
     expect(studentApi.unenrollCourse).not.toHaveBeenCalled()
     expect(modalButton('确定退选'), '应弹出二次确认').toBeTruthy()
 
-    modalButton('确定退选')!.click()
-    await settle()
+    await confirmDrop(wrapper)
 
     expect(studentApi.unenrollCourse).toHaveBeenCalledTimes(1)
     // 契约钉子：路径参数用的是数字 courseId，而非请求体
@@ -336,8 +347,7 @@ describe('学生「退选课程」= 真实退选写口（二次确认）', () =>
 
     await dropButton(wrapper)!.trigger('click')
     await settle()
-    modalButton('确定退选')!.click()
-    await settle()
+    await confirmDrop(wrapper)
 
     expect(uiState.toast).toHaveBeenCalledWith('退选失败，请稍后重试', 'warn')
     expect(uiState.toast).not.toHaveBeenCalledWith('已退选课程', 'ok')

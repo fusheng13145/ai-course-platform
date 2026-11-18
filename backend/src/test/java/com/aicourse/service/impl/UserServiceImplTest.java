@@ -56,7 +56,7 @@ class UserServiceImplTest {
         sampleUser.setFullName("张三");
         sampleUser.setEmail("zhangsan@example.com");
         sampleUser.setRole("STUDENT");
-        sampleUser.setClassId(100L);
+        sampleUser.setAdminClassId(100L);
         sampleUser.setIsActive(true);
         sampleUser.setCreatedAt(LocalDateTime.now());
     }
@@ -106,7 +106,7 @@ class UserServiceImplTest {
     void testGetClassmates_success() {
         when(userMapper.selectById(1L)).thenReturn(sampleUser);
         User classmate = new User(); classmate.setId(2L); classmate.setUsername("lisi");
-        classmate.setPassword("secret2"); classmate.setClassId(100L); classmate.setIsActive(true);
+        classmate.setPassword("secret2"); classmate.setAdminClassId(100L); classmate.setIsActive(true);
         when(userMapper.selectList(any(Wrapper.class))).thenReturn(List.of(classmate));
 
         List<User> classmates = userService.getClassmates(1L);
@@ -118,7 +118,7 @@ class UserServiceImplTest {
     @Test
     @DisplayName("获取同班同学 - 未加入班级抛异常")
     void testGetClassmates_noClass() {
-        sampleUser.setClassId(null);
+        sampleUser.setAdminClassId(null);
         when(userMapper.selectById(1L)).thenReturn(sampleUser);
         assertThrows(BusinessException.class, () -> userService.getClassmates(1L));
     }

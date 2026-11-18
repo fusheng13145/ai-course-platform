@@ -11,6 +11,22 @@ export const getAllCourses = (filters: Record<string, unknown> = {}): Promise<Ap
 /** 根据ID获取课程 */
 export const getCourseById = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/courses/${id}`) as Promise<ApiEnvelope<ApiData>>
+/** 获取课程库定义（稳定 Course 层） */
+export const getCourseDefinitions = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/course-definitions', { params }) as Promise<ApiEnvelope<ApiData>>
+/** 新建课程库定义 */
+export const createCourseDefinition = (
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/course-definitions', data) as Promise<ApiEnvelope<ApiData>>
+/** 更新课程库定义 */
+export const updateCourseDefinition = (
+  id: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/course-definitions/${id}`, data) as Promise<ApiEnvelope<ApiData>>
 /** 创建课程 */
 export const createCourse = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
   request.post('/courses', data) as Promise<ApiEnvelope<ApiData>>
@@ -32,6 +48,9 @@ export const rejectCourse = (id: number | string, reason?: string): Promise<ApiE
 /** 切换课程状态 */
 export const toggleCourseStatus = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.patch(`/courses/${id}/toggle`) as Promise<ApiEnvelope<ApiData>>
+/** 结课归档 */
+export const completeCourse = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/courses/${id}/complete`) as Promise<ApiEnvelope<ApiData>>
 /** 获取我的课程 */
 export const getMyCourses = (params: Record<string, unknown> = {}): Promise<ApiEnvelope<ApiData>> =>
   request.get('/courses/my', { params }) as Promise<ApiEnvelope<ApiData>>
@@ -68,12 +87,16 @@ export default {
   getAllCourses,
   getAllStudents,
   getCourseById,
+  getCourseDefinitions,
+  createCourseDefinition,
+  updateCourseDefinition,
   createCourse,
   updateCourse,
   deleteCourse,
   approveCourse,
   rejectCourse,
   toggleCourseStatus,
+  completeCourse,
   getMyCourses,
   getAllMyCourses,
   getEnrolledCourses,

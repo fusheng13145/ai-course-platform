@@ -41,4 +41,14 @@ export default {
   getActiveSemester(): Promise<ApiEnvelope<ApiData>> {
     return request.get('/common/semester/active')
   },
+
+  /** GET /common/semesters -- 开课任务可选学期 */
+  getSemesters(): Promise<ApiEnvelope<ApiData>> {
+    return request.get('/common/semesters')
+  },
+
+  /** GET /common/teachers -- 教学班主讲候选教师 */
+  getTeachers(collegeId?: number | string): Promise<ApiEnvelope<ApiData>> {
+    return request.get('/common/teachers', { params: { collegeId } })
+  },
 }

@@ -33,6 +33,9 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
     private static final Logger log = LoggerFactory.getLogger(CourseEnrollmentServiceImpl.class);
 
     private static final String CLASS_STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_CANCELLED = "CANCELLED";
 
     private final CourseService courseService;
     private final CourseMapper courseMapper;
@@ -90,6 +93,10 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
             inactiveEnrollment.setSource(EnrollmentSource.SELF_ENROLL);
             inactiveEnrollment.setSourceAdminClassId(null);
             inactiveEnrollment.setApprovalStatus(initialApprovalStatus(course));
+            // 重新选课视为全新流程：清空上一轮审批/取消痕迹，避免旧操作人继续挂在有效记录上。
+            inactiveEnrollment.setApprovedBy(null);
+            inactiveEnrollment.setApprovalTime(null);
+            inactiveEnrollment.setApprovalComment(null);
             inactiveEnrollment.setProgress(BigDecimal.ZERO);
             inactiveEnrollment.setEnrolledAt(LocalDateTime.now());
             this.updateById(inactiveEnrollment);
@@ -230,12 +237,16 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
             throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         String approval = course.getApprovalStatus();
-        if ("PENDING".equalsIgnoreCase(approval) || "REJECTED".equalsIgnoreCase(approval)) {
+        if (approval != null && !"APPROVED".equalsIgnoreCase(approval)) {
             log.warn("[Enroll] 拒绝加入未通过审核的课程：courseId={}, approvalStatus={}", courseId, approval);
             throw new BusinessException(ApiCode.FORBIDDEN, "课程尚未通过审核，无法加入");
         }
-        if ("INACTIVE".equalsIgnoreCase(course.getStatus())) {
+        String status = course.getStatus();
+        if (status != null && !"ACTIVE".equalsIgnoreCase(status)) {
             throw new BusinessException(ApiCode.FORBIDDEN, "课程已结束，无法加入");
+        }
+        if (course.getCompletedAt() != null) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "课程已结课，无法加入");
         }
         return course;
     }
@@ -301,7 +312,7 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
     }
 
 
-    /** 课程选课相关操作 */
+    /** 学生退课：先校验归属，再走统一的取消状态机。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void unenroll(Long id, Long userId) {
@@ -309,7 +320,63 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
         if (enrollment == null || !userId.equals(enrollment.getStudentId())) {
             throw new BusinessException("您没有权限退课或该退课记录不存在");
         }
+        cancelEnrollment(id, userId, "学生主动退课");
+    }
+
+    /**
+     * 取消已通过选课：PENDING / APPROVED → CANCELLED，保留原行用于审计与重选恢复。
+     *
+     * <p>多重防护落在服务层：状态必须仍然有效、课程未结课、原因必填且限长；
+     * 任一条件不满足都拒绝，不做“静默已取消”的幂等。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CourseEnrollment cancelEnrollment(Long id, Long operatorId, String reason) {
+        CourseEnrollment enrollment = id == null ? null : this.getById(id);
+        if (enrollment == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "选课记录不存在");
+        }
+        if (!Boolean.TRUE.equals(enrollment.getIsActive())) {
+            throw new BusinessException(ApiCode.CONFLICT, "该选课记录已不再有效，不能重复取消");
+        }
+        String status = enrollment.getApprovalStatus();
+        if (!STATUS_PENDING.equalsIgnoreCase(status) && !STATUS_APPROVED.equalsIgnoreCase(status)) {
+            throw new BusinessException(ApiCode.CONFLICT, "仅待审批或已通过的选课可以取消");
+        }
+        String trimmed = reason == null ? "" : reason.trim();
+        if (trimmed.length() < 2 || trimmed.length() > 200) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "取消原因需为 2–200 个字符");
+        }
+        Course course = courseService.getById(enrollment.getCourseId());
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (course.getCompletedAt() != null) {
+            throw new BusinessException(ApiCode.CONFLICT, "课程已结课，不能取消选课");
+        }
+
+        enrollment.setApprovalStatus(STATUS_CANCELLED);
         enrollment.setIsActive(false);
+        enrollment.setApprovedBy(operatorId);
+        enrollment.setApprovalTime(LocalDateTime.now());
+        enrollment.setApprovalComment(trimmed);
         this.updateById(enrollment);
+        log.info("[Enrollment] 取消选课：enrollmentId={}, studentId={}, operatorId={}, reason={}",
+                enrollment.getId(), enrollment.getStudentId(), operatorId, trimmed);
+        return enrollment;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CourseEnrollment cancelByCourse(Long studentId, Long courseId, String reason) {
+        CourseEnrollment enrollment = this.getOne(new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(CourseEnrollment::getStudentId, studentId)
+                .eq(CourseEnrollment::getCourseId, courseId)
+                .eq(CourseEnrollment::getIsActive, true)
+                .last("LIMIT 1"));
+        if (enrollment == null) {
+            throw new BusinessException("未加入该课程");
+        }
+        return cancelEnrollment(enrollment.getId(), studentId, reason);
     }
 }

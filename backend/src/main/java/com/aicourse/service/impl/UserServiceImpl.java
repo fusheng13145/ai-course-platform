@@ -138,17 +138,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 获取同班同学列表
-     * 通过用户classId查找同一班级的其他用户
+     * 通过用户 adminClassId 查找同一行政班的其他用户
      */
     @Override
     public List<User> getClassmates(Long userId) {
         User user = this.getById(userId);
-        if (user == null || user.getClassId() == null) {
-            throw new BusinessException("用户不存在或未加入班级");
+        if (user == null || user.getAdminClassId() == null) {
+            throw new BusinessException("用户不存在或未加入行政班");
         }
 
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<User>()
-                .eq(User::getClassId, user.getClassId())
+                .eq(User::getAdminClassId, user.getAdminClassId())
                 .ne(User::getId, userId)  // 排除自己
                 .eq(User::getIsActive, true)
                 .orderByAsc(User::getUsername);
@@ -238,9 +238,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         stats.setCreatedAt(user.getCreatedAt());
 
         // 统计同班同学数量（如果是学生）
-        if (user.getClassId() != null) {
+        if (user.getAdminClassId() != null) {
             LambdaQueryWrapper<User> classmateWrapper = new LambdaQueryWrapper<User>()
-                    .eq(User::getClassId, user.getClassId())
+                    .eq(User::getAdminClassId, user.getAdminClassId())
                     .ne(User::getId, userId);
             long classmateCount = this.count(classmateWrapper);
             stats.setClassmateCount(classmateCount);
