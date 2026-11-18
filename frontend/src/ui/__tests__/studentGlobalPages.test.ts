@@ -14,7 +14,13 @@ const authApi = vi.hoisted(() => ({
 }))
 const userApi = vi.hoisted(() => ({ getProfile: vi.fn() }))
 const xlsxExport = vi.hoisted(() => ({ downloadXlsx: vi.fn() }))
-const router = vi.hoisted(() => ({ push: vi.fn() }))
+const router = vi.hoisted(() => ({
+  push: vi.fn(),
+  // resolve 只用于拼新标签页 href；测试里原样返回路径
+  resolve: vi.fn((to: string) => ({ href: to })),
+}))
+// 课程任务行在新标签页打开前会镜像登录态；单测里不需要真 pinia，替身即可
+const authStore = vi.hoisted(() => ({ mirrorUserForNewTab: vi.fn() }))
 
 const uiState = vi.hoisted(() => ({
   toast: vi.fn(),
@@ -33,7 +39,10 @@ vi.mock('@/api/task', () => ({ default: taskApi }))
 vi.mock('@/api/auth', () => ({ default: authApi }))
 vi.mock('@/api/user', () => ({ default: userApi }))
 vi.mock('@/utils/xlsxExport', () => xlsxExport)
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: router.push }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: router.push, resolve: router.resolve }),
+}))
 
 // ui 组合式函数持有共享 ref：主题开关与角色必须给真 ref，否则模板不会更新
 vi.mock('../composables/ui', async () => {
@@ -209,13 +218,14 @@ describe('学生全局页 · 任务', () => {
     wrapper.unmount()
   })
 
-  it('点击任务行跳到对应课程任务页；没有 courseId 的行不跳转', async () => {
+  it('点击任务行在新标签页打开课程任务页；没有 courseId 的行不跳转', async () => {
     studentApi.getAllMyCourses.mockResolvedValue(envelope([COURSE_A]))
     studentApi.getPendingAssignments.mockResolvedValue(envelope([pendingFixtures[0]]))
     // taskId 9999 在课程任务里不存在 → 行无 courseId，按「不跳转」处理
     studentApi.getCompletedAssignments.mockResolvedValue(
       envelope([{ id: 5599, taskId: 9999, status: 'SUBMITTED' }]),
     )
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
 
     const wrapper = mountTasks()
     await settle()
@@ -224,21 +234,29 @@ describe('学生全局页 · 任务', () => {
     expect(navigable?.classes()).toContain('row-link')
     expect(navigable?.attributes('role')).toBe('link')
     await navigable?.trigger('click')
-    expect(router.push).toHaveBeenCalledWith('/student/courses/4007/tasks')
+    expect(router.resolve).toHaveBeenCalledWith('/student/courses/4007/tasks')
+    // 打开前先把登录态镜像给新标签页，否则新页会被守卫弹回登录页
+    expect(authStore.mirrorUserForNewTab).toHaveBeenCalledTimes(1)
+    expect(openSpy).toHaveBeenCalledWith('/student/courses/4007/tasks', '_blank', 'noopener')
+    // 当前页不跳转：筛选与滚动位置保留
+    expect(router.push).not.toHaveBeenCalled()
 
-    router.push.mockClear()
+    openSpy.mockClear()
     await navigable?.trigger('keydown', { key: ' ' })
-    expect(router.push, '键盘 Space 应和点击同效').toHaveBeenCalledWith(
+    expect(openSpy, '键盘 Space 应和点击同效').toHaveBeenCalledWith(
       '/student/courses/4007/tasks',
+      '_blank',
+      'noopener',
     )
 
-    router.push.mockClear()
+    openSpy.mockClear()
     const orphan = wrapper.findAll('tr').find((node) => node.text().includes('任务 #9999'))
     expect(orphan, '未补齐任务信息的已完成行仍应可见').toBeTruthy()
     expect(orphan?.classes()).not.toContain('row-link')
     expect(orphan?.attributes('role')).toBeUndefined()
     await orphan?.trigger('click')
-    expect(router.push).not.toHaveBeenCalled()
+    expect(openSpy).not.toHaveBeenCalled()
+    openSpy.mockRestore()
     wrapper.unmount()
   })
 
