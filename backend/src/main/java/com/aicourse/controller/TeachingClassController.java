@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.TeachingClassCreateDTO;
 import com.aicourse.dto.TeachingClassUpdateDTO;
+import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
@@ -25,7 +26,7 @@ import java.util.Objects;
 /**
  * 教学班接口控制器（V14 / B-12-P-08 WP4；WP5 增加名单导入与重同步）。
  *
- * <p>写操作只对课程负责人/本班主讲开放（服务层二次校验）；读取名单/成绩仅对该教学班主讲开放。</p>
+ * <p>写操作对课程负责人、本班主讲或管理员开放（服务层二次校验）；读取名单/成绩仅对该教学班主讲开放。</p>
  */
 @RestController
 @RequestMapping("/teaching-classes")
@@ -77,17 +78,25 @@ public class TeachingClassController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('TEACHER')")
-    @Operation(summary = "创建教学班", description = "仅课程负责人；课程未通过审批时创建为 DRAFT")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "创建教学班", description = "课程负责人或管理员；课程未通过审批时创建为 DRAFT")
     public ApiResponse<TeachingClass> create(@Valid @RequestBody TeachingClassCreateDTO body) {
         return ApiResponse.success("教学班创建成功", teachingClassService.create(
                 adminScopeGuard.currentUserId(), body.getCourseId(), body.getName(),
                 body.getCode(), body.getLeadTeacherId(), body.getCapacity()));
     }
 
+    @PostMapping("/course/{courseId}/publish")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "发布课程教学班", description = "课程负责人或管理员；将 DRAFT 教学班置为 ACTIVE")
+    public ApiResponse<List<TeachingClass>> publishCourse(@PathVariable Long courseId) {
+        return ApiResponse.success("教学班已发布",
+                teachingClassService.publishCourseClasses(courseId, adminScopeGuard.currentUserId()));
+    }
+
     @PostMapping("/{id}/lead-teacher")
-    @PreAuthorize("hasRole('TEACHER')")
-    @Operation(summary = "指定主讲", description = "仅课程负责人；只能指派本院教师")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "指定主讲", description = "课程负责人或管理员；只能指派本院教师")
     public ApiResponse<TeachingClass> assignLeadTeacher(@PathVariable Long id,
                                                         @RequestParam Long teacherId) {
         return ApiResponse.success("主讲已更新",
@@ -95,7 +104,7 @@ public class TeachingClassController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改教学班基础信息", description = "字段为 null 表示不修改；ACTIVE 要求课程已通过审批")
     public ApiResponse<TeachingClass> update(@PathVariable Long id,
                                              @Valid @RequestBody TeachingClassUpdateDTO body) {
@@ -105,7 +114,7 @@ public class TeachingClassController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除教学班", description = "有学生名单时拒绝删除")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         teachingClassService.delete(id, adminScopeGuard.currentUserId());
@@ -118,12 +127,26 @@ public class TeachingClassController {
         return ApiResponse.success(teachingClassService.listMembers(id, adminScopeGuard.currentUserId()));
     }
 
+    @GetMapping("/{id}/members/detail")
+    @Operation(summary = "教学班名单（含学生信息）", description = "课程负责人、本班主讲或管理员可读")
+    public ApiResponse<List<com.aicourse.vo.TeachingClassMemberVO>> memberDetails(@PathVariable Long id) {
+        return ApiResponse.success(
+                teachingClassService.listMemberDetails(id, adminScopeGuard.currentUserId()));
+    }
+
     // ==================== 行政班名单（WP5） ====================
 
     @GetMapping("/{id}/admin-classes")
     @Operation(summary = "教学班的行政班来源", description = "课程负责人/本班主讲/管理员可读")
     public ApiResponse<List<TeachingClassAdminClass>> listAdminClasses(@PathVariable Long id) {
         return ApiResponse.success(rosterService.listSources(id, adminScopeGuard.currentUserId()));
+    }
+
+    @GetMapping("/{id}/roster/candidates")
+    @Operation(summary = "可导入的行政班", description = "课程所属学院的启用行政班；课程负责人/本班主讲/管理员可读")
+    public ApiResponse<List<AdminClass>> rosterCandidates(@PathVariable Long id) {
+        return ApiResponse.success(
+                rosterService.listCandidates(id, adminScopeGuard.currentUserId()));
     }
 
     @PostMapping("/{id}/roster/import")

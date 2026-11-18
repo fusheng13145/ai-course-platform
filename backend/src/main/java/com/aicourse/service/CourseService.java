@@ -48,6 +48,11 @@ public interface CourseService extends IService<Course> {
     Course toggleCourseStatus(Long id);
 
     /**
+     * 结课归档：课程负责人或管理员可操作；写入 completed_at，关闭教学班。
+     */
+    Course completeCourse(Long id, Long operatorId, boolean isAdmin);
+
+    /**
      * 审批驳回课程：置 REJECTED 并记录原因。
      */
     Course rejectCourse(Long id, String reason);

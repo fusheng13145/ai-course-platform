@@ -98,6 +98,10 @@ spring:
         - classpath:db/migration/V26__resource_visibility_default_private.sql
         # V27（2026-11-17，P0-B）：questions 新题课程归属 CHECK + 历史未归属标记
         - classpath:db/migration/V27__question_course_required.sql
+        # V28（2026-11-17）：课程库 course_definitions + courses 开课任务字段
+        - classpath:db/migration/V28__course_lifecycle.sql
+        # V29（2026-11-18）：退役 classrooms / users.class_id，行政班收敛到 admin_classes
+        - classpath:db/migration/V29__retire_legacy_classrooms.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

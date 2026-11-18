@@ -5,12 +5,17 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseDefinition;
 import com.aicourse.entity.Question;
+import com.aicourse.entity.Semester;
+import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.QuestionMapper;
+import com.aicourse.service.CourseDefinitionService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SemesterService;
+import com.aicourse.service.UserService;
 import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -43,13 +48,20 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     private final SemesterService semesterService;
     /** 题库存在性检查：V27 把 questions.course_id 外键改为 RESTRICT，删课前先给出明确业务错误。 */
     private final QuestionMapper questionMapper;
+    /** 课程库定义：新开课任务必须显式引用；旧入口按课程字段生成兼容定义。 */
+    private final CourseDefinitionService definitionService;
+    private final UserService userService;
 
     public CourseServiceImpl(CourseDefaultTeachingClassSync defaultTeachingClassSync,
                              SemesterService semesterService,
-                             QuestionMapper questionMapper) {
+                             QuestionMapper questionMapper,
+                             CourseDefinitionService definitionService,
+                             UserService userService) {
         this.defaultTeachingClassSync = defaultTeachingClassSync;
         this.semesterService = semesterService;
         this.questionMapper = questionMapper;
+        this.definitionService = definitionService;
+        this.userService = userService;
     }
 
     /**
@@ -139,17 +151,80 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Course createCourse(Course course, Long teacherId) {
-        log.info("创建课程");
+        log.info("创建开课任务");
+        if (course == null || teacherId == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "课程与授课教师不能为空");
+        }
+        User teacher = userService.getById(teacherId);
+        if (teacher == null || !"TEACHER".equalsIgnoreCase(teacher.getRole())) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "授课教师不存在或不是教师");
+        }
+
+        // 三层模型：definition_id 是课程库的稳定身份；旧入口按课程字段生成兼容定义。
+        Long definitionId = course.getDefinitionId();
+        CourseDefinition definition;
+        if (definitionId == null) {
+            definitionId = definitionService.resolveFromCourse(course, teacherId);
+            definition = definitionService.requireActive(definitionId);
+        } else {
+            definition = definitionService.requireActive(definitionId);
+        }
+        course.setDefinitionId(definition.getId());
+        applyDefinitionSnapshot(course, definition);
+        if (definition.getCollegeId() != null && teacher.getCollegeId() != null
+                && !definition.getCollegeId().equals(teacher.getCollegeId())) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "授课教师不属于课程定义所属学院");
+        }
+        if (course.getCollegeId() == null) {
+            course.setCollegeId(definition.getCollegeId() != null
+                    ? definition.getCollegeId() : teacher.getCollegeId());
+        }
+
+        // 开课任务必须绑定学期；未显式指定时解析当前 ACTIVE 学期。
+        Long semesterId = course.getSemesterId();
+        if (semesterId == null) {
+            semesterId = semesterService.listByStatus("ACTIVE").stream()
+                    .findFirst()
+                    .map(Semester::getId)
+                    .orElse(null);
+        }
+        if (semesterId == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "请先创建并启用一个学期");
+        }
+        Semester semester = semesterService.getById(semesterId);
+        if (semester == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "学期不存在");
+        }
+        course.setSemesterId(semester.getId());
+        course.setSemester(semester.getName());
+        course.setYear(parseYear(semester.getName()));
+        if (course.getStartDate() == null && semester.getStartDate() != null) {
+            course.setStartDate(semester.getStartDate().atStartOfDay());
+        }
+        if (course.getEndDate() == null && semester.getEndDate() != null) {
+            course.setEndDate(semester.getEndDate().atTime(23, 59, 59));
+        }
+
+        int planned = course.getPlannedSections() == null ? 1 : course.getPlannedSections();
+        if (planned < 1 || planned > 50) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "计划教学班数必须在 1 到 50 之间");
+        }
+        course.setPlannedSections(planned);
+
+        long sameOffering = this.count(new LambdaQueryWrapper<Course>()
+                .eq(Course::getDefinitionId, definition.getId())
+                .eq(Course::getSemesterId, semester.getId()));
+        if (sameOffering > 0) {
+            throw new BusinessException(ApiCode.CONFLICT, "该课程本学期已存在开课任务");
+        }
 
         course.setTeacherId(teacherId);
-        // 修复（2026-09-14）：显式落定初始状态，不再依赖 DDL 默认值。
-        // 原实现仅 save()，DB 虽按默认值落库 PENDING/active，但返回体不回显这些字段
-        // （实体未回填），前端若据响应判断状态会得到 null 而误判；显式赋值使「响应体 = 落库值」。
         // V13 审批流水：创建一律进入 PENDING，忽略客户端传入的审批状态/审批人，防止绕过审批。
         course.setApprovalStatus("PENDING");
         course.setApprovedBy(null);
         course.setApprovalComment(null);
         course.setApprovalTime(null);
+        course.setCompletedAt(null);
         if (course.getStatus() == null) {
             course.setStatus("ACTIVE");
         }
@@ -167,6 +242,35 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         }
         this.save(course);
         return course;
+    }
+
+    /**
+     * 开课任务使用课程定义的稳定快照；容量、报名方式、刷题开关仍是开课任务自己的业务字段。
+     */
+    private static void applyDefinitionSnapshot(Course course, CourseDefinition definition) {
+        course.setCode(definition.getCode());
+        course.setName(definition.getName());
+        course.setDescription(definition.getDescription());
+        course.setCredits(definition.getCredits());
+        course.setCategory(definition.getCategory());
+        course.setDifficulty(definition.getDifficulty());
+        course.setCoverImage(definition.getCoverImage());
+        course.setSyllabusUrl(definition.getSyllabusUrl());
+        course.setTags(definition.getTags());
+        if (definition.getCollegeId() != null) {
+            course.setCollegeId(definition.getCollegeId());
+        }
+    }
+
+    private static Integer parseYear(String semesterName) {
+        if (semesterName == null || semesterName.length() < 4) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(semesterName.substring(0, 4));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
 
@@ -189,6 +293,25 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new BusinessException(ApiCode.FORBIDDEN, "无权修改该课程");
         }
         course.setId(id);
+        // V28：课程名称/编号/学分/学院等稳定信息属于课程库定义，开课任务只允许改运行字段。
+        course.setDefinitionId(null);
+        course.setName(null);
+        course.setCode(null);
+        course.setCredits(null);
+        course.setCategory(null);
+        course.setDifficulty(null);
+        course.setDescription(null);
+        course.setCoverImage(null);
+        course.setSyllabusUrl(null);
+        course.setTags(null);
+        course.setCollegeId(null);
+        course.setTeacherId(null);
+        course.setSemesterId(null);
+        course.setSemester(null);
+        course.setApprovalStatus(null);
+        course.setApprovedBy(null);
+        course.setApprovalComment(null);
+        course.setApprovalTime(null);
         this.updateById(course);
         return this.getById(id);
     }
@@ -315,6 +438,32 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         return course;
     }
 
+
+    /** 结课归档：课程负责人或管理员可操作。 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
+    public Course completeCourse(Long id, Long operatorId, boolean isAdmin) {
+        Course course = this.getById(id);
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (!isAdmin && (operatorId == null || !operatorId.equals(course.getTeacherId()))) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权结课该课程");
+        }
+        if (course.getCompletedAt() != null) {
+            return course;
+        }
+        course.setCompletedAt(LocalDateTime.now());
+        course.setStatus("INACTIVE");
+        course.setIsActive(false);
+        this.updateById(course);
+        defaultTeachingClassSync.close(course);
+        return this.getById(id);
+    }
 
     /** 审批驳回课程 */
     @Override

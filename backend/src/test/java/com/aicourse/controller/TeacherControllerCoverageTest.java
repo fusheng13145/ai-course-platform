@@ -267,13 +267,13 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
     @DisplayName("GET /teacher/courses/{id}/classes - 端点此前完全未测：归属校验通过后委托 getCourseClasses")
     void courseClasses_ownershipPasses_delegates() throws Exception {
         when(courseService.getById(COURSE_ID)).thenReturn(course(COURSE_ID, TEACHER_ID));
-        when(teachingService.getCourseClasses(COURSE_ID)).thenReturn(List.of(java.util.Map.of("className", "计2101")));
+        when(teachingService.getCourseClasses(COURSE_ID)).thenReturn(List.of(java.util.Map.of("name", "计2101")));
 
         mockMvc.perform(get("/teacher/courses/" + COURSE_ID + "/classes").with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].className").value("计2101"));
+                .andExpect(jsonPath("$.data[0].name").value("计2101"));
         verify(teachingService).getCourseClasses(COURSE_ID);
     }
 

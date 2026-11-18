@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.dto.AdminClassMemberBatchDTO;
 import com.aicourse.dto.OrgAdminClassDTO;
 import com.aicourse.dto.OrgCollegeDTO;
 import com.aicourse.dto.OrgMajorDTO;
@@ -8,6 +9,7 @@ import com.aicourse.entity.AdminClass;
 import com.aicourse.entity.College;
 import com.aicourse.entity.Major;
 import com.aicourse.entity.School;
+import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.AdminClassMapper;
 import com.aicourse.mapper.CollegeMapper;
@@ -535,6 +537,82 @@ class OrgServiceImplTest {
         assertThatThrownBy(() -> service.archiveAdminClass(99L))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("行政班不存在");
+    }
+
+    // ==================== 行政班成员批量 ====================
+
+    @Test
+    @DisplayName("批量加入：未归属学生加入，已属其他班默认跳过")
+    void batchMembersAddSkipsStudentsInOtherClass() {
+        AdminClass target = adminClass(30L, 10L, 20L, "A1");
+        target.setMaxStudents(40);
+        when(adminClassMapper.selectById(30L)).thenReturn(target);
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.selectById(1L)).thenReturn(student(1L, null));
+        when(userMapper.selectById(2L)).thenReturn(student(2L, 9L));
+
+        AdminClassMemberBatchDTO dto = new AdminClassMemberBatchDTO();
+        dto.setStudentIds(List.of(1L, 2L));
+        dto.setAction("ADD");
+
+        var result = service.batchMembers(30L, dto);
+
+        assertThat(result.getAdded()).isEqualTo(1);
+        assertThat(result.getSkipped()).isEqualTo(1);
+        assertThat(result.getRemoved()).isZero();
+        assertThat(userMapper.selectById(1L).getAdminClassId()).isEqualTo(30L);
+        assertThat(userMapper.selectById(2L).getAdminClassId()).isEqualTo(9L);
+        assertThat(target.getStudentCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("批量加入：显式 moveExisting=true 才允许转班")
+    void batchMembersAddMovesExistingWhenExplicit() {
+        AdminClass target = adminClass(30L, 10L, 20L, "A1");
+        target.setMaxStudents(40);
+        when(adminClassMapper.selectById(30L)).thenReturn(target);
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.selectById(1L)).thenReturn(student(1L, 9L));
+
+        AdminClassMemberBatchDTO dto = new AdminClassMemberBatchDTO();
+        dto.setStudentIds(List.of(1L));
+        dto.setAction("ADD");
+        dto.setMoveExisting(true);
+
+        var result = service.batchMembers(30L, dto);
+
+        assertThat(result.getAdded()).isEqualTo(1);
+        assertThat(userMapper.selectById(1L).getAdminClassId()).isEqualTo(30L);
+    }
+
+    @Test
+    @DisplayName("批量移出：仅移出本班学生，其他班学生跳过")
+    void batchMembersRemoveOnlyTargetClass() {
+        AdminClass target = adminClass(30L, 10L, 20L, "A1");
+        when(adminClassMapper.selectById(30L)).thenReturn(target);
+        when(userMapper.selectCount(any())).thenReturn(2L);
+        when(userMapper.selectById(1L)).thenReturn(student(1L, 30L));
+        when(userMapper.selectById(2L)).thenReturn(student(2L, 9L));
+
+        AdminClassMemberBatchDTO dto = new AdminClassMemberBatchDTO();
+        dto.setStudentIds(List.of(1L, 2L));
+        dto.setAction("REMOVE");
+
+        var result = service.batchMembers(30L, dto);
+
+        assertThat(result.getRemoved()).isEqualTo(1);
+        assertThat(result.getSkipped()).isEqualTo(1);
+        assertThat(userMapper.selectById(1L).getAdminClassId()).isNull();
+        assertThat(userMapper.selectById(2L).getAdminClassId()).isEqualTo(9L);
+        assertThat(target.getStudentCount()).isEqualTo(1);
+    }
+
+    private static User student(Long id, Long adminClassId) {
+        User u = new User();
+        u.setId(id);
+        u.setRole("STUDENT");
+        u.setAdminClassId(adminClassId);
+        return u;
     }
 
     // ==================== 底座缺失 ====================

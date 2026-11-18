@@ -8,11 +8,13 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.EnrollmentCancelDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.UserService;
@@ -41,13 +43,16 @@ public class CourseEnrollmentController {
     private final CourseService courseService;
     private final UserService userService;
     private final AdminScopeGuard adminScopeGuard;
+    private final TeachingClassAccessControl teachingClassAccessControl;
 
     public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService,
-                                      UserService userService, AdminScopeGuard adminScopeGuard) {
+                                      UserService userService, AdminScopeGuard adminScopeGuard,
+                                      TeachingClassAccessControl teachingClassAccessControl) {
         this.enrollmentService = enrollmentService;
         this.courseService = courseService;
         this.userService = userService;
         this.adminScopeGuard = adminScopeGuard;
+        this.teachingClassAccessControl = teachingClassAccessControl;
     }
 
     /**
@@ -156,9 +161,40 @@ public class CourseEnrollmentController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> unenroll(@PathVariable Long id, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        // 归属校验与软退课落库下沉至服务层（事务化）
+        // 归属校验与取消状态机下沉至服务层（事务化）
         enrollmentService.unenroll(id, userId);
         return ApiResponse.success("退课成功", null);
+    }
+
+    /**
+     * 取消已通过选课（学生本人 / 课程负责人或教学班主讲 / 管理员）。
+     *
+     * <p>与 DELETE 的区别：该入口要求显式原因，适用于教师与管理员的管理动作；
+     * 学生本人也走同一状态机，保证三端语义一致。</p>
+     */
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('STUDENT','TEACHER','ADMIN')")
+    public ApiResponse<CourseEnrollment> cancel(
+            @PathVariable Long id,
+            @Valid @RequestBody EnrollmentCancelDTO body,
+            Authentication auth) {
+        CourseEnrollment enrollment = enrollmentService.getById(id);
+        if (enrollment == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "选课记录不存在");
+        }
+        Long operatorId = (Long) auth.getPrincipal();
+        boolean isStudent = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_STUDENT"));
+        if (isStudent) {
+            if (!operatorId.equals(enrollment.getStudentId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "只能取消自己的选课");
+            }
+        } else {
+            assertEnrollmentCourseOwner(enrollment, auth);
+        }
+        CourseEnrollment cancelled =
+                enrollmentService.cancelEnrollment(id, operatorId, body.getReason());
+        return ApiResponse.success("已取消选课", cancelled);
     }
 
     /**
@@ -173,6 +209,9 @@ public class CourseEnrollmentController {
         CourseEnrollment enrollment = enrollmentService.getById(id);
         if (enrollment == null) {
             throw new BusinessException("选课记录不存在");
+        }
+        if (!"PENDING".equalsIgnoreCase(enrollment.getApprovalStatus())) {
+            throw new BusinessException(ApiCode.CONFLICT, "仅待审批的选课可以通过");
         }
         assertEnrollmentCourseOwner(enrollment, auth);
         Long approverId = (Long) auth.getPrincipal();
@@ -202,6 +241,9 @@ public class CourseEnrollmentController {
         if (enrollment == null) {
             throw new BusinessException("选课记录不存在");
         }
+        if (!"PENDING".equalsIgnoreCase(enrollment.getApprovalStatus())) {
+            throw new BusinessException(ApiCode.CONFLICT, "仅待审批的选课可以驳回");
+        }
         assertEnrollmentCourseOwner(enrollment, auth);
         Long approverId = (Long) auth.getPrincipal();
         enrollment.setApprovalStatus("REJECTED");
@@ -221,7 +263,7 @@ public class CourseEnrollmentController {
     }
 
     /**
-     * 选课归属校验：管理员放行；教师仅能审批自己课程的选课记录
+     * 选课管理归属校验：管理员按学院范围放行；教师须为课程负责人或该教学班主讲。
      */
     private void assertEnrollmentCourseOwner(CourseEnrollment enrollment, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
@@ -238,7 +280,17 @@ public class CourseEnrollmentController {
             return;
         }
         Course course = courseService.getById(enrollment.getCourseId());
-        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-        if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权审批该课程的选课记录");
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (userId.equals(course.getTeacherId())) {
+            return;
+        }
+        if (enrollment.getTeachingClassId() != null) {
+            // 本班主讲同样可以管理自己班的选课；其他班主讲会被 403 拒绝。
+            teachingClassAccessControl.assertRosterManage(enrollment.getTeachingClassId(), userId);
+            return;
+        }
+        throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该课程的选课记录");
     }
 }
