@@ -195,11 +195,30 @@
           aria-label="搜索行政班成员"
         />
         <span class="chip chip-mute">{{ visibleMembers.length }} 人</span>
+        <button
+          class="btn btn-sm"
+          :disabled="!selectedMemberIds.length || batchBusy"
+          @click="askBatchRemove"
+        >
+          批量移出{{ selectedMemberIds.length ? `（${selectedMemberIds.length}）` : '' }}
+        </button>
+        <button class="btn btn-sm btn-primary" :disabled="batchBusy" @click="openAdd">
+          批量加入
+        </button>
       </div>
       <div v-if="visibleMembers.length" class="table-wrap member-table">
         <table>
           <thead>
             <tr>
+              <th class="w-60">
+                <input
+                  type="checkbox"
+                  aria-label="全选成员"
+                  :checked="allVisibleSelected"
+                  :disabled="!visibleMembers.length"
+                  @change="toggleSelectAll"
+                />
+              </th>
               <th>学生</th>
               <th class="w-140">学号 / 用户名</th>
               <th class="w-80 th-actions">操作</th>
@@ -207,6 +226,14 @@
           </thead>
           <tbody>
             <tr v-for="member in visibleMembers" :key="String(member.id)">
+              <td>
+                <input
+                  v-model="selectedMemberIds"
+                  type="checkbox"
+                  :value="String(member.id ?? '')"
+                  :aria-label="`选择 ${member.fullName || member.username || member.id}`"
+                />
+              </td>
               <td>
                 <b>{{ member.fullName || member.username || `学生 #${member.id}` }}</b>
               </td>
@@ -227,6 +254,96 @@
       <div v-else class="empty-state compact">
         <b>{{ memberKeyword.trim() ? '没有匹配的学生' : '该行政班暂无学生' }}</b>
       </div>
+    </Modal>
+
+    <Modal
+      v-model:open="batchRemoveOpen"
+      title="批量移出学生"
+      width="480px"
+      :close-on-backdrop="false"
+    >
+      <p class="modal-text">
+        确定将选中的 <b>{{ selectedMemberIds.length }}</b> 名学生移出「{{
+          memberTarget?.name || '该行政班'
+        }}」？
+      </p>
+      <p v-if="batchRemoveError" class="form-error" role="alert">{{ batchRemoveError }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="batchBusy" @click="batchRemoveOpen = false">
+          返回
+        </button>
+        <button class="btn btn-danger" :disabled="batchBusy" @click="confirmBatchRemove">
+          {{ batchBusy ? '移出中…' : '确认批量移出' }}
+        </button>
+      </template>
+    </Modal>
+
+    <Modal v-model:open="addOpen" title="批量加入学生" width="640px" :close-on-backdrop="false">
+      <div class="member-tools">
+        <input
+          v-model="addKeyword"
+          class="input search-input"
+          type="search"
+          placeholder="搜索姓名 / 学号"
+          aria-label="搜索可加入学生"
+        />
+        <span class="chip chip-mute">已选 {{ selectedAddIds.length }} 人</span>
+      </div>
+      <div v-if="addCandidates.length" class="table-wrap member-table">
+        <table>
+          <thead>
+            <tr>
+              <th class="w-60">
+                <input
+                  type="checkbox"
+                  aria-label="全选可加入学生"
+                  :checked="allAddSelected"
+                  @change="toggleAddAll"
+                />
+              </th>
+              <th>学生</th>
+              <th class="w-140">学号 / 用户名</th>
+              <th class="w-140">当前行政班</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="student in addCandidates" :key="String(student.id)">
+              <td>
+                <input
+                  v-model="selectedAddIds"
+                  type="checkbox"
+                  :value="String(student.id ?? '')"
+                  :aria-label="`选择 ${student.fullName || student.username || student.id}`"
+                />
+              </td>
+              <td>
+                <b>{{ student.fullName || student.username || `学生 #${student.id}` }}</b>
+              </td>
+              <td>{{ student.studentNo || student.username || '—' }}</td>
+              <td>{{ adminClassName(student.adminClassId) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="empty-state compact">
+        <b>{{ addKeyword.trim() ? '没有匹配的学生' : '没有可加入的学生' }}</b>
+      </div>
+      <label class="check-row">
+        <input v-model="moveExisting" type="checkbox" data-testid="move-existing" />
+        <span>已在其他行政班的学生同时转入本班（不勾选则跳过）</span>
+      </label>
+      <p v-if="addResult" class="form-note">{{ addResult }}</p>
+      <p v-if="addError" class="form-error" role="alert">{{ addError }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" :disabled="batchBusy" @click="addOpen = false">关闭</button>
+        <button
+          class="btn btn-primary"
+          :disabled="batchBusy || !selectedAddIds.length"
+          @click="confirmAdd"
+        >
+          {{ batchBusy ? '加入中…' : '确认加入' }}
+        </button>
+      </template>
     </Modal>
 
     <Modal v-model:open="archiveOpen" title="归档行政班" width="460px" :close-on-backdrop="false">
@@ -267,13 +384,13 @@ import { useListFeedback } from '@/composables/useListFeedback'
 import { useClientPagination } from '@/composables/useClientPagination'
 import {
   archiveOrgAdminClass,
+  batchOrgAdminClassMembers,
   createOrgAdminClass,
   getAllUsers,
   getColleges,
   getMajors,
   getOrgAdminClasses,
   updateOrgAdminClass,
-  updateUser,
 } from '@/api/admin'
 import { pickList, unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
@@ -358,6 +475,16 @@ const removeOpen = ref(false)
 const removeTarget = ref<MemberRow | null>(null)
 const removing = ref(false)
 const removeError = ref('')
+const selectedMemberIds = ref<string[]>([])
+const batchRemoveOpen = ref(false)
+const batchRemoveError = ref('')
+const batchBusy = ref(false)
+const addOpen = ref(false)
+const addKeyword = ref('')
+const selectedAddIds = ref<string[]>([])
+const moveExisting = ref(false)
+const addError = ref('')
+const addResult = ref('')
 
 const archiveOpen = ref(false)
 const archiveTarget = ref<AdminClassRow | null>(null)
@@ -404,6 +531,40 @@ const visibleMembers = computed(() => {
     ),
   )
 })
+
+const allVisibleSelected = computed(
+  () =>
+    visibleMembers.value.length > 0 &&
+    visibleMembers.value.every((member) =>
+      selectedMemberIds.value.includes(String(member.id ?? '')),
+    ),
+)
+
+const addCandidates = computed(() => {
+  const memberIds = new Set(memberMembers.value.map((member) => String(member.id ?? '')))
+  const key = addKeyword.value.trim().toLowerCase()
+  return users.value
+    .filter(
+      (user) =>
+        String(user.role || '').toUpperCase() === 'STUDENT' &&
+        !memberIds.has(String(user.id ?? '')),
+    )
+    .filter((user) =>
+      key
+        ? [user.fullName, user.username, user.studentNo].some((value) =>
+            String(value ?? '')
+              .toLowerCase()
+              .includes(key),
+          )
+        : true,
+    )
+})
+
+const allAddSelected = computed(
+  () =>
+    addCandidates.value.length > 0 &&
+    addCandidates.value.every((student) => selectedAddIds.value.includes(String(student.id ?? ''))),
+)
 
 const memberTotal = computed(() => rows.value.reduce((sum, row) => sum + memberCount(row.id), 0))
 const majorTotal = computed(
@@ -601,10 +762,46 @@ async function submitEditor() {
   }
 }
 
+function adminClassName(id: unknown): string {
+  if (id === null || id === undefined || id === '') return '未分班'
+  const item = rows.value.find((row) => String(row.id) === String(id))
+  return item?.name ? String(item.name) : `行政班 #${id}`
+}
+
 function openMembers(row: AdminClassRow) {
   memberTarget.value = row
   memberKeyword.value = ''
+  selectedMemberIds.value = []
   membersOpen.value = true
+}
+
+function toggleSelectAll(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  selectedMemberIds.value = checked
+    ? visibleMembers.value.map((member) => String(member.id ?? ''))
+    : []
+}
+
+function toggleAddAll(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  selectedAddIds.value = checked
+    ? addCandidates.value.map((student) => String(student.id ?? ''))
+    : []
+}
+
+function openAdd() {
+  addKeyword.value = ''
+  selectedAddIds.value = []
+  moveExisting.value = false
+  addError.value = ''
+  addResult.value = ''
+  addOpen.value = true
+}
+
+function askBatchRemove() {
+  if (!selectedMemberIds.value.length) return
+  batchRemoveError.value = ''
+  batchRemoveOpen.value = true
 }
 
 function askRemove(member: MemberRow) {
@@ -627,9 +824,13 @@ async function confirmRemove() {
   removingId.value = String(member.id)
   removeError.value = ''
   try {
-    await updateUser(member.id, { adminClassId: 0 })
+    await batchOrgAdminClassMembers(memberTarget.value?.id ?? '', {
+      studentIds: [member.id],
+      action: 'REMOVE',
+    })
     removeOpen.value = false
     removeTarget.value = null
+    selectedMemberIds.value = []
     await loadAll()
     toast('已移出行政班', 'ok')
   } catch (error) {
@@ -637,6 +838,54 @@ async function confirmRemove() {
   } finally {
     removing.value = false
     removingId.value = ''
+  }
+}
+
+async function confirmBatchRemove() {
+  if (!memberTarget.value?.id || !selectedMemberIds.value.length) return
+  batchBusy.value = true
+  batchRemoveError.value = ''
+  try {
+    const result = unwrap(
+      await batchOrgAdminClassMembers(memberTarget.value.id, {
+        studentIds: selectedMemberIds.value.map((id) => Number(id)),
+        action: 'REMOVE',
+      }),
+    ) as { removed?: number; skipped?: number } | null
+    const removed = Number(result?.removed ?? selectedMemberIds.value.length)
+    toast(`已移出 ${removed} 名学生`, 'ok')
+    batchRemoveOpen.value = false
+    selectedMemberIds.value = []
+    await loadAll()
+  } catch (error) {
+    batchRemoveError.value = errorText(error, '批量移出失败，请稍后重试')
+  } finally {
+    batchBusy.value = false
+  }
+}
+
+async function confirmAdd() {
+  if (!memberTarget.value?.id || !selectedAddIds.value.length) return
+  batchBusy.value = true
+  addError.value = ''
+  addResult.value = ''
+  try {
+    const result = unwrap(
+      await batchOrgAdminClassMembers(memberTarget.value.id, {
+        studentIds: selectedAddIds.value.map((id) => Number(id)),
+        action: 'ADD',
+        moveExisting: moveExisting.value,
+      }),
+    ) as { added?: number; skipped?: number } | null
+    const added = Number(result?.added ?? 0)
+    const skipped = Number(result?.skipped ?? 0)
+    addResult.value = `已加入 ${added} 人${skipped ? `，跳过 ${skipped} 人` : ''}`
+    selectedAddIds.value = []
+    if (added > 0) await loadAll()
+  } catch (error) {
+    addError.value = errorText(error, '批量加入失败，请稍后重试')
+  } finally {
+    batchBusy.value = false
   }
 }
 
@@ -699,6 +948,12 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.form-note {
+  margin-top: 8px;
+  color: var(--ink-3);
+  font-size: 13px;
 }
 .member-table {
   max-height: 360px;

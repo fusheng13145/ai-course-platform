@@ -179,6 +179,8 @@ export interface Notification {
   type: string
   category: string
   actionUrl: string
+  /** 公告类通知对应的公告 id；用于课程通知页与公告列表去重。 */
+  announcementId?: number
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -220,6 +222,17 @@ function notificationKind(item: Record<string, unknown>): string {
 function normalizeNotifications(rows: unknown[]): Notification[] {
   return rows.map((row, index) => {
     const item = row as Record<string, unknown>
+    let data: Record<string, unknown> = {}
+    if (typeof item.data === 'string') {
+      try {
+        data = JSON.parse(item.data) as Record<string, unknown>
+      } catch {
+        data = {}
+      }
+    } else if (item.data && typeof item.data === 'object') {
+      data = item.data as Record<string, unknown>
+    }
+    const announcementId = Number(data.announcementId)
     return {
       id: (item.id as number) ?? `demo-${index}`,
       title: String(item.title ?? '通知'),
@@ -230,6 +243,7 @@ function normalizeNotifications(rows: unknown[]): Notification[] {
       type: String(item.type ?? ''),
       category: String(item.category ?? ''),
       actionUrl: String(item.actionUrl ?? ''),
+      ...(Number.isFinite(announcementId) && announcementId > 0 ? { announcementId } : {}),
     }
   })
 }

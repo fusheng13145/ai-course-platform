@@ -164,14 +164,8 @@ public class StudentController {
     @DeleteMapping("/courses/{courseId}/enroll")
     public ApiResponse<Void> unenrollCourse(@PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        CourseEnrollment enrollment = enrollmentService.getOne(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getCourseId, courseId));
-        if (enrollment == null) {
-            throw new BusinessException("未加入该课程");
-        }
-        enrollmentService.unenroll(enrollment.getId(), userId);
+        // 统一状态机：按课程找到有效记录后置 CANCELLED，避免按 id 绕开归属或状态校验
+        enrollmentService.cancelByCourse(userId, courseId, "学生主动退课");
         return ApiResponse.success("已退出课程", null);
     }
 

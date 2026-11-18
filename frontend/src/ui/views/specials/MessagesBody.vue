@@ -1,7 +1,7 @@
 <template>
   <section class="messages-body">
     <div v-if="error" class="callout danger" role="alert">
-      <span>通知</span>
+      <span>消息</span>
       <p>{{ error }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load">
         {{ loading ? '重试中…' : '重试' }}
@@ -11,7 +11,7 @@
     <section v-else class="card table-card">
       <header class="card-head">
         <div>
-          <h2>通知</h2>
+          <h2>消息</h2>
         </div>
         <div class="filter-row message-tools">
           <span v-if="unreadCount" class="chip chip-warn">{{ unreadCount }} 条未读</span>
@@ -54,11 +54,11 @@
 
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="bell" /></span>
-        <b>暂无通知</b>
+        <b>暂无消息</b>
       </div>
     </section>
 
-    <Modal :open="detailOpen" title="通知" width="560px" @update:open="detailOpen = $event">
+    <Modal :open="detailOpen" title="消息" width="560px" @update:open="detailOpen = $event">
       <div v-if="active" class="message-detail">
         <h3>{{ active.title }}</h3>
         <div class="message-detail-meta">
@@ -102,7 +102,7 @@ async function load() {
     rows.value = await loadNotifications(true)
   } catch {
     rows.value = []
-    error.value = '通知加载失败，请重试'
+    error.value = '消息加载失败，请重试'
   } finally {
     loading.value = false
   }
@@ -134,7 +134,7 @@ async function markAll() {
   try {
     await markAllAsRead()
     rows.value = rows.value.map((row) => ({ ...row, unread: false }))
-    toast('全部通知已标记为已读', 'ok')
+    toast('全部消息已标记为已读', 'ok')
   } catch {
     toast('全部已读失败，请重试', 'danger')
   } finally {

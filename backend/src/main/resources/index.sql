@@ -96,7 +96,6 @@ DROP TABLE IF EXISTS admin_classes;
 DROP TABLE IF EXISTS majors;
 DROP TABLE IF EXISTS colleges;
 DROP TABLE IF EXISTS schools;
-DROP TABLE IF EXISTS classrooms;
 DROP TABLE IF EXISTS users;
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -121,7 +120,6 @@ CREATE TABLE users (
   student_id VARCHAR(50) NULL COMMENT '学号（仅学生）',
   major VARCHAR(100) NULL COMMENT '专业（仅学生）',
   grade VARCHAR(20) NULL COMMENT '年级（仅学生）',
-  class_id BIGINT NULL COMMENT '班级ID，关联classrooms表',
   teacher_id VARCHAR(50) NULL COMMENT '教师工号（仅教师）',
   department VARCHAR(100) NULL COMMENT '所属院系（仅教师）',
   title VARCHAR(50) NULL COMMENT '职称（仅教师）',
@@ -140,12 +138,11 @@ CREATE TABLE users (
   UNIQUE KEY uk_users_email (email) COMMENT '邮箱唯一索引',
   UNIQUE KEY uk_users_username (username) COMMENT '用户名唯一索引',
   KEY idx_users_role (role) COMMENT '角色索引，用于按角色查询',
-  KEY idx_users_class_id (class_id) COMMENT '班级ID索引，用于查询班级学生',
   KEY idx_users_banned (banned_at) COMMENT '封禁记录按时间检索（V11 同步）',
   school_id BIGINT NULL COMMENT '学校ID（V12，过渡期可空）',
   college_id BIGINT NULL COMMENT '学院ID（V12，过渡期可空）',
   major_id BIGINT NULL COMMENT '专业ID（V12，过渡期可空）',
-  admin_class_id BIGINT NULL COMMENT '行政班ID（V12 目标列，过渡期保留 class_id）',
+  admin_class_id BIGINT NULL COMMENT '行政班ID，唯一归属来源（V29 收敛）',
   admin_scope VARCHAR(16) NULL COMMENT '管理员作用域 SCHOOL/COLLEGE，仅 ADMIN 使用（V12）',
   KEY idx_users_college (college_id) COMMENT '学院索引（V12）',
   KEY idx_users_admin_class (admin_class_id) COMMENT '行政班索引（V12）',
@@ -223,27 +220,6 @@ CREATE TABLE admin_classes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='行政班：学生归属与班主任工作对象，不绑定课程';
 
 -- ── 2.2 班级管理模块 ──
-
--- classrooms
-CREATE TABLE classrooms (
-  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '班级ID，主键自增',
-  name VARCHAR(100) NOT NULL COMMENT '班级名称',
-  code VARCHAR(50) NOT NULL COMMENT '班级编号，唯一标识',
-  description TEXT NULL COMMENT '班级描述',
-  grade_level VARCHAR(50) NULL COMMENT '年级',
-  major VARCHAR(100) NULL COMMENT '专业',
-  advisor_id BIGINT NULL COMMENT '班主任ID，关联users表',
-  course_id BIGINT NULL COMMENT '关联课程ID（可为空：行政班未绑定具体课程），关联courses表',
-  student_count INT NOT NULL DEFAULT 0 COMMENT '学生人数',
-  max_students INT NOT NULL DEFAULT 50 COMMENT '最大学生人数',
-  is_active TINYINT(1) NOT NULL DEFAULT 1 COMMENT '班级是否有效：0-无效，1-有效',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (id),
-  UNIQUE KEY uk_classrooms_code (code) COMMENT '班级编号唯一索引',
-  KEY idx_classrooms_advisor_id (advisor_id) COMMENT '班主任ID索引，用于查询教师管理的班级',
-  CONSTRAINT fk_classrooms_advisor FOREIGN KEY (advisor_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='班级表';;
 
 -- user_sessions
 CREATE TABLE user_sessions (
@@ -1437,7 +1413,7 @@ CREATE TABLE ai_generation_restrictions (
 -- Phase 3: 交叉外键约束（表创建完成后补充）
 -- ====================================================================
 
-ALTER TABLE users ADD CONSTRAINT fk_users_classroom FOREIGN KEY (class_id) REFERENCES classrooms(id) ON DELETE SET NULL;
+ALTER TABLE users ADD CONSTRAINT fk_users_admin_class FOREIGN KEY (admin_class_id) REFERENCES admin_classes(id) ON DELETE SET NULL;
 
 -- ====================================================================
 -- Phase 4: 初始化种子数据
@@ -1479,17 +1455,8 @@ INSERT INTO schools (id, code, name, status) VALUES (1, 'DEFAULT', '默认学校
 -- 1.2 管理员作用域回填（V12）：存量 ADMIN 默认校级，行为与改造前一致
 UPDATE users SET admin_scope = 'SCHOOL', school_id = 1 WHERE role = 'ADMIN';
 
--- 2. 班级数据
-INSERT INTO classrooms (id, name, code, grade_level, major, advisor_id, student_count) VALUES
-(1, '计算机1班', 'CS2024-1', '大一', '计算机科学', 2, 2),
-(2, '软件1班', 'SE2024-1', '大一', '软件工程', 2, 2),
-(3, 'AI班', 'AI2024-1', '大一', '人工智能', 2, 1),
-(4, '数学1班', 'MATH2024-1', '大一', '数学', 3, 0);
-
--- 更新学生的class_id
-UPDATE users SET class_id = 1 WHERE id IN (4, 5);
-UPDATE users SET class_id = 2 WHERE id IN (6, 7);
-UPDATE users SET class_id = 3 WHERE id = 8;
+-- 2. 行政班数据（V14 迁移内已含 colleges/majors/admin_classes 种子；此处不再维护旧 classrooms）
+-- 学生归属统一写入 users.admin_class_id，见 V14 / V29。
 
 -- 3. 课程数据
 INSERT INTO courses (id, name, code, description, credits, teacher_id, status, approval_status, enrollment_type, category, difficulty) VALUES

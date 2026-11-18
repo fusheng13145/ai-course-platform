@@ -282,6 +282,14 @@ function tileNames(wrapper: VueWrapper): string[] {
   return wrapper.findAll('.cf-title').map((node) => node.text())
 }
 
+async function confirmDrop(_wrapper: VueWrapper) {
+  const box = document.querySelector('[data-testid="drop-confirm"]') as HTMLInputElement | null
+  if (box && !box.checked) box.click()
+  await settle()
+  modalButton('确定退选')!.click()
+  await settle()
+}
+
 describe('学生「退选课程」= 真实退选写口（二次确认）', () => {
   it('二次确认后按路径参数退选，GET /student/courses 读数移除该课', async () => {
     const wrapper = mountCourses()
@@ -297,8 +305,7 @@ describe('学生「退选课程」= 真实退选写口（二次确认）', () =>
     expect(studentApi.unenrollCourse).not.toHaveBeenCalled()
     expect(modalButton('确定退选'), '应弹出二次确认').toBeTruthy()
 
-    modalButton('确定退选')!.click()
-    await settle()
+    await confirmDrop(wrapper)
 
     expect(studentApi.unenrollCourse).toHaveBeenCalledTimes(1)
     // 契约钉子：路径参数用的是数字 courseId，而非请求体
@@ -340,8 +347,7 @@ describe('学生「退选课程」= 真实退选写口（二次确认）', () =>
 
     await dropButton(wrapper)!.trigger('click')
     await settle()
-    modalButton('确定退选')!.click()
-    await settle()
+    await confirmDrop(wrapper)
 
     expect(uiState.toast).toHaveBeenCalledWith('退选失败，请稍后重试', 'warn')
     expect(uiState.toast).not.toHaveBeenCalledWith('已退选课程', 'ok')

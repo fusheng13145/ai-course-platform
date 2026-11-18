@@ -16,6 +16,7 @@ const adminApi = vi.hoisted(() => ({
   createOrgAdminClass: vi.fn(),
   updateOrgAdminClass: vi.fn(),
   archiveOrgAdminClass: vi.fn(),
+  batchOrgAdminClassMembers: vi.fn(),
   getColleges: vi.fn(),
   getMajors: vi.fn(),
 }))
@@ -208,6 +209,10 @@ beforeEach(() => {
   adminApi.createOrgAdminClass.mockResolvedValue({ code: 200, data: {} })
   adminApi.updateOrgAdminClass.mockResolvedValue({ code: 200, data: {} })
   adminApi.archiveOrgAdminClass.mockResolvedValue({ code: 200, data: null })
+  adminApi.batchOrgAdminClassMembers.mockResolvedValue({
+    code: 200,
+    data: { added: 0, removed: 1, skipped: 0 },
+  })
   adminApi.getColleges.mockResolvedValue(envelope(COLLEGES))
   adminApi.getMajors.mockResolvedValue(envelope(MAJORS))
   adminApi.getSemesters.mockResolvedValue(envelope(SEMESTERS))
@@ -794,7 +799,10 @@ describe('管理员 / 行政班', () => {
     await buttons[buttons.length - 1].trigger('click')
     await flushPromises()
 
-    expect(adminApi.updateUser).toHaveBeenCalledWith(12, { adminClassId: 0 })
+    expect(adminApi.batchOrgAdminClassMembers).toHaveBeenCalledWith(1, {
+      studentIds: [12],
+      action: 'REMOVE',
+    })
     expect(toast).toHaveBeenCalledWith('已移出行政班', 'ok')
     wrapper.unmount()
   })

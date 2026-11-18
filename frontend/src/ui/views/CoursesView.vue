@@ -279,13 +279,17 @@
     </Modal>
 
     <!-- 退选二次确认 -->
-    <Modal v-model:open="dropOpen" title="退选课程" width="460px">
+    <Modal v-model:open="dropOpen" title="退选课程" width="480px" :close-on-backdrop="false">
       <p class="modal-text">
         确定退选「{{ dropTarget?.name || '该课程' }}」？退选后将从「我的课程」移除，学习记录保留。
       </p>
+      <label class="check-row drop-check">
+        <input v-model="dropConfirmed" type="checkbox" data-testid="drop-confirm" />
+        <span>我已确认课程与教学班，退选后可重新选课</span>
+      </label>
       <template #footer>
         <button class="btn btn-ghost" :disabled="dropping" @click="dropOpen = false">取消</button>
-        <button class="btn btn-danger" :disabled="dropping" @click="runDrop">
+        <button class="btn btn-danger" :disabled="dropping || !dropConfirmed" @click="runDrop">
           {{ dropping ? '退选中…' : '确定退选' }}
         </button>
       </template>
@@ -332,6 +336,7 @@ const pendingCourseId = ref<number | null>(null)
 const dropOpen = ref(false)
 const dropTarget = ref<CourseCard | null>(null)
 const dropping = ref(false)
+const dropConfirmed = ref(false)
 
 interface DefinitionRow {
   id?: number | string
@@ -458,12 +463,13 @@ async function confirmJoinSection() {
 /** 打开退选确认弹层（二次确认后才发写请求）。 */
 function askDrop(course: CourseCard) {
   dropTarget.value = course
+  dropConfirmed.value = false
   dropOpen.value = true
 }
 
 async function runDrop() {
   const course = dropTarget.value
-  if (!course) return
+  if (!course || !dropConfirmed.value) return
   dropping.value = true
   try {
     // 后端契约：StudentController.unenrollCourse —— DELETE /student/courses/{courseId}/enroll，
@@ -672,5 +678,17 @@ onMounted(async () => {
 .section-option small {
   margin-left: auto;
   color: var(--ink-3);
+}
+.drop-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.drop-check input {
+  width: 16px;
+  height: 16px;
 }
 </style>

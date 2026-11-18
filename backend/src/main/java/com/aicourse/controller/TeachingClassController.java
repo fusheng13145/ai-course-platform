@@ -127,6 +127,13 @@ public class TeachingClassController {
         return ApiResponse.success(teachingClassService.listMembers(id, adminScopeGuard.currentUserId()));
     }
 
+    @GetMapping("/{id}/members/detail")
+    @Operation(summary = "教学班名单（含学生信息）", description = "课程负责人、本班主讲或管理员可读")
+    public ApiResponse<List<com.aicourse.vo.TeachingClassMemberVO>> memberDetails(@PathVariable Long id) {
+        return ApiResponse.success(
+                teachingClassService.listMemberDetails(id, adminScopeGuard.currentUserId()));
+    }
+
     // ==================== 行政班名单（WP5） ====================
 
     @GetMapping("/{id}/admin-classes")

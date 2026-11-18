@@ -12,6 +12,7 @@ import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.TeachingClassService;
 import com.aicourse.service.UserService;
+import com.aicourse.vo.TeachingClassMemberVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.dao.DuplicateKeyException;
@@ -20,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * {@link TeachingClassService} 实现（V14 / B-12-P-08 WP4）。
@@ -201,6 +204,37 @@ public class TeachingClassServiceImpl extends ServiceImpl<TeachingClassMapper, T
         return courseEnrollmentMapper.selectList(new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getTeachingClassId, teachingClassId)
                 .orderByAsc(CourseEnrollment::getId));
+    }
+
+    @Override
+    public List<TeachingClassMemberVO> listMemberDetails(Long teachingClassId, Long operatorId) {
+        // 课程负责人也需要看到名单才能做取消选课等管理动作；管理员治理只读。
+        accessControl.assertRosterRead(teachingClassId, operatorId);
+        List<CourseEnrollment> enrollments = courseEnrollmentMapper.selectList(
+                new LambdaQueryWrapper<CourseEnrollment>()
+                        .eq(CourseEnrollment::getTeachingClassId, teachingClassId)
+                        .orderByDesc(CourseEnrollment::getIsActive)
+                        .orderByDesc(CourseEnrollment::getId));
+        if (enrollments.isEmpty()) {
+            return List.of();
+        }
+        List<Long> studentIds = enrollments.stream().map(CourseEnrollment::getStudentId).toList();
+        Map<Long, User> users = userService.listByIds(studentIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user, (a, b) -> a));
+        return enrollments.stream().map(enrollment -> {
+            User student = users.get(enrollment.getStudentId());
+            TeachingClassMemberVO row = new TeachingClassMemberVO();
+            row.setEnrollmentId(enrollment.getId());
+            row.setStudentId(enrollment.getStudentId());
+            row.setStudentName(student == null ? null
+                    : (student.getFullName() != null ? student.getFullName() : student.getUsername()));
+            row.setUsername(student == null ? null : student.getUsername());
+            row.setStudentNo(student == null ? null : student.getStudentId());
+            row.setApprovalStatus(enrollment.getApprovalStatus());
+            row.setIsActive(enrollment.getIsActive());
+            row.setEnrolledAt(enrollment.getEnrolledAt());
+            return row;
+        }).toList();
     }
 
     private static boolean isCourseEnabled(Course course) {

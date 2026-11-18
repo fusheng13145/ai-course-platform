@@ -37,6 +37,10 @@ export const deleteTeachingClass = (id: number | string): Promise<ApiEnvelope<Ap
 export const getRosterSources = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/teaching-classes/${id}/admin-classes`) as Promise<ApiEnvelope<ApiData>>
 
+/** 教学班名单（含学生姓名/学号/状态） */
+export const getTeachingClassMembers = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/teaching-classes/${id}/members/detail`) as Promise<ApiEnvelope<ApiData>>
+
 /** 可导入本教学班的行政班候选 */
 export const getRosterCandidates = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/teaching-classes/${id}/roster/candidates`) as Promise<ApiEnvelope<ApiData>>

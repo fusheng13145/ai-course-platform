@@ -123,7 +123,7 @@ describe('消息中心', () => {
 
     expect(api.markAllAsRead).toHaveBeenCalledTimes(1)
     expect(wrapper.findAll('.message-item.is-unread')).toHaveLength(0)
-    expect(toast).toHaveBeenCalledWith('全部通知已标记为已读', 'ok')
+    expect(toast).toHaveBeenCalledWith('全部消息已标记为已读', 'ok')
   })
 
   it('全部已读失败：danger toast，且所有行保持未读', async () => {
@@ -141,15 +141,15 @@ describe('消息中心', () => {
     api.getNotificationList.mockRejectedValueOnce(new Error('500'))
     const wrapper = await mountBody()
 
-    expect(wrapper.find('.callout.danger').text()).toContain('通知加载失败，请重试')
-    expect(wrapper.text()).not.toContain('暂无通知')
+    expect(wrapper.find('.callout.danger').text()).toContain('消息加载失败，请重试')
+    expect(wrapper.text()).not.toContain('暂无消息')
 
     api.getNotificationList.mockResolvedValueOnce(listOf([]))
     await wrapper.find('.callout.danger button').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.callout.danger').exists()).toBe(false)
-    expect(wrapper.text()).toContain('暂无通知')
+    expect(wrapper.text()).toContain('暂无消息')
     expect(api.getNotificationList).toHaveBeenCalledTimes(2)
     expect(api.getNotificationList).toHaveBeenLastCalledWith({ page: 1, size: 20 })
   })
@@ -159,7 +159,7 @@ describe('消息中心', () => {
     const wrapper = await mountBody()
 
     expect(wrapper.find('.callout').exists()).toBe(false)
-    expect(wrapper.text()).toContain('暂无通知')
+    expect(wrapper.text()).toContain('暂无消息')
     expect(api.getNotificationList).toHaveBeenCalledTimes(1)
   })
 })

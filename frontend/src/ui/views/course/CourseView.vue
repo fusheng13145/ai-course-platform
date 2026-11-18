@@ -40,6 +40,10 @@
         v-else-if="currentTab === 'chapters' && role === 'teacher'"
         :course-id="courseId"
       />
+      <TeacherClassesTab
+        v-else-if="currentTab === 'classes' && role === 'teacher'"
+        :course-id="courseId"
+      />
       <ReaderTab
         v-else-if="currentTab === 'chapters' && role === 'student'"
         :course-id="courseId"
@@ -111,6 +115,7 @@ import AnalyticsTab from './tabs/AnalyticsTab.vue'
 import AdminReadOnlyTab from './tabs/AdminReadOnlyTab.vue'
 import GradesTab from './tabs/GradesTab.vue'
 import SettingsTab from './tabs/SettingsTab.vue'
+import TeacherClassesTab from './tabs/TeacherClassesTab.vue'
 import TabUnavailable from './tabs/TabUnavailable.vue'
 import CourseNoticesTab from './tabs/CourseNoticesTab.vue'
 import AiCorpusTab from './tabs/AiCorpusTab.vue'
