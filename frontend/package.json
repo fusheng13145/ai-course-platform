@@ -31,7 +31,7 @@
     "dompurify": "^3.4.17",
     "pinia": "^2.1.7",
     "vue": "^3.5.45",
-    "vue-router": "^4.2.5",
+    "vue-router": "^5.5.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
