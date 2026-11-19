@@ -68,4 +68,12 @@ describe('Coursera 视觉规范', () => {
     expect(frozen).toContain('--tone-1: #dbeafe')
     expect(frozen).toContain("--font-body: 'Geist'")
   })
+
+  it('高密度布局收敛卡片内边距，并让工作台左右列纵向互补', () => {
+    expect(CSS).toContain("body[data-app='ui'] .card {\n  padding: 16px;\n}")
+    expect(CSS).toContain("body[data-app='ui'] .stat-grid {\n  margin-bottom: 16px;\n}")
+    expect(CSS).toContain("body[data-app='ui'] .course-head-meta")
+    expect(CSS).toMatch(/\.card-courses\s*\{\s*grid-column: 1 \/ span 7;\s*grid-row: 1 \/ span 2;/)
+    expect(CSS).toMatch(/\.card-chart\s*\{\s*grid-column: 8 \/ -1;\s*grid-row: 2;/)
+  })
 })

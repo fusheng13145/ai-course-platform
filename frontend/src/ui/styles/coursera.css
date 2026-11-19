@@ -69,14 +69,14 @@ body[data-app='ui'] {
 }
 
 body[data-app='ui'] .main-inner {
-  padding: 24px 32px 32px;
+  padding: 24px;
 }
 
 body[data-app='ui'] .page-head,
 body[data-app='ui'] .course-head,
 body[data-app='ui'] .module-head {
   gap: 24px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   padding: 0 0 16px;
   border-bottom: 1px solid var(--line-soft);
 }
@@ -243,7 +243,7 @@ body[data-app='ui'] .stat {
 }
 
 body[data-app='ui'] .card {
-  padding: 24px;
+  padding: 16px;
 }
 
 body[data-app='ui'] .stat:hover,
@@ -263,7 +263,7 @@ body[data-app='ui'] .course-overview-grid {
 }
 
 body[data-app='ui'] .stat-grid {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 body[data-app='ui'] .stat-label,
@@ -326,7 +326,7 @@ body[data-app='ui'] .chip-danger {
 }
 
 body[data-app='ui'] .table-card {
-  padding: 24px;
+  padding: 16px;
 }
 
 body[data-app='ui'] .table-wrap {
@@ -391,7 +391,7 @@ body[data-app='ui'] .tabs button.is-active {
 }
 
 body[data-app='ui'] .page-tabs {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 body[data-app='ui'] .course-tab-bar {
@@ -558,6 +558,10 @@ body[data-app='ui'] .empty-state {
   font-size: 14px;
 }
 
+body[data-app='ui'] .empty-state.compact {
+  padding: 8px 0;
+}
+
 body[data-app='ui'] .chapters {
   gap: 16px;
 }
@@ -604,7 +608,7 @@ body[data-app='ui'] .practice-card {
 }
 
 body[data-app='ui'] .practice-card {
-  padding: 24px;
+  padding: 16px;
 }
 
 body[data-app='ui'] .practice-content {
@@ -685,6 +689,69 @@ body[data-app='ui'] .modal-foot {
 
 body[data-app='ui'] .course-tile {
   box-shadow: none;
+}
+
+body[data-app='ui'] .course-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+body[data-app='ui'] .course-head-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body[data-app='ui'] .course-head-meta span + span::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-circle);
+  background: var(--line-strong);
+}
+
+/* 信息密度：同排卡片等高，避免右列短卡下方悬空。 */
+body[data-app='ui'] .course-overview-grid {
+  align-items: stretch;
+}
+
+/* 工作台改为左右独立叠放：课程列表跨两行，待办与图表同列，下一行由预警和通知并排填满。 */
+@media (min-width: 961px) {
+  body[data-app='ui'] .card-courses {
+    grid-column: 1 / span 7;
+    grid-row: 1 / span 2;
+  }
+
+  body[data-app='ui'] .card-queue {
+    grid-column: 8 / -1;
+    grid-row: 1;
+  }
+
+  body[data-app='ui'] .card-chart {
+    grid-column: 8 / -1;
+    grid-row: 2;
+  }
+
+  body[data-app='ui'] .card-weak {
+    grid-column: 1 / span 5;
+    grid-row: 3;
+  }
+
+  body[data-app='ui'] .card-feed {
+    grid-column: 6 / -1;
+    grid-row: 3;
+    align-self: stretch;
+  }
+
+  body[data-app='ui'] .card-ai {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
 }
 
 .av-main {
