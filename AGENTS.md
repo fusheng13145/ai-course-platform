@@ -140,7 +140,7 @@ python scripts/audit-stats.py
 
 | 项 | 当前事实 |
 | --- | --- |
-| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`，已推送 `origin/chore/deps-safe-bumps`（HEAD `a3cccbdd`，以 `git log -1` 为准）；`origin/main` 当前 `fa73a2c2`；PR #120/#123 均已合并，当前无 open PR |
+| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`，已推送 `origin/chore/deps-safe-bumps`（HEAD 以 `git log -1` 为准）；`origin/main` 当前 `fa73a2c2`；PR #120/#123 均已合并，当前无 open PR |
 | 工作树 | 干净（`git status --short` 无输出）；`frontend/dist`、`backend/target`、`coverage` 均为忽略的构建产物 |
 | 结构 | 620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
