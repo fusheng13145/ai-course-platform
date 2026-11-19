@@ -914,21 +914,23 @@ jobs:
 
       - name: Start MinIO for upload e2e
         # 资源上传链路按生产默认走 MinIO；不注入凭据会让后端在 MinioConfig fail-fast。
-        # 这里起一次性 MinIO 容器，仅本 job 内可见，不落任何持久数据。
+        # 直接用官方原生二进制，避免依赖 Docker Hub 镜像可达性（本 job 只跑 Linux 测试）。
         run: |
-          docker rm -f ci-minio >/dev/null 2>&1 || true
-          docker run -d --name ci-minio \
-            -p 9000:9000 \
-            -e MINIO_ROOT_USER=ci-build-only-minio-user \
-            -e MINIO_ROOT_PASSWORD='CiBuild0nly!Minio#2026' \
-            minio/minio:RELEASE.2025-09-07T16-13-09Z \
-            server /data --console-address ":9001"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            https://dl.min.io/server/minio/release/linux-amd64/minio \
+            -o /tmp/minio
+          chmod +x /tmp/minio
+          mkdir -p /tmp/minio-data
+          export MINIO_ROOT_USER=ci-build-only-minio-user
+          export MINIO_ROOT_PASSWORD='CiBuild0nly!Minio#2026'
+          nohup /tmp/minio server /tmp/minio-data --address ":9000" --console-address ":9001" \
+            >/tmp/minio.log 2>&1 &
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/minio/health/live || true)
             if [ "$code" = "200" ]; then echo "minio ready (http=$code, 第 ${i} 次探测)"; break; fi
             sleep 2
           done
-          if [ "$code" != "200" ]; then echo "minio 未就绪，最后 http=$code"; docker logs ci-minio; exit 1; fi
+          if [ "$code" != "200" ]; then echo "minio 未就绪，最后 http=$code"; tail -n 80 /tmp/minio.log; exit 1; fi
 
       - name: Start backend (background) + run Playwright
         env:
