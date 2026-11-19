@@ -1,7 +1,9 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.exception.BusinessException;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -825,11 +827,11 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - 大模型返回无 JSON 结构：服务层 parseError 原样透传")
-    void extractGraph_noJsonObject_reportsParseError() throws Exception {
+    @DisplayName("POST /knowledge/extract - 大模型返回无 JSON 结构：服务层抛 503 业务异常（DR-74，不得假 200）")
+    void extractGraph_noJsonObject_returnsServiceUnavailable() throws Exception {
         when(aiService.extractKnowledgeGraphJson("纯文本没有花括号")).thenReturn("模型说它无法抽取");
         when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
-                .thenReturn(Map.of("parseError", "AI 未返回有效结构", "nodeCount", 0, "nodes", List.of()));
+                .thenThrow(new BusinessException(ApiCode.SERVICE_UNAVAILABLE, "AI 未返回有效结构，请稍后重试"));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"纯文本没有花括号\"}")
@@ -838,18 +840,17 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andReturn();
 
         mockMvc.perform(asyncDispatch(started))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.parseError").value("AI 未返回有效结构"))
-                .andExpect(jsonPath("$.data.nodeCount").value(0));
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.message").value("AI 未返回有效结构，请稍后重试"));
     }
 
     @Test
-    @DisplayName("POST /knowledge/extract - JSON 语法坏：服务层降级 parseError，接口保持可用")
-    void extractGraph_malformedJson_reportsParseFailure() throws Exception {
+    @DisplayName("POST /knowledge/extract - JSON 语法坏：服务层抛 503 业务异常，事务回滚不落半成品")
+    void extractGraph_malformedJson_returnsServiceUnavailable() throws Exception {
         when(aiService.extractKnowledgeGraphJson(any())).thenReturn("{nodes: [坏掉的 JSON}");
         when(knowledgePointService.extractAndSaveGraph(eq(1L), anyString()))
-                .thenReturn(Map.of("parseError", "AI 返回结构解析失败，请稍后重试", "nodeCount", 0));
+                .thenThrow(new BusinessException(ApiCode.SERVICE_UNAVAILABLE, "AI 返回结构解析失败，请稍后重试"));
 
         var started = mockMvc.perform(post("/knowledge/extract").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1,\"content\":\"任意内容\"}")
@@ -858,9 +859,9 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
                 .andReturn();
 
         mockMvc.perform(asyncDispatch(started))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.parseError").value("AI 返回结构解析失败，请稍后重试"))
-                .andExpect(jsonPath("$.data.nodeCount").value(0));
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.message").value("AI 返回结构解析失败，请稍后重试"));
     }
 
     @Test
