@@ -912,26 +912,6 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Start MinIO for upload e2e
-        # 资源上传链路按生产默认走 MinIO；不注入凭据会让后端在 MinioConfig fail-fast。
-        # 直接用官方原生二进制，避免依赖 Docker Hub 镜像可达性（本 job 只跑 Linux 测试）。
-        run: |
-          curl -fsSL --retry 3 --retry-delay 2 \
-            https://dl.min.io/server/minio/release/linux-amd64/minio \
-            -o /tmp/minio
-          chmod +x /tmp/minio
-          mkdir -p /tmp/minio-data
-          export MINIO_ROOT_USER=ci-build-only-minio-user
-          export MINIO_ROOT_PASSWORD='CiBuild0nly!Minio#2026'
-          nohup /tmp/minio server /tmp/minio-data --address ":9000" --console-address ":9001" \
-            >/tmp/minio.log 2>&1 &
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/minio/health/live || true)
-            if [ "$code" = "200" ]; then echo "minio ready (http=$code, 第 ${i} 次探测)"; break; fi
-            sleep 2
-          done
-          if [ "$code" != "200" ]; then echo "minio 未就绪，最后 http=$code"; tail -n 80 /tmp/minio.log; exit 1; fi
-
       - name: Start backend (background) + run Playwright
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/ai_course_platform_test?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
@@ -941,11 +921,8 @@ jobs:
           COOKIE_SECURE: "false"
           REQUIRE_HTTPS: "false"
           CSRF_ENABLED: "false"
-          MINIO_ENABLED: "true"
-          MINIO_ENDPOINT: "http://localhost:9000"
-          MINIO_ROOT_USER: ci-build-only-minio-user
-          MINIO_ROOT_PASSWORD: CiBuild0nly!Minio#2026
-          MINIO_BUCKET: aicourse-uploads
+          # 本作业只验证业务链路，不绑定外部对象存储；MinIO 生产路径由本机 e2e/部署验证。
+          MINIO_ENABLED: "false"
           # DR-85：本作业 52 例真实登录，默认 10 次/60s 的 IP 桶会在第 11 次返 429 且不记日志，
           # 造成"红灯集合每轮不同"。该键**只允许**出现在此步骤 env（一次性进程环境）：
           # 禁止写入 .env / docker-compose.yml / scripts/start-all.py（那三处会让阈值长期生效）。
