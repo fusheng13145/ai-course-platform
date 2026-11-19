@@ -144,7 +144,7 @@ python scripts/audit-stats.py
 | 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
 | 结构 | 620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 103 `.test.ts` / 13 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
-| 后端门禁 | 3889 例 / 0 失败 / 0 错误 / 1 跳过；LINE 89.31%、BRANCH 75.01%（门禁 85/75）；SpotBugs 0；ArchUnit 8 |
+| 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
 | 前端门禁 | Vitest 103 文件 / 1238 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
 | Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` **122 passed**（2026-11-18，含全量服务编排守卫） |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120 检查结果以 Actions 当前 run 为准 |

@@ -235,7 +235,7 @@ class UserControllerCoverageTest {
 
         AdminUpdateUserDTO nullUpdated = new AdminUpdateUserDTO();
         when(userService.getById(4L)).thenReturn(user(4L, null, null));
-        when(userService.getById(4L)).thenReturn(user(4L, null, null), null);
+        when(userService.getById(4L)).thenReturn(user(4L, null, null), (User) null);
         assertNull(controller.update(4L, nullUpdated).getData());
 
         when(adminScopeGuard.isCollegeAdmin()).thenReturn(true);
