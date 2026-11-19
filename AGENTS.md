@@ -14,7 +14,7 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | **620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；91 `.vue` / 103 `.test.ts` / 13 Playwright spec** |
+| **规模（实测）** | **620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec** |
 | **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `fix/frontend-loading-spinner`，PR #120 待合并 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
@@ -142,10 +142,10 @@ python scripts/audit-stats.py
 | --- | --- |
 | 分支 / 基线 | `fix/frontend-loading-spinner`（本地领先 `origin`；当前提交以 `git log -1` 为准）；`main` 本地与远程均 `94eb6278`；PR #120 待合并 |
 | 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
-| 结构 | 620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 103 `.test.ts` / 13 Playwright spec |
+| 结构 | 620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
 | 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
-| 前端门禁 | Vitest 103 文件 / 1238 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
+| 前端门禁 | Vitest 104 文件 / 1241 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
 | Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` **122 passed**（2026-11-18，含全量服务编排守卫） |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120 检查结果以 Actions 当前 run 为准 |
 | 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
@@ -187,7 +187,7 @@ python scripts/audit-stats.py
 | 优先级 | 事项 | 去向 |
 | --- | --- | --- |
 | **P0** | 结题材料：三指标实测、数据集/标注、研究报告/测试报告/论文/软著 | `docs/当前状态与待办.md` §3 K-01–K-04 |
-| **P1** | 前端尾量：C-07 完整 e2e 连续 3 轮、P-10 响应式、P-12 XSS 处置 | 同上 §5 |
+| **P1** | 前端尾量：C-07 完整 e2e 连续 3 轮、P-12 XSS 处置（P-10 外层路由已于 2026-11-19 收口） | 同上 §5 |
 | **P1** | 目标环境上线闭环：E-01 起栈、E-03 备份异地、E-04 告警演练 | 同上 §4 |
 | **P2** | DB squash、泛化平台 / 多课程、`.git` 瘦身 | 同上 §4 |
 

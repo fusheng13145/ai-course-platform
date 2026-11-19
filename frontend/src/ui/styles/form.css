@@ -168,6 +168,14 @@ body[data-app='ui'] .form-foot {
   body[data-app='ui'] .form-grid .span-2 {
     grid-column: span 1;
   }
+  /* 单列后仍要切断控件的固有宽度：长选项的 select 会以内容宽（实测 420px）
+     撑破 360/375 档，grid item 的 auto 最小宽会把整张表单推出容器。 */
+  body[data-app='ui'] .form-grid .field,
+  body[data-app='ui'] .form-grid .field > .input,
+  body[data-app='ui'] .form-grid .field > .textarea {
+    min-width: 0;
+    width: 100%;
+  }
   body[data-app='ui'] .stats-grid {
     grid-template-columns: 1fr 1fr;
   }
