@@ -140,13 +140,13 @@ python scripts/audit-stats.py
 
 | 项 | 当前事实 |
 | --- | --- |
-| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`（HEAD 以 `git log -1` 为准；本轮起始基线 `a363abe4`，领先 `origin` 28 个提交）；`main` 远端 `3e77fb18`；PR #120、#123 均已合并，当前无 open PR |
-| 工作树 | 仅 `backend/mvnw.cmd` 保留既有未提交改动；`frontend/dist` 是构建产物，已忽略 |
+| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`，已推送 `origin/chore/deps-safe-bumps`（HEAD `fd93565e`，以 `git log -1` 为准）；`origin/main` 当前 `fa73a2c2`；PR #120/#123 均已合并，当前无 open PR |
+| 工作树 | 干净（`git status --short` 无输出）；`frontend/dist`、`backend/target`、`coverage` 均为忽略的构建产物 |
 | 结构 | 620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
 | 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
 | 前端门禁 | Vitest 104 文件 / 1241 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
-| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed（2026-11-18）；`scripts/tests` **116 passed**（2026-11-19 本轮复核；移除已完成迁移测试前为 122） |
+| Python / 启动器 | kg 61 passed（Neo4j 7687 在线）；rag 79 passed；fine-tune 55 passed；`scripts/tests` **116 passed**（2026-11-19 本轮复核；移除已完成迁移测试前为 122） |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120/#123 检查结果以 Actions 当前 run 为准 |
 | 分支保护 | GitHub 当前记录 `protected=true`（2026-11-19）；无必填 review / required checks，按团队约定以可执行 job 全绿为准 |
 | Compose | 16 服务 / 17 卷 / 9 healthcheck；CI 已构建镜像，目标环境未 `up` |
