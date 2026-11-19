@@ -4,6 +4,7 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.security.AIAccessSupport;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AnalyticsService;
@@ -90,6 +91,9 @@ public class AIInsightController {
                 try {
                     String json = aiService.recommendQuestionsJson(cid, diff != null ? diff : "MEDIUM", 3);
                     recommendations = aiService.parseQuestions(json, diff);
+                } catch (LLMUnavailableException e) {
+                    // 上游不可用必须保持 503，不得被下面的通用 catch 包成 400
+                    throw e;
                 } catch (Exception e) {
                     log.error("题目推荐生成失败: {}", e.getMessage(), e);
                     throw new BusinessException("题目生成失败: " + e.getMessage());

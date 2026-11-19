@@ -2,6 +2,7 @@ package com.aicourse.service.impl;
 
 import com.aicourse.entity.AiCallLog;
 import com.aicourse.mapper.AiCallLogMapper;
+import com.aicourse.service.component.ai.AiQuotaService;
 import com.aicourse.vo.AiUsageByCourseVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

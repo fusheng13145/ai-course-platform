@@ -357,6 +357,22 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("题目生成失败: LLM连接超时"));
     }
 
+    @Test
+    @DisplayName("GET /ai/recommendations/questions - LLM 不可用：保持 503，不降级为业务 400")
+    void questionRecommendations_llmUnavailable_preserves503() throws Exception {
+        when(aiService.recommendQuestionsJson(any(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new LLMUnavailableException(
+                        LLMUnavailableException.Kind.UPSTREAM_UNREACHABLE, "上游不可用"));
+
+        MvcResult mvc = mockMvc.perform(get("/ai/recommendations/questions?courseId=8&difficulty=EASY")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.message").value("上游不可用"));
+    }
+
     // ==================== /ai/analysis/weak-points ====================
 
     @Test

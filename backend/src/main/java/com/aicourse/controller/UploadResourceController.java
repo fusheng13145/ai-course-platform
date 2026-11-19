@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.entity.Resource;
 import com.aicourse.service.FileStorageService;
 import com.aicourse.service.ResourceService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
  * 本控制器只负责把对象流转成响应，不能绕过过滤器直接暴露桶内对象。</p>
  */
 @RestController
+@Tag(name = "资源文件")
 @ConditionalOnProperty(name = "minio.enabled", havingValue = "true")
 public class UploadResourceController {
 
