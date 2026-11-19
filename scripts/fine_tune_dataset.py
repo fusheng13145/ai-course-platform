@@ -10,7 +10,7 @@ course 1 得 2 条（<20），跑不满一次有意义 loss 序列的真实训�
 - `questions`：**只读解析**已版本化的题库 SQL（`backend/.../V6__computer_network_showcase.sql`
   的 `INSERT INTO questions`），题干+选项为 `instruction`、标准答案+解析为 `output`。
   这一来源是真实教学考核材料，instruction/output 语义天然对齐，比窗口派生更贴微调目标。
-  ⚠️ 绝不 `import scripts/generate-cn-showcase-seed.py`：那脚本 **import 即执行**并重写
+  ⚠️ 绝不 `import scripts/legacy/generate-cn-showcase-seed.py`：那脚本 **import 即执行**并重写
   V6 SQL（本仓库Flyway 种子，实测会污染工作树），所以这里只做文本解析。
 - `both`（默认）：两者合并去重后入库。
 

@@ -6,9 +6,9 @@
 
 默认只做 dry-run，不复制、不删除任何文件。分两步执行：
 
-    python scripts/migrate-uploads.py                  # 打印计划
-    python scripts/migrate-uploads.py --apply          # 复制 + 校验 + 写 manifest
-    python scripts/migrate-uploads.py --apply --purge-old  # 备份旧目录后再删除
+    python scripts/legacy/migrate-uploads.py                  # 打印计划
+    python scripts/legacy/migrate-uploads.py --apply          # 复制 + 校验 + 写 manifest
+    python scripts/legacy/migrate-uploads.py --apply --purge-old  # 备份旧目录后再删除
 
 安全约束：
 - 只复制，不移动；目标已有同哈希文件时跳过，不同哈希时整批中止；
@@ -29,9 +29,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE = REPO_ROOT / "backend" / "uploads"
-DEFAULT_BACKUP_DIR = REPO_ROOT / "backup" / "uploads-migration"
+DEFAULT_BACKUP_DIR = REPO_ROOT / "data" / "backups" / "uploads-migration"
 
 
 def default_target() -> Path:
@@ -42,7 +42,7 @@ def default_target() -> Path:
     data_dir = os.environ.get("AICOURSE_DATA_DIR", "").strip()
     if data_dir:
         return (Path(data_dir).expanduser() / "storage").resolve()
-    return (Path.home() / ".aicourse-platform" / "storage").resolve()
+    return (REPO_ROOT / "data" / "aicourse-platform" / "storage").resolve()
 
 
 def sha256_file(path: Path) -> str:

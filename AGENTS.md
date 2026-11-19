@@ -146,7 +146,7 @@ python scripts/audit-stats.py
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
 | 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
 | 前端门禁 | Vitest 104 文件 / 1241 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
-| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed（2026-11-18）；`scripts/tests` 122 passed（2026-11-19 复核） |
+| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed（2026-11-18）；`scripts/tests` **116 passed**（2026-11-19 本轮复核；移除已完成迁移测试前为 122） |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120/#123 检查结果以 Actions 当前 run 为准 |
 | 分支保护 | GitHub 当前记录 `protected=true`（2026-11-19）；无必填 review / required checks，按团队约定以可执行 job 全绿为准 |
 | Compose | 16 服务 / 17 卷 / 9 healthcheck；CI 已构建镜像，目标环境未 `up` |
@@ -381,8 +381,8 @@ python scripts/sync-kg-to-python.py <courseId>
 | “已具备上线能力” | A 路径从未在目标环境实跑，只有预案与断链清单 | `docs/部署文档.md` §6 |
 | “微调能力可售” | 小样本必然过拟合，推理文本会退化为语料外乱码 | `docs/后端待办项.md` §7 AG-2 |
 | “跨设备完成率” | 引导三态只落本地 `localStorage` | `docs/前端待办项.md` §4 |
-| “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §14.2 R-C1 |
-| “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §14.2 R-K1/K2/K3 |
+| “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §8 R-C1 |
+| “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §8 R-K1/K2/K3 |
 
 ---
 

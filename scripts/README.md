@@ -34,7 +34,6 @@
 | `restore-mysql.sh` | 隔离库恢复与关键表核对 |
 | `init-app-db-user.sh` | 建库时创建 `aicourse_app` 最小权限账户 |
 | `verify-uploads-sha256.sh` | 上传卷抽样/逐文件 SHA-256 校验 |
-| `migrate-uploads.py` | 历史上传目录迁移；已完成，保留可重放 |
 | `fix-volume-owner.sh` | 存量卷属主检查；默认只检查，`--apply` 才改 |
 | `generate-secrets.py` | 密钥轮换生成；只在 `.env` 更新时使用，永不回显值 |
 | `build_images.sh` | Compose 镜像构建入口；本阶段 Docker 搁置，仍供 CI 使用 |
@@ -60,13 +59,14 @@
 | `e2e/` | 全栈四件套与网络课程验收脚本 |
 | `tests/` | scripts 侧 pytest；日常最小回归 `python -m pytest scripts/tests -q` |
 
-## 6. 历史脚本（保留，不作日常入口）
+## 6. 历史脚本（`scripts/legacy/`，保留，不作日常入口）
 
 | 脚本 | 说明 |
 | --- | --- |
-| `generate-seed-data.py` | V5 种子数据生成引擎；历史 Flyway 种子来源 |
-| `seed_data_templates.py` | V5 种子数据课程语料模板 |
-| `generate-cn-showcase-seed.py` | V6 计算机网络示范课种子生成器 |
+| `legacy/generate-seed-data.py` | V5 种子数据生成引擎；历史 Flyway 种子来源 |
+| `legacy/generate-cn-showcase-seed.py` | V6 计算机网络示范课种子生成器 |
+| `legacy/migrate-uploads.py` | 历史上传目录迁移；已完成，保留可重放 |
+| `seed_data_templates.py` | 仍在根目录：V5 课程语料模板，`seed-demo-data.py` 现行依赖 |
 
 ## 7. 新脚本放置约定
 
