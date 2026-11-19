@@ -644,6 +644,8 @@ jobs:
           APP_ADMIN_INITIAL_PASSWORD: CiBuild0nly!Admin#2026
           NEO4J_PASSWORD: ci-test-neo4j-8f3k
           GRAFANA_ADMIN_PASSWORD: ci-build-only-grafana-4p6t1s0d
+          MINIO_ROOT_USER: ci-build-only-minio-user
+          MINIO_ROOT_PASSWORD: CiBuild0nly!Minio#2026
           COOKIE_SECURE: true
           REQUIRE_HTTPS: true
         run: docker compose --profile ft -f docker-compose.yml build fine-tune-service
@@ -910,6 +912,24 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Start MinIO for upload e2e
+        # 资源上传链路按生产默认走 MinIO；不注入凭据会让后端在 MinioConfig fail-fast。
+        # 这里起一次性 MinIO 容器，仅本 job 内可见，不落任何持久数据。
+        run: |
+          docker rm -f ci-minio >/dev/null 2>&1 || true
+          docker run -d --name ci-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=ci-build-only-minio-user \
+            -e MINIO_ROOT_PASSWORD='CiBuild0nly!Minio#2026' \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z \
+            server /data --console-address ":9001"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/minio/health/live || true)
+            if [ "$code" = "200" ]; then echo "minio ready (http=$code, 第 ${i} 次探测)"; break; fi
+            sleep 2
+          done
+          if [ "$code" != "200" ]; then echo "minio 未就绪，最后 http=$code"; docker logs ci-minio; exit 1; fi
+
       - name: Start backend (background) + run Playwright
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/ai_course_platform_test?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
@@ -919,6 +939,11 @@ jobs:
           COOKIE_SECURE: "false"
           REQUIRE_HTTPS: "false"
           CSRF_ENABLED: "false"
+          MINIO_ENABLED: "true"
+          MINIO_ENDPOINT: "http://localhost:9000"
+          MINIO_ROOT_USER: ci-build-only-minio-user
+          MINIO_ROOT_PASSWORD: CiBuild0nly!Minio#2026
+          MINIO_BUCKET: aicourse-uploads
           # DR-85：本作业 52 例真实登录，默认 10 次/60s 的 IP 桶会在第 11 次返 429 且不记日志，
           # 造成"红灯集合每轮不同"。该键**只允许**出现在此步骤 env（一次性进程环境）：
           # 禁止写入 .env / docker-compose.yml / scripts/start-all.py（那三处会让阈值长期生效）。
