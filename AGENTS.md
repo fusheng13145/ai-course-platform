@@ -1,4 +1,4 @@
-# AGENTS.md · AI 代理入口（2026-11-17）
+# AGENTS.md · AI 代理入口（2026-11-19）
 
 > **先读这一份**。5 分钟拿全"这个仓库是什么、怎么跑、什么不能碰、现在做到哪"。
 > **单文件入口**：本文件是代理唯一入口。原 `AGENT.md`（工程纪律、验证命令、证据纪律、机械守卫写法）已于 2026-11-15 并入本文件 **§10–§12**，原文件删除；文档索引在 [`docs/README.md`](./docs/README.md)。
@@ -14,8 +14,8 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | **620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec** |
-| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `fix/frontend-loading-spinner`，PR #120 待合并 |
+| **规模（实测）** | **620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec** |
+| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `chore/deps-safe-bumps`，PR #120/#123 已合并 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
 **一句话记住优先级**：`PRD > 泛化课程平台 > 多课程 > 软著`，但**结题材料（三指标 + 数据集 + 报告 + 论文）排在最前**。
@@ -132,7 +132,7 @@ python scripts/audit-stats.py
 
 ---
 
-## 5. 当前基线（2026-11-17，接手必读）
+## 5. 当前基线（2026-11-19，接手必读）
 
 > 当前任务、负责人、阻塞项以 [`docs/当前状态与待办.md`](./docs/当前状态与待办.md) 为唯一总表；本章只给基线快照与历史批次入口。
 
@@ -140,18 +140,18 @@ python scripts/audit-stats.py
 
 | 项 | 当前事实 |
 | --- | --- |
-| 分支 / 基线 | `fix/frontend-loading-spinner`（本地领先 `origin`；当前提交以 `git log -1` 为准）；`main` 本地与远程均 `94eb6278`；PR #120 待合并 |
-| 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
-| 结构 | 620 main Java / 283 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
+| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`（HEAD 以 `git log -1` 为准；本轮起始基线 `a363abe4`，领先 `origin` 28 个提交）；`main` 远端 `3e77fb18`；PR #120、#123 均已合并，当前无 open PR |
+| 工作树 | 仅 `backend/mvnw.cmd` 保留既有未提交改动；`frontend/dist` 是构建产物，已忽略 |
+| 结构 | 620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
 | 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
 | 前端门禁 | Vitest 104 文件 / 1241 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
-| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` **122 passed**（2026-11-18，含全量服务编排守卫） |
-| CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120 检查结果以 Actions 当前 run 为准 |
-| 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
+| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed（2026-11-18）；`scripts/tests` 122 passed（2026-11-19 复核） |
+| CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120/#123 检查结果以 Actions 当前 run 为准 |
+| 分支保护 | GitHub 当前记录 `protected=true`（2026-11-19）；无必填 review / required checks，按团队约定以可执行 job 全绿为准 |
 | Compose | 16 服务 / 17 卷 / 9 healthcheck；CI 已构建镜像，目标环境未 `up` |
-| 存储 | 新上传与分片合并产物写 MinIO（bucket `aicourse-uploads`；`/uploads/**` 由后端代理）；存量 **155 文件 / 28,816,671B** 已迁入并做 SHA-256 **155/155** 校验，原 `storage` 转备份；本机原生 MinIO 已起（非 Docker）；分片仍写 `chunks` |
-| 文档 | `docs` 21 个 Markdown + `assets/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
+| 存储 | 运行期数据根为项目 `data/aicourse-platform`（`minio-data` / `storage`）；冷备统一在 `data/backups`（`storage.migrated-20261118-203354`、`drill`、`uploads-migration`）；MinIO bucket `aicourse-uploads` 共 **174 对象**；资源行 32；本机原生 MinIO 已起（非 Docker）；分片仍写 `chunks` |
+| 文档 | `docs` 22 个 Markdown + `assets/` + `operations/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
 
 ### 5.2 历史批次（B0–B11）
 
