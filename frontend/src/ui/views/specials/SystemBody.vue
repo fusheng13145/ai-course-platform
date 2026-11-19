@@ -381,7 +381,7 @@ onMounted(() => {
 .scope-note {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 14px;
 }
 .health-grid {
   display: grid;
@@ -419,6 +419,6 @@ onMounted(() => {
 .modal-error {
   margin: 8px 0 0;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 14px;
 }
 </style>

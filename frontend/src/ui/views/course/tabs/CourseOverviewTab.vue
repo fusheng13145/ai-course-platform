@@ -309,7 +309,7 @@ watch(() => [props.courseId, props.role] as const, load, { immediate: true })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 .section-cap {
   font-size: 12px;

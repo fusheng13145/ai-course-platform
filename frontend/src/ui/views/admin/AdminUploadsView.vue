@@ -99,24 +99,8 @@
             取消本次上传
           </button>
         </div>
-        <p class="plan-hint">
-          每片带前端实算的 MD5
-          由服务端逐片比对；中断后按服务端报告的缺失分片续传，本地不维护进度计数
-        </p>
         <div class="upload-state">
-          <div class="progress-row">
-            <div
-              class="progress-bar"
-              role="progressbar"
-              aria-label="上传进度"
-              :aria-valuenow="percentage"
-              aria-valuemin="0"
-              aria-valuemax="100"
-            >
-              <i :style="{ '--p': `${percentage}%` }"></i>
-            </div>
-            <b class="progress-num">{{ percentage }}%</b>
-          </div>
+          <ProgressBar :value="percentage" label="上传进度" />
           <p class="plan-hint">
             计划 {{ totalChunks }} 片 · 服务端已落盘 {{ uploadedChunks }} 片
             <template v-if="sessionId">· 会话 {{ sessionId }}</template>
@@ -192,13 +176,6 @@
         <div v-else class="empty-state compact">
           <span class="e-ico"><Icon name="upload" /></span>
           <b>{{ emptyDescription() }}</b>
-          <p>
-            {{
-              listError
-                ? '修正后可点右上角「刷新列表」重试。'
-                : '下方「本地文件分片上传」发起一次上传即可产生会话记录。'
-            }}
-          </p>
         </div>
 
         <!-- listSessions 一次性返回全量（后端无分页参数），渲染层按 D2-5 客户端切片 -->
@@ -206,12 +183,7 @@
           <span>
             第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条（每页 {{ pageSize }} 条）
           </span>
-          <div class="pager">
-            <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-            <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-              下一页
-            </button>
-          </div>
+          <Pagination :page="page" :page-count="pageCount" @turn="goPage" />
         </footer>
       </section>
 
@@ -280,6 +252,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import PageHead from '../../components/PageHead.vue'
+import Pagination from '../../components/Pagination.vue'
+import ProgressBar from '../../components/ProgressBar.vue'
 import Modal from '../../components/Modal.vue'
 import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
@@ -656,7 +630,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .knob .num {
@@ -664,7 +638,7 @@ onUnmounted(() => {
   height: 30px;
 }
 .picked {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
   max-width: 320px;
   overflow: hidden;
@@ -673,7 +647,7 @@ onUnmounted(() => {
 }
 .plan-hint {
   margin: 8px 0 0;
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .upload-state {
@@ -704,11 +678,11 @@ onUnmounted(() => {
 .progress-num {
   flex: none;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 .result-line {
   margin: 10px 0 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .result-line a {
   color: var(--accent);
@@ -727,14 +701,14 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   margin: 6px 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .detail-grid span {
   color: var(--ink-3);
 }
 .missing-line {
   margin: 10px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--warn);
 }
 </style>

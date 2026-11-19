@@ -4,11 +4,6 @@
       <div>
         <h2>{{ isStudent ? 'AI 学习助手' : 'AI 助教' }}</h2>
       </div>
-      <div class="course-tab-actions">
-        <span class="head-hint">{{
-          isStudent ? '回答由模型生成，仅供学习参考' : '回答由模型生成，需人工复核后再用于教学'
-        }}</span>
-      </div>
     </div>
 
     <div class="tabs" role="tablist" aria-label="AI 能力">
@@ -49,7 +44,6 @@
       </div>
       <div v-else class="empty-state compact">
         <b>还没有提问</b>
-        <p>就本课程的学习内容提问，回答会带上检索到的资料出处。</p>
       </div>
       <footer class="qa-foot">
         <textarea
@@ -89,7 +83,6 @@
       </ul>
       <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
         <b>没有可报告的薄弱点</b>
-        <p>学习数据积累后重试。</p>
       </div>
       <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
     </section>
@@ -459,10 +452,6 @@ watch(
   flex-direction: column;
   gap: 14px;
 }
-.head-hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
 .msg-list {
   display: flex;
   flex-direction: column;
@@ -481,14 +470,14 @@ watch(
 }
 .msg-body {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.8;
   white-space: pre-wrap;
 }
 .src-list {
   margin: 8px 0 0;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
   display: flex;
   flex-direction: column;
@@ -522,7 +511,7 @@ watch(
 }
 .ai-summary {
   margin: 0 0 12px;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--ink-2);
 }
@@ -555,7 +544,7 @@ watch(
 }
 .raw {
   margin-top: 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .raw pre {
   margin: 6px 0 0;

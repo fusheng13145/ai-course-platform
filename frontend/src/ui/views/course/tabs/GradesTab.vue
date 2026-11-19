@@ -21,7 +21,6 @@
     <div v-if="loading" class="empty-state compact"><b>正在加载成绩…</b></div>
     <div v-else-if="loadError" class="empty-state compact">
       <b>成绩数据未能加载</b>
-      <p>这不是「暂无成绩」：请查看上方提示后重试。</p>
     </div>
     <!--
       课程条目缺失 ≠ 暂无成绩：后端 getGrades 吞异常后会返回 { courses: [] }，
@@ -30,13 +29,11 @@
     <div v-else-if="!gradeCourse" class="empty-state compact">
       <span class="e-ico"><Icon name="award" /></span>
       <b>成绩数据未能获取（可能暂不可用）</b>
-      <p>成绩服务未返回本课程的数据；这不等于「暂无成绩」，请稍后重试。</p>
       <button class="btn btn-sm" @click="loadStudentGrades">重试</button>
     </div>
     <div v-else-if="!gradeItems.length" class="empty-state compact">
       <span class="e-ico"><Icon name="award" /></span>
       <b>本课程暂无成绩记录</b>
-      <p>作业批改或考试出分后会显示在这里。</p>
     </div>
     <template v-else>
       <div class="grades-layout">
@@ -61,7 +58,7 @@
         </section>
       </div>
 
-      <section class="card table-card" style="margin-top: 14px">
+      <section class="card table-card" style="margin-top: 16px">
         <header class="card-head">
           <div>
             <h2>成绩项</h2>
@@ -102,8 +99,6 @@
         </div>
       </section>
     </template>
-
-    <p v-if="!loading" class="export-note">成绩导出待扩展。</p>
   </div>
 
   <!-- 教师 / 管理员：原为硬编码演示视图（batch 24 死示例层清算时整段删除）。
@@ -371,15 +366,9 @@ watch(
 }
 .t-comment {
   max-width: 280px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-2);
-}
-.export-note {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: var(--ink-3);
 }
 .callout.danger {
   border-left-color: var(--danger);

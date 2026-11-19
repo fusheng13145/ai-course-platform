@@ -328,7 +328,7 @@ onBeforeUnmount(() => {
   flex: none;
   height: 44px;
   padding: 0 12px;
-  font-size: 11px;
+  font-size: 12px;
 }
 @media (max-width: 520px) {
   .av-grid2 {

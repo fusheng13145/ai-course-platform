@@ -51,6 +51,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { setProbeSilence } from '@/api/request'
 import '../../styles/record.css'
+import '../../styles/coursera.css'
 import '../../styles/shell-fix.css'
 import '../../styles/typography.css'
 import Sprite from '../../components/Sprite.vue'
@@ -260,7 +261,7 @@ onBeforeUnmount(() => {
 }
 .ev-desc {
   margin: 9px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.85;
   color: var(--ink-2);
 }
@@ -270,7 +271,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: var(--surface-2);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .ev-actions {

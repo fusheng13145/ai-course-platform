@@ -8,12 +8,14 @@
 
       <ol class="av-steps" aria-label="找回密码步骤">
         <li class="av-step" :class="{ 'is-active': step === 1, 'is-done': step > 1 }">
-          <b>01</b><span>邮箱</span>
+          <NumberBadge :value="1" /><span>邮箱</span>
         </li>
         <li class="av-step" :class="{ 'is-active': step === 2, 'is-done': step > 2 }">
-          <b>02</b><span>验证</span>
+          <NumberBadge :value="2" /><span>验证</span>
         </li>
-        <li class="av-step" :class="{ 'is-active': step === 3 }"><b>03</b><span>新密码</span></li>
+        <li class="av-step" :class="{ 'is-active': step === 3 }">
+          <NumberBadge :value="3" /><span>新密码</span>
+        </li>
       </ol>
 
       <form class="av-form" @submit.prevent="submit">
@@ -118,6 +120,7 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AuthShell from './AuthShell.vue'
+import NumberBadge from '../../components/NumberBadge.vue'
 import Icon from '../../components/Icon.vue'
 import { useUi } from '../../composables/ui'
 

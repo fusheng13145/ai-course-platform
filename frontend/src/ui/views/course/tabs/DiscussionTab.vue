@@ -481,12 +481,12 @@ watch(() => props.courseId, loadTopics, { immediate: true })
   gap: 6px;
 }
 .topic-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 .topic-excerpt {
   margin: 4px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--ink-2);
 }
@@ -496,7 +496,7 @@ watch(() => props.courseId, loadTopics, { immediate: true })
   gap: 12px;
   margin-top: 6px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .thread-actions {
@@ -507,7 +507,7 @@ watch(() => props.courseId, loadTopics, { immediate: true })
 }
 .topic-body {
   margin: 0 0 14px;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--ink-2);
 }
@@ -527,7 +527,7 @@ watch(() => props.courseId, loadTopics, { immediate: true })
 }
 .post-time {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .post-content {

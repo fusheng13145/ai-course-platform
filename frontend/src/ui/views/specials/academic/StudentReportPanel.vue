@@ -549,7 +549,7 @@ onMounted(load)
   display: flex;
   gap: 8px;
   min-width: 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .report-meta span {
   flex: none;
@@ -613,7 +613,7 @@ onMounted(load)
 }
 .weak-list b {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -621,7 +621,7 @@ onMounted(load)
 .weak-list span {
   color: var(--ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
 }
 .weak-bar {
   grid-column: 1 / -1;

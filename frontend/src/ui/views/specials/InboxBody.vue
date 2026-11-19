@@ -63,7 +63,6 @@
       <div v-else class="empty-state compact" data-state="empty">
         <span class="e-ico"><Icon name="check" /></span>
         <b>暂无待批阅任务</b>
-        <p>学生提交作业后，有待批提交的任务会出现在这里。</p>
       </div>
 
       <div class="card-foot">
@@ -134,7 +133,6 @@
         <div v-else class="empty-state compact" data-state="empty">
           <span class="e-ico"><Icon name="file" /></span>
           <b>暂无待发布的作业或试卷</b>
-          <p>草稿状态的作业与试卷会出现在这里。</p>
         </div>
       </template>
 
@@ -208,7 +206,6 @@
         <div v-else class="empty-state compact" data-state="empty">
           <span class="e-ico"><Icon name="play" /></span>
           <b>当前没有进行中的考试</b>
-          <p>学生开考后，会话会出现在这里。</p>
         </div>
       </template>
 

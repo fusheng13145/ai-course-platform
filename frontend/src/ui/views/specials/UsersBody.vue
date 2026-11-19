@@ -107,19 +107,11 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="users" /></span>
         <b>{{ emptyDescription() }}</b>
-        <p>{{ listError ? '请查看上方提示后重试。' : '调整角色或搜索词后再试。' }}</p>
       </div>
 
       <footer v-if="!listError && total > pageSize" class="card-foot">
         <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 人</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1 || loading" @click="goPage(-1)">
-            上一页
-          </button>
-          <button class="btn btn-sm" :disabled="page >= pageCount || loading" @click="goPage(1)">
-            下一页
-          </button>
-        </div>
+        <Pagination :page="page" :page-count="pageCount" :loading="loading" @turn="goPage" />
       </footer>
     </section>
 
@@ -250,6 +242,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
+import Pagination from '../../components/Pagination.vue'
 import { useUi } from '../../composables/ui'
 import { useListFeedback } from '@/composables/useListFeedback'
 import {
@@ -592,7 +585,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .role-select {

@@ -218,7 +218,7 @@ onMounted(load)
 .message-content {
   display: block;
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-2);
 }
@@ -235,11 +235,11 @@ onMounted(load)
   align-items: center;
   gap: 10px;
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: 12px;
 }
 .message-detail p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   white-space: pre-wrap;
 }

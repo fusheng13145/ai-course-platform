@@ -497,7 +497,7 @@ onMounted(load)
 }
 .academic-note {
   margin: 0;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-3);
 }
@@ -525,7 +525,7 @@ onMounted(load)
   text-align: left;
 }
 .course-chip b {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 .course-chip small {

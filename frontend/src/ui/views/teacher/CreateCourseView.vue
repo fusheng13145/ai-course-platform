@@ -346,7 +346,7 @@ onMounted(load)
   margin-top: 2px;
 }
 .cover-name {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
   overflow: hidden;
   text-overflow: ellipsis;

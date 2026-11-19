@@ -19,11 +19,12 @@
 
     <section class="card">
       <div v-if="tree.length" class="chapter-tree">
-        <article v-for="node in tree" :key="rowKey(node, 0)" class="ct-node">
+        <article v-for="(node, index) in tree" :key="rowKey(node, 0)" class="ct-node">
           <div class="ct-row" @click="toggle(node.id)">
             <span class="ct-caret" :class="{ 'is-open': isOpen(node.id) }"
               ><Icon name="chevron"
             /></span>
+            <NumberBadge :value="index + 1" />
             <b class="ct-title">{{ node.title || `章节 #${node.id}` }}</b>
             <span class="ct-meta"
               >任务点 {{ node.taskCount || 0 }} · 完成率 {{ pct(node.completionRate) }}</span
@@ -72,9 +73,6 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="book" /></span>
         <b>{{ loadError ? '章节未能加载' : '暂无章节' }}</b>
-        <p>
-          {{ loadError ? '请查看上方提示后重试。' : '点击右上角「新增顶级章节」开始搭建大纲。' }}
-        </p>
       </div>
     </section>
 
@@ -228,6 +226,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import Modal from '../../../components/Modal.vue'
 import Icon from '../../../components/Icon.vue'
+import NumberBadge from '../../../components/NumberBadge.vue'
 import ResourceUploadDialog from '../ResourceUploadDialog.vue'
 import { useUi } from '../../../composables/ui'
 import chapterApi from '@/api/chapter'
@@ -589,16 +588,16 @@ watch(
 }
 .ct-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
 }
 .ct-title--child {
   font-weight: 550;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .ct-meta {
   flex: 1;
   min-width: 0;
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .ct-children {
@@ -620,7 +619,7 @@ watch(
 .import-notes {
   margin: 0 0 12px;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--ink-3);
 }
@@ -637,7 +636,7 @@ watch(
   gap: 10px;
 }
 .cover-name {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .res-name {

@@ -455,7 +455,7 @@ init()
 }
 .members-title {
   margin: 4px 0 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 .section-teacher {

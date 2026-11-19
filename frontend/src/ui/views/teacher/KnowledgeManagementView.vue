@@ -684,7 +684,7 @@ watch(courseId, () => {
 .course-pick {
   height: 34px;
   width: 190px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .km-grid {
   display: grid;
@@ -733,7 +733,7 @@ watch(courseId, () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .relation-row {
@@ -762,7 +762,7 @@ watch(courseId, () => {
 .import-notes {
   margin: 0 0 12px;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--ink-3);
 }
@@ -779,7 +779,7 @@ watch(courseId, () => {
   gap: 10px;
 }
 .cover-name {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 @media (max-width: 1024px) {

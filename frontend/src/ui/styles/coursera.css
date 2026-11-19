@@ -1,0 +1,797 @@
+/* Coursera 风格增量层：只覆盖视觉与布局，不进入课程卡片内部。 */
+body[data-style='record'][data-theme='light'] {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --surface-3: #eef1f4;
+  --ink: #1d2129;
+  --ink-2: #1d2129;
+  --ink-3: #667085;
+  --ink-4: #667085;
+  --line: #d9dee4;
+  --line-soft: #eef1f4;
+  --line-strong: #d9dee4;
+  --accent: #2b7de9;
+  --accent-strong: #2b7de9;
+  --accent-ink: #ffffff;
+  --accent-soft: #f7f8fa;
+  --violet: #7c5cff;
+  --ok: #219653;
+  --ok-soft: #f7f8fa;
+  --warn: #b54708;
+  --warn-soft: #f7f8fa;
+  --danger: #b54708;
+  --danger-soft: #f7f8fa;
+  --info: #2b7de9;
+  --info-soft: #f7f8fa;
+  --side-bg: #ffffff;
+  --side-ink: #1d2129;
+  --side-ink-2: #667085;
+  --side-line: #d9dee4;
+  --side-hover: #f7f8fa;
+  --side-active-bg: #f7f8fa;
+  --side-active-ink: #2b7de9;
+  --side-badge-bg: #eef1f4;
+  --side-badge-ink: #667085;
+  --brand-mark-bg: #2b7de9;
+  --font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-display: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --r-lg: 6px;
+  --r-md: 4px;
+  --r-sm: 4px;
+  --r-ctl: 4px;
+  --r-xs: 4px;
+  --r-chip: 4px;
+  --r-card: 6px;
+  --r-circle: 50%;
+  --sh-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.06);
+  --sh-card-hover: 0 4px 12px rgba(43, 125, 233, 0.08);
+  --sh-pop: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.06);
+  --focus: 0 0 0 2px #ffffff, 0 0 0 4px #2b7de9;
+  --tone-1: #f7f8fa;
+  --tone-1-ink: #2b7de9;
+  --tone-2: #f7f8fa;
+  --tone-2-ink: #7c5cff;
+  --tone-3: #f7f8fa;
+  --tone-3-ink: #b54708;
+  --tone-4: #f7f8fa;
+  --tone-4-ink: #219653;
+  --tone-5: #eef1f4;
+  --tone-5-ink: #667085;
+}
+
+body[data-app='ui'] {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .main-inner {
+  padding: 24px 32px 32px;
+}
+
+body[data-app='ui'] .page-head,
+body[data-app='ui'] .course-head,
+body[data-app='ui'] .module-head {
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .page-head-main,
+body[data-app='ui'] .course-head-main {
+  position: relative;
+}
+
+body[data-app='ui'] .page-head-main::after,
+body[data-app='ui'] .course-head-main::after {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 2px;
+  margin-top: 8px;
+  background: var(--violet);
+  opacity: 0.18;
+}
+
+body[data-app='ui'] .page-head h1,
+body[data-style='record'] .page-head h1,
+body[data-app='ui'] .module-head h1,
+body[data-style='record'] .module-head h1,
+body[data-app='ui'] .course-title-line h1,
+body[data-app='ui'] .card-head h2,
+body[data-style='record'] .card-head h2,
+body[data-app='ui'] .course-tab-bar h2,
+body[data-app='ui'] .side-card h2,
+body[data-app='ui'] .course-continue h2,
+body[data-app='ui'] .modal-head h2,
+.av-form-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .page-head-actions,
+body[data-app='ui'] .module-actions,
+body[data-app='ui'] .course-tab-actions {
+  gap: 8px;
+}
+
+body[data-app='ui'] .btn {
+  min-height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+body[data-app='ui'] .btn-sm {
+  min-height: 32px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+body[data-app='ui'] .btn-primary,
+body[data-app='ui'] .btn-primary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+body[data-app='ui'] .btn-ghost:hover:not(:disabled),
+body[data-app='ui'] .btn:not(.btn-primary):not(.btn-danger):hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  transform: none;
+}
+
+body[data-app='ui'] .btn:active,
+body[data-app='ui'] .btn-primary:active {
+  transform: none;
+}
+
+body[data-app='ui'] .icon-btn {
+  border-radius: var(--r-ctl);
+  color: var(--ink-3);
+}
+
+body[data-app='ui'] .text-btn {
+  min-height: 32px;
+  padding: 0 4px;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .text-btn.danger {
+  color: var(--danger);
+}
+
+body[data-app='ui'] .input,
+body[data-app='ui'] .textarea,
+body[data-app='ui'] .table-search,
+.av-control,
+.av-code-btn {
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .input {
+  min-height: 40px;
+  padding: 8px 16px;
+}
+
+body[data-app='ui'] .textarea {
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+body[data-app='ui'] .input:focus,
+body[data-app='ui'] .textarea:focus,
+body[data-app='ui'] .table-search:focus-within,
+.av-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+
+body[data-app='ui'] .field {
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .form-grid {
+  gap: 16px;
+}
+
+body[data-app='ui'] .form-grid .field {
+  margin-top: 0;
+}
+
+body[data-app='ui'] .form-card {
+  padding: 24px;
+}
+
+body[data-app='ui'] .form-foot {
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .card,
+body[data-app='ui'] .stat {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
+}
+
+body[data-app='ui'] .card {
+  padding: 24px;
+}
+
+body[data-app='ui'] .stat:hover,
+body[data-app='ui'] .card:not(.table-card):not(.course-tile):hover {
+  box-shadow: var(--sh-card-hover);
+}
+
+body[data-app='ui'] .stat {
+  padding: 16px;
+}
+
+body[data-app='ui'] .stat-grid,
+body[data-app='ui'] .dash-grid,
+body[data-app='ui'] .module-grid,
+body[data-app='ui'] .course-overview-grid {
+  gap: 16px;
+}
+
+body[data-app='ui'] .stat-grid {
+  margin-bottom: 24px;
+}
+
+body[data-app='ui'] .stat-label,
+body[data-app='ui'] .stat-note {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .stat-main {
+  margin-top: 8px;
+}
+
+body[data-app='ui'] .stat-value,
+body[data-style='record'] .stat-value {
+  font-family: var(--font-body);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .card-head {
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+body[data-app='ui'] .card-foot {
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .chip {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+body[data-app='ui'] .chip-info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+body[data-app='ui'] .chip-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+body[data-app='ui'] .chip-warn,
+body[data-app='ui'] .chip-danger {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+body[data-app='ui'] .table-card {
+  padding: 24px;
+}
+
+body[data-app='ui'] .table-wrap {
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] table,
+body[data-app='ui'] td,
+body[data-app='ui'] td:first-child {
+  font-size: 14px;
+}
+
+body[data-app='ui'] th {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] td {
+  padding: 16px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-2);
+}
+
+body[data-app='ui'] tbody tr:hover {
+  background: var(--surface-2);
+}
+
+body[data-app='ui'] .cell-sub,
+body[data-app='ui'] .course-meta,
+body[data-app='ui'] .queue-main small,
+body[data-app='ui'] .feed-main small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .tabs {
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-app='ui'] .tabs button {
+  padding: 8px 0;
+  border-radius: 0;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .tabs button.is-active {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+body[data-app='ui'] .page-tabs {
+  margin-bottom: 24px;
+}
+
+body[data-app='ui'] .course-tab-bar {
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .pager {
+  gap: 8px;
+}
+
+body[data-app='ui'] .nav-item {
+  min-height: 40px;
+  padding: 8px;
+  font-size: 14px;
+}
+
+body[data-app='ui'] .nav-label,
+body[data-style='record'] .nav-label {
+  font-size: 14px;
+}
+
+body[data-app='ui'] .nav-group-label {
+  padding: 16px 8px 8px;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .brand-text b {
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .course-nav-card {
+  padding: 16px;
+  border: 1px solid var(--side-line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+body[data-app='ui'] .course-nav-title,
+body[data-app='ui'] .course-nav-meta {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .course-code,
+body[data-app='ui'] .course-meta {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .reader-layout {
+  grid-template-columns: 240px minmax(0, 1fr) 200px;
+  gap: 16px;
+}
+
+body[data-app='ui'] .chapter-rail,
+body[data-app='ui'] .toc-panel {
+  padding: 16px;
+}
+
+body[data-app='ui'] .chapter-list {
+  gap: 4px;
+}
+
+body[data-app='ui'] .chapter-item {
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--r-ctl);
+  color: var(--ink-2);
+}
+
+body[data-app='ui'] .chapter-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+body[data-app='ui'] .chapter-item b,
+body[data-app='ui'] .chapter-item small {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .reader-panel {
+  padding: 32px;
+}
+
+body[data-app='ui'] .reader-panel h2,
+body[data-app='ui'] .reader-panel h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .reader-title {
+  margin: 8px 0 16px;
+}
+
+body[data-app='ui'] .reader-title::after {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 2px;
+  margin-top: 8px;
+  background: var(--violet);
+  opacity: 0.18;
+}
+
+body[data-app='ui'] .reader-panel p {
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+body[data-app='ui'] .reader-panel h3 {
+  margin: 24px 0 8px;
+}
+
+body[data-app='ui'] .reader-meta {
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .toc-panel a {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .reader-actions {
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .callout {
+  margin: 16px 0;
+  padding: 16px;
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+}
+
+body[data-app='ui'] .callout > span,
+body[data-app='ui'] .callout p {
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .empty-state {
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .chapters {
+  gap: 16px;
+}
+
+body[data-app='ui'] .ct-node {
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: var(--surface);
+}
+
+body[data-app='ui'] .ct-node:last-child {
+  border-bottom: 0;
+}
+
+body[data-app='ui'] .ct-row {
+  gap: 8px;
+  padding: 16px 8px;
+}
+
+body[data-app='ui'] .ct-row--child {
+  padding: 8px 8px 8px 32px;
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .ct-children {
+  gap: 4px;
+  padding: 0 8px 8px 32px;
+}
+
+body[data-app='ui'] .ct-title {
+  font-size: 14px;
+}
+
+body[data-app='ui'] .ct-title--child,
+body[data-app='ui'] .ct-meta {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .practice-tab,
+body[data-app='ui'] .practice-list,
+body[data-app='ui'] .practice-card {
+  gap: 16px;
+}
+
+body[data-app='ui'] .practice-card {
+  padding: 24px;
+}
+
+body[data-app='ui'] .practice-content {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+body[data-app='ui'] .practice-option {
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--r-ctl);
+}
+
+body[data-app='ui'] .practice-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+body[data-app='ui'] .practice-result {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+body[data-app='ui'] .practice-result.is-correct {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+body[data-app='ui'] .practice-result {
+  padding: 16px;
+}
+
+body[data-app='ui'] .chapter-link {
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+body[data-app='ui'] .hint,
+body[data-app='ui'] .modal-hint,
+body[data-app='ui'] .plan-hint,
+body[data-app='ui'] .head-hint,
+body[data-app='ui'] .form-note,
+body[data-app='ui'] .scope-note,
+body[data-app='ui'] .academic-note,
+body[data-app='ui'] .empty-note,
+body[data-app='ui'] .detail-meta,
+body[data-app='ui'] .breadcrumb-line,
+body[data-app='ui'] .number-badge,
+body[data-app='ui'] small {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .modal-layer,
+body[data-app='ui'] .palette-layer,
+body[data-app='ui'] .notif-layer {
+  backdrop-filter: none;
+}
+
+body[data-app='ui'] .modal-card,
+body[data-app='ui'] .palette {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+}
+
+body[data-app='ui'] .modal-head {
+  padding: 24px;
+}
+
+body[data-app='ui'] .modal-body {
+  padding: 24px;
+}
+
+body[data-app='ui'] .modal-foot {
+  gap: 8px;
+  padding: 16px 24px;
+}
+
+body[data-app='ui'] .course-tile {
+  box-shadow: none;
+}
+
+.av-main {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 0;
+  max-width: 1180px;
+  padding: 32px 0;
+}
+
+.av-card {
+  padding: 32px;
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+}
+
+.av-panel {
+  gap: 24px;
+}
+
+.av-form {
+  gap: 16px;
+}
+
+.av-field {
+  gap: 8px;
+}
+
+.av-field > span,
+.av-row,
+.av-switch,
+.av-foot {
+  font-size: 12px;
+}
+
+.av-submit {
+  font-size: 14px;
+}
+
+/* 冻结区：全局令牌不得改变课程文件夹卡片的任何原始外观。 */
+body[data-style='record'][data-theme='light'] .cf {
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --surface-3: #e5e8ee;
+  --ink: #17181c;
+  --ink-2: #42444c;
+  --ink-3: #83868f;
+  --ink-4: #a5a8b1;
+  --line: #e3e6ec;
+  --line-strong: #cdd2dc;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-ink: #ffffff;
+  --accent-soft: #eeeeff;
+  --r-lg: 12px;
+  --r-md: 6px;
+  --r-sm: 4px;
+  --r-ctl: 8px;
+  --r-xs: 3px;
+  --r-chip: 3px;
+  --r-card: 8px;
+  --font-body:
+    'Geist', 'Geist Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display:
+    'Geist', 'Geist Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --tone-1: #dbeafe;
+  --tone-1-ink: #3b82f6;
+  --tone-2: #ede9fe;
+  --tone-2-ink: #8b5cf6;
+  --tone-3: #ffedd5;
+  --tone-3-ink: #f97316;
+  --tone-4: #d1fae5;
+  --tone-4-ink: #10b981;
+  --tone-5: #fce7f3;
+  --tone-5-ink: #ec4899;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  body[data-app='ui'] .main-inner {
+    padding: 24px 16px 32px;
+  }
+
+  body[data-app='ui'] .reader-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  body[data-app='ui'] .main-inner {
+    padding: 16px 16px 32px;
+  }
+
+  body[data-app='ui'] .page-head h1,
+  body[data-style='record'] .page-head h1,
+  body[data-app='ui'] .module-head h1,
+  body[data-style='record'] .module-head h1,
+  body[data-app='ui'] .course-title-line h1,
+  body[data-app='ui'] .reader-panel h2 {
+    font-size: 18px;
+  }
+
+  body[data-app='ui'] .card,
+  body[data-app='ui'] .table-card,
+  body[data-app='ui'] .reader-panel,
+  .av-card {
+    padding: 16px;
+  }
+}

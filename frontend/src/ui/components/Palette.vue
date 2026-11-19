@@ -406,7 +406,7 @@ onBeforeUnmount(() => {
   border-radius: var(--r-card);
   background: var(--surface-2);
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   text-align: center;
 }
@@ -433,7 +433,7 @@ onBeforeUnmount(() => {
   border-radius: var(--r-ctl);
   background: none;
   color: inherit;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 </style>
