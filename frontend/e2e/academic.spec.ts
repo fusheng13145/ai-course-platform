@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test'
 import { loginAs } from './test-helpers'
 
 /**
- * 学业档案三页签的真栈巡检（F3「成绩 / 学习中心 / 错题本」）。
+ * 学业档案五页签的真栈巡检（成绩 / 学情报告 / 学习路径 / 学习中心 / 错题本）。
  *
- * 为什么这样写：这三块此前只有组件级单测（喂 mock），没有一次「界面读数 vs 接口读数」
+ * 为什么这样写：这些块此前只有组件级单测（喂 mock），没有一次「界面读数 vs 接口读数」
  * 的对账。而这类页最容易出的不是崩溃，是**静默的 0**——字段名对不上、作用域取错、
  * 分路失败被吞，页面都会安静地显示 0，看起来像"确实没有数据"。所以这里不硬编码业务数字
  * （种子会变），而是用同一会话直接打接口，断言界面显示的就是接口给的数。
@@ -30,7 +30,9 @@ interface PageBody<T> {
   data: T
 }
 
-test('学业档案三页签：界面读数与接口读数一致（成绩／学习中心／错题本）', async ({ page }) => {
+test('学业档案五页签：界面读数与接口读数一致（成绩／学情报告／学习路径／学习中心／错题本）', async ({
+  page,
+}) => {
   test.setTimeout(180000)
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(`${page.url()} :: ${error.message}`))
@@ -43,7 +45,10 @@ test('学业档案三页签：界面读数与接口读数一致（成绩／学�
 
   const body = page.locator('.academic-body')
   await expect(body).toBeVisible({ timeout: 20000 })
-  await expect(body.locator('> .tabs button')).toHaveCount(3)
+  const tabs = body.locator('> .tabs button')
+  await expect(tabs).toHaveCount(5)
+  await expect(tabs.nth(1)).toContainText('学情报告')
+  await expect(tabs.nth(2)).toContainText('学习路径')
   // 任何一页都不许出现「示例数据」，也不许出现读失败横幅时仍当正常页
   await expect(body).not.toContainText('示例数据')
 

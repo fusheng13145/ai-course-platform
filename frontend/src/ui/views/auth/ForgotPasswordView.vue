@@ -3,21 +3,35 @@
     <template #form>
       <header class="av-form-head">
         <h2>找回密码</h2>
+        <router-link class="av-head-link" to="/login">返回登录</router-link>
       </header>
+
+      <ol class="av-steps" aria-label="找回密码步骤">
+        <li class="av-step" :class="{ 'is-active': step === 1, 'is-done': step > 1 }">
+          <b>01</b><span>邮箱</span>
+        </li>
+        <li class="av-step" :class="{ 'is-active': step === 2, 'is-done': step > 2 }">
+          <b>02</b><span>验证</span>
+        </li>
+        <li class="av-step" :class="{ 'is-active': step === 3 }"><b>03</b><span>新密码</span></li>
+      </ol>
 
       <form class="av-form" @submit.prevent="submit">
         <template v-if="step === 1">
           <label class="av-field">
             <span>注册邮箱</span>
-            <input
-              v-model="form.email"
-              class="av-input"
-              type="email"
-              name="email"
-              autocomplete="email"
-              placeholder="用于接收验证码"
-              :disabled="sending"
-            />
+            <div class="av-control">
+              <Icon name="message" cls="av-control-icon" />
+              <input
+                v-model="form.email"
+                class="av-input"
+                type="email"
+                name="email"
+                autocomplete="email"
+                placeholder="用于接收验证码"
+                :disabled="sending"
+              />
+            </div>
           </label>
         </template>
 
@@ -25,17 +39,20 @@
           <label class="av-field">
             <span>验证码</span>
             <div class="av-code-row">
-              <input
-                v-model="form.code"
-                class="av-input"
-                name="code"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                placeholder="6 位数字"
-                :disabled="sending"
-              />
+              <div class="av-control">
+                <Icon name="shield" cls="av-control-icon" />
+                <input
+                  v-model="form.code"
+                  class="av-input"
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  placeholder="6 位数字"
+                  :disabled="sending"
+                />
+              </div>
               <button
-                class="btn btn-ghost av-code-btn"
+                class="av-code-btn"
                 type="button"
                 :disabled="sending || cooldown > 0"
                 @click="sendCode"
@@ -49,27 +66,41 @@
         <template v-else>
           <label class="av-field">
             <span>新密码</span>
-            <input
-              v-model="form.password"
-              class="av-input"
-              type="password"
-              name="new-password"
-              autocomplete="new-password"
-              placeholder="8–32 位，含大小写、数字、特殊字符"
-              :disabled="sending"
-            />
+            <div class="av-control has-action">
+              <Icon name="lock" cls="av-control-icon" />
+              <input
+                v-model="form.password"
+                class="av-input"
+                :type="showPassword ? 'text' : 'password'"
+                name="new-password"
+                autocomplete="new-password"
+                placeholder="8–32 位，含大小写、数字、特殊字符"
+                :disabled="sending"
+              />
+              <button
+                class="av-reveal"
+                type="button"
+                :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                @click="showPassword = !showPassword"
+              >
+                {{ showPassword ? '隐藏' : '显示' }}
+              </button>
+            </div>
           </label>
           <label class="av-field">
             <span>确认新密码</span>
-            <input
-              v-model="form.confirm"
-              class="av-input"
-              type="password"
-              name="confirm-password"
-              autocomplete="new-password"
-              placeholder="再输入一次"
-              :disabled="sending"
-            />
+            <div class="av-control">
+              <Icon name="lock" cls="av-control-icon" />
+              <input
+                v-model="form.confirm"
+                class="av-input"
+                type="password"
+                name="confirm-password"
+                autocomplete="new-password"
+                placeholder="再输入一次"
+                :disabled="sending"
+              />
+            </div>
           </label>
         </template>
 
@@ -78,8 +109,6 @@
           {{ sending ? '处理中…' : buttonLabel }}
         </button>
       </form>
-
-      <p class="av-switch"><router-link to="/login">返回登录</router-link></p>
     </template>
   </AuthShell>
 </template>
@@ -89,6 +118,7 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AuthShell from './AuthShell.vue'
+import Icon from '../../components/Icon.vue'
 import { useUi } from '../../composables/ui'
 
 const router = useRouter()
@@ -98,6 +128,7 @@ const { toast } = useUi()
 const step = ref<1 | 2 | 3>(1)
 const sending = ref(false)
 const cooldown = ref(0)
+const showPassword = ref(false)
 const error = ref('')
 const form = reactive({ email: '', code: '', password: '', confirm: '' })
 let timer: number | undefined

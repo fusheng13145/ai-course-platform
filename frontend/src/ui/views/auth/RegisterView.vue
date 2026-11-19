@@ -1,50 +1,60 @@
 <template>
-  <AuthShell>
+  <AuthShell wide>
     <template #form>
       <header class="av-form-head">
         <h2>创建账号</h2>
+        <router-link class="av-head-link" to="/login">返回登录</router-link>
       </header>
 
       <form class="av-form" @submit.prevent="submit">
         <div class="av-grid2">
           <label class="av-field">
             <span>用户名</span>
-            <input
-              v-model="form.username"
-              class="av-input"
-              name="username"
-              autocomplete="username"
-              placeholder="3–20 位字母/数字"
-              :disabled="submitting"
-            />
+            <div class="av-control">
+              <Icon name="user" cls="av-control-icon" />
+              <input
+                v-model="form.username"
+                class="av-input"
+                name="username"
+                autocomplete="username"
+                placeholder="3–20 位字母/数字"
+                :disabled="submitting"
+              />
+            </div>
           </label>
           <label class="av-field">
             <span>姓名</span>
-            <input
-              v-model="form.fullName"
-              class="av-input"
-              name="fullName"
-              autocomplete="name"
-              placeholder="真实姓名"
-              :disabled="submitting"
-            />
+            <div class="av-control">
+              <Icon name="user" cls="av-control-icon" />
+              <input
+                v-model="form.fullName"
+                class="av-input"
+                name="fullName"
+                autocomplete="name"
+                placeholder="真实姓名"
+                :disabled="submitting"
+              />
+            </div>
           </label>
         </div>
 
         <label class="av-field">
           <span>邮箱</span>
           <div class="av-code-row">
-            <input
-              v-model="form.email"
-              class="av-input"
-              type="email"
-              name="email"
-              autocomplete="email"
-              placeholder="用于接收注册验证码"
-              :disabled="submitting"
-            />
+            <div class="av-control">
+              <Icon name="message" cls="av-control-icon" />
+              <input
+                v-model="form.email"
+                class="av-input"
+                type="email"
+                name="email"
+                autocomplete="email"
+                placeholder="用于接收注册验证码"
+                :disabled="submitting"
+              />
+            </div>
             <button
-              class="btn btn-ghost av-code-btn"
+              class="av-code-btn"
               type="button"
               :disabled="sending || cooldown > 0 || submitting"
               @click="sendCode"
@@ -57,58 +67,79 @@
         <div class="av-grid2">
           <label class="av-field">
             <span>验证码</span>
-            <input
-              v-model="form.code"
-              class="av-input"
-              name="code"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              placeholder="6 位数字"
-              :disabled="submitting"
-            />
+            <div class="av-control">
+              <Icon name="shield" cls="av-control-icon" />
+              <input
+                v-model="form.code"
+                class="av-input"
+                name="code"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="6 位数字"
+                :disabled="submitting"
+              />
+            </div>
           </label>
           <label class="av-field">
             <span>手机号（可选）</span>
-            <input
-              v-model="form.phone"
-              class="av-input"
-              name="phone"
-              autocomplete="tel"
-              placeholder="11 位手机号"
-              :disabled="submitting"
-            />
+            <div class="av-control">
+              <Icon name="message" cls="av-control-icon" />
+              <input
+                v-model="form.phone"
+                class="av-input"
+                name="phone"
+                autocomplete="tel"
+                placeholder="11 位手机号"
+                :disabled="submitting"
+              />
+            </div>
           </label>
         </div>
 
         <div class="av-grid2">
           <label class="av-field">
             <span>密码</span>
-            <input
-              v-model="form.password"
-              class="av-input"
-              type="password"
-              name="password"
-              autocomplete="new-password"
-              placeholder="6–30 位，含字母和数字"
-              :disabled="submitting"
-            />
+            <div class="av-control has-action">
+              <Icon name="lock" cls="av-control-icon" />
+              <input
+                v-model="form.password"
+                class="av-input"
+                :type="showPassword ? 'text' : 'password'"
+                name="password"
+                autocomplete="new-password"
+                placeholder="6–30 位，含字母和数字"
+                :disabled="submitting"
+              />
+              <button
+                class="av-reveal"
+                type="button"
+                :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                @click="showPassword = !showPassword"
+              >
+                {{ showPassword ? '隐藏' : '显示' }}
+              </button>
+            </div>
           </label>
           <label class="av-field">
             <span>确认密码</span>
-            <input
-              v-model="form.confirm"
-              class="av-input"
-              type="password"
-              name="confirm-password"
-              autocomplete="new-password"
-              placeholder="再输入一次"
-              :disabled="submitting"
-            />
+            <div class="av-control">
+              <Icon name="lock" cls="av-control-icon" />
+              <input
+                v-model="form.confirm"
+                class="av-input"
+                type="password"
+                name="confirm-password"
+                autocomplete="new-password"
+                placeholder="再输入一次"
+                :disabled="submitting"
+              />
+            </div>
           </label>
         </div>
 
         <label class="av-check av-agree">
           <input v-model="form.agree" type="checkbox" />
+          <span class="av-check-box" aria-hidden="true"></span>
           <span>
             我已阅读并同意
             <router-link class="av-link" to="/agreement" target="_blank">用户服务协议</router-link>
@@ -122,8 +153,6 @@
           {{ submitting ? '注册中…' : '注 册' }}
         </button>
       </form>
-
-      <p class="av-switch">已有账号？<router-link to="/login">返回登录</router-link></p>
     </template>
   </AuthShell>
 </template>
@@ -135,6 +164,7 @@ import { useAuthStore } from '@/stores/auth'
 import authApi from '@/api/auth'
 import { isSafeInternalRedirect } from '@/utils/redirect'
 import AuthShell from './AuthShell.vue'
+import Icon from '../../components/Icon.vue'
 import { clearCourses } from '../../data/api'
 import { useUi } from '../../composables/ui'
 import { ROLE_HOME, type Role } from '../../types'
@@ -157,6 +187,7 @@ const form = reactive({
 const submitting = ref(false)
 const sending = ref(false)
 const cooldown = ref(0)
+const showPassword = ref(false)
 const error = ref('')
 let timer: number | undefined
 
