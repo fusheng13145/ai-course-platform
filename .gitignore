@@ -20,12 +20,10 @@ target/
 dist/
 node_modules/
 # 运维数据（含敏感数据，切勿提交）
-# 应用内「系统管理→备份」生成的 SQL 备份（SystemServiceImpl backups/ 目录）
+# 应用内备份与项目冷备统一忽略：data/backups 收纳 storage 迁移、drill、uploads-migration
 backups/
 # mysql-backup 服务的定时备份卷数据
 mysql-backups/
-# 上传存量迁移的 zip 备份（运行期数据，不入库）
-backup/uploads-migration/
 # 运行时生成的数据库文件
 *.sql.gz
 
@@ -66,7 +64,7 @@ frontend/coverage/
 # WorkBuddy 过程性工作区（调试脚本、探针、构建输出，可随时清空）
 .workbuddy/tmp/
 
-# 应用运行期数据统一放项目 data/aicourse-platform（MinIO/storage/backups）；仓库内不保留 uploads/
+# 应用运行期数据统一放项目 data/aicourse-platform（MinIO/storage）；冷备统一放 data/backups；仓库内不保留 uploads/
 
 # 分片上传临时分片（进程在仓库根目录启动时落此，运行期产物不入库）
 upload-chunks/

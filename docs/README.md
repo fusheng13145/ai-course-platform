@@ -68,6 +68,7 @@
 | 路径 | 用途 |
 | --- | --- |
 | `docs/assets/logo.png` | 文档/页面使用的 logo 资源（非 Markdown，不计入文档数） |
+| `docs/operations/backup-drill/` | 备份恢复演练证据（3 个 txt；对应数据冷备在 `data/backups/drill/`） |
 
 ---
 

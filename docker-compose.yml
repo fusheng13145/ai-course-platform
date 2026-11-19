@@ -607,7 +607,7 @@ services:
       BACKUP_REMOTE_SYNC: ${BACKUP_REMOTE_SYNC:-}
       TZ: Asia/Shanghai
     volumes:
-      - ./backup/mysql-backup.sh:/backup.sh:ro
+      - ./scripts/ops/mysql-backup.sh:/backup.sh:ro
       - mysql-backups:/backups
     entrypoint:
       - /bin/sh
