@@ -25,6 +25,7 @@
         <section class="av-panel">
           <slot name="form" />
         </section>
+        <AuthAside />
       </section>
     </main>
 
@@ -42,6 +43,7 @@ import '../../styles/shell-fix.css'
 import '../../styles/typography.css'
 import '../../styles/auth.css'
 import '../../styles/coursera.css'
+import AuthAside from './AuthAside.vue'
 import Sprite from '../../components/Sprite.vue'
 import Icon from '../../components/Icon.vue'
 import { useUi } from '../../composables/ui'

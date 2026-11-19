@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 const CSS = readFileSync(join(__dirname, '../styles/coursera.css'), 'utf8')
 const DESIGN_LAYER = CSS.split('/* 冻结区：')[0]
+const AUTH_SHELL = readFileSync(join(__dirname, '../views/auth/AuthShell.vue'), 'utf8')
+const AUTH_ASIDE = readFileSync(join(__dirname, '../views/auth/AuthAside.vue'), 'utf8')
 
 const ALLOWED_HEX = new Set([
   '#f7f8fa',
@@ -75,5 +77,19 @@ describe('Coursera 视觉规范', () => {
     expect(CSS).toContain("body[data-app='ui'] .course-head-meta")
     expect(CSS).toMatch(/\.card-courses\s*\{\s*grid-column: 1 \/ span 7;\s*grid-row: 1 \/ span 2;/)
     expect(CSS).toMatch(/\.card-chart\s*\{\s*grid-column: 8 \/ -1;\s*grid-row: 2;/)
+  })
+
+  it('认证页用表单 + 平台结构双栏填满容器，并在窄屏收回单列', () => {
+    expect(AUTH_SHELL).toContain("import AuthAside from './AuthAside.vue'")
+    expect(AUTH_SHELL).toContain('<AuthAside />')
+    expect(AUTH_ASIDE).toContain('NumberBadge')
+    expect(AUTH_ASIDE.match(/title: '/g)).toHaveLength(4)
+    expect(AUTH_ASIDE.match(/name: '/g)).toHaveLength(3)
+    expect(CSS).toContain('grid-template-columns: minmax(0, 520px) minmax(0, 1fr);')
+    expect(CSS).toContain('grid-template-columns: minmax(0, 640px) minmax(0, 1fr);')
+    expect(CSS).toMatch(
+      /@media \(max-width: 980px\)[\s\S]*max-width: 560px;[\s\S]*max-width: 620px;/,
+    )
+    expect(CSS).not.toContain('av-context')
   })
 })

@@ -755,20 +755,35 @@ body[data-app='ui'] .course-overview-grid {
 }
 
 .av-main {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
+  align-items: center;
   gap: 0;
   max-width: 1180px;
-  padding: 32px 0;
+  padding: 24px 0;
 }
 
-.av-card {
-  padding: 32px;
+.av-card,
+.av-card-wide {
+  width: 100%;
+  max-width: 1180px;
+  display: grid;
+  grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+  align-self: center;
+  padding: 0;
+  overflow: hidden;
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
 }
 
+.av-card-wide {
+  grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
+}
+
 .av-panel {
+  justify-content: center;
+  padding: 32px;
   gap: 24px;
 }
 
@@ -789,6 +804,22 @@ body[data-app='ui'] .course-overview-grid {
 
 .av-submit {
   font-size: 14px;
+}
+
+@media (max-width: 980px) {
+  .av-card,
+  .av-card-wide {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 560px;
+  }
+
+  .av-card-wide {
+    max-width: 620px;
+  }
+
+  .av-panel {
+    padding: 24px;
+  }
 }
 
 /* 冻结区：全局令牌不得改变课程文件夹卡片的任何原始外观。 */
@@ -857,8 +888,7 @@ body[data-style='record'][data-theme='light'] .cf {
 
   body[data-app='ui'] .card,
   body[data-app='ui'] .table-card,
-  body[data-app='ui'] .reader-panel,
-  .av-card {
+  body[data-app='ui'] .reader-panel {
     padding: 16px;
   }
 }
