@@ -1,7 +1,6 @@
 <template>
-  <!-- 学生学业档案：三个页签——成绩（GET /student/grades）、学习中心（/learning-records）、
-       错题本（/student/wrong-questions）；首页与导航不变，避免动侧栏基线 -->
-  <!-- 原注：只保留成绩（GET /student/grades）；错题本 / 学习路径不在本页提供 -->
+  <!-- 学生学业档案：五个页签——成绩（GET /student/grades）、学情报告（成绩 + 学情可视化）、
+       学习路径（/learning-paths）、学习中心（/learning-records）、错题本（/student/wrong-questions） -->
   <section class="academic-body">
     <div class="tabs" role="tablist" aria-label="学业档案分区">
       <button
@@ -163,6 +162,8 @@
       </template>
     </div>
 
+    <StudentReportPanel v-if="active === 'report'" />
+    <LearningPathPanel v-if="active === 'path'" />
     <LearningCenterPanel v-if="active === 'learning'" />
     <WrongBookPanel v-if="active === 'wrong'" />
   </section>
@@ -171,11 +172,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import Stat from '../../components/Stat.vue'
+import StudentReportPanel from './academic/StudentReportPanel.vue'
+import LearningPathPanel from './academic/LearningPathPanel.vue'
 import LearningCenterPanel from './academic/LearningCenterPanel.vue'
 import WrongBookPanel from './academic/WrongBookPanel.vue'
 
 const ACADEMIC_TABS = [
   { key: 'grades', label: '成绩' },
+  { key: 'report', label: '学情报告' },
+  { key: 'path', label: '学习路径' },
   { key: 'learning', label: '学习中心' },
   { key: 'wrong', label: '错题本' },
 ] as const
@@ -492,7 +497,7 @@ onMounted(load)
 }
 .academic-note {
   margin: 0;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-3);
 }
@@ -520,7 +525,7 @@ onMounted(load)
   text-align: left;
 }
 .course-chip b {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 .course-chip small {

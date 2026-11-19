@@ -3,9 +3,6 @@
     <div class="course-tab-bar">
       <div>
         <h2>课程刷题</h2>
-        <p class="practice-subtitle">
-          教师开放后，可按课程题库练习；题目列表不显示答案，提交后才给出判分与解析。
-        </p>
       </div>
       <div class="course-tab-actions">
         <button class="btn btn-sm btn-ghost" :disabled="loading || !enabled" @click="loadQuestions">
@@ -21,7 +18,6 @@
     <div v-else-if="!enabled" class="empty-state compact">
       <span class="e-ico">题</span>
       <b>教师尚未开放本课程题库刷题</b>
-      <p>开放后，这里会显示可练习的题目；作业与考试不受此开关影响。</p>
     </div>
 
     <div v-else-if="loadError" class="empty-state compact">
@@ -31,7 +27,6 @@
 
     <div v-else-if="!questions.length" class="empty-state compact">
       <b>本课程题库暂无启用题目</b>
-      <p>请任课教师在课程题库中添加并复核题目后再开放刷题。</p>
     </div>
 
     <template v-else>
@@ -128,14 +123,7 @@
 
       <footer class="practice-foot">
         <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 题</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1 || loading" @click="goPage(-1)">
-            上一页
-          </button>
-          <button class="btn btn-sm" :disabled="page >= pageCount || loading" @click="goPage(1)">
-            下一页
-          </button>
-        </div>
+        <Pagination :page="page" :page-count="pageCount" :loading="loading" @turn="goPage" />
       </footer>
     </template>
   </section>
@@ -143,6 +131,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import Pagination from '../../../components/Pagination.vue'
 import { getCourseById } from '@/api/course'
 import { checkPracticeAnswer, getPracticeQuestions } from '@/api/question'
 import { unwrap } from '@/utils/response'
@@ -324,12 +313,6 @@ onMounted(async () => {
   gap: 16px;
 }
 
-.practice-subtitle {
-  margin: 6px 0 0;
-  color: var(--muted, #667085);
-  font-size: 13px;
-}
-
 .practice-list {
   display: grid;
   gap: 14px;
@@ -417,7 +400,7 @@ onMounted(async () => {
 .practice-fill {
   display: grid;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .practice-result {
@@ -427,7 +410,7 @@ onMounted(async () => {
   border-radius: var(--r-card);
   background: #fff7ed;
   color: #9a3412;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .practice-result.is-correct {
@@ -443,6 +426,6 @@ onMounted(async () => {
 .practice-foot {
   padding-top: 4px;
   color: var(--muted, #667085);
-  font-size: 13px;
+  font-size: 14px;
 }
 </style>

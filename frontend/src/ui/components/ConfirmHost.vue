@@ -34,7 +34,7 @@ function onToggle(value: boolean) {
 <style scoped>
 .confirm-message {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--ink-2);
   white-space: pre-line;

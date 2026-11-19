@@ -578,7 +578,7 @@ function levelChip(level: string): string {
   width: auto;
   min-width: 150px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .filter-search {
   flex: 1;
@@ -611,7 +611,7 @@ function levelChip(level: string): string {
 }
 .dist-label {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .dist-track {
@@ -656,7 +656,7 @@ function levelChip(level: string): string {
 }
 .policy-sum {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 .policy-sum.danger {
@@ -681,7 +681,7 @@ function levelChip(level: string): string {
 }
 .detail-meta dd {
   margin: 3px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 @media (max-width: 900px) {

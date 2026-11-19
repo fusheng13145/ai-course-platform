@@ -744,7 +744,7 @@ if (!embedded.value) void loadCourses()
 .course-pick {
   height: 34px;
   width: 220px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .i-text {
   display: block;

@@ -410,14 +410,14 @@ onMounted(load)
   margin-bottom: 0;
 }
 .head-hint {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .course-only {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 .p-text {

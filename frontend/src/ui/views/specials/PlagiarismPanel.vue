@@ -42,11 +42,9 @@
       </div>
       <div v-else-if="!rows.length" class="empty-state compact">
         <b>暂无查重任务</b>
-        <p>教师在批阅页发起查重后，任务会出现在这里。</p>
       </div>
       <div v-else-if="!filtered.length" class="empty-state compact">
         <b>没有匹配的查重任务</b>
-        <p>换个关键词或状态再试。</p>
       </div>
       <div v-else class="table-wrap">
         <table>
@@ -98,18 +96,11 @@
 
       <footer v-if="showPager" class="card-foot">
         <span>第 {{ page }} 页 · 共 {{ total }} 条</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1" @click="onPageChange(page - 1)">
-            上一页
-          </button>
-          <button
-            class="btn btn-sm"
-            :disabled="page >= Math.ceil(total / pageSize)"
-            @click="onPageChange(page + 1)"
-          >
-            下一页
-          </button>
-        </div>
+        <Pagination
+          :page="page"
+          :page-count="Math.ceil(total / pageSize)"
+          @turn="onPageChange(page + $event)"
+        />
       </footer>
     </section>
 
@@ -155,6 +146,7 @@
 import { computed, reactive, ref, onMounted, watch } from 'vue'
 import Stat from '../../components/Stat.vue'
 import Modal from '../../components/Modal.vue'
+import Pagination from '../../components/Pagination.vue'
 import { useUi } from '../../composables/ui'
 import { useClientPagination } from '@/composables/useClientPagination'
 import plagiarismApi from '@/api/plagiarismCheck'

@@ -52,7 +52,6 @@
       <div v-else-if="!studentError" class="empty-state compact">
         <span class="e-ico"><Icon name="check" /></span>
         <b>本课程暂无已发布作业</b>
-        <p>教师发布作业后会出现在这里。</p>
       </div>
       <div v-else class="empty-state compact"><b>作业列表未能加载</b></div>
     </section>
@@ -229,7 +228,6 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="check" /></span>
         <b>{{ loadError ? '任务列表未能加载' : '暂无任务' }}</b>
-        <p>{{ loadError ? '请查看上方提示后重试。' : '点击右上角「新建任务」发布第一个任务。' }}</p>
       </div>
 
       <footer v-if="tasks.length" class="card-foot">
@@ -1008,13 +1006,13 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .page-size {
   height: 30px;
   width: auto;
-  font-size: 11px;
+  font-size: 12px;
 }
 .detail-meta {
   display: flex;
@@ -1023,7 +1021,7 @@ watch(
   gap: 12px;
   margin: 0 0 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .callout.danger {

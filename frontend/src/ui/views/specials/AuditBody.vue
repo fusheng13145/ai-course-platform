@@ -654,7 +654,7 @@ onMounted(() => {
 .scope-note {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 14px;
 }
 .filter-input {
   width: 132px;

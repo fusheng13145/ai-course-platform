@@ -10,6 +10,9 @@
           <h1>{{ detail?.name || courseLabel }}</h1>
           <span class="chip" :class="statusChip.cls">{{ statusChip.text }}</span>
         </div>
+        <div v-if="courseMetaItems.length" class="course-head-meta">
+          <span v-for="item in courseMetaItems" :key="item">{{ item }}</span>
+        </div>
       </div>
       <div class="course-mobile-tabs">
         <button
@@ -205,6 +208,17 @@ const statusChip = computed(() => {
   if (status === 'PENDING' || status === '待审批') return { text: '待审批', cls: 'chip-warn' }
   if (status === 'REJECTED' || status === '已驳回') return { text: '已驳回', cls: 'chip-danger' }
   return { text: status || '课程', cls: 'chip-info' }
+})
+
+const courseMetaItems = computed(() => {
+  const data = detail.value
+  if (!data) return []
+  return [
+    data.teacher ? `授课教师 ${data.teacher}` : '',
+    String(data.semester || ''),
+    String(data.code || ''),
+    data.credits == null ? '' : `${data.credits} 学分`,
+  ].filter(Boolean)
 })
 
 function goTab(tab: string) {

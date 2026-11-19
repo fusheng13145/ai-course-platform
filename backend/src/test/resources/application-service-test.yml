@@ -62,6 +62,8 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+minio:
+  enabled: false
 ratelimit:
   enabled: false
 

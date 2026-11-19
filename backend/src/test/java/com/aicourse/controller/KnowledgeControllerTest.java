@@ -5,6 +5,7 @@ import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
+import com.aicourse.security.KnowledgeAccessSupport;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.AIService;
 import com.aicourse.service.CourseEnrollmentService;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
@@ -34,7 +36,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 将「伪覆盖弱断言」改造为真实业务断言：对每个 endpoint 依赖的 service 方法打桩返回合理业务对象，
  * 断言 HTTP 200 + ApiResponse.code=200 + 关键字段透传（jsonPath），并 verify 路由正确委托与参数透传。
  */
-@WebMvcTest(KnowledgeController.class)
+@WebMvcTest({KnowledgeController.class, KnowledgeRelationController.class,
+        KnowledgeSearchController.class, KnowledgeExtractionController.class})
+@Import(KnowledgeAccessSupport.class)
 class KnowledgeControllerTest extends ControllerTestBase {
 
     @MockitoBean

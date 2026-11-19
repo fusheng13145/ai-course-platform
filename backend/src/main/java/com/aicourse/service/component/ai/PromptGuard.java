@@ -1,7 +1,4 @@
-package com.aicourse.service.impl;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package com.aicourse.service.component.ai;
 
 import org.springframework.stereotype.Component;
 
@@ -27,8 +24,6 @@ import java.util.regex.Pattern;
  */
 @Component
 public class PromptGuard {
-
-    private static final Logger log = LoggerFactory.getLogger(PromptGuard.class);
 
     /** ChatML / 指令模板等特殊控制 token（跨供应商常见形态）。 */
     private static final Pattern CONTROL_TOKENS = Pattern.compile(

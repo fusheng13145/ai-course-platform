@@ -113,15 +113,22 @@ for (const role of ROLES) {
       }
       // 空态是合法正文（如教师「消息」没有通知时只显示一行「暂无消息」）。
       // 真正的空壳既没有正文、也没有空态，仍会被这条判红。
-      const hasEmptyState = await page
-        .locator('main.main .empty-state')
-        .first()
-        .isVisible()
-        .catch(() => false)
-      expect(
-        bodyText.trim().length > 20 || hasEmptyState,
-        `${role}「${label}」正文是空白`,
-      ).toBeTruthy()
+      // 考试治理等页的正文由异步接口驱动，落点后需要给首屏数据一个加载窗口；
+      // 20s 内仍无正文才判空壳，不把网络慢读成产品空白。
+      await expect
+        .poll(
+          async () => {
+            const text = (await page.locator('main.main').innerText()).trim()
+            const hasEmptyState = await page
+              .locator('main.main .empty-state')
+              .first()
+              .isVisible()
+              .catch(() => false)
+            return text.length > 20 || hasEmptyState
+          },
+          { timeout: 20000, message: `${role}「${label}」正文 20s 内仍是空白` },
+        )
+        .toBeTruthy()
       landed.push({ label, path })
     }
 

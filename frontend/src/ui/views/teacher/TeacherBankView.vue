@@ -125,7 +125,6 @@
       <div v-if="!loading && !questions.length" class="empty-state compact">
         <span class="e-ico"><Icon name="book" /></span>
         <b>题库暂无题目</b>
-        <p>点击「新建题目」或「AI 出题」开始。</p>
       </div>
       <div v-else-if="loading" class="empty-state compact">
         <b>正在加载题目…</b>
@@ -133,12 +132,7 @@
 
       <footer class="card-foot">
         <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-          <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-            下一页
-          </button>
-        </div>
+        <Pagination :page="page" :page-count="pageCount" @turn="goPage" />
       </footer>
     </section>
 
@@ -389,6 +383,7 @@ import {
   questionTypeTag,
 } from '@/constants/questionTypes'
 import PageHead from '../../components/PageHead.vue'
+import Pagination from '../../components/Pagination.vue'
 import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
@@ -1019,7 +1014,7 @@ onMounted(async () => {
   width: 18px;
   text-align: center;
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: 12px;
 }
 .opt-row .input {
   flex: 1;
@@ -1045,7 +1040,7 @@ onMounted(async () => {
   width: auto;
   min-width: 116px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .filter-keyword {
   flex: 1;

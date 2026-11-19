@@ -138,6 +138,8 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+minio:
+  enabled: false
 
 # 限流依赖 Redis（本机已运行），保持开启
 

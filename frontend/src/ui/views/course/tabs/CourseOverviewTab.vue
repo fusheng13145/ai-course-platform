@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="course-overview">
     <div v-if="loadError" class="callout danger" data-testid="overview-error">
       <span>加载失败</span>
       <p>{{ loadError }}</p>
@@ -19,7 +19,8 @@
     <div class="stat-grid kpi-grid">
       <Stat v-for="metric in metrics" :key="metric.label" :metric="metric" :role="role" />
     </div>
-    <div class="course-overview-grid">
+
+    <div class="course-overview-grid" :class="{ 'is-admin': role === 'admin' }">
       <section v-if="role === 'student'" class="card course-continue">
         <h2>{{ firstChapter || '课程章节' }}</h2>
         <div class="course-progress-row">
@@ -62,25 +63,88 @@
         </div>
       </section>
 
-      <section class="card">
+      <section
+        class="card course-facts-card"
+        :class="{
+          'overview-span': role === 'teacher' && !descriptionText,
+          'is-compact': role === 'teacher' && Boolean(descriptionText),
+        }"
+      >
         <header class="card-head">
           <div>
             <h2>课程信息</h2>
           </div>
         </header>
         <div class="mini-defs">
+          <div v-for="fact in courseFacts" :key="fact.label">
+            <span>{{ fact.label }}</span
+            ><b>{{ fact.value }}</b>
+          </div>
+        </div>
+      </section>
+
+      <section
+        v-if="descriptionText"
+        class="card overview-description"
+        :class="{ 'overview-span': role !== 'teacher' }"
+      >
+        <header class="card-head">
           <div>
-            <span>学期</span><b>{{ course?.semester || '--' }}</b>
+            <h2>课程简介</h2>
+          </div>
+        </header>
+        <p>{{ descriptionText }}</p>
+        <div v-if="role === 'teacher'" class="overview-chapter-inline">
+          <div>
+            <span>已发布章节</span>
+            <b>{{ chapterCountText }}</b>
           </div>
           <div>
-            <span>课程编号</span><b>{{ course?.code || '--' }}</b>
+            <span>起始章节</span>
+            <b>{{ firstChapter || '--' }}</b>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="role === 'teacher' && !descriptionText" class="card overview-span">
+        <header class="card-head">
+          <div>
+            <h2>章节结构</h2>
+          </div>
+          <button class="text-btn" @click="goTab('chapters')">
+            查看章节 <Icon name="arrow" />
+          </button>
+        </header>
+        <div class="overview-chapter-summary">
+          <div>
+            <span>已发布章节</span>
+            <b>{{ chapterCountText }}</b>
           </div>
           <div>
-            <span>学分</span><b>{{ course?.credits ?? '--' }}</b>
+            <span>起始章节</span>
+            <b>{{ firstChapter || '--' }}</b>
           </div>
         </div>
       </section>
     </div>
+
+    <section v-if="chapterPreview.length" class="card course-outline">
+      <header class="card-head">
+        <div>
+          <h2>章节导览</h2>
+        </div>
+        <button class="text-btn" @click="goTab('chapters')">全部章节 <Icon name="arrow" /></button>
+      </header>
+      <ol class="overview-outline-list">
+        <li v-for="(chapter, index) in chapterPreview" :key="chapter.key">
+          <NumberBadge :value="index + 1" />
+          <span>{{ chapter.title }}</span>
+        </li>
+      </ol>
+      <p v-if="chapterRemaining > 0" class="overview-outline-more">
+        另有 {{ chapterRemaining }} 个章节
+      </p>
+    </section>
   </div>
 </template>
 
@@ -95,6 +159,7 @@ import Stat from '../../../components/Stat.vue'
 import Icon from '../../../components/Icon.vue'
 import type { Metric, Role } from '../../../nav'
 import { approvalLabel } from '../../../utils'
+import NumberBadge from '../../../components/NumberBadge.vue'
 
 interface CourseLike {
   name?: string
@@ -105,6 +170,12 @@ interface CourseLike {
   status?: string
   approvalStatus?: string
   teacher?: string
+  description?: string
+}
+
+interface ChapterRow {
+  key: string
+  title: string
 }
 
 interface TeacherSummary {
@@ -133,6 +204,7 @@ const loadError = ref('')
 const empty = ref(false)
 const summary = ref<TeacherSummary | null>(null)
 const chapterCount = ref<number | null>(null)
+const chapterRows = ref<ChapterRow[]>([])
 const firstChapter = ref('')
 const sections = ref<SectionRow[]>([])
 /** 课程切换时丢弃先发后至的旧响应，避免把上一门课读数落到当前页 */
@@ -175,6 +247,22 @@ const chapterCountText = computed(() =>
 
 const approvalText = computed(() =>
   props.course?.approvalStatus ? approvalLabel(props.course.approvalStatus) : '--',
+)
+
+const courseFacts = computed(() => [
+  { label: '学期', value: props.course?.semester || '--' },
+  { label: '课程编号', value: props.course?.code || '--' },
+  { label: '学分', value: props.course?.credits == null ? '--' : String(props.course.credits) },
+  { label: '课程性质', value: props.course?.category || '--' },
+  { label: '授课教师', value: props.course?.teacher || '--' },
+  { label: '状态', value: approvalText.value },
+])
+
+const descriptionText = computed(() => String(props.course?.description || '').trim())
+
+const chapterPreview = computed(() => chapterRows.value.slice(0, 8))
+const chapterRemaining = computed(() =>
+  Math.max(0, chapterRows.value.length - chapterPreview.value.length),
 )
 
 const queueTitle = computed(() => {
@@ -222,6 +310,8 @@ const metrics = computed<Metric[]>(() => {
         unit: props.course?.credits == null ? '' : '分',
         icon: 'award',
       },
+      { label: '课程编号', value: props.course?.code || '--', icon: 'book' },
+      { label: '学期', value: props.course?.semester || '--', icon: 'calendar' },
     ]
   }
   return [
@@ -237,6 +327,8 @@ const metrics = computed<Metric[]>(() => {
       unit: props.course?.credits == null ? '' : '分',
       icon: 'award',
     },
+    { label: '学期', value: props.course?.semester || '--', icon: 'calendar' },
+    { label: '课程性质', value: props.course?.category || '--', icon: 'book' },
   ]
 })
 
@@ -251,6 +343,7 @@ async function load() {
   empty.value = false
   summary.value = null
   chapterCount.value = null
+  chapterRows.value = []
   firstChapter.value = ''
   sections.value = []
   // 管理员课程空间没有课程级数据面，只展示课程档案
@@ -278,7 +371,14 @@ async function load() {
   if (sectionResult.status === 'rejected') sections.value = []
   const chapters = chapterResult.status === 'fulfilled' ? chapterResult.value : []
   chapterCount.value = chapters.length
-  firstChapter.value = String(chapters[0]?.title || '')
+  chapterRows.value = chapters.map((row, index) => {
+    const title = String(row.title ?? row.name ?? '').trim()
+    return {
+      key: String(row.id ?? row.chapterId ?? index),
+      title: title || `第 ${index + 1} 章`,
+    }
+  })
+  firstChapter.value = chapterRows.value[0]?.title || ''
   const summaryMissing = props.role === 'teacher' && !summary.value
   empty.value = summaryMissing && chapters.length === 0
 }
@@ -287,6 +387,141 @@ watch(() => [props.courseId, props.role] as const, load, { immediate: true })
 </script>
 
 <style scoped>
+.course-overview-grid {
+  margin-bottom: 0;
+}
+
+.course-overview-grid.is-admin {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.course-overview-grid.is-admin .mini-defs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.overview-span {
+  grid-column: 1 / -1;
+}
+
+.course-facts-card .mini-defs {
+  margin-bottom: 0;
+}
+
+.course-facts-card.overview-span .mini-defs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.course-facts-card.is-compact .mini-defs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.course-facts-card .mini-defs b {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.overview-description p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.overview-chapter-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.overview-chapter-inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.overview-chapter-summary > div,
+.overview-chapter-inline > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.overview-chapter-inline > div {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.overview-chapter-summary span,
+.overview-chapter-inline span {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.overview-chapter-summary b,
+.overview-chapter-inline b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.course-outline {
+  margin-top: 16px;
+}
+
+.overview-outline-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-outline-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.overview-outline-list li span {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-outline-more {
+  margin: 8px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .course-overview-grid.is-admin .mini-defs,
+  .course-facts-card.overview-span .mini-defs,
+  .course-facts-card.is-compact .mini-defs,
+  .overview-outline-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .section-list {
   display: grid;
   gap: 1px;
@@ -298,10 +533,10 @@ watch(() => [props.courseId, props.role] as const, load, { immediate: true })
 .section-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-height: 40px;
-  padding: 0 12px;
-  background: var(--surface, #fff);
+  padding: 0 16px;
+  background: var(--surface);
 }
 .section-row b {
   flex: 1;
@@ -309,7 +544,7 @@ watch(() => [props.courseId, props.role] as const, load, { immediate: true })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 .section-cap {
   font-size: 12px;

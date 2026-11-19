@@ -29,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -73,7 +74,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code @RequestParam("file") MultipartFile} 为必需部件，缺失时 Spring 先抛
  * {@code MissingServletRequestPartException}（由 GlobalExceptionHandler 转 400），控制器拿不到 null。
  */
-@WebMvcTest(TeacherController.class)
+@WebMvcTest(controllers = {
+        TeacherController.class,
+        TeacherAssignmentController.class,
+        TeacherQuestionController.class,
+        TeacherImportController.class,
+        TeacherAnalyticsController.class
+})
+@Import(com.aicourse.security.TeacherAccessGuard.class)
 class TeacherControllerCoverageTest extends ControllerTestBase {
 
     private static final long TEACHER_ID = 10L;

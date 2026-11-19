@@ -30,7 +30,7 @@
 
     <article class="card reader-panel">
       <nav class="breadcrumb-line">课程 / {{ activeChapter?.title || '章节' }}</nav>
-      <h2>{{ activeChapter?.title || '章节内容' }}</h2>
+      <h2 class="reader-title">{{ activeChapter?.title || '章节内容' }}</h2>
       <div class="reader-meta">
         <span>{{ activeChapter?.meta || '课程讲义' }}</span>
         <span>{{ chapters.length }} 个章节</span>
@@ -107,7 +107,6 @@
       >
         {{ chapter.title }}
       </button>
-      <div class="toc-note">{{ chapters.length }} 个章节 · 真实数据</div>
     </aside>
   </div>
 </template>
@@ -320,11 +319,11 @@ onMounted(async () => {
 <style scoped>
 .empty-note {
   margin: 12px 0;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .reader-content {
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.9;
   color: var(--ink-2);
 }
@@ -354,7 +353,7 @@ onMounted(async () => {
   border-bottom: 1px solid var(--line);
   background: none;
   font-family: inherit;
-  font-size: 9.5px;
+  font-size: 12px;
   line-height: inherit;
   color: var(--ink-2);
   text-align: left;

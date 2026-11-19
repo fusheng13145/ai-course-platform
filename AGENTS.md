@@ -1,4 +1,4 @@
-# AGENTS.md · AI 代理入口（2026-11-17）
+# AGENTS.md · AI 代理入口（2026-11-19）
 
 > **先读这一份**。5 分钟拿全"这个仓库是什么、怎么跑、什么不能碰、现在做到哪"。
 > **单文件入口**：本文件是代理唯一入口。原 `AGENT.md`（工程纪律、验证命令、证据纪律、机械守卫写法）已于 2026-11-15 并入本文件 **§10–§12**，原文件删除；文档索引在 [`docs/README.md`](./docs/README.md)。
@@ -14,8 +14,8 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | **599 main Java / 264 test Java；55 Controller / 518 方法级 HTTP 映射；61 张表；89 `.vue` / 100 `.test.ts` / 12 Playwright spec** |
-| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `fix/frontend-loading-spinner`，PR #120 待合并 |
+| **规模（实测）** | **620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec** |
+| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `chore/deps-safe-bumps`，PR #120/#123 已合并 |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
 **一句话记住优先级**：`PRD > 泛化课程平台 > 多课程 > 软著`，但**结题材料（三指标 + 数据集 + 报告 + 论文）排在最前**。
@@ -41,11 +41,13 @@
 ### 2.1 启动
 
 ```bat
-start.bat              :: 全栈单窗口（接管不重启、五路日志、Ctrl+C 收子树）
-start.bat backend      :: 引擎 + 后端
+start.bat              :: 全栈单窗口（依赖自愈 + Ollama/MinIO/Neo4j/KG/RAG/FT/API/Web，8 路日志、Ctrl+C 收子树）
+start.bat backend      :: 除前端外的全量后端栈
 start.bat frontend     :: 只起 Vite
-start.bat status       :: 只报五进程状态，不起进程
+start.bat status       :: 只报全量服务状态，不起进程
 ```
+
+> 8080 被别的项目占用时用 `API_PORT=8081`；启动器会同时改 `SERVER_PORT` 与 `VITE_PROXY_TARGET`。
 
 Linux / macOS 用同目录的 `start.sh`，子命令与开关完全一致
 （`./start.sh` / `backend` / `frontend` / `status`；`--no-color`）。
@@ -86,7 +88,9 @@ python scripts/audit-stats.py
 | 5174 / 5175 | e2e / 视觉 | **5176+ 会被 CORS 白名单拒登录** |
 | **8001** | Python KG 服务 | |
 | **8002** | Python RAG 服务 | **本项目核心中的核心** |
-| 8003 | LoRA 微调 | compose `ft` profile 已编排；目标环境未 `up` |
+| 8003 | LoRA 微调 | `start-all.py` 在 `FT_ENABLED=true` 时自动编排；compose `ft` profile 另备 |
+| 9000 / 9001 | 本机 MinIO | `start-all.py` 在 `MINIO_ENABLED=true` 时启动原生进程；非 Docker |
+| 11434 | 本机 Ollama | `AI_PROVIDER=ollama` 或 `FT_LLM_PROVIDER=ollama` 时自动启动；缺模型只告警 |
 | 3306 / 6379 / 7687 | MySQL / Redis / Neo4j | **Redis 为必选依赖**（用户裁定，文档已回写） |
 
 ---
@@ -128,7 +132,7 @@ python scripts/audit-stats.py
 
 ---
 
-## 5. 当前基线（2026-11-17，接手必读）
+## 5. 当前基线（2026-11-19，接手必读）
 
 > 当前任务、负责人、阻塞项以 [`docs/当前状态与待办.md`](./docs/当前状态与待办.md) 为唯一总表；本章只给基线快照与历史批次入口。
 
@@ -136,18 +140,18 @@ python scripts/audit-stats.py
 
 | 项 | 当前事实 |
 | --- | --- |
-| 分支 / 基线 | `fix/frontend-loading-spinner`（本地领先 `origin`；当前提交以 `git log -1` 为准）；`main` 本地与远程均 `94eb6278`；PR #120 待合并 |
-| 工作树 | 干净；`frontend/dist` 是构建产物，已忽略 |
-| 结构 | 599 main Java / 264 test Java；55 Controller / 518 方法级 HTTP 映射；61 表；89 `.vue` / 100 `.test.ts` / 12 Playwright spec |
+| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`，已推送 `origin/chore/deps-safe-bumps`（HEAD 以 `git log -1` 为准）；`origin/main` 当前 `3e77fb18`；PR #120/#123 均已合并，当前无 open PR |
+| 工作树 | 干净（`git status --short` 无输出）；`frontend/dist`、`backend/target`、`coverage` 均为忽略的构建产物 |
+| 结构 | 620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
-| 后端门禁 | 3621 例 / 0 失败 / 0 错误 / 1 跳过；LINE 86.10%、BRANCH 66.91%（门禁 85/65）；SpotBugs 0；ArchUnit 8 |
-| 前端门禁 | Vitest 100 文件 / 1227 例；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
-| Python / 启动器 | kg 61 passed；rag 79 passed；fine-tune 55 passed；`scripts/tests` 113 passed |
-| CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120 检查结果以 Actions 当前 run 为准 |
-| 分支保护 | `main` 无保护（GitHub API **404 Branch not protected**）；无必填 review / required checks |
-| Compose | 15 服务 / 16 卷 / 8 healthcheck；CI 已构建镜像，目标环境未 `up` |
-| 存储 | 新上传写 `AICOURSE_DATA_DIR/storage`，分片写 `chunks`；根 `uploads/` 已移除；`backend/uploads/` 只读兼容，余 11 个压测临时 PDF |
-| 文档 | `docs` 21 个 Markdown + `assets/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
+| 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
+| 前端门禁 | Vitest 104 文件 / 1241 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
+| Python / 启动器 | kg 61 passed（Neo4j 7687 在线）；rag 79 passed；fine-tune 55 passed；`scripts/tests` **116 passed**（2026-11-19 本轮复核；移除已完成迁移测试前为 122） |
+| CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120/#123 检查结果以 Actions 当前 run 为准 |
+| 分支保护 | GitHub 当前记录 `protected=true`（2026-11-19）；无必填 review / required checks，按团队约定以可执行 job 全绿为准 |
+| Compose | 16 服务 / 17 卷 / 9 healthcheck；CI 已构建镜像，目标环境未 `up` |
+| 存储 | 运行期数据根为项目 `data/aicourse-platform`（`minio-data` / `storage`）；冷备统一在 `data/backups`（`storage.migrated-20261118-203354`、`drill`、`uploads-migration`）；MinIO bucket `aicourse-uploads` 共 **174 对象**；资源行 32；本机原生 MinIO 已起（非 Docker）；分片仍写 `chunks` |
+| 文档 | `docs` 22 个 Markdown + `assets/` + `operations/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
 
 ### 5.2 历史批次（B0–B11）
 
@@ -183,7 +187,7 @@ python scripts/audit-stats.py
 | 优先级 | 事项 | 去向 |
 | --- | --- | --- |
 | **P0** | 结题材料：三指标实测、数据集/标注、研究报告/测试报告/论文/软著 | `docs/当前状态与待办.md` §3 K-01–K-04 |
-| **P1** | 前端尾量：C-07 完整 e2e 连续 3 轮、P-10 响应式、P-12 XSS 处置 | 同上 §5 |
+| **P1** | 前端尾量：C-07 完整 e2e 连续 3 轮、P-12 XSS 处置（P-10 外层路由已于 2026-11-19 收口） | 同上 §5 |
 | **P1** | 目标环境上线闭环：E-01 起栈、E-03 备份异地、E-04 告警演练 | 同上 §4 |
 | **P2** | DB squash、泛化平台 / 多课程、`.git` 瘦身 | 同上 §4 |
 
@@ -377,8 +381,8 @@ python scripts/sync-kg-to-python.py <courseId>
 | “已具备上线能力” | A 路径从未在目标环境实跑，只有预案与断链清单 | `docs/部署文档.md` §6 |
 | “微调能力可售” | 小样本必然过拟合，推理文本会退化为语料外乱码 | `docs/后端待办项.md` §7 AG-2 |
 | “跨设备完成率” | 引导三态只落本地 `localStorage` | `docs/前端待办项.md` §4 |
-| “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §14.2 R-C1 |
-| “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §14.2 R-K1/K2/K3 |
+| “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §8 R-C1 |
+| “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §8 R-K1/K2/K3 |
 
 ---
 

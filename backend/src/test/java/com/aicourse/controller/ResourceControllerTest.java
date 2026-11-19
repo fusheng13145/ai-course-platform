@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -28,13 +29,14 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 /**
- * ResourceController 接口测试（升级版）。
+ * 资源域三控制器接口测试（升级版）：ResourceController / ResourceUploadController / ResourceMutationController。
  * 原生成器弱断言（status != 401 && status != 403）已全部替换为真实业务断言：
  * 对依赖的 ResourceService 方法打桩返回合理业务对象，断言 200/code=200，并校验关键字段透传、verify 路由委托。
  * 说明：downloadResource 返回 ResponseEntity（非 ApiResponse），且依赖磁盘文件，故断言资源不存在时返回 404 并校验委托。
  * 对带有 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')") 的端点新增/保留 STUDENT 越权 403 测试。
  */
-@WebMvcTest(ResourceController.class)
+@WebMvcTest({ResourceController.class, ResourceUploadController.class, ResourceMutationController.class})
+@Import(com.aicourse.security.ResourceAccessSupport.class)
 class ResourceControllerTest extends ControllerTestBase {
 
     @MockitoBean

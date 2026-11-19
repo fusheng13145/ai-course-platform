@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """大创·AI 智能课程平台 V6 计算机网络示范课种子生成器。
 
-用法：python scripts/generate-cn-showcase-seed.py
+用法：python scripts/legacy/generate-cn-showcase-seed.py
 输出：backend/src/main/resources/db/seed-demo/V6__computer_network_showcase.sql
+
+历史脚本：保留可重放；当前开发库补数走 `scripts/seed-demo-data.py`。
 
 目标：把《计算机网络（A班）》(course 4007, teacher ts04/1004) 打造成可验证
 平台全部功能的示范课——
@@ -1034,12 +1036,12 @@ dump("ai_chat_messages", "id,session_id,role,content,deleted,created_at".split("
 
 header = ("-- ============================================================\n"
           "-- V6：计算机网络示范课（course 4007, 2026秋）全功能种子数据\n"
-          "-- 由 scripts/generate-cn-showcase-seed.py 生成，请勿手工编辑。\n"
+          "-- 由 scripts/legacy/generate-cn-showcase-seed.py 生成，请勿手工编辑。\n"
           "-- 号段：700xxxx 独立区间；不删除 V1–V5 任何既有行\n"
           "-- （仅 UPDATE：课程激活、V5 原 8 知识点挂接新模块、期中考试分回填）。\n"
           "-- ============================================================\n\n"
           "SET NAMES utf8mb4;\n")
-path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
                     "backend", "src", "main", "resources", "db", "seed-demo",
                     "V6__computer_network_showcase.sql")
 with open(path, "w", encoding="utf-8") as f:

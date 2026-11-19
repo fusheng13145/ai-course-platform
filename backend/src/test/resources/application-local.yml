@@ -17,6 +17,10 @@ ai:
   deepseek:
     api-key: test-dummy-key
 
+# 本地集成测试不启动 MinIO；使用本地存储实现，避免外部依赖。
+minio:
+  enabled: false
+
 jwt:
   secret: test-only-jwt-key-for-auth-flow-tests-do-not-use-in-prod
 

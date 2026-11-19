@@ -557,7 +557,7 @@ onMounted(loadTasks)
   padding: 9px 11px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--r-ctl);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-2);
 }
@@ -581,7 +581,7 @@ onMounted(loadTasks)
 }
 .detail-summary {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 .match-list {
@@ -603,7 +603,7 @@ onMounted(loadTasks)
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .match-text {
   margin: 0;
@@ -615,7 +615,7 @@ onMounted(loadTasks)
   color: var(--warn, #d97706);
 }
 .cell-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
   font-weight: 400;
 }

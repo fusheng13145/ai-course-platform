@@ -605,7 +605,7 @@ onMounted(() => {
 .scope-note {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 14px;
 }
 .bar-chart {
   display: flex;
@@ -633,11 +633,11 @@ onMounted(() => {
   border-radius: var(--r-chip) var(--r-chip) 0 0;
 }
 .bar-col .bar-val {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
 }
 .bar-col .bar-label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-3);
   writing-mode: vertical-rl;
   height: 34px;

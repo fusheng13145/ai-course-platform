@@ -287,7 +287,7 @@ onMounted(() => {
 .lc-weekhead {
   margin-top: 8px;
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
 }
 .lc-cell {
@@ -297,7 +297,7 @@ onMounted(() => {
   aspect-ratio: 1 / 1;
   border-radius: var(--r-xs);
   border: 1px solid var(--line);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 .lc-cell.is-blank {

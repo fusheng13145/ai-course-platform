@@ -445,7 +445,7 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     ],
   })
 
-  it('按课程渲染成绩并支持切换课程；可导出成绩，学习中心/错题本各归其页签', async () => {
+  it('按课程渲染成绩并支持切换课程；可导出成绩，学情报告/学习路径/学习中心/错题本各归其页签', async () => {
     studentApi.getGrades.mockResolvedValue(gradesPayload)
 
     const wrapper = mountAcademic()
@@ -465,9 +465,10 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(rows[1]).toEqual(['期中测验', '考试', '76', '100', '已批改', '2026-10-20 09:00'])
     expect(text).toContain('已批改')
     expect(text).toContain('待出分')
+    expect(text).toContain('学情报告')
+    expect(text).toContain('学习路径')
     expect(text).toContain('学习中心')
     expect(text).toContain('错题本')
-    expect(text).not.toContain('学习路径')
     expect(text).not.toContain('示例数据')
     const exportButton = findButton(wrapper, '导出成绩')
     expect(exportButton).toBeTruthy()

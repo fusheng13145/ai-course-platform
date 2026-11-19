@@ -222,7 +222,7 @@ onMounted(() => {
 .scope-note {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 14px;
 }
 .current-grid {
   display: grid;

@@ -44,6 +44,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import '../../styles/record.css'
+import '../../styles/coursera.css'
 import '../../styles/shell-fix.css'
 import '../../styles/typography.css'
 import Sprite from '../../components/Sprite.vue'
@@ -166,7 +167,7 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
 }
 .lv-body :deep(p) {
   margin: 0 0 9px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.95;
   color: var(--ink-2);
 }
@@ -183,7 +184,7 @@ const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
 }
 .lv-body :deep(li) {
   margin: 4px 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.9;
   color: var(--ink-2);
 }

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """大创·AI 智能课程平台 V5 种子数据生成引擎。
 
-用法：python scripts/generate-seed-data.py
+用法：python scripts/legacy/generate-seed-data.py
 输出：backend/src/main/resources/db/seed-demo/V5__rich_seed_data.sql
+
+历史脚本：保留可重放；当前开发库补数走 `scripts/seed-demo-data.py`。
 
 约束：
   * 确定性随机（固定种子），重复生成结果逐字节一致；
@@ -17,8 +19,11 @@ import datetime as dt
 import json
 import os
 import random
+import sys
 from collections import defaultdict
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from seed_data_templates import TEMPLATES
 
 # 模板兼容：ESSAY 题省略 options 槽位（5 元组），统一补齐为 6 元组
@@ -981,7 +986,7 @@ for e in enrollments:
 HEADER = """-- ====================================================================
 -- V5：富种子数据（大创演示 · 2026 春/秋两学期全链路业务数据）
 -- ====================================================================
--- 生成：python scripts/generate-seed-data.py（确定性随机，可整文件重生成）
+-- 生成：python scripts/legacy/generate-seed-data.py（确定性随机，可整文件重生成）
 -- 规模：12 教师 / 150 学生 / 20 班级 / 30 课程班次（2026春 20 个已结束班 +
 --       2026秋 10 个进行中班），覆盖全部 48 张表；除下列结构性上限外，
 --       每张表新增 >=100 行：
@@ -1020,7 +1025,7 @@ UPDATE course_enrollments SET approval_status = UPPER(approval_status) WHERE BIN
 
 """
 
-OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
                "backend", "src", "main", "resources", "db", "seed-demo", "V5__rich_seed_data.sql"))
 lines = [HEADER]
 summary = []

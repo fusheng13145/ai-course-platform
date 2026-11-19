@@ -71,6 +71,34 @@ class ResourceServiceTest {
     }
 
     @Test
+    @DisplayName("按落库 URL 查资源-命中带前导斜杠的 URL")
+    void testFindByUrl() {
+        when(mapper.selectList(any())).thenReturn(Collections.singletonList(resource1));
+
+        Resource result = service.findByUrl("/uploads/lecture1.pdf");
+
+        assertSame(resource1, result);
+    }
+
+    @Test
+    @DisplayName("按落库 URL 查资源-兼容历史无前导斜杠形态")
+    void testFindByUrl_LegacyBareUrl() {
+        when(mapper.selectList(any())).thenReturn(Collections.singletonList(resource1));
+
+        Resource result = service.findByUrl("uploads/lecture1.pdf");
+
+        assertSame(resource1, result);
+    }
+
+    @Test
+    @DisplayName("按落库 URL 查资源-空值直接返回 null")
+    void testFindByUrl_Blank() {
+        assertNull(service.findByUrl(null));
+        assertNull(service.findByUrl("  "));
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
     @DisplayName("按课程ID查询资源列表-成功")
     void testGetByCourseId() {
         when(mapper.selectList(any())).thenReturn(Arrays.asList(resource1, resource2));

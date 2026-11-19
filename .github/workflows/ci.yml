@@ -610,9 +610,10 @@ jobs:
       - name: Build images (no push)
         # 修复：docker-compose.yml 里全部 ${VAR:?...} 均在 `compose config` 阶段强制求值，
         # 缺一个即整份文件 interpolate 失败——即使该服务不参与 build。
-        # 当前强制变量共 8 个：MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET /
+        # 当前强制变量共 10 个：MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET /
         # APP_ADMIN_INITIAL_PASSWORD（backend）/ NEO4J_PASSWORD（neo4j）/ GRAFANA_ADMIN_PASSWORD（grafana）/
-        # COOKIE_SECURE / REQUIRE_HTTPS（backend，2026-11-06 起改为必填防静默降级）。
+        # COOKIE_SECURE / REQUIRE_HTTPS（backend，2026-11-06 起改为必填防静默降级）/
+        # MINIO_ROOT_USER / MINIO_ROOT_PASSWORD（minio，2026-11-18 存储切换后新增）。
         # 2026-11-02 补后三个：主干 CI #213 的 Docker 作业正是停在
         # `required variable NEO4J_PASSWORD is missing a value`（该作业只在 push main 跑，PR 里 skipped，故长期未被发现）。
         # CI 仅构建镜像（不启动容器），使用 secrets 值（未配置时退化为 CI-only 构建值，不落盘）。
@@ -623,6 +624,8 @@ jobs:
           APP_ADMIN_INITIAL_PASSWORD: ${{ secrets.APP_ADMIN_INITIAL_PASSWORD || 'CiBuild0nly!Admin#2026' }}
           NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'ci-test-neo4j-8f3k' }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD || 'ci-build-only-grafana-4p6t1s0d' }}
+          MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER || 'ci-build-only-minio-user' }}
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD || 'CiBuild0nly!Minio#2026' }}
           # 仅参与插值求值（build 不启动容器）；取安全侧 true，与「默认安全」口径一致。
           COOKIE_SECURE: ${{ secrets.COOKIE_SECURE || 'true' }}
           REQUIRE_HTTPS: ${{ secrets.REQUIRE_HTTPS || 'true' }}
@@ -641,6 +644,8 @@ jobs:
           APP_ADMIN_INITIAL_PASSWORD: CiBuild0nly!Admin#2026
           NEO4J_PASSWORD: ci-test-neo4j-8f3k
           GRAFANA_ADMIN_PASSWORD: ci-build-only-grafana-4p6t1s0d
+          MINIO_ROOT_USER: ci-build-only-minio-user
+          MINIO_ROOT_PASSWORD: CiBuild0nly!Minio#2026
           COOKIE_SECURE: true
           REQUIRE_HTTPS: true
         run: docker compose --profile ft -f docker-compose.yml build fine-tune-service
@@ -916,6 +921,8 @@ jobs:
           COOKIE_SECURE: "false"
           REQUIRE_HTTPS: "false"
           CSRF_ENABLED: "false"
+          # 本作业只验证业务链路，不绑定外部对象存储；MinIO 生产路径由本机 e2e/部署验证。
+          MINIO_ENABLED: "false"
           # DR-85：本作业 52 例真实登录，默认 10 次/60s 的 IP 桶会在第 11 次返 429 且不记日志，
           # 造成"红灯集合每轮不同"。该键**只允许**出现在此步骤 env（一次性进程环境）：
           # 禁止写入 .env / docker-compose.yml / scripts/start-all.py（那三处会让阈值长期生效）。

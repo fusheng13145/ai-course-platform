@@ -9,10 +9,7 @@
 
       <div ref="logRef" class="chat-log" aria-live="polite">
         <div v-if="!messages.length" class="empty-state compact">
-          <b>问我任何学习问题</b>
-          <p>
-            课程内的提问会基于该课程知识库精准回答；本页是跨课程的全局助手，超纲或不确定时会如实说明。
-          </p>
+          <b>暂无对话</b>
         </div>
         <div
           v-for="(msg, index) in messages"
@@ -40,7 +37,6 @@
         </button>
       </form>
       <p v-if="chatError" class="form-error" role="alert">{{ chatError }}</p>
-      <p class="hint">回答基于课程资料；重要结论以课程资料为准。</p>
     </section>
   </section>
 </template>
@@ -128,7 +124,7 @@ async function send() {
   text-align: right;
 }
 .chat-who {
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0.65;
 }
 .chat-bubble {

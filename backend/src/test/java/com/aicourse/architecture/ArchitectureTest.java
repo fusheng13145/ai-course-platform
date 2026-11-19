@@ -73,4 +73,18 @@ class ArchitectureTest {
                                     .resideInAPackage("com.aicourse.service.impl")
                                     .and(com.tngtech.archunit.core.domain.JavaClass.Predicates
                                             .simpleNameEndingWith("Impl")));
+
+    /** 安全层不得直接依赖 service.impl：鉴权/配额等横切能力只能依赖 service 接口或
+     * service.component 下的公开协作者，避免内部实现泄漏到安全链路。 */
+    @ArchTest
+    static final ArchRule securityShouldNotDependOnServiceImpl =
+            noClasses().that().resideInAPackage("..security..")
+                    .should().dependOnClassesThat().resideInAPackage("com.aicourse.service.impl");
+
+    /** service.component 不得直接依赖 service.impl：组件是可复用的业务协作者，
+     * 反向依赖实现包会破坏「实现包只做装配」的边界。 */
+    @ArchTest
+    static final ArchRule serviceComponentShouldNotDependOnServiceImpl =
+            noClasses().that().resideInAPackage("..service.component..")
+                    .should().dependOnClassesThat().resideInAPackage("com.aicourse.service.impl");
 }

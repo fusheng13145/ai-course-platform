@@ -317,7 +317,7 @@ onMounted(() => {
 }
 .bar-val {
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .bar-label {
@@ -339,7 +339,7 @@ onMounted(() => {
   gap: 6px;
 }
 .r-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 .r-track {

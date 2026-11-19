@@ -119,7 +119,6 @@
         <div v-if="!loading && !exams.length" class="empty-state compact">
           <span class="e-ico"><Icon name="clipboard" /></span>
           <b>暂无试卷</b>
-          <p>点击「新建试卷」开始创建；提交审核并通过后学生才可见。</p>
         </div>
         <div v-else-if="loading" class="empty-state compact">
           <b>正在加载试卷…</b>
@@ -127,12 +126,7 @@
 
         <footer class="card-foot">
           <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条</span>
-          <div class="pager">
-            <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-            <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-              下一页
-            </button>
-          </div>
+          <Pagination :page="page" :page-count="pageCount" @turn="goPage" />
         </footer>
       </section>
     </div>
@@ -264,6 +258,7 @@ import { pickList, unwrap } from '@/utils/response'
 import { examPaperStatusView } from '@/constants/examPaperStatus'
 import { questionTypeLabel } from '@/constants/questionTypes'
 import PageHead from '../../components/PageHead.vue'
+import Pagination from '../../components/Pagination.vue'
 import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
@@ -707,7 +702,7 @@ onMounted(async () => {
   width: auto;
   min-width: 150px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .exam-title {
   display: block;

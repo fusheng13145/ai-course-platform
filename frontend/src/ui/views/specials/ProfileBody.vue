@@ -823,7 +823,7 @@ function errorMessage(error: unknown, fallback: string) {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.5;
   color: var(--ink);
@@ -877,7 +877,7 @@ function errorMessage(error: unknown, fallback: string) {
   background: transparent;
   color: var(--ink-3);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 

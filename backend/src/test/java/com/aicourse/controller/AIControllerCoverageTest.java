@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
@@ -68,7 +69,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>鉴权面断言沿用 SecurityConfig 规则：POST /ai/qa/*、/ai/essay/* 任意已登录角色可用；
  * 其余 POST /ai/** 仅 TEACHER/ADMIN；所有 /ai/** 未认证一律 401。</p>
  */
-@WebMvcTest(AIController.class)
+@WebMvcTest({AIController.class, AIInsightController.class, AILearningPathController.class})
+@Import(com.aicourse.security.AIAccessSupport.class)
 class AIControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean
@@ -355,6 +357,22 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("题目生成失败: LLM连接超时"));
     }
 
+    @Test
+    @DisplayName("GET /ai/recommendations/questions - LLM 不可用：保持 503，不降级为业务 400")
+    void questionRecommendations_llmUnavailable_preserves503() throws Exception {
+        when(aiService.recommendQuestionsJson(any(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new LLMUnavailableException(
+                        LLMUnavailableException.Kind.UPSTREAM_UNREACHABLE, "上游不可用"));
+
+        MvcResult mvc = mockMvc.perform(get("/ai/recommendations/questions?courseId=8&difficulty=EASY")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.message").value("上游不可用"));
+    }
+
     // ==================== /ai/analysis/weak-points ====================
 
     @Test
@@ -599,14 +617,19 @@ class AIControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /ai/learning-path/generate-personalized - STUDENT 角色不符 403（写操作仅教师/管理员）")
-    void personalized_student_forbidden403() throws Exception {
-        mockMvc.perform(post("/ai/learning-path/generate-personalized")
+    @DisplayName("POST /ai/learning-path/generate-personalized - STUDENT 自助生成返回 200")
+    void personalized_student_self_service_200() throws Exception {
+        when(learningPathService.generatePathPersonalized(any(), any(), anyString(), anyString(), any()))
+                .thenReturn(null);
+        MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate-personalized")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"7\"}").with(withUser(9L, "STUDENT")))
-                .andExpect(status().isForbidden());
-        verify(learningPathService, never()).generatePathPersonalized(
-                any(), any(), anyString(), anyString(), any());
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(learningPathService).generatePathPersonalized(
+                eq(9L), eq(7L), anyString(), anyString(), any());
     }
 
     // ==================== Authentication 参数为 null（withUser(null, …) 注入的切片可复现） ====================

@@ -48,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>另对读取型端点补 ADMIN 成功路径，断言 service 委托与 {@code ApiResponse} 信封，
  * 证明「放行的是真正的管理员」而非把鉴权整个关掉导致的假 200。</p>
  */
-@WebMvcTest(SystemAdminController.class)
+@WebMvcTest({SystemAdminController.class, AdminStatisticsController.class, SystemMaintenanceController.class})
 @Import(AdminScopeGuard.class)
 class SystemAdminControllerAclTest extends ControllerTestBase {
 

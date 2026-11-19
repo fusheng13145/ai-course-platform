@@ -19,6 +19,14 @@ import java.util.Map;
 public interface ResourceService extends IService<Resource> {
 
     /**
+     * 按落库 URL 查资源元数据（供 /uploads 代理推断声明的内容类型）。
+     *
+     * @param storedUrl 形如 {@code /uploads/<key>} 或历史 {@code uploads/<key>}
+     * @return 命中的资源；无记录或入参为空返回 null
+     */
+    Resource findByUrl(String storedUrl);
+
+    /**
      * 获取课程的资源树（按章节组织）
      * 查询课程下所有资源，按 chapterId 分组返回树形结构
      * @param courseId 课程ID
