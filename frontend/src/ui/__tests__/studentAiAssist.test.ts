@@ -293,6 +293,64 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     expect(wrapper.findAll('.turn-user')).toHaveLength(1)
   })
 
+  it('打开旧会话不改侧栏顺序，只有发送新消息才把它提到最前', async () => {
+    const now = Date.now()
+    aiApi.getSessions.mockResolvedValue({
+      data: {
+        data: [
+          {
+            sessionId: 'older',
+            title: '较早的会话',
+            courseId,
+            updatedAt: new Date(now - 3_600_000).toISOString(),
+            lastMessage: '旧回答',
+          },
+          {
+            sessionId: 'newer',
+            title: '较新的会话',
+            courseId,
+            updatedAt: new Date(now - 60_000).toISOString(),
+            lastMessage: '新回答',
+          },
+        ],
+      },
+    })
+    aiApi.getSessionDetail.mockImplementation((sessionId: string) =>
+      Promise.resolve({
+        data: {
+          data: {
+            sessionId,
+            title: sessionId === 'older' ? '较早的会话' : '较新的会话',
+            messages: [
+              { role: 'user', content: sessionId === 'older' ? '旧问题' : '新问题' },
+              { role: 'assistant', content: sessionId === 'older' ? '旧回答' : '新回答' },
+            ],
+          },
+        },
+      }),
+    )
+
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+    const titles = () => wrapper.findAll('.side-item-title').map((node) => node.text())
+    expect(titles()).toEqual(['较新的会话', '较早的会话'])
+
+    // 点开较早的会话只回填正文，排序位置必须保持不动
+    await wrapper.findAll('.side-item')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('旧回答')
+    expect(titles()).toEqual(['较新的会话', '较早的会话'])
+
+    // 在这个旧会话里真正发出提问，才刷新最后对话时间并置顶
+    await wrapper.find('textarea').setValue('继续问旧会话')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+    expect(titles()).toEqual(['较早的会话', '较新的会话'])
+    expect(latestStream().params.sessionId).toBe('older')
+
+    await finishStream({ sessionId: 'older', tokens: ['继续回答。'] })
+  })
+
   it('同一会话继续追问沿用 sessionId，并把会话挂进侧栏', async () => {
     const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()

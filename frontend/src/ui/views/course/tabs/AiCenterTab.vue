@@ -574,9 +574,18 @@ function syncActiveSession() {
   const current = sessions.value.find((item) => item.id === activeId.value)
   if (!current) return
   current.messages = messages.value.map((item) => ({ ...item }))
-  current.updatedAt = Date.now()
   current.lastText = lastTextFrom(messages.value)
   if (!current.title || current.title === '新对话') current.title = titleFrom(messages.value)
+}
+
+/**
+ * 只有真正发起一轮问答才刷新排序时间。
+ * 打开/回填历史会话也是 messages 变化，但那不是“继续对话”，不能顶到侧栏第一条。
+ */
+function touchActiveSession() {
+  if (!activeId.value) return
+  const current = sessions.value.find((item) => item.id === activeId.value)
+  if (current) current.updatedAt = Date.now()
 }
 
 /** 首次提问拿到后端 sessionId 后才落一条侧栏记录——没有真实会话就不凭空造条目 */
@@ -868,6 +877,8 @@ async function send(preset?: string) {
  * 会话ID 来自服务端首帧；用户问题与最终回答由后端按会话落库，刷新/重开课程都能恢复。
  */
 async function requestAnswer(text: string) {
+  // 发送新提问才代表这轮对话“继续”了；仅打开历史不刷新排序
+  touchActiveSession()
   qaSending.value = true
   messages.value.push({
     role: 'ai',
