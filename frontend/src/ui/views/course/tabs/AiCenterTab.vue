@@ -1,6 +1,6 @@
 <template>
-  <!-- 学生端：沉浸式对话工作区（历史侧栏 + 主对话区） -->
-  <section v-if="isStudent" ref="shellRef" class="ai-shell" :style="shellStyle">
+  <!-- 教师端与学生端共用同一工作区骨架：历史侧栏 + 顶栏 + 内容区 + 输入区 -->
+  <section ref="shellRef" class="ai-shell" :style="shellStyle">
     <div class="ai-workspace">
       <aside
         v-if="!isNarrow || sideOpen"
@@ -69,21 +69,42 @@
               <span>新对话</span>
             </button>
           </div>
+
+          <!-- 教师端的能力页签；学生端的学习工具是提问模板，不占页签 -->
+          <div v-if="showTabs" class="ai-tabs" role="tablist" aria-label="AI 能力">
+            <button
+              v-for="tab in visibleTabs"
+              :key="tab.key"
+              class="ai-tab"
+              :class="{ 'is-active': active === tab.key }"
+              role="tab"
+              :aria-selected="active === tab.key"
+              @click="active = tab.key"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
         </header>
 
-        <!-- 智能答疑：学生端的薄弱点/建议/路径已改为输入框上方的提问模板 -->
-        <div ref="scrollRef" class="ai-stream" @scroll="onChatScroll">
+        <!-- 智能答疑：两种角色共用同一对话流 -->
+        <div v-if="active === 'qa'" ref="scrollRef" class="ai-stream" @scroll="onChatScroll">
           <p v-if="blockedNotice" class="stream-notice">
             这条对话已存在于云端，但当前接口不返回历史消息，无法在这里回放。继续提问会接着这条会话。
           </p>
 
           <div v-if="!messages.length && !qaSending" class="welcome">
             <div class="welcome-mark"><Icon name="sparkle" /></div>
-            <h2>你好，我是你的 AI 学习助手</h2>
-            <p>可以问我本课程的概念、作业思路或复习方法。</p>
+            <h2>{{ isStudent ? '你好，我是你的 AI 学习助手' : '你好，我是你的 AI 助教' }}</h2>
+            <p>
+              {{
+                isStudent
+                  ? '可以问我本课程的概念、作业思路或复习方法。'
+                  : '可以问我本课程的备课、命题与答疑要点。'
+              }}
+            </p>
             <div class="suggest">
               <button
-                v-for="suggestion in SUGGESTIONS"
+                v-for="suggestion in suggestions"
                 :key="suggestion"
                 class="suggest-item"
                 @click="send(suggestion)"
@@ -126,9 +147,142 @@
           </div>
         </div>
 
-        <div class="composer">
-          <!-- 学习工具改成提问模板：点一下把模板问题填进输入框，仍由同一个会话回答 -->
-          <div class="quick-prompts">
+        <!-- 教师端其它能力：同一工作区内按页签切换，动作与接口保持原样 -->
+        <div v-else ref="panelRef" class="ai-panel">
+          <div class="panel-inner">
+            <!-- 薄弱点分析 -->
+            <template v-if="active === 'weak'">
+              <header class="panel-head">
+                <h2>
+                  薄弱点分析 <span class="chip chip-mute">{{ weakPoints.length }} 项</span>
+                </h2>
+                <button class="btn btn-ghost" :disabled="weakLoading" @click="loadWeak">
+                  {{ weakLoading ? '分析中…' : '重新分析' }}
+                </button>
+              </header>
+              <p v-if="weakError" class="form-error">{{ weakError }}</p>
+              <p v-if="weakSummary" class="panel-summary">{{ weakSummary }}</p>
+              <ul v-if="weakPoints.length" class="item-list">
+                <li v-for="(item, index) in weakPoints" :key="index">
+                  <span class="nb-name">{{ itemText(item) }}</span>
+                  <span class="chip" :class="levelChip(itemLevel(item))">{{
+                    levelText(itemLevel(item))
+                  }}</span>
+                </li>
+              </ul>
+              <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
+                <b>没有可报告的薄弱点</b>
+                <p>学习数据积累后重试。</p>
+              </div>
+              <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
+            </template>
+
+            <!-- 学习建议 -->
+            <template v-else-if="active === 'advice'">
+              <header class="panel-head">
+                <h2>
+                  学习建议 <span class="chip chip-mute">{{ adviceItems.length }} 条</span>
+                </h2>
+                <button class="btn btn-ghost" :disabled="adviceLoading" @click="loadAdvice">
+                  {{ adviceLoading ? '生成中…' : '重新生成' }}
+                </button>
+              </header>
+              <p v-if="adviceError" class="form-error">{{ adviceError }}</p>
+              <p v-if="adviceSummary" class="panel-summary">{{ adviceSummary }}</p>
+              <ol v-if="adviceItems.length" class="advice-list">
+                <li v-for="(item, index) in adviceItems" :key="index">
+                  <div class="advice-head">
+                    <b>{{ item.title || `建议 ${index + 1}` }}</b>
+                    <span class="chip" :class="levelChip(item.level)">{{
+                      levelText(item.level)
+                    }}</span>
+                  </div>
+                  <p v-if="item.detail">{{ item.detail }}</p>
+                </li>
+              </ol>
+              <div v-else-if="!adviceLoading && !adviceError" class="empty-state compact">
+                <b>暂无建议</b>
+              </div>
+              <div v-else-if="adviceLoading" class="empty-state compact"><b>正在生成建议…</b></div>
+            </template>
+
+            <!-- 作文批改 -->
+            <template v-else-if="active === 'essay'">
+              <header class="panel-head">
+                <h2>作文批改</h2>
+              </header>
+              <textarea
+                v-model="essayText"
+                class="textarea"
+                rows="8"
+                placeholder="粘贴需要批改的文本"
+              ></textarea>
+              <div class="panel-actions">
+                <button
+                  class="btn btn-primary"
+                  :disabled="essayLoading || !essayText.trim()"
+                  @click="correctEssay"
+                >
+                  {{ essayLoading ? '批改中…' : '批改' }}
+                </button>
+                <button
+                  class="btn btn-ghost"
+                  :disabled="polishLoading || !essayText.trim()"
+                  @click="polishEssay"
+                >
+                  {{ polishLoading ? '润色中…' : '润色并回填' }}
+                </button>
+              </div>
+              <p v-if="essayError" class="form-error">{{ essayError }}</p>
+              <div v-if="essayResult" class="callout">
+                <span>RESULT</span>
+                <p class="pre-wrap">{{ essayResult }}</p>
+              </div>
+            </template>
+
+            <!-- 学习路径 -->
+            <template v-else-if="active === 'path'">
+              <header class="panel-head">
+                <h2>学习路径生成</h2>
+              </header>
+              <div class="form-grid">
+                <label class="field span-2">
+                  <span>学习目标 *</span>
+                  <input
+                    v-model="pathGoal"
+                    class="input"
+                    placeholder="例如：两周内补齐网络层丢包与拥塞控制"
+                  />
+                </label>
+              </div>
+              <div class="panel-actions">
+                <button
+                  class="btn btn-primary"
+                  :disabled="pathLoading || !pathGoal.trim()"
+                  @click="runPath"
+                >
+                  {{ pathLoading ? '生成中…' : '生成路径' }}
+                </button>
+              </div>
+              <p v-if="pathError" class="form-error">{{ pathError }}</p>
+              <div v-if="pathResult" class="callout">
+                <span>{{ pathResult.status || 'RESULT' }}</span>
+                <p>{{ pathResult.message || '（无摘要）' }}</p>
+              </div>
+              <details v-if="pathRaw" class="raw">
+                <summary>查看模型返回原文</summary>
+                <pre>{{ pathRaw }}</pre>
+              </details>
+            </template>
+
+            <!-- 课程语料（教师专属） -->
+            <AiCorpusTab v-else-if="active === 'corpus'" :course-id="courseId" />
+          </div>
+        </div>
+
+        <div v-if="active === 'qa'" class="composer">
+          <!-- 学生端的学习工具改成提问模板：点一下把模板问题填进输入框，仍由同一个会话回答 -->
+          <div v-if="isStudent" class="quick-prompts">
             <button
               v-for="prompt in QUICK_PROMPTS"
               :key="prompt.key"
@@ -161,203 +315,6 @@
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- 教师端：保留原有卡片布局与教师专属能力 -->
-  <section v-else class="ai-center">
-    <div class="course-tab-bar">
-      <div>
-        <h2>AI 助教</h2>
-      </div>
-    </div>
-
-    <div class="tabs" role="tablist" aria-label="AI 能力">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab.key"
-        :class="{ 'is-active': active === tab.key }"
-        role="tab"
-        :aria-selected="active === tab.key"
-        @click="active = tab.key"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
-
-    <!-- 智能答疑 -->
-    <section v-show="active === 'qa'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>
-            智能答疑 <span class="chip chip-mute">{{ messages.length }} 条</span>
-          </h2>
-        </div>
-        <div class="course-tab-actions">
-          <button class="btn btn-ghost" :disabled="!sessionId" @click="newChat">新会话</button>
-        </div>
-      </header>
-      <div v-if="messages.length" class="msg-list">
-        <article v-for="(msg, index) in messages" :key="index" :class="['msg', `msg-${msg.role}`]">
-          <p class="msg-body">{{ msg.content }}</p>
-          <ul v-if="msg.sources?.length" class="src-list">
-            <li v-for="(source, sIndex) in msg.sources" :key="sIndex">
-              <b>{{ source.documentName || `资料 #${sIndex + 1}` }}</b>
-              <span>{{ source.snippet || '' }}</span>
-            </li>
-          </ul>
-        </article>
-      </div>
-      <div v-else class="empty-state compact">
-        <b>还没有提问</b>
-        <p>就本课程的学习内容提问，回答会带上检索到的资料出处。</p>
-      </div>
-      <footer class="qa-foot">
-        <textarea
-          v-model="qaInput"
-          class="textarea"
-          rows="2"
-          :disabled="qaSending"
-          placeholder="例如：子网划分时主机位数怎么算？"
-        ></textarea>
-        <button class="btn btn-primary" :disabled="qaSending || !qaInput.trim()" @click="send()">
-          {{ qaSending ? '思考中…' : '提问' }}
-        </button>
-      </footer>
-    </section>
-
-    <!-- 薄弱点分析 -->
-    <section v-show="active === 'weak'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>
-            薄弱点分析 <span class="chip chip-mute">{{ weakPoints.length }} 项</span>
-          </h2>
-        </div>
-        <button class="btn btn-ghost" :disabled="weakLoading" @click="loadWeak">
-          {{ weakLoading ? '分析中…' : '重新分析' }}
-        </button>
-      </header>
-      <p v-if="weakError" class="form-error">{{ weakError }}</p>
-      <p v-if="weakSummary" class="ai-summary">{{ weakSummary }}</p>
-      <ul v-if="weakPoints.length" class="item-list">
-        <li v-for="(item, index) in weakPoints" :key="index">
-          <span class="nb-name">{{ itemText(item) }}</span>
-          <span class="chip" :class="levelChip(itemLevel(item))">{{
-            levelText(itemLevel(item))
-          }}</span>
-        </li>
-      </ul>
-      <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
-        <b>没有可报告的薄弱点</b>
-        <p>学习数据积累后重试。</p>
-      </div>
-      <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
-    </section>
-
-    <!-- 学习建议 -->
-    <section v-show="active === 'advice'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>
-            学习建议 <span class="chip chip-mute">{{ adviceItems.length }} 条</span>
-          </h2>
-        </div>
-        <button class="btn btn-ghost" :disabled="adviceLoading" @click="loadAdvice">
-          {{ adviceLoading ? '生成中…' : '重新生成' }}
-        </button>
-      </header>
-      <p v-if="adviceError" class="form-error">{{ adviceError }}</p>
-      <p v-if="adviceSummary" class="ai-summary">{{ adviceSummary }}</p>
-      <ol v-if="adviceItems.length" class="advice-list">
-        <li v-for="(item, index) in adviceItems" :key="index">
-          <div class="advice-head">
-            <b>{{ item.title || `建议 ${index + 1}` }}</b>
-            <span class="chip" :class="levelChip(item.level)">{{ levelText(item.level) }}</span>
-          </div>
-          <p v-if="item.detail">{{ item.detail }}</p>
-        </li>
-      </ol>
-      <div v-else-if="!adviceLoading && !adviceError" class="empty-state compact">
-        <b>暂无建议</b>
-      </div>
-      <div v-else-if="adviceLoading" class="empty-state compact"><b>正在生成建议…</b></div>
-    </section>
-
-    <!-- 作文批改 -->
-    <section v-show="active === 'essay'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>作文批改</h2>
-        </div>
-      </header>
-      <textarea
-        v-model="essayText"
-        class="textarea"
-        rows="6"
-        placeholder="粘贴需要批改的文本"
-      ></textarea>
-      <div class="course-tab-actions essay-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="essayLoading || !essayText.trim()"
-          @click="correctEssay"
-        >
-          {{ essayLoading ? '批改中…' : '批改' }}
-        </button>
-        <button
-          class="btn btn-ghost"
-          :disabled="polishLoading || !essayText.trim()"
-          @click="polishEssay"
-        >
-          {{ polishLoading ? '润色中…' : '润色并回填' }}
-        </button>
-      </div>
-      <p v-if="essayError" class="form-error">{{ essayError }}</p>
-      <div v-if="essayResult" class="callout">
-        <span>RESULT</span>
-        <p class="pre-wrap">{{ essayResult }}</p>
-      </div>
-    </section>
-
-    <!-- 学习路径 -->
-    <section v-show="active === 'path'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>学习路径生成</h2>
-        </div>
-      </header>
-      <div class="form-grid">
-        <label class="field span-2">
-          <span>学习目标 *</span>
-          <input
-            v-model="pathGoal"
-            class="input"
-            placeholder="例如：两周内补齐网络层丢包与拥塞控制"
-          />
-        </label>
-      </div>
-      <div class="course-tab-actions essay-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="pathLoading || !pathGoal.trim()"
-          @click="runPath"
-        >
-          {{ pathLoading ? '生成中…' : '生成路径' }}
-        </button>
-      </div>
-      <p v-if="pathError" class="form-error">{{ pathError }}</p>
-      <div v-if="pathResult" class="callout">
-        <span>{{ pathResult.status || 'RESULT' }}</span>
-        <p>{{ pathResult.message || '（无摘要）' }}</p>
-      </div>
-      <details v-if="pathRaw" class="raw">
-        <summary>查看模型返回原文</summary>
-        <pre>{{ pathRaw }}</pre>
-      </details>
-    </section>
-
-    <!-- 课程语料（教师专属） -->
-    <AiCorpusTab v-if="active === 'corpus' && !isStudent" :course-id="courseId" />
   </section>
 </template>
 
@@ -408,11 +365,18 @@ const AI_TABS = [
   { key: 'corpus', label: '课程语料', teacherOnly: true },
 ] as const
 
-const SUGGESTIONS = [
+const STUDENT_SUGGESTIONS = [
   '帮我梳理本课程的核心知识点',
   '这个概念可以举例说明吗？',
   '给我出 3 道练习题',
   '帮我制定本周复习计划',
+]
+
+const TEACHER_SUGGESTIONS = [
+  '帮我梳理本课程的知识点结构',
+  '为这一章设计 3 个课堂提问',
+  '根据薄弱点给我一份讲评思路',
+  '帮我写一段本章小结',
 ]
 
 /**
@@ -439,6 +403,9 @@ const isStudent = computed(() => props.mode === 'student')
 const visibleTabs = computed(() =>
   AI_TABS.filter((tab) => !('teacherOnly' in tab && tab.teacherOnly && isStudent.value)),
 )
+// 教师端六个能力共用同一工作区，页签由顶栏承载；学生端的学习工具是提问模板，不占页签
+const showTabs = computed(() => !isStudent.value && visibleTabs.value.length > 1)
+const suggestions = computed(() => (isStudent.value ? STUDENT_SUGGESTIONS : TEACHER_SUGGESTIONS))
 const { toast } = useUi()
 
 const active = ref<TabKey>('qa')
@@ -503,12 +470,10 @@ const sessionGroups = computed(() => {
 })
 
 const activeTitle = computed(() => {
-  if (!isStudent.value) return 'AI 教学助手'
-  if (active.value !== 'qa') {
-    return AI_TABS.find((tab) => tab.key === active.value)?.label || 'AI 学习助手'
-  }
+  const fallback = isStudent.value ? 'AI 学习助手' : 'AI 助教'
+  if (active.value !== 'qa') return fallback
   const current = sessions.value.find((item) => item.id === activeId.value)
-  return current?.title || 'AI 学习助手'
+  return current?.title || fallback
 })
 
 function titleFrom(list: Message[]): string {
@@ -618,6 +583,7 @@ function openSession(item: ChatSession) {
     if (isNarrow.value) closeSide()
     return
   }
+  active.value = 'qa'
   activeId.value = item.id
   sessionId.value = item.id
   messages.value = item.messages.map((msg) => ({ ...msg }))
@@ -627,6 +593,7 @@ function openSession(item: ChatSession) {
 }
 
 function newChat() {
+  active.value = 'qa'
   messages.value = []
   sessionId.value = ''
   activeId.value = ''
@@ -708,9 +675,15 @@ function onDocumentKeydown(event: KeyboardEvent) {
 /* -------------------------------- 对话交互 -------------------------------- */
 
 const scrollRef = ref<HTMLElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
 const taRef = ref<HTMLTextAreaElement | null>(null)
 const atBottom = ref(true)
 const composing = ref(false)
+
+// 切回某个能力页签时从顶部开始，避免沿用上一个面板的滚动位置
+watch(active, () => {
+  if (panelRef.value) panelRef.value.scrollTop = 0
+})
 
 const canSend = computed(() => Boolean(qaInput.value.trim()) && !qaSending.value)
 
@@ -1267,6 +1240,41 @@ watch(
   width: 12px;
   height: 12px;
 }
+/* 能力页签：顶栏内的细线页签，不另起大标题 */
+.ai-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ai-tabs::-webkit-scrollbar {
+  display: none;
+}
+.ai-tab {
+  flex: none;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.16s var(--ease),
+    border-color 0.16s var(--ease);
+}
+.ai-tab:hover {
+  color: var(--ink);
+}
+.ai-tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
 /* 对话流 */
 .ai-stream {
   flex: 1;
@@ -1706,6 +1714,12 @@ watch(
   .ai-stream {
     padding: 16px 14px 8px;
   }
+  .ai-panel {
+    padding: 16px 14px 20px;
+  }
+  .panel-head {
+    flex-wrap: wrap;
+  }
   .composer {
     padding: 8px 14px 10px;
   }
@@ -1725,7 +1739,8 @@ watch(
   .side-item,
   .suggest-item,
   .composer-box,
-  .composer-send {
+  .composer-send,
+  .ai-tab {
     transition: none;
   }
   .thinking .dot {
@@ -1733,63 +1748,48 @@ watch(
   }
 }
 
-/* 教师端沿用原有卡片风格 */
-.ai-center {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.head-hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
-.msg-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.msg {
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-}
-.msg-user {
-  background: var(--accent-soft);
-  border-color: transparent;
-}
-.msg-body {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.8;
-  white-space: pre-wrap;
-}
-.src-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  font-size: 12px;
-  color: var(--ink-3);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.qa-foot {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-.qa-foot .textarea {
+/* 能力面板：与对话流共用同一内容区宽高与留白 */
+.ai-panel {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px 24px;
+  scrollbar-width: thin;
 }
-.ai-summary {
-  margin: 0 0 12px;
-  font-size: 14px;
-  line-height: 1.8;
+.panel-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.panel-head h2 .chip {
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+.panel-summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
   color: var(--ink-2);
 }
-.essay-actions {
-  margin: 10px 0;
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .pre-wrap {
   white-space: pre-wrap;

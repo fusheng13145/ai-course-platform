@@ -23,10 +23,19 @@ const knowledgeApi = vi.hoisted(() => ({
   ingestKnowledgeGraph: vi.fn(),
 }))
 const toast = vi.hoisted(() => vi.fn())
+const ragApi = vi.hoisted(() => ({
+  ragListDocuments: vi.fn(),
+  ragAddDocument: vi.fn(),
+  ragBuildIndex: vi.fn(),
+  ragClearIndex: vi.fn(),
+  ragDeleteDocument: vi.fn(),
+  ragUpdateDocument: vi.fn(),
+}))
 
 vi.mock('@/api/ai', () => ({ default: aiApi }))
 vi.mock('@/api/course', () => ({ default: courseApi }))
 vi.mock('@/api/knowledge', () => ({ default: knowledgeApi }))
+vi.mock('@/api/rag', () => ragApi)
 vi.mock('../composables/ui', () => ({ useUi: () => ({ toast }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ userId: 42 }) }))
 
@@ -48,6 +57,7 @@ beforeEach(() => {
   aiApi.weakPointsAnalysis.mockResolvedValue({ data: [] })
   aiApi.learningAdvice.mockResolvedValue({ data: {} })
   aiApi.getSessions.mockResolvedValue({ data: [] })
+  ragApi.ragListDocuments.mockResolvedValue({ data: { data: [] } })
   // 组件会读课程名做顶栏副标题：拦掉，免得住测试里真发一次 /courses/:id
   courseApi.getCourseById.mockResolvedValue({ data: { id: COURSE_ID, name: '计算机网络' } })
   knowledgeApi.getRelationGraphData.mockResolvedValue({
@@ -299,6 +309,99 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     const chip = wrapper.findAll('.chip').find((node) => node.text().includes('我的掌握度'))
     expect(chip?.attributes('title')).toContain('该知识点暂无作答记录')
     expect(wrapper.text()).not.toContain('暂无数据')
+  })
+})
+
+describe('教师端 AI 助教：与学生端同一工作区骨架', () => {
+  it('两端共用 ai-shell / 历史侧栏 / 顶栏 / 输入区，教师端多出能力页签', async () => {
+    const student = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+    const teacher = mount(AiCenterTab, { props: { courseId: courseId + 1, mode: 'teacher' } })
+    await flushPromises()
+
+    for (const wrapper of [student, teacher]) {
+      expect(wrapper.find('.ai-shell').exists()).toBe(true)
+      expect(wrapper.find('.ai-side').exists()).toBe(true)
+      expect(wrapper.find('.ai-top').exists()).toBe(true)
+      expect(wrapper.find('.composer-box').exists()).toBe(true)
+      expect(wrapper.find('.side-label').text()).toBe('历史对话')
+    }
+    expect(student.find('.ai-tabs').exists()).toBe(false)
+    expect(teacher.find('.ai-tabs').exists()).toBe(true)
+    expect(teacher.find('.ai-top-title b').text()).toBe('AI 助教')
+    expect(student.find('.ai-top-title b').text()).toBe('AI 学习助手')
+  })
+
+  it('教师端欢迎态给教师向提问建议，六项页签与顺序不变', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('你好，我是你的 AI 助教')
+    expect(wrapper.findAll('.suggest-item')).toHaveLength(4)
+    expect(tabLabels(wrapper)).toEqual([
+      '智能答疑',
+      '薄弱点分析',
+      '学习建议',
+      '作文批改',
+      '学习路径',
+      '课程语料',
+    ])
+  })
+
+  it('切到每个能力页签都保留原动作；输入区只在智能答疑出现', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    const go = async (label: string) => {
+      const tab = wrapper.findAll('[role="tab"]').find((node) => node.text() === label)
+      await tab!.trigger('click')
+      await flushPromises()
+    }
+
+    await go('薄弱点分析')
+    expect(wrapper.find('.panel-head').text()).toContain('薄弱点分析')
+    expect(findButton(wrapper, '重新分析')).toBeTruthy()
+    expect(wrapper.find('.composer-box').exists()).toBe(false)
+
+    await go('学习建议')
+    expect(findButton(wrapper, '重新生成')).toBeTruthy()
+
+    await go('作文批改')
+    expect(findButton(wrapper, '批改')).toBeTruthy()
+    expect(findButton(wrapper, '润色并回填')).toBeTruthy()
+
+    await go('学习路径')
+    expect(findButton(wrapper, '生成路径')).toBeTruthy()
+
+    await go('智能答疑')
+    expect(wrapper.find('.composer-box').exists()).toBe(true)
+  })
+
+  it('课程语料在同一工作区内保留刷新/新增/重建/清空四个动作', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    const tab = wrapper.findAll('[role="tab"]').find((node) => node.text() === '课程语料')
+    await tab!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.corpus-head h2').text()).toContain('知识库文档')
+    for (const label of ['刷新', '重建索引', '清空索引', '新增文档']) {
+      expect(findButton(wrapper, label), label).toBeTruthy()
+    }
+    expect(wrapper.text()).toContain('本课程还没有语料文档')
+  })
+
+  it('教师端答疑与学生端共用同一发送链路，回答与会话都落在侧栏', async () => {
+    aiApi.qaAsk.mockResolvedValue({ data: { data: { sessionId: 911, answer: '教师回答。' } } })
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+
+    await wrapper.find('textarea.composer-input').setValue('本章难点是什么？')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+
+    expect(aiApi.qaAsk).toHaveBeenCalledWith({ courseId, question: '本章难点是什么？' })
+    expect(wrapper.findAll('.turn-ai')).toHaveLength(1)
+    expect(wrapper.findAll('.side-item')).toHaveLength(1)
+    expect(wrapper.find('.side-item-title').text()).toBe('本章难点是什么？')
   })
 })
 

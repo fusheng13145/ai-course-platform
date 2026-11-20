@@ -1,12 +1,18 @@
 <template>
   <div class="corpus-tab">
-    <div class="course-tab-bar">
-      <div>
-        <h2>语料管理</h2>
-      </div>
+    <div class="corpus-head">
+      <h2>
+        知识库文档 <span class="chip chip-mute">{{ rows.length }} 篇</span>
+      </h2>
       <div class="row-actions">
-        <button class="btn btn-sm" :disabled="busy" @click="load()">
+        <button class="btn btn-sm btn-ghost" :disabled="busy" @click="load()">
           {{ loading ? '刷新中…' : '刷新' }}
+        </button>
+        <button class="btn btn-sm btn-ghost" :disabled="busy || !rows.length" @click="buildIndex()">
+          {{ busy ? '处理中…' : '重建索引' }}
+        </button>
+        <button class="btn btn-sm btn-ghost" :disabled="busy || !rows.length" @click="clearIndex()">
+          清空索引
         </button>
         <button class="btn btn-sm btn-primary" :disabled="busy" @click="openComposer()">
           新增文档
@@ -51,26 +57,6 @@
     </div>
 
     <section class="card table-card">
-      <header class="card-head">
-        <div>
-          <h2>
-            知识库文档 <span class="chip chip-mute">{{ rows.length }} 篇</span>
-          </h2>
-        </div>
-        <div class="filter-row">
-          <button class="btn btn-sm" :disabled="busy || !rows.length" @click="buildIndex()">
-            {{ busy ? '处理中…' : '重建索引' }}
-          </button>
-          <button
-            class="btn btn-sm btn-ghost"
-            :disabled="busy || !rows.length"
-            @click="clearIndex()"
-          >
-            清空索引
-          </button>
-        </div>
-      </header>
-
       <div v-if="rows.length" class="table-wrap">
         <table>
           <thead>
@@ -285,16 +271,29 @@ onMounted(() => {
   display: grid;
   gap: 12px;
 }
-.course-tab-bar {
+.corpus-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
+}
+.corpus-head h2 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.corpus-head h2 .chip {
+  margin-left: 6px;
+  vertical-align: 2px;
 }
 .row-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 .composer-body {
   display: grid;
