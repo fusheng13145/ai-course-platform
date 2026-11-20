@@ -92,4 +92,25 @@ describe('Coursera 视觉规范', () => {
     )
     expect(CSS).not.toContain('av-context')
   })
+
+  it('认证页布局覆盖带 .auth 作用域，不看 CSS 注入顺序', () => {
+    // 反例背景（2026-11-20）：从 /admin/courses 退出登录时，coursera.css 先于 auth.css 注入，
+    // 同权重的 .av-card 被 auth.css 的 420px/纵向 stretch 反压，登录卡片拉成 1600px 高。
+    for (const selector of [
+      '.auth .av-main {',
+      '.auth .av-card,',
+      '.auth .av-card-wide {',
+      '.auth .av-panel {',
+      '.auth .av-form {',
+      '.auth .av-submit {',
+    ]) {
+      expect(CSS, `${selector} 缺少 .auth 作用域`).toContain(selector)
+    }
+    expect(CSS, '仍存在未加 .auth 的 .av-main 规则').not.toMatch(/\n\.av-main\s*\{/)
+    expect(CSS, '仍存在未加 .auth 的 .av-card 规则').not.toMatch(/\n\.av-card\s*\{/)
+    expect(CSS, '仍存在未加 .auth 的 .av-panel 规则').not.toMatch(/\n\.av-panel\s*\{/)
+    // 阴性对照：上面的正则确实能抓住旧形态，而不是恒假。
+    expect(/\n\.av-main\s*\{/.test('\n.av-main {')).toBe(true)
+    expect(/\n\.av-card\s*\{/.test('\n.av-card {')).toBe(true)
+  })
 })
