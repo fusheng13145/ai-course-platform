@@ -353,7 +353,9 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
      * 以磁盘分片为真值：按 0 基索引序拼接全部 .part 落到最终对象路径，校验声明尺寸后回收分片目录
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    // 拒绝路径要把会话置 FAILED 后再抛错；默认 rollbackFor=Exception 会把这行状态一并回滚，
+    // 真实 E2E 已观测到会话卡在 UPLOADING，故 BusinessException 显式不参与回滚。
+    @Transactional(rollbackFor = Exception.class, noRollbackFor = BusinessException.class)
     public FileUploadSession mergeChunks(Long sessionId, Long uploaderId) {
         log.info("合并文件上传会话");
 

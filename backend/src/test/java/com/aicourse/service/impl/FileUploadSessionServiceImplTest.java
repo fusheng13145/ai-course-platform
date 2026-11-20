@@ -15,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.io.Serializable;
@@ -776,5 +777,18 @@ class FileUploadSessionServiceImplTest {
     void sweep_absentRootIsQuiet() {
         ReflectionTestUtils.setField(service, "chunkDir", tempRoot.resolve("never-created").toString());
         assertEquals(0, service.sweepOrphanChunkDirs());
+    }
+
+    @Test
+    @DisplayName("mergeChunks 的拒绝路径不随事务回滚吞掉 FAILED 状态")
+    void merge_businessExceptionDoesNotRollbackFailedStatus() throws Exception {
+        Transactional tx = FileUploadSessionServiceImpl.class
+                .getMethod("mergeChunks", Long.class, Long.class)
+                .getAnnotation(Transactional.class);
+        assertNotNull(tx, "mergeChunks 必须声明事务");
+        assertTrue(Arrays.asList(tx.noRollbackFor()).contains(BusinessException.class),
+                "BusinessException 必须在 noRollbackFor 中，否则会话 FAILED 状态会被回滚（真实 E2E 已复现）");
+        assertTrue(Arrays.asList(tx.rollbackFor()).contains(Exception.class),
+                "其它异常仍需回滚");
     }
 }

@@ -14,8 +14,8 @@
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
 | **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
-| **规模（实测）** | **620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec** |
-| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；工作分支 `chore/deps-safe-bumps`，PR #120/#123 已合并 |
+| **规模（实测）** | **622 main Java / 293 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；95 `.vue` / 106 `.test.ts` / 14 Playwright spec（13 功能 + 1 视觉）** |
+| **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口，V-SCAN（上传病毒扫描）已本地提交；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；本地 `main` 已对齐 `origin/main`（`812531f7`，PR #127 已合并），当前无 open PR |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
 
 **一句话记住优先级**：`PRD > 泛化课程平台 > 多课程 > 软著`，但**结题材料（三指标 + 数据集 + 报告 + 论文）排在最前**。
@@ -140,12 +140,12 @@ python scripts/audit-stats.py
 
 | 项 | 当前事实 |
 | --- | --- |
-| 分支 / 基线 | 当前本地分支 `chore/deps-safe-bumps`，已推送 `origin/chore/deps-safe-bumps`（HEAD 以 `git log -1` 为准）；`origin/main` 当前 `3e77fb18`；PR #120/#123 均已合并，当前无 open PR |
+| 分支 / 基线 | 本地分支 `main`，已对齐 `origin/main` = **`812531f7`**（PR #127 squash 合并）；V-SCAN 提交 `e991cfee` + 合并提交 `f4e9a91a` 在本地（`ahead 10`，未推送）；当前无 open PR |
 | 工作树 | 干净（`git status --short` 无输出）；`frontend/dist`、`backend/target`、`coverage` 均为忽略的构建产物 |
-| 结构 | 620 main Java / 290 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；91 `.vue` / 104 `.test.ts` / 13 Playwright spec |
+| 结构 | 622 main Java / 293 test Java；71 Controller / 519 方法级 HTTP 映射；61 表；95 `.vue` / 106 `.test.ts` / 14 Playwright spec |
 | 课程/选课/行政班 | V29 退役 `classrooms` 与 `users.class_id`；退课走 `POST /enrollments/{id}/cancel`（`CANCELLED` + 原因 + 状态/结课门禁）；行政班批量成员 `POST /admin/org/admin-classes/{id}/members/batch`；教学班名单 `GET /teaching-classes/{id}/members/detail` |
-| 后端门禁 | 3959 例 / 0 失败 / 0 错误 / 1 跳过；LINE 90.03%、BRANCH 77.23%（门禁 85/77）；SpotBugs 0；ArchUnit 8 |
-| 前端门禁 | Vitest 104 文件 / 1241 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
+| 后端门禁 | **3995 例 / 0 失败 / 0 错误 / 1 跳过**；LINE **89.95%**、BRANCH **77.14%**（门禁 85/77）；SpotBugs 0；ArchUnit 10 |
+| 前端门禁 | Vitest 106 文件 / 1252 例；覆盖率 80.24% lines / 84.47% branches（阈值 78/82/70/78）；lint / typecheck / Prettier 0；`build` 成功；`size:gate` 通过；视觉 10/10 无像素变化 |
 | Python / 启动器 | kg 61 passed（Neo4j 7687 在线）；rag 79 passed；fine-tune 55 passed；`scripts/tests` **116 passed**（2026-11-19 本轮复核；移除已完成迁移测试前为 122） |
 | CI | `ci.yml` 13 job；PR 跑核心 3 spec；PR #120/#123 检查结果以 Actions 当前 run 为准 |
 | 分支保护 | GitHub 当前记录 `protected=true`（2026-11-19）；无必填 review / required checks，按团队约定以可执行 job 全绿为准 |
@@ -153,7 +153,7 @@ python scripts/audit-stats.py
 | 存储 | 运行期数据根为项目 `data/aicourse-platform`（`minio-data` / `storage`）；冷备统一在 `data/backups`（`storage.migrated-20261118-203354`、`drill`、`uploads-migration`）；MinIO bucket `aicourse-uploads` 共 **174 对象**；资源行 32；本机原生 MinIO 已起（非 Docker）；分片仍写 `chunks` |
 | 文档 | `docs` 22 个 Markdown + `assets/` + `operations/`；`接管材料` 11 项（00–10 共 11 个 Markdown） |
 
-### 5.2 历史批次（B0–B11）
+### 5.2 历史批次（B0–B12）
 
 | 批次 | 内容 | 结果 |
 | --- | --- | --- |
@@ -172,6 +172,7 @@ python scripts/audit-stats.py
 | **B9** | 工程收口 | ①`@Transactional` 实测 **250 处**，真实缺口 **6 处**（非 73）已补 `rollbackFor`，Mapper 接口上 3 处无效注解跳过；②`rag_engine.reset_store()` 注释如实化（原写「清空并重建」实则不删盘）；③**I-1 503 契约化**：`ContractPaths.isUnavailable(JsonNode)` 为判定唯一来源，Python `/retrieve` `/ask` 主降级改 **HTTP 503**，Java `isServiceUnavailable` 命中 503 不重试直接降级。**Python 79 passed / 后端编译 OK / 实测 9999→503、4178→200+5 条** |
 | **B10** | 交付链收口（2026-11-16） | ①**#88 冲突**：`main` 新增 `V20__exam_session_question_comments.sql`，结构迁移白名单测试与契约 yml 迁移清单同步补该文件（`d838f2bd`）；②**#89 冲突**：`ClassroomController` 补 `RoleUtil` 引入、`ExamSessionController` 构造器取 main 侧（#95 的 `TrustedClientIpResolver`，取分支侧等于回退监考 IP 单源）（`aac43f5d`）；③**#90 CI 红灯**：`ProfileBody.vue` 的 `String(ui.role ?? '')` 对 ref 恒得 `[object Object]`，`uiRole` 整层失效、角色判定只能靠异步 `profileRole`，profile 未就绪时教师按 student 兜底发一次 `/student/**` → 改为兼容 ref／值两种形态取值并保留 `onMounted` 串行（`3e13075c`）。**RED→GREEN：`--coverage` 下 1 failed → 22 passed；全量带 coverage 91 files passed；`vue-tsc` EXIT=0**；④**P1 三件**：E-05 Neo4j 真连取证（`backend=neo4j`／4178 图 59 节点／`path/plan` 真实 PREREQUISITE 边 1 hop，启动器路径亦复验）、I-01 IT 口径选定②、I-02 Actions 取证步骤入 `docs/测试文档.md` §7.3（`c55dde16`） |
 | **B11** | 数据库一致性修复 + Linux 启动器（2026-11-16） | ①**V20 缺位**：本地库 `flyway_schema_history` 21 条、19 之后直接跳 21，`exam_sessions.question_comments` 列不存在 ⇒ #96 的「人工阅卷评语」在本地库实质不可用。按裁定 **A**（`--spring.flyway.out-of-order=true` 一次性）补跑：`Migrating ... to version "20 - exam session question comments" [out of order]` → `Successfully applied 1 migration`；列已存在、历史 `success=1`、总行数 21→22。**过程中踩到并纠正一处**：先用旧 jar 启动，Flyway 应用的是 jar 内残留的旧名 `V20__resources_file_type_len.sql`（与 V21 同内容），已删该错误历史行并改用 `target/classes` 重跑；随后 `mvn package` 重建 jar（校验：含 `V20__exam_session_question_comments.sql`、无旧名残留）。**未留持久配置**（`out-of-order` 仅作启动参数，未写入 yaml）。②**Linux 启动器**：新增 `start.sh`（100755、`sh -n` 通）+ `start-engines.py` 的 `neo4j_bin()` 按平台选（`47282c8e`、`fbb641c2`）。③文档：`项目手册.md` 迁移盘点 21→22（结构 17→18，删「V20 为空号，不补」）；`start.sh` 进 §2.1 上手 |
+| **B12 / V-SCAN**（2026-11-20） | 上传病毒扫描 fail-closed 收口 | 新增 `FileVirusScanService` + `Impl`（Defender `MpCmdRun.exe` / ClamAV `INSTREAM`，fail-closed：不可达/超时/未知→503、命中→400）；三处漏斗（`/common/upload` 单传+批传、`/resources/upload`、分片合并）落盘前统一扫描，分片合并前先做扩展名↔文件头核对（不符置 `FAILED` 并清临时产物）；`file.scan.enabled` 缺省 true，仅测试/CI 显式关闭；Compose `clamav` 增 healthcheck（编排未实跑）。门禁：**3995 / 0 / 0 / 1 跳过**、LINE **89.95%** / BRANCH **77.14%**、SpotBugs 0、ArchUnit 10。真实 INSTREAM E2E（**本机原生 clamd + 官方库，非 Docker**）：干净 PDF 200 / EICAR 400（`Eicar-Test-Signature`）/ 分片合并 400 / 停引擎 503；E2E 额外暴露「合并被拒后 `FAILED` 状态被事务回滚」缺陷，已改 `noRollbackFor=BusinessException` 并补测试。本地提交 `e991cfee`（E2E 修复与文档为后续提交） |
 
 ### 5.3 双引擎的真实含义（**M-13，别搞错**）
 
@@ -237,6 +238,8 @@ python scripts/audit-stats.py
 | "已具备上线能力" | A 路径从未在目标环境实跑 |
 | **"知识图谱已构建" / "IREM 已实现"** | `irem.py:13` 明写不得如此表述 |
 | **"三指标已达标"** | 目前**零实测** |
+| **"Compose clamav 编排已验证" / "E2E 覆盖病毒扫描"** | Compose 编排未实跑（2026-11-20 明确不用 Docker）；CI `frontend-e2e` 以 `FILE_SCAN_ENABLED=false` 运行，绿灯不证明扫描链路 |
+| **"已具备恶意文件防护"** | 扫描只判已知特征（Defender/ClamAV）；不剥离 docx/xlsx 宏与嵌入对象，无 CDR |
 
 ---
 
@@ -383,6 +386,8 @@ python scripts/sync-kg-to-python.py <courseId>
 | “跨设备完成率” | 引导三态只落本地 `localStorage` | `docs/前端待办项.md` §4 |
 | “知识图谱已构建” / “IREM 已实现” | `irem.py` 明写不得如此表述（B6 后仍成立） | `docs/PRD产品规划.md` §8 R-C1 |
 | “三指标已达标” | 目前**零实测** | `docs/PRD产品规划.md` §8 R-K1/K2/K3 |
+| “Compose clamav 编排已验证” / “CI E2E 覆盖病毒扫描” | Compose 未实跑（2026-11-20 明确不用 Docker）；CI 以 `FILE_SCAN_ENABLED=false` 运行 | `docs/测试文档.md` §3.3、`docs/安全与质量审查报告-2026-11-20.md` §R2.2c |
+| “已具备恶意文件防护” | 只判已知特征，不剥离 Office 宏/嵌入对象（无 CDR） | 同上 |
 
 ---
 
