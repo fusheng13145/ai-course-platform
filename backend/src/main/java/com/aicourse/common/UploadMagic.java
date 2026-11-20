@@ -26,6 +26,7 @@ public final class UploadMagic {
     private static final byte[] RAR = {'R', 'a', 'r', '!', 0x1A, 0x07};
     private static final byte[] SEVEN_Z = {'7', 'z', (byte) 0xBC, (byte) 0xAF, 0x27, 0x1C};
     private static final byte[] BMP = {'B', 'M'};
+    private static final byte[] EBML = {(byte) 0x1A, 'E', (byte) 0xDF, (byte) 0xA3};
 
     private UploadMagic() {
     }
@@ -41,18 +42,31 @@ public final class UploadMagic {
             if (in == null) {
                 return new byte[0];
             }
-            return in.readNBytes(HEADER_BYTES);
+            return readHeader(in);
         }
+    }
+
+    /**
+     * 只读输入流头部，最多 {@link #HEADER_BYTES} 字节；流由调用方负责关闭。
+     */
+    public static byte[] readHeader(InputStream in) throws IOException {
+        if (in == null) {
+            return new byte[0];
+        }
+        return in.readNBytes(HEADER_BYTES);
     }
 
     /**
      * 识别文件头对应的容器类型。
      *
-     * @return pdf/png/jpeg/gif/zip/ole2/mp4/webp/avi/bmp/mp3/rar/7z；无法识别返回 null
+     * @return pdf/png/jpeg/gif/zip/ole2/mp4/webm/webp/avi/bmp/mp3/rar/7z；无法识别返回 null
      */
     public static String detect(byte[] header) {
         if (header == null || header.length < 2) {
             return null;
+        }
+        if (startsWith(header, EBML)) {
+            return "webm";
         }
         if (startsWith(header, PDF)) {
             return "pdf";
@@ -119,6 +133,7 @@ public final class UploadMagic {
             case "image/jpeg" -> "jpeg".equals(magic);
             case "image/gif" -> "gif".equals(magic);
             case "video/mp4" -> "mp4".equals(magic);
+            case "video/webm" -> "webm".equals(magic);
             case "audio/mpeg" -> true;
             case "application/msword", "application/vnd.ms-excel",
                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -130,6 +145,8 @@ public final class UploadMagic {
 
     /**
      * 扩展名（不含点，小写）与魔数是否一致；文本类扩展名不做容器限制。
+     *
+     * <p>txt/csv/md/json/xml 没有稳定文件头，只能放行扩展名与编码边界，不能声称验证了“真身”。</p>
      */
     public static boolean matchesExtension(String extension, String magic) {
         if (extension == null) {
@@ -138,13 +155,14 @@ public final class UploadMagic {
         String ext = extension.startsWith(".") ? extension.substring(1) : extension;
         ext = ext.toLowerCase(java.util.Locale.ROOT);
         return switch (ext) {
-            case "txt", "csv", "md" -> true;
+            case "txt", "csv", "md", "json", "xml" -> true;
             case "pdf" -> "pdf".equals(magic);
             case "png" -> "png".equals(magic);
             case "jpg", "jpeg" -> "jpeg".equals(magic);
             case "gif" -> "gif".equals(magic);
             case "bmp" -> "bmp".equals(magic);
             case "webp" -> "webp".equals(magic);
+            case "webm" -> "webm".equals(magic);
             case "doc", "xls", "ppt" -> "ole2".equals(magic);
             case "docx", "xlsx", "pptx" -> "zip".equals(magic);
             case "zip" -> "zip".equals(magic);

@@ -5,11 +5,13 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.StorageLayout;
+import com.aicourse.common.UploadMagic;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.FileUploadSessionMapper;
 import com.aicourse.service.FileStorageService;
 import com.aicourse.service.FileUploadSessionService;
+import com.aicourse.service.FileVirusScanService;
 import com.aicourse.vo.UploadProgressVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -49,8 +51,10 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     private static final Logger log = LoggerFactory.getLogger(FileUploadSessionServiceImpl.class);
 
-    public FileUploadSessionServiceImpl(FileStorageService fileStorageService) {
+    public FileUploadSessionServiceImpl(FileStorageService fileStorageService,
+                                        FileVirusScanService virusScanService) {
         this.fileStorageService = fileStorageService;
+        this.virusScanService = virusScanService;
     }
 
     /** 上传会话默认过期时间：24小时 */
@@ -77,6 +81,9 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     /** 统一存储入口：分片合并最终产物必须经此落盘，禁止绕过去直接写 upload-dir。 */
     private final FileStorageService fileStorageService;
+
+    /** 合并产物落盘前的病毒扫描入口；扫描不可用按 fail-closed 拒绝上传。 */
+    private final FileVirusScanService virusScanService;
 
     /** 分片暂存文件后缀，文件名为 {0基索引}.part */
     private static final String CHUNK_SUFFIX = ".part";
@@ -389,6 +396,19 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                 throw new BusinessException("合并字节数与会话声明的文件大小不符：合并 "
                         + merged + " 字节，声明 " + declared + " 字节");
             }
+            // 安全检查 1：按扩展名核对真实文件头，阻止把 .exe 改名成 .pdf 等“扩展名伪装”。
+            String magic;
+            try (InputStream headerIn = Files.newInputStream(merging)) {
+                magic = UploadMagic.detect(UploadMagic.readHeader(headerIn));
+            }
+            if (!UploadMagic.matchesExtension(extensionOf(session.getFilename()), magic)) {
+                session.setStatus("FAILED");
+                this.updateById(session);
+                throw new BusinessException(ApiCode.BAD_REQUEST,
+                        "文件内容与扩展名不符，已拒绝合并上传");
+            }
+            // 安全检查 2：落盘前做病毒扫描；扫描器不可用时 fail-closed，不把“未扫描”当干净。
+            virusScanService.scanOrThrow(merging, session.getFilename());
             // 统一经存储抽象落盘：Local 写外部根、MinIO 走上传 SDK，合并路径不再直写目录。
             fileStorageService.uploadFromPath(session.getUploadPath(), merging,
                     "application/octet-stream", merged);
@@ -397,6 +417,17 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             } catch (IOException cleanupFailure) {
                 log.warn("合并临时文件清理失败（最终文件已落盘）: {}", merging);
             }
+        } catch (BusinessException e) {
+            try {
+                Files.deleteIfExists(merging);
+            } catch (IOException cleanupFailure) {
+                log.warn("合并被拒后的临时产物清理失败: {}", merging);
+            }
+            if (!"FAILED".equals(session.getStatus())) {
+                session.setStatus("FAILED");
+                this.updateById(session);
+            }
+            throw e;
         } catch (IOException e) {
             try {
                 Files.deleteIfExists(merging);
@@ -418,6 +449,15 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         session.setStatus("COMPLETED");
         this.updateById(session);
         return session;
+    }
+
+    /** 取文件扩展名（不含点）；无扩展名返回空串。 */
+    private static String extensionOf(String filename) {
+        if (filename == null) {
+            return "";
+        }
+        int dot = filename.lastIndexOf('.');
+        return dot >= 0 && dot < filename.length() - 1 ? filename.substring(dot + 1) : "";
     }
 
     /**

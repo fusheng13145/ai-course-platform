@@ -64,6 +64,10 @@ fine-tune:
   enabled: false
 minio:
   enabled: false
+# 病毒扫描在服务测试里显式关闭（CI 无 Defender/clamd）；真实链路由 FileVirusScanServiceImplTest 覆盖
+file:
+  scan:
+    enabled: false
 ratelimit:
   enabled: false
 

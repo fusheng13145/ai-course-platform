@@ -102,6 +102,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private com.aicourse.security.CourseAccessControl courseAccessControl;
     @MockitoBean
     private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
+    // 病毒扫描：/resources/upload 落盘前 fail-closed 检查，@WebMvcTest 需显式 mock（默认放行）
+    @MockitoBean
+    private com.aicourse.service.FileVirusScanService fileVirusScanService;
 
     @BeforeEach
     void stubStorage() {
@@ -433,7 +436,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
                                                             CourseEnrollmentService es) {
         return new ResourceUploadController(rs, cs,
                 mock(com.aicourse.service.ResourceVersionService.class), fileStorageService,
-                mock(com.aicourse.service.FileUploadSessionService.class), accessSupport(cs, es));
+                mock(com.aicourse.service.FileUploadSessionService.class),
+                mock(com.aicourse.service.FileVirusScanService.class), accessSupport(cs, es));
     }
 
     private Authentication teacherAuth() {

@@ -12,6 +12,7 @@ import com.aicourse.security.ResourceAccessSupport;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.FileStorageService;
 import com.aicourse.service.FileUploadSessionService;
+import com.aicourse.service.FileVirusScanService;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -86,6 +87,7 @@ public class ResourceUploadController {
     private final ResourceVersionService resourceVersionService;
     private final FileStorageService fileStorageService;
     private final FileUploadSessionService fileUploadSessionService;
+    private final FileVirusScanService fileVirusScanService;
     private final ResourceAccessSupport resourceAccessSupport;
 
     public ResourceUploadController(ResourceService resourceService,
@@ -93,12 +95,14 @@ public class ResourceUploadController {
                                     ResourceVersionService resourceVersionService,
                                     FileStorageService fileStorageService,
                                     FileUploadSessionService fileUploadSessionService,
+                                    FileVirusScanService fileVirusScanService,
                                     ResourceAccessSupport resourceAccessSupport) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.resourceVersionService = resourceVersionService;
         this.fileStorageService = fileStorageService;
         this.fileUploadSessionService = fileUploadSessionService;
+        this.fileVirusScanService = fileVirusScanService;
         this.resourceAccessSupport = resourceAccessSupport;
     }
 
@@ -164,6 +168,16 @@ public class ResourceUploadController {
         }
         // 新文件按课程分组写入仓库外存储根；对外仍用 /uploads/<key> 兼容旧前缀。
         String objectKey = "resources/" + courseId + "/" + UUID.randomUUID() + suffix;
+
+        // 与 /common/upload、分片合并同口径：魔数之后、落盘之前做病毒扫描（fail-closed）。
+        // 教师资源是学生端可下载分发的内容，漏扫等于把恶意样本挂进课程资源。
+        try {
+            fileVirusScanService.scanOrThrow(file, safeFileName);
+        } catch (BusinessException e) {
+            log.warn("课程资源上传被病毒扫描拒绝: file={}, course={}, code={}, reason={}",
+                    safeFileName, courseId, e.getCode(), e.getMessage());
+            return ApiResponse.error(e.getCode(), e.getMessage());
+        }
 
         try {
             String stored = fileStorageService.upload(objectKey, file.getInputStream(),

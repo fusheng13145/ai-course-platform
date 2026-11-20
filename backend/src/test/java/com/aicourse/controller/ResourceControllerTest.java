@@ -59,6 +59,9 @@ class ResourceControllerTest extends ControllerTestBase {
     private com.aicourse.security.CourseAccessControl courseAccessControl;
     @MockitoBean
     private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
+    // 病毒扫描：/resources/upload 落盘前 fail-closed 检查，@WebMvcTest 需显式 mock
+    @MockitoBean
+    private com.aicourse.service.FileVirusScanService fileVirusScanService;
 
     @BeforeEach
     void stubStorage() {
@@ -306,6 +309,37 @@ class ResourceControllerTest extends ControllerTestBase {
         if (url.startsWith("/uploads/")) {
             Files.deleteIfExists(StorageLayout.resolveUrl(url));
         }
+    }
+
+
+    @Test
+    @DisplayName("POST /resources/upload - 病毒扫描命中时拒绝上传，且不落盘、不落库")
+    void uploadResource_virusScanRejected_returns_400_and_skipsStorage() throws Exception {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(1L);
+        when(courseService.getById(1L)).thenReturn(course);
+        org.mockito.Mockito.doThrow(new com.aicourse.exception.BusinessException(
+                        com.aicourse.common.ApiCode.BAD_REQUEST, "文件未通过病毒扫描（Eicar-Test-Signature），已拒绝上传"))
+                .when(fileVirusScanService).scanOrThrow(
+                        org.mockito.ArgumentMatchers.any(org.springframework.web.multipart.MultipartFile.class),
+                        org.mockito.ArgumentMatchers.anyString());
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.pdf", "application/pdf",
+                "%PDF-1.4".getBytes(StandardCharsets.US_ASCII));
+
+        mockMvc.perform(multipart("/resources/upload").file(file)
+                        .param("courseId", "1").param("description", "讲义")
+                        .with(withUser(1L, "TEACHER")))
+                // 与同文件其他校验分支同口径：业务错误走 ApiResponse.error，HTTP 200 + body.code
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(fileVirusScanService).scanOrThrow(
+                org.mockito.ArgumentMatchers.any(org.springframework.web.multipart.MultipartFile.class),
+                org.mockito.ArgumentMatchers.eq("a.pdf"));
+        verifyNoInteractions(fileStorageService);
+        verify(resourceService, never()).save(any(Resource.class));
     }
 
 

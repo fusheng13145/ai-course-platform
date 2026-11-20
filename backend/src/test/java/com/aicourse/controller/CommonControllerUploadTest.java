@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.service.AuthService;
 import com.aicourse.service.FileStorageService;
+import com.aicourse.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,6 +42,8 @@ class CommonControllerUploadTest extends ControllerTestBase {
     private AuthService authService;
     @MockitoBean
     private FileStorageService fileStorageService;
+    @MockitoBean
+    private com.aicourse.service.FileVirusScanService fileVirusScanService;
     @MockitoBean
     private com.aicourse.util.ClientInfoResolver clientInfoResolver;
 
@@ -153,6 +157,21 @@ class CommonControllerUploadTest extends ControllerTestBase {
         mockMvc.perform(multipart("/common/upload").file(file).with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400));
+        verify(fileStorageService, never()).upload(anyString(), any(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("POST /common/upload/batch - 病毒扫描命中时该项标记失败且存储层零调用")
+    void batch_virusHit_neverUploaded() throws Exception {
+        doThrow(new BusinessException(400, "文件未通过病毒扫描（Eicar-Test-Signature），已拒绝上传"))
+                .when(fileVirusScanService).scanOrThrow(any(org.springframework.web.multipart.MultipartFile.class), anyString());
+
+        mockMvc.perform(multipart("/common/upload/batch").file(png("bad.png"))
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].url").value(""))
+                .andExpect(jsonPath("$.data[0].error")
+                        .value(org.hamcrest.Matchers.containsString("病毒扫描")));
         verify(fileStorageService, never()).upload(anyString(), any(), any(), anyLong());
     }
 

@@ -54,6 +54,8 @@ class UploadMagicCoverageTest {
         assertEquals("mp4", UploadMagic.detect(concat(new byte[]{0, 0, 0, 0}, bytes("ftyp"), bytes("isom"))));
         assertEquals("mp3", UploadMagic.detect(bytes("ID3")));
         assertEquals("mp3", UploadMagic.detect(new byte[]{(byte) 0xFF, (byte) 0xE0}));
+        assertEquals("webm", UploadMagic.detect(new byte[]{
+                (byte) 0x1A, 'E', (byte) 0xDF, (byte) 0xA3}));
 
         assertNull(UploadMagic.detect(null));
         assertNull(UploadMagic.detect(new byte[]{'P'}));
@@ -65,7 +67,7 @@ class UploadMagicCoverageTest {
     @Test
     @DisplayName("readHeader：null 文件、空输入流返回空数组；正常文件最多读 16 字节")
     void readHeader_boundaries() throws IOException {
-        assertArrayEquals(new byte[0], UploadMagic.readHeader(null));
+        assertArrayEquals(new byte[0], UploadMagic.readHeader((MultipartFile) null));
 
         MultipartFile nullStream = mock(MultipartFile.class);
         when(nullStream.getInputStream()).thenReturn(null);
@@ -81,6 +83,11 @@ class UploadMagicCoverageTest {
         assertEquals(UploadMagic.HEADER_BYTES, header.length);
         assertEquals(0, header[0]);
         assertEquals(15, header[15]);
+
+        assertArrayEquals(new byte[0], UploadMagic.readHeader((InputStream) null));
+        assertArrayEquals(new byte[]{(byte) 0x1A, 'E', (byte) 0xDF, (byte) 0xA3},
+                UploadMagic.readHeader(new ByteArrayInputStream(new byte[]{
+                        (byte) 0x1A, 'E', (byte) 0xDF, (byte) 0xA3})));
     }
 
     @Test
@@ -104,6 +111,7 @@ class UploadMagicCoverageTest {
         assertTrue(UploadMagic.matchesMime("image/jpeg", "jpeg"));
         assertTrue(UploadMagic.matchesMime("image/gif", "gif"));
         assertTrue(UploadMagic.matchesMime("video/mp4", "mp4"));
+        assertTrue(UploadMagic.matchesMime("video/webm", "webm"));
         assertTrue(UploadMagic.matchesMime("audio/mpeg", "mp3"));
         assertTrue(UploadMagic.matchesMime("application/msword", "ole2"));
         assertTrue(UploadMagic.matchesMime("application/vnd.ms-excel", "zip"));
@@ -122,6 +130,8 @@ class UploadMagicCoverageTest {
         assertTrue(UploadMagic.matchesExtension("txt", null));
         assertTrue(UploadMagic.matchesExtension("csv", null));
         assertTrue(UploadMagic.matchesExtension("md", null));
+        assertTrue(UploadMagic.matchesExtension("json", null));
+        assertTrue(UploadMagic.matchesExtension("xml", null));
         assertTrue(UploadMagic.matchesExtension("pdf", "pdf"));
         assertTrue(UploadMagic.matchesExtension(".PNG", "png"));
         assertTrue(UploadMagic.matchesExtension("jpg", "jpeg"));
@@ -129,6 +139,7 @@ class UploadMagicCoverageTest {
         assertTrue(UploadMagic.matchesExtension("gif", "gif"));
         assertTrue(UploadMagic.matchesExtension("bmp", "bmp"));
         assertTrue(UploadMagic.matchesExtension("webp", "webp"));
+        assertTrue(UploadMagic.matchesExtension("webm", "webm"));
         assertTrue(UploadMagic.matchesExtension("doc", "ole2"));
         assertTrue(UploadMagic.matchesExtension("xls", "ole2"));
         assertTrue(UploadMagic.matchesExtension("ppt", "ole2"));

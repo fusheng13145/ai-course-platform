@@ -5,7 +5,9 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.UploadMagic;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AuthService;
+import com.aicourse.service.FileVirusScanService;
 import com.aicourse.vo.FeatureItemVO;
 import com.aicourse.vo.FeatureRoadmapVO;
 import com.aicourse.vo.UploadResultVO;
@@ -77,16 +79,19 @@ public class CommonController {
 
     private final AuthService authService;
     private final FileStorageService fileStorageService;
+    private final FileVirusScanService fileVirusScanService;
     private final ClientInfoResolver clientInfoResolver;
     private final com.aicourse.service.SemesterService semesterService;
     private final com.aicourse.service.UserService userService;
 
     public CommonController(AuthService authService, FileStorageService fileStorageService,
+                            FileVirusScanService fileVirusScanService,
                             ClientInfoResolver clientInfoResolver,
                             com.aicourse.service.SemesterService semesterService,
                             com.aicourse.service.UserService userService) {
         this.authService = authService;
         this.fileStorageService = fileStorageService;
+        this.fileVirusScanService = fileVirusScanService;
         this.clientInfoResolver = clientInfoResolver;
         this.semesterService = semesterService;
         this.userService = userService;
@@ -180,6 +185,12 @@ public class CommonController {
         if (validationError != null) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, validationError);
         }
+        try {
+            fileVirusScanService.scanOrThrow(file, safeName);
+        } catch (BusinessException e) {
+            log.warn("通用上传被病毒扫描拒绝: file={}, code={}, reason={}", safeName, e.getCode(), e.getMessage());
+            return ApiResponse.error(e.getCode(), e.getMessage());
+        }
 
         String objectName = UUID.randomUUID() + ext;
         try {
@@ -217,6 +228,13 @@ public class CommonController {
             String validationError = validateFile(file, ext);
             if (validationError != null) {
                 results.add(new UploadResultVO("", safeName, "0", validationError));
+                continue;
+            }
+            try {
+                fileVirusScanService.scanOrThrow(file, safeName);
+            } catch (BusinessException e) {
+                log.warn("批量上传被病毒扫描拒绝: file={}, code={}, reason={}", safeName, e.getCode(), e.getMessage());
+                results.add(new UploadResultVO("", safeName, "0", e.getMessage()));
                 continue;
             }
 

@@ -923,6 +923,10 @@ jobs:
           CSRF_ENABLED: "false"
           # 本作业只验证业务链路，不绑定外部对象存储；MinIO 生产路径由本机 e2e/部署验证。
           MINIO_ENABLED: "false"
+          # 本作业没有 Defender（Linux runner）也没有 clamd：按 fail-closed 默认会拒绝所有上传，
+          # 使资源上传类用例恒 503。此处显式关闭扫描（启动时会打 WARN），
+          # 真实扫描链路由后端单测（假 clamd/替换 Defender 进程）与 compose(clamav profile) 覆盖。
+          FILE_SCAN_ENABLED: "false"
           # DR-85：本作业 52 例真实登录，默认 10 次/60s 的 IP 桶会在第 11 次返 429 且不记日志，
           # 造成"红灯集合每轮不同"。该键**只允许**出现在此步骤 env（一次性进程环境）：
           # 禁止写入 .env / docker-compose.yml / scripts/start-all.py（那三处会让阈值长期生效）。

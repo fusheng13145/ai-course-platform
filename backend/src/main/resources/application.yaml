@@ -477,6 +477,16 @@ file:
   # 分片上传的临时落盘目录；刻意置于 upload-dir 之外，
   # 未合并完的分片不得出现在 /uploads/** 静态映射里。
   chunk-dir: ${FILE_CHUNK_DIR:}
+  # 上传前病毒扫描：auto=Windows 用 Defender、其他系统用 ClamAV；扫描器不可用时拒绝上传。
+  scan:
+    # 缺省 true（fail-closed）。仅自动化测试/CI 显式置 false，命中时打 WARN 后跳过扫描。
+    enabled: ${FILE_SCAN_ENABLED:true}
+    provider: ${FILE_SCAN_PROVIDER:auto}
+    # 可选：显式指定 MpCmdRun.exe；留空自动探测 Program Files 与 Platform 最新版本目录。
+    defender-command: ${FILE_SCAN_DEFENDER_COMMAND:}
+    clamav-host: ${FILE_SCAN_CLAMAV_HOST:127.0.0.1}
+    clamav-port: ${FILE_SCAN_CLAMAV_PORT:3310}
+    timeout-seconds: ${FILE_SCAN_TIMEOUT_SECONDS:60}
   max-size: 52428800
   upload:
     # 单用户同时处于 UPLOADING 的会话数上限，防止并发占用分片目录
