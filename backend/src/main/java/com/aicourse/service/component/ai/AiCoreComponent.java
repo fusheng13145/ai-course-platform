@@ -5,7 +5,6 @@ import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
 import com.aicourse.integration.rag.RagContract.RagSource;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AiCallLogService;
-import com.aicourse.service.impl.PromptGuard;
 import com.aicourse.vo.QaSourceVO;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;

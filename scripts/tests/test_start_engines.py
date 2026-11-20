@@ -261,13 +261,17 @@ def test_engine_export_list_covers_every_var_the_engines_read():
         "python-services/kg_service/kg_store.py",
         "python-services/rag_service/rag_engine.py",
         "python-services/rag_service/rag_service.py",
+        "python-services/fine_tune_service/ft_llm.py",
+        "python-services/fine_tune_service/lora_engine.py",
+        "python-services/fine_tune_service/lora_service.py",
     ):
         src = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
         read |= set(re.findall(r"""os\.(?:getenv|environ\.get)\(\s*["']([A-Z0-9_]+)""", src))
     assert read, "引擎源码里一个 os.getenv 都没匹配到——守卫的正则已失效"
 
-    # 这三个由专用参数处理（api_key / neo4j_uri），RAG_ENGINE_READY 只在契约测试里置位
-    handled_elsewhere = {"DEEPSEEK_API_KEY", "NEO4J_URI", "KG_NEO4J_URI", "RAG_ENGINE_READY"}
+    # 这几个由专用参数处理（api_key / neo4j_uri），RAG_ENGINE_READY 只在契约测试里置位；
+    # FT_ENGINE_READY 是 CI 用的“不启动训练线程”开关，故意不导出（误配会让 /start 静默不训练）。
+    handled_elsewhere = {"DEEPSEEK_API_KEY", "NEO4J_URI", "KG_NEO4J_URI", "RAG_ENGINE_READY", "FT_ENGINE_READY"}
     exported = {key for keys in eng.ENGINE_EXPORTS.values() for key in keys}
     assert sorted(read - handled_elsewhere - exported) == []
     # 阴性对照：名单不是「全导出」，随便一个没读过的键确实不在里面

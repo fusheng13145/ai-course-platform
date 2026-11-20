@@ -20,9 +20,9 @@
   · JWT_SECRET
       —— 仅要求 ≥256bit。JwtUtils.java:50 用 Keys.hmacShaKeyFor(secret.getBytes(UTF_8))，
          即**原始 UTF-8 字节数 ≥32**，否则 jjwt 抛 WeakKeyException 拒启。无字符类别要求。
-  · MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / GRAFANA_ADMIN_PASSWORD / APP_ACTUATOR_BASIC_PASSWORD
+  · MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / MINIO_ROOT_PASSWORD / GRAFANA_ADMIN_PASSWORD / APP_ACTUATOR_BASIC_PASSWORD
       —— 仅由各自的 docker compose ${VAR:?}（非空）与运行时连接校验把关，无强度策略
-         （RedisStartupValidator 只做 PING 连通性校验，不校验口令强度）。
+         （RedisStartupValidator 只做 PING 连通性校验，不校验口令强度；MinIO 只要求 >=8 位）。
 ============================================================================
 
 用法：
@@ -72,6 +72,7 @@ SPEC = {
     "JWT_SECRET": 48,                  # 明文 64 字符 ≥32 字节，满足 JwtUtils 的 HS 下限
     "MYSQL_ROOT_PASSWORD": 18,         # 24 字符左右
     "REDIS_PASSWORD": 18,
+    "MINIO_ROOT_PASSWORD": 18,
     "APP_ACTUATOR_BASIC_PASSWORD": 16,
     "GRAFANA_ADMIN_PASSWORD": 16,
 }

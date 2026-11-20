@@ -1,107 +1,56 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.vo.QuestionVO;
-import com.aicourse.dto.QuestionGenerateDTO;
-import com.aicourse.dto.QuestionSaveDTO;
 import com.aicourse.entity.Question;
-import com.aicourse.entity.KnowledgePoint;
-import com.aicourse.exception.BusinessException;
-import jakarta.validation.Valid;
-import com.aicourse.security.RoleUtil;
 import com.aicourse.security.CourseAccessControl;
-import com.aicourse.service.AIService;
-import com.aicourse.service.KnowledgePointService;
+import com.aicourse.security.QuestionAccessSupport;
+import com.aicourse.security.RoleUtil;
 import com.aicourse.service.QuestionPracticeService;
 import com.aicourse.service.QuestionService;
-import com.aicourse.service.component.ai.AiCallContext;
-import com.aicourse.service.component.ai.AiGenerationPolicy;
-import com.aicourse.vo.BatchImportResultVO;
 import com.aicourse.vo.QuestionBankStatisticsVO;
 import com.aicourse.vo.QuestionStatsVO;
+import com.aicourse.vo.QuestionVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * 题目管理接口控制器
- * 提供题目CRUD、AI生成、审核、搜索、统计等RESTful API
+ * 题库读面控制器
+ * 提供题目列表、详情、搜索、随机取题、按知识点查题与统计查询
  */
 @RestController
 @RequestMapping("/questions")
 @Tag(name = "题库管理", description = "题目CRUD、AI生成、随机选题、批量导入")
 public class QuestionController {
 
-    private static final Logger log = LoggerFactory.getLogger(QuestionController.class);
-
     private final QuestionService questionService;
-    private final AIService aiService;
-    private final KnowledgePointService knowledgePointService;
-    /** 角色矩阵「限制教师出题权限」的判定：平台级治理开关（ADMIN 不受限）。 */
-    private final AiGenerationPolicy aiGenerationPolicy;
     private final CourseAccessControl courseAccessControl;
     private final QuestionPracticeService questionPracticeService;
+    private final QuestionAccessSupport questionAccessSupport;
 
-    public QuestionController(QuestionService questionService, AIService aiService,
-                              KnowledgePointService knowledgePointService,
-                              AiGenerationPolicy aiGenerationPolicy,
+    public QuestionController(QuestionService questionService,
                               CourseAccessControl courseAccessControl,
-                              QuestionPracticeService questionPracticeService) {
+                              QuestionPracticeService questionPracticeService,
+                              QuestionAccessSupport questionAccessSupport) {
         this.questionService = questionService;
-        this.aiService = aiService;
-        this.knowledgePointService = knowledgePointService;
-        this.aiGenerationPolicy = aiGenerationPolicy;
         this.courseAccessControl = courseAccessControl;
         this.questionPracticeService = questionPracticeService;
-    }
-
-    /**
-     * AI 出题权限校验（**两层**，2026-10-13 修订为"平台总闸 + 逐人名单"）：
-     * ① 管理员可在管理端关闭「教师 AI 出题」总闸 → 对所有非 ADMIN 调用方 403（紧急一键全禁）；
-     * ② 管理员可把**特定教师**加入限制名单 → 只对该教师 403。
-     * ADMIN 两层都不受限（治理者保留能力）。
-     *
-     * <p>刻意<b>不</b>改 {@code @PreAuthorize}（那是角色门，与治理开关是两件事）：
-     * 角色门写死"谁能进来"，本校验表达"进来之后当前是否被允许"。</p>
-     */
-    private void assertQuestionGenerationAllowed(Authentication auth) {
-        if (RoleUtil.isAdmin(auth)) {
-            return;
-        }
-        Long userId = auth != null ? (Long) auth.getPrincipal() : null;
-        if (!aiGenerationPolicy.isTeacherQuestionGenerationEnabled()) {
-            throw new BusinessException(ApiCode.FORBIDDEN,
-                    "管理员已限制教师的 AI 出题权限，请联系管理员开通后再试。");
-        }
-        if (aiGenerationPolicy.isUserRestricted(userId)) {
-            throw new BusinessException(ApiCode.FORBIDDEN,
-                    "该账号已被管理员限制 AI 出题权限，请联系管理员解除后再试。");
-        }
+        this.questionAccessSupport = questionAccessSupport;
     }
 
     /**
      * 分页查询题目列表（支持多条件筛选）
-     * @param page 当前页码
-     * @param size 每页条数
-     * @param courseId 课程ID
-     * @param type 题目类型
-     * @param difficulty 难度等级
-     * @param keyword 题干关键词
-     * @return 分页题目数据
      */
     // 收口（2026-09-23，P0-3）：题库读接口限教师/管理员。
     // 学生端零依赖这些接口——随堂测走 /questions/random，考试取题走 /exam-papers/{id}/questions，
@@ -147,15 +96,13 @@ public class QuestionController {
 
     /**
      * 根据ID查询题目详情
-     * @param id 题目ID
-     * @return 题目信息
      */
     // 收口（2026-09-23，P0-3）：题库详情同 list，仅供教师/管理员
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "根据ID查询题目详情")
     public ApiResponse<?> getById(@PathVariable Long id, Authentication auth) {
-        Question question = requireQuestion(id);
+        Question question = questionAccessSupport.requireQuestion(id);
         if (question.getCourseId() != null) {
             courseAccessControl.assertCanReadCourse(question.getCourseId(), auth);
         }
@@ -167,92 +114,7 @@ public class QuestionController {
     }
 
     /**
-     * 创建题目（增强版，含知识点关联处理）
-     * @param dto 题目入参（JSON 列契约见 QuestionSaveDTO）
-     * @param auth 认证信息
-     * @return 新增题目数据
-     */
-    @PostMapping("/create")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "创建题目",
-            description = "字段真名：correctAnswers（MySQL JSON 列，必须是合法 JSON 文本：单选 \"A\"、多选 [\"A\",\"B\"]、判断 \"true\"；裸 A 会 400）；"
-                    + "options/knowledgePoints 为 JSON 文本字符串列。创建时 courseId 必填。")
-    public ApiResponse<Question> create(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
-                                        Authentication auth) {
-        Question question = dto.toEntity();
-        courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
-        question.setCreatedBy((Long) auth.getPrincipal());
-        Question created = questionService.createQuestion(question);
-        return ApiResponse.success("创建成功", created);
-    }
-
-    /**
-     * AI智能生成题目（增强版，直接保存到题库）
-     * @param params 生成参数（courseId, type, difficulty, knowledgePointNames）
-     * @param auth 认证信息
-     * @return 生成的题目
-     */
-    @PostMapping("/generate-by-ai")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "AI智能生成题目")
-    public ApiResponse<Question> generateByAI(@Valid @RequestBody Map<String, String> params, Authentication auth) {
-        Long courseId = Long.valueOf(params.get("courseId"));
-        courseAccessControl.assertCanManageCourse(courseId, auth);
-        // 出题治理两层校验（2026-11-14 审计 D3）：本端点此前缺治理闸，管理员总闸与逐人名单
-        // 在「生成并直接落库」的真实出题路径上失效。与 /ai-generate、/generate-by-ai/batch 同口径。
-        assertQuestionGenerationAllowed(auth);
-        String type = params.get("type");
-        String difficulty = params.get("difficulty");
-        String knowledgePointNames = params.get("knowledgePointNames");
-
-        Question question = questionService.generateByAI(courseId, type, difficulty, knowledgePointNames);
-        question.setCreatedBy((Long) auth.getPrincipal());
-        return ApiResponse.success("AI生成成功", question);
-    }
-
-    /**
-     * 审核题目（通过/拒绝）
-     * @param id 题目ID
-     * @param body 审核参数（approved: boolean）
-     * @return 操作结果
-     */
-    @PostMapping("/{id}/review")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "审核题目")
-    public ApiResponse<Void> review(@PathVariable Long id,
-                                    @Valid @RequestBody Map<String, Boolean> body,
-                                    Authentication auth) {
-        Question existing = requireQuestion(id);
-        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
-        boolean approved = body.getOrDefault("approved", true);
-        questionService.reviewQuestion(id, approved);
-        return ApiResponse.success(approved ? "审核通过" : "已拒绝", null);
-    }
-
-    /**
-     * 复制题目（创建变式题）
-     * @param id 源题目ID
-     * @return 复制后的新题目
-     */
-    @PostMapping("/{id}/copy")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "复制题目")
-    public ApiResponse<Question> copy(@PathVariable Long id, Authentication auth) {
-        Question existing = requireQuestion(id);
-        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
-        Question copied = questionService.copyQuestion(id);
-        return ApiResponse.success("复制成功", copied);
-    }
-
-    /**
      * 智能搜索题目（全文检索+筛选）
-     * @param courseId 课程ID（可选）
-     * @param type 题目类型（可选）
-     * @param difficulty 难度等级（可选）
-     * @param keyword 关键词（模糊匹配题干）
-     * @param page 页码
-     * @param size 每页大小
-     * @return 分页搜索结果
      */
     // 收口（2026-09-23，P0-3）：题库搜索仅教师/管理员使用
     @GetMapping("/search")
@@ -286,11 +148,6 @@ public class QuestionController {
 
     /**
      * 随机抽取题目（用于组卷）
-     * @param courseId 课程ID
-     * @param type 题目类型（可选）
-     * @param difficulty 难度等级（可选）
-     * @param count 抽取数量
-     * @return 随机题目列表
      */
     @GetMapping("/random")
     @Operation(summary = "随机抽取题目")
@@ -316,8 +173,6 @@ public class QuestionController {
 
     /**
      * 按知识点查询题目
-     * @param kpId 知识点ID
-     * @return 题目列表
      */
     // 收口（2026-09-23，P0-3）：按知识点查题属题库读范围，仅供教师/管理员
     @GetMapping("/kp/{kpId}")
@@ -349,7 +204,6 @@ public class QuestionController {
 
     /**
      * 题库总览统计（总数 + 今日新增）。
-     * @return 统计结果
      */
     @GetMapping("/statistics")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
@@ -365,15 +219,13 @@ public class QuestionController {
 
     /**
      * 获取题目使用统计
-     * @param id 题目ID
-     * @return 统计信息
      */
     // 收口（2026-09-23，P0-3）：题目使用统计属教学侧数据
     @GetMapping("/{id}/stats")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取题目使用统计")
     public ApiResponse<QuestionStatsVO> getStats(@PathVariable Long id, Authentication auth) {
-        Question question = requireQuestion(id);
+        Question question = questionAccessSupport.requireQuestion(id);
         if (question.getCourseId() != null) {
             courseAccessControl.assertCanReadCourse(question.getCourseId(), auth);
         }
@@ -383,9 +235,6 @@ public class QuestionController {
 
     /**
      * 获取易错题TOP N
-     * @param courseId 课程ID（可选）
-     * @param limit 返回数量（默认20）
-     * @return 易错题列表
      */
     // 收口（2026-09-23，P0-3）：易错题榜属教学分析数据，仅教师/管理员
     @GetMapping("/error-prone")
@@ -410,147 +259,5 @@ public class QuestionController {
             return ApiResponse.success(questions);
         }
         return ApiResponse.success(questions.stream().map(QuestionVO::from).toList());
-    }
-
-    /**
-     * 新增题目（基础版）
-     * @param body 题目入参
-     * @param auth 认证信息
-     * @return 新增题目数据
-     */
-    @PostMapping
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "新增题目",
-            description = "字段真名与 JSON 列契约同 POST /questions/create：correctAnswers 为合法 JSON 文本，"
-                    + "options/knowledgePoints 为 JSON 文本字符串列；创建时 courseId 必填。")
-    public ApiResponse<Question> createBasic(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
-                                             Authentication auth) {
-        Question question = dto.toEntity();
-        courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
-        question.setCreatedBy((Long) auth.getPrincipal());
-        questionService.save(question);
-        return ApiResponse.success("创建成功", question);
-    }
-
-    /**
-     * 修改题目（教师/管理员权限）。局部更新：只落传了的字段，课程归属恒取库内值。
-     * @param id 题目ID
-     * @param body 待更新字段
-     * @return 更新后题目信息
-     */
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "修改题目",
-            description = "字段真名与 JSON 列契约同创建端点；courseId 忽略请求值，始终沿用原题目课程。")
-    public ApiResponse<Question> update(@PathVariable Long id,
-                                        @Valid @RequestBody QuestionSaveDTO dto,
-                                        Authentication auth) {
-        Question existing = requireQuestion(id);
-        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
-        Question question = dto.toEntity();
-        question.setId(id);
-        question.setCourseId(existing.getCourseId());
-        questionService.updateQuestion(question);
-        Question updatedQuestion = questionService.getById(id);
-        return ApiResponse.success("更新成功", updatedQuestion);
-    }
-
-    /**
-     * 删除题目（教师/管理员权限）
-     * @param id 题目ID
-     * @return 操作结果
-     */
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "删除题目")
-    public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
-        Question existing = requireQuestion(id);
-        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
-        questionService.deleteQuestion(id);
-        return ApiResponse.success("删除成功", null);
-    }
-
-    /**
-     * AI 智能生成题目（基础版，仅返回内容不保存）
-     * @param dto 生成参数
-     * @return 生成的题目内容
-     */
-    @PostMapping("/ai-generate")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "AI生成题目")
-    public ApiResponse<Map<String, String>> generateByAIBasic(@Valid @RequestBody QuestionGenerateDTO dto,
-                                                              Authentication auth) {
-        Long courseId = dto.getCourseId();
-        String type = dto.getType();
-        String difficulty = dto.getDifficulty();
-        int count = dto.getCount() != null ? dto.getCount() : 1;
-
-        courseAccessControl.assertCanManageCourse(courseId, auth);
-        assertQuestionGenerationAllowed(auth);
-        // 跨课程 AI 统计：把调用者与归属课程带进作用域，落库发生在 AiCoreComponent
-        Long userId = auth != null ? (Long) auth.getPrincipal() : null;
-        String result = AiCallContext.run(userId, courseId, "QUESTION_GENERATE",
-                () -> aiService.generateQuestion(courseId, type, difficulty, count));
-        return ApiResponse.success("AI生成成功", Map.of("questions", result));
-    }
-
-    /**
-     * AI 批量生成题目（进阶：一次生成多题并直接入库）
-     * @param dto courseId / type / difficulty / knowledgePointNames / count
-     * @return 已保存的题目列表
-     */
-    @PostMapping("/generate-by-ai/batch")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "AI批量生成题目")
-    public ApiResponse<List<Question>> generateBatchByAI(@Valid @RequestBody QuestionGenerateDTO dto, Authentication auth) {
-        Long courseId = dto.getCourseId();
-        String type = dto.getType();
-        String difficulty = dto.getDifficulty();
-        String kp = dto.getKnowledgePointNames();
-        int count = dto.getCount() != null ? dto.getCount() : 5;
-
-        courseAccessControl.assertCanManageCourse(courseId, auth);
-        assertQuestionGenerationAllowed(auth);
-
-        // 知识点感知增强：用户未指定知识点时，自动从课程知识图谱中提取
-        if ((kp == null || kp.isBlank()) && courseId != null) {
-            List<KnowledgePoint> kps = knowledgePointService.list(
-                    new LambdaQueryWrapper<KnowledgePoint>()
-                            .eq(KnowledgePoint::getCourseId, courseId));
-            if (!kps.isEmpty()) {
-                kp = kps.stream().map(KnowledgePoint::getName)
-                        .limit(15).collect(Collectors.joining("、"));
-            }
-        }
-
-        final String resolvedKp = kp;
-        List<Question> questions = AiCallContext.run((Long) auth.getPrincipal(), courseId, "QUESTION_GENERATE",
-                () -> questionService.generateBatchByAI(
-                        courseId, type, difficulty, resolvedKp, count, (Long) auth.getPrincipal()));
-        return ApiResponse.success("AI批量生成成功（" + (resolvedKp != null ? "知识点感知" : "通用模式") + "）", questions);
-    }
-
-    /**
-     * 批量导入题目（进阶：一次性导入多题，自动跳过无效项）
-     * @param questions 题目列表
-     * @return 导入结果（成功数 / 总数）
-     */
-    @PostMapping("/batch-import")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，自动跳过无效项）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
-    public ApiResponse<BatchImportResultVO> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
-        for (Question question : questions) {
-            courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
-        }
-        int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
-        return ApiResponse.success("导入完成", new BatchImportResultVO(imported, questions.size()));
-    }
-
-    private Question requireQuestion(Long id) {
-        Question question = questionService.getById(id);
-        if (question == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "题目不存在");
-        }
-        return question;
     }
 }

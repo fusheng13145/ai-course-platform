@@ -1,9 +1,9 @@
 <template>
   <div class="corpus-tab">
     <div class="course-tab-bar">
-      <span class="tab-hint">
-        语料来自本课程的知识库文档；构建索引后 AI 助教问答才可命中课程资料（mode=ENGINE）。
-      </span>
+      <div>
+        <h2>语料管理</h2>
+      </div>
       <div class="row-actions">
         <button class="btn btn-sm" :disabled="busy" @click="load()">
           {{ loading ? '刷新中…' : '刷新' }}
@@ -126,7 +126,7 @@ import {
 import { pickList, unwrap } from '@/utils/response'
 
 /**
- * 教师侧「AI 语料」页签（2026-11-07 P2 批次：语料自助管理闭环）。
+ * 教师侧 AI 助教内的「课程语料」页签（2026-11-07 P2 批次：语料自助管理闭环）。
  * api/rag.ts 的文档六端点此前零消费（语料只能靠 seed 脚本重放）；本页补齐教师自助链路：
  * 增删改查文档 + 重建/清空向量索引。权限与降级语义由后端把守（assertCanManageCourse / 503）。
  */
@@ -290,10 +290,6 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-}
-.tab-hint {
-  font-size: 12px;
-  color: var(--text-3);
 }
 .row-actions {
   display: flex;

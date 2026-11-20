@@ -36,7 +36,6 @@
       <div v-else-if="!pendingRows.length" class="empty-state compact">
         <span class="e-ico"><Icon name="check" /></span>
         <b>暂无待办任务</b>
-        <p>教师发布的新作业会出现在这里。</p>
       </div>
       <div v-else class="table-wrap">
         <table>
@@ -94,7 +93,6 @@
       <div v-else-if="!completedRows.length" class="empty-state compact">
         <span class="e-ico"><Icon name="award" /></span>
         <b>暂无已完成作业</b>
-        <p>提交或批改后的作业会出现在这里。</p>
       </div>
       <div v-else class="table-wrap">
         <table>
@@ -455,7 +453,7 @@ onMounted(load)
 }
 .tasks-note {
   margin: 0;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-3);
 }

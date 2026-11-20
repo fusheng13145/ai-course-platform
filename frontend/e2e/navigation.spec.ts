@@ -107,39 +107,28 @@ for (const role of ROLES) {
         timeout: 15000,
       })
 
-      let bodyText = await page.locator('main.main').innerText()
+      const bodyText = await page.locator('main.main').innerText()
       for (const forbidden of FORBIDDEN_TEXT) {
         expect(bodyText, `${role}「${label}」出现了兜底文案：${forbidden}`).not.toContain(forbidden)
       }
       // 空态是合法正文（如教师「消息」没有通知时只显示一行「暂无消息」）。
       // 真正的空壳既没有正文、也没有空态，仍会被这条判红。
-      //
-      // 正文判定带一个**有界等待窗口**（判据不变，仍要求「正文 >20 字符 或 出现空态」）：
-      // GlobalPage 的 body 是 defineAsyncComponent（GlobalPage.vue:30），chunk 未就绪前
-      // Vue 对该位置渲染空，壳层只剩 PageHead 标题——dev 冷启动首轮 transform 约 1~2s，
-      // 2026-11-19 实测 STUDENT「学业档案」三连红、失败快照里内容却已完整（内容在断言读取
-      // 与快照之间才就位）。此处只把「立即读」改成「10s 内轮询到满足为止」，不改判定口径。
-      let hasEmptyState = false
-      {
-        const deadline = Date.now() + 10000
-        while (Date.now() < deadline) {
-          hasEmptyState = await page
-            .locator('main.main .empty-state')
-            .first()
-            .isVisible()
-            .catch(() => false)
-          if (bodyText.trim().length > 20 || hasEmptyState) break
-          await page.waitForTimeout(200)
-          const refreshed = await page.locator('main.main').innerText()
-          if (refreshed !== bodyText) {
-            bodyText = refreshed
-          }
-        }
-      }
-      expect(
-        bodyText.trim().length > 20 || hasEmptyState,
-        `${role}「${label}」正文是空白（10s 等待后仍无正文：${bodyText.trim().slice(0, 60) || '（空）'}）`,
-      ).toBeTruthy()
+      // 考试治理等页的正文由异步接口驱动，落点后需要给首屏数据一个加载窗口；
+      // 20s 内仍无正文才判空壳，不把网络慢读成产品空白。
+      await expect
+        .poll(
+          async () => {
+            const text = (await page.locator('main.main').innerText()).trim()
+            const hasEmptyState = await page
+              .locator('main.main .empty-state')
+              .first()
+              .isVisible()
+              .catch(() => false)
+            return text.length > 20 || hasEmptyState
+          },
+          { timeout: 20000, message: `${role}「${label}」正文 20s 内仍是空白` },
+        )
+        .toBeTruthy()
       landed.push({ label, path })
     }
 

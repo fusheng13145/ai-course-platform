@@ -420,7 +420,7 @@ describe('学生课程 · 成绩页签', () => {
     expect(empty.text()).toContain('本课程暂无成绩记录')
     expect(empty.text()).not.toContain('成绩数据未能获取')
     expect(empty.find('.callout.danger').exists()).toBe(false)
-    expect(empty.text()).toContain('成绩导出待扩展')
+    expect(empty.text()).not.toContain('成绩导出待扩展')
     expect(findButton(empty, '导出成绩')).toBeUndefined()
     empty.unmount()
 

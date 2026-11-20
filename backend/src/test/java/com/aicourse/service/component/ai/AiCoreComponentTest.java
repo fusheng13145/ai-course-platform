@@ -3,7 +3,6 @@ package com.aicourse.service.component.ai;
 import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AiCallLogService;
-import com.aicourse.service.impl.PromptGuard;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

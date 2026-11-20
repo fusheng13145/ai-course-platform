@@ -1,7 +1,7 @@
 <template>
   <section class="messages-body">
     <div v-if="error" class="callout danger" role="alert">
-      <span>消息</span>
+      <span>系统消息</span>
       <p>{{ error }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load">
         {{ loading ? '重试中…' : '重试' }}
@@ -11,7 +11,7 @@
     <section v-else class="card table-card">
       <header class="card-head">
         <div>
-          <h2>消息</h2>
+          <h2>系统消息</h2>
         </div>
         <div class="filter-row message-tools">
           <span v-if="unreadCount" class="chip chip-warn">{{ unreadCount }} 条未读</span>
@@ -58,7 +58,7 @@
       </div>
     </section>
 
-    <Modal :open="detailOpen" title="消息" width="560px" @update:open="detailOpen = $event">
+    <Modal :open="detailOpen" title="系统消息" width="560px" @update:open="detailOpen = $event">
       <div v-if="active" class="message-detail">
         <h3>{{ active.title }}</h3>
         <div class="message-detail-meta">
@@ -218,7 +218,7 @@ onMounted(load)
 .message-content {
   display: block;
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-2);
 }
@@ -235,11 +235,11 @@ onMounted(load)
   align-items: center;
   gap: 10px;
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: 12px;
 }
 .message-detail p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   white-space: pre-wrap;
 }

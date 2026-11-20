@@ -69,7 +69,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *         export 与 import-excel 端点。</li>
  * </ul>
  */
-@WebMvcTest(SystemAdminController.class)
+@WebMvcTest({SystemAdminController.class, AdminStatisticsController.class, SystemMaintenanceController.class})
 @Import(AdminScopeGuard.class)
 class SystemAdminControllerCoverageTest extends ControllerTestBase {
 

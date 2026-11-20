@@ -487,7 +487,7 @@ function onEnter(exam: Record<string, unknown>) {
 }
 .sheet-progress {
   margin: 12px 0 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .qnav {
   display: flex;

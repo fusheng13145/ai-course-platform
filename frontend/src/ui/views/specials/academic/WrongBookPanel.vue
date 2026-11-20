@@ -633,7 +633,7 @@ onMounted(() => {
 .wb-filter {
   height: 34px;
   width: 180px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .wb-stem {
   text-align: left;

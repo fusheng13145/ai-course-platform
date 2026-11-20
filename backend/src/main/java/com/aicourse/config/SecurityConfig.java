@@ -327,6 +327,15 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/knowledge/path/plan")
                             .authenticated();
 
+                    // 学习路径生成：学业档案里的学生自助入口。
+                    // 该端点写的是「当前登录学生自己的路径」，课程可读性与路径归属分别由
+                    // AIController.assertCourseReadable 与 LearningPathController 的 owner 校验兜底；
+                    // 不放行会被下方 /ai/** 的教师/管理员写保护拦成 403。
+                    auth.requestMatchers(HttpMethod.POST,
+                                    "/ai/learning-path/generate",
+                                    "/ai/learning-path/generate-personalized")
+                            .authenticated();
+
                     // 学生题库练习判分：P0-A1 新增的学生端写入口，必须登录；
                     // 课程开关、选课关系与答案判分由 QuestionPracticeService 与控制器方法级 ACL 负责。
                     // 必须放在下方 /questions/** 的「教师/管理员写操作」规则之前，否则学生会被 URL 级 403 拦截。

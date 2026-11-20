@@ -337,7 +337,7 @@ onMounted(() => {
 .notice-content {
   margin: 0;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
   overflow: hidden;
@@ -358,11 +358,11 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: 12px;
 }
 .notice-detail p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   white-space: pre-wrap;
 }

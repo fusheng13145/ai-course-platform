@@ -556,14 +556,14 @@ onMounted(async () => {
 }
 
 .section-name b {
-  font-size: 13px;
+  font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .section-name small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
@@ -589,7 +589,7 @@ onMounted(async () => {
 
 .roster-result {
   margin: 10px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 

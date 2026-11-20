@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead title="知识管理">
+    <PageHead v-if="!embedded" title="知识管理">
       <template #actions>
         <select v-model="courseId" class="input course-pick" aria-label="选择课程">
           <option :value="null">选择课程</option>
@@ -12,6 +12,16 @@
         <button class="btn btn-primary" @click="openCreate">新建知识点</button>
       </template>
     </PageHead>
+
+    <div v-else class="course-tab-bar">
+      <div>
+        <h2>知识点管理</h2>
+      </div>
+      <div class="course-tab-actions">
+        <button class="btn btn-ghost" :disabled="!courseId" @click="openImport">批量导入</button>
+        <button class="btn btn-primary" @click="openCreate">新建知识点</button>
+      </div>
+    </div>
 
     <div v-if="loadError" class="callout">
       <span>加载失败</span>
@@ -128,7 +138,7 @@
         </label>
         <label class="field">
           <span>所属课程 *</span>
-          <select v-model="form.courseId" class="input">
+          <select v-model="form.courseId" class="input" :disabled="embedded">
             <option :value="null">请选择课程</option>
             <option v-for="course in courses" :key="course.id" :value="course.id">
               {{ course.name || course.title }}
@@ -288,10 +298,16 @@ const IMPORT_NOTES = [
   '难度填 EASY / MEDIUM / HARD；重要程度 1-10，留空默认 5',
 ]
 
+const props = defineProps<{ embedCourseId?: number | string }>()
+const embedded = computed(
+  () =>
+    props.embedCourseId !== undefined && props.embedCourseId !== null && props.embedCourseId !== '',
+)
+
 const { toast } = useUi()
 
 const courses = ref<Row[]>([])
-const courseId = ref<number | string | null>(null)
+const courseId = ref<number | string | null>(props.embedCourseId ?? null)
 const searchText = ref('')
 
 const knowledgeList = ref<Row[]>([])
@@ -668,7 +684,7 @@ watch(courseId, () => {
 .course-pick {
   height: 34px;
   width: 190px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .km-grid {
   display: grid;
@@ -717,7 +733,7 @@ watch(courseId, () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .relation-row {
@@ -746,7 +762,7 @@ watch(courseId, () => {
 .import-notes {
   margin: 0 0 12px;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--ink-3);
 }
@@ -763,7 +779,7 @@ watch(courseId, () => {
   gap: 10px;
 }
 .cover-name {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 @media (max-width: 1024px) {

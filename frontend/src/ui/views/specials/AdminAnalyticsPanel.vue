@@ -336,7 +336,7 @@ onMounted(() => void load())
   justify-content: center;
   min-height: 34px;
   border-radius: var(--r-ctl);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text);
   background: rgba(22, 163, 74, var(--heat, 0.06));
 }

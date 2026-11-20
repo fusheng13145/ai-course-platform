@@ -740,7 +740,7 @@ onMounted(async () => {
   width: auto;
   min-width: 116px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .filter-keyword {
   flex: 1;
@@ -758,7 +758,7 @@ onMounted(async () => {
 .flag-list {
   margin: 0;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--ink-2);
 }

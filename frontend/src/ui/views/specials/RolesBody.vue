@@ -563,7 +563,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   margin-top: 12px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 @media (max-width: 900px) {

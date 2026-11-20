@@ -72,29 +72,43 @@ describe('导航与路由一致性', () => {
     }
   })
 
-  it('课程页签数量与原型 IA 对齐，并补回教师侧旧端的题库与监考页签', () => {
+  it('课程页签数量与原型 IA 对齐，监考与语料已并入考试/AI 助教', () => {
     expect(COURSE_TABS.student).toHaveLength(10)
-    expect(COURSE_TABS.teacher).toHaveLength(13)
+    expect(COURSE_TABS.teacher).toHaveLength(15)
     expect(ADMIN_COURSE_TABS).toHaveLength(10)
     const teacherTabs = courseTabs('teacher').map((tab) => tab.id)
-    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 2)
+    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 1)
     expect(teacherTabs).toContain('bank')
-    expect(teacherTabs).toContain('proctor')
+    expect(teacherTabs).not.toContain('proctor')
+    expect(teacherTabs).not.toContain('corpus')
+    expect(teacherTabs).toContain('grades')
+    expect(teacherTabs).toContain('interaction')
+    expect(teacherTabs).toContain('knowledge')
+    expect(courseTabs('teacher').find((tab) => tab.id === 'ai')?.label).toBe('AI 助教')
     expect(courseTabs('student').map((tab) => tab.id)).not.toContain('proctor')
     expect(courseTabs('student').map((tab) => tab.id)).toContain('practice')
   })
 
-  it('教师侧栏补回题库/试卷/成绩/互动/知识点入口，且都命中真实路由', () => {
-    const paths = navGroups('teacher').flatMap((group) => group.items.map((item) => item.path))
-    for (const path of [
-      '/teacher/bank',
-      '/teacher/exams',
-      '/teacher/grades',
-      '/teacher/interaction',
-      '/teacher/knowledge-management',
+  it('教师侧栏只保留工作台/我的课程/系统消息，课程能力全部落到课程页签', () => {
+    const ids = navGroups('teacher')
+      .map((group) => group.items.map((item) => item.id))
+      .flat()
+    expect(ids).toEqual(expect.arrayContaining(['home', 'courses', 'messages']))
+    for (const retired of [
+      'bank',
+      'exams',
+      'grades',
+      'interaction',
+      'knowledge',
+      'inbox',
+      'analytics',
+      'resources',
+      'advising',
+      'advisingProfile',
+      'advisingAlerts',
+      'advisingNotices',
     ]) {
-      expect(paths, `教师侧栏缺少 ${path}`).toContain(path)
-      expect(resolves(path), `${path} 是死链`).toBe(true)
+      expect(ids, `教师侧栏仍保留课程/班级入口 ${retired}`).not.toContain(retired)
     }
   })
 
@@ -107,11 +121,15 @@ describe('导航与路由一致性', () => {
     ).toBe(true)
   })
 
-  it('学生侧栏补回「我的考试」全局入口，且命中真实路由（M-02）', () => {
-    const paths = navGroups('student').flatMap((group) => group.items.map((item) => item.path))
-    expect(paths, '学生侧栏缺少 /student/exams').toContain('/student/exams')
-    expect(resolves('/student/exams'), '/student/exams 是死链').toBe(true)
-    expect(pageDef('student', 'exams').title).toBe('我的考试')
+  it('学生侧栏只保留学业档案等全局入口，考试归入课程页签', () => {
+    const ids = navGroups('student')
+      .map((group) => group.items.map((item) => item.id))
+      .flat()
+    expect(ids).toEqual(expect.arrayContaining(['home', 'courses', 'academic', 'messages']))
+    expect(ids).not.toContain('tasks')
+    expect(ids).not.toContain('exams')
+    expect(courseTabs('student').map((tab) => tab.id)).toContain('exams')
+    expect(pageDef('student', 'messages').title).toBe('系统消息')
   })
 
   it('每个全局页面定义都有标题', () => {

@@ -1,4 +1,4 @@
-package com.aicourse.service.impl;
+package com.aicourse.service.component.ai;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

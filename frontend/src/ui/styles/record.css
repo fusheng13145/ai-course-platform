@@ -1452,6 +1452,8 @@ body[data-app="ui"] .toast { border-radius: var(--r-card); }
   body[data-app="ui"] .shell { grid-template-rows: auto minmax(0, 1fr); }
   body[data-app="ui"] .topbar-actions { width: auto; margin-left: auto; flex: none; }
   body[data-app="ui"] .search-trigger { display: none; }
+  /* 教师独有 AI 快捷入口在 360/375 档把顶栏挤出 11px；课程内 AI 页签仍是完整入口。 */
+  body[data-app="ui"] .ai-trigger { display: none; }
   body[data-app="ui"] .role-switch { margin-left: 0; }
   body[data-app="ui"] .page-head h1 { font-size: 23px; }
   body[data-app="ui"] .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }

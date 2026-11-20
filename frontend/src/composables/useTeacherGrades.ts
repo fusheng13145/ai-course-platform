@@ -104,6 +104,8 @@ export interface TeacherGradesHost {
   notify?: (message: string, tone: TeacherGradesTone) => void
   /** 打开待批阅任务：默认跳旧端提交记录页，传入 路由 */
   openGrading?: (task: PendingTask) => Promise<void> | void
+  /** 课程空间内嵌时锁定课程，不再展示跨课程选择 */
+  courseId?: number | string | null
 }
 
 /** 教师成绩页：使用课程学情列表和正式加权总评，不把当前教师自身记录当成全班成绩。 */
@@ -124,7 +126,7 @@ export function useTeacherGrades(host: TeacherGradesHost = {}) {
 
   const loading = ref(false)
   const searchText = ref('')
-  const selectedCourseId = ref<number | string | null>(null)
+  const selectedCourseId = ref<number | string | null>(host.courseId ?? null)
   const courseList = ref<TeacherCourse[]>([])
   const selectedCourseName = ref('')
   const overview = ref(emptyOverview())

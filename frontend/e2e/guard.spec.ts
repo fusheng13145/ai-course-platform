@@ -20,7 +20,7 @@ test.describe('路由守卫（未登录）', () => {
     await page.addInitScript(() => {
       localStorage.clear()
     })
-    await page.goto('/student/tasks')
+    await page.goto('/student/courses/1/tasks')
     await expect(page).toHaveURL(/\/login\?redirect=/)
   })
 })

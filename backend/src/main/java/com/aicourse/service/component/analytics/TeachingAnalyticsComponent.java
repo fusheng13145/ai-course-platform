@@ -431,14 +431,14 @@ public class TeachingAnalyticsComponent {
             case "major":
                 return u != null && u.getMajor() != null ? u.getMajor() : "未知专业";
             case "class":
-            case "adminClass": {
+            case "adminclass": {
                 // WP9：行政班分组（V14 回填的 users.admin_class_id；未回填/未归属 → 未知班级）
                 Long adminClassId = u != null ? u.getAdminClassId() : null;
                 if (adminClassId == null) return "未知行政班";
                 com.aicourse.entity.AdminClass adminClass = adminClassMapper.selectById(adminClassId);
                 return adminClass != null && adminClass.getName() != null ? adminClass.getName() : "未知行政班";
             }
-            case "teachingClass": {
+            case "teachingclass": {
                 // WP9：教学班分组（选课记录上的 teaching_class_id 快照口径）
                 Long tcId = e.getTeachingClassId();
                 if (tcId == null) return "未知班级";

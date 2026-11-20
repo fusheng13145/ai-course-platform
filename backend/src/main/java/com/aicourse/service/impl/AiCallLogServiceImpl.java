@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.AiCallLog;
 import com.aicourse.mapper.AiCallLogMapper;
 import com.aicourse.service.AiCallLogService;
+import com.aicourse.service.component.ai.AiQuotaService;
 import com.aicourse.vo.AiUsageByCourseVO;
 import com.aicourse.vo.AiUsageByDayVO;
 import com.aicourse.vo.AiUsageBySceneVO;

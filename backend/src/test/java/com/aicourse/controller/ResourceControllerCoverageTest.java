@@ -16,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
@@ -56,7 +57,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * ResourceController 覆盖率补测（专打 Jacoco 报告中的 104 个未覆盖分支，
+ * 资源域三控制器覆盖率补测（专打 Jacoco 报告中的未覆盖分支，
  * 与既有 {@link ResourceControllerTest}（三角色合一用户，canAccess* 恒真）和
  * {@link ResourceEndpointAclTest}（列表端点 ACL 否定面）互补，不重复其用例）。
  *
@@ -80,7 +81,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * mp4 'ftyp' 四字节探针的后三个假侧（组合爆炸，性价比低）；{@code Files.write}/{@code Files.delete}
  * 的 IOException（无法在不改生产代码前提下稳定注入磁盘故障）。所有落盘文件在用例内清理。</p>
  */
-@WebMvcTest(ResourceController.class)
+@WebMvcTest({ResourceController.class, ResourceUploadController.class, ResourceMutationController.class})
+@Import(com.aicourse.security.ResourceAccessSupport.class)
 class ResourceControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean
@@ -417,12 +419,21 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
 
     // ==================== 上传：直接调用补不可经 MVC 注入的异常面 ====================
 
+    private com.aicourse.security.ResourceAccessSupport accessSupport(CourseService cs,
+                                                                      CourseEnrollmentService es) {
+        return new com.aicourse.security.ResourceAccessSupport(cs, es, adminScopeGuard);
+    }
+
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
-        return new ResourceController(rs, cs, es,
+        return new ResourceController(rs, courseAccessControl, accessSupport(cs, es), fileStorageService);
+    }
+
+    private ResourceUploadController directUploadController(ResourceService rs, CourseService cs,
+                                                            CourseEnrollmentService es) {
+        return new ResourceUploadController(rs, cs,
                 mock(com.aicourse.service.ResourceVersionService.class), fileStorageService,
-                adminScopeGuard, courseAccessControl,
-                mock(com.aicourse.service.FileUploadSessionService.class));
+                mock(com.aicourse.service.FileUploadSessionService.class), accessSupport(cs, es));
     }
 
     private Authentication teacherAuth() {
@@ -445,7 +456,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         when(big.isEmpty()).thenReturn(false);
         when(big.getSize()).thenReturn(MAX_FILE_SIZE + 1);
 
-        var resp = directController(rs, cs, mock(CourseEnrollmentService.class))
+        var resp = directUploadController(rs, cs, mock(CourseEnrollmentService.class))
                 .uploadResource(big, COURSE_ID, null, teacherAuth());
         assertEquals(400, resp.getCode());
         assertEquals("文件大小不能超过50MB", resp.getMessage());
@@ -464,7 +475,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         when(f.getContentType()).thenReturn("application/pdf");
         when(f.getInputStream()).thenThrow(new IOException("磁盘读取故障"));
 
-        var resp = directController(rs, cs, mock(CourseEnrollmentService.class))
+        var resp = directUploadController(rs, cs, mock(CourseEnrollmentService.class))
                 .uploadResource(f, COURSE_ID, null, teacherAuth());
         assertEquals(500, resp.getCode());
         assertTrue(resp.getMessage().startsWith("读取上传文件失败"),
@@ -484,7 +495,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         when(f.getContentType()).thenReturn("application/pdf");
         when(f.getInputStream()).thenReturn(null);
 
-        var resp = directController(rs, cs, mock(CourseEnrollmentService.class))
+        var resp = directUploadController(rs, cs, mock(CourseEnrollmentService.class))
                 .uploadResource(f, COURSE_ID, null, teacherAuth());
         assertEquals(400, resp.getCode());
         assertEquals("文件内容与声明类型不符，已拒绝上传", resp.getMessage());
@@ -497,7 +508,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         when(cs.getById(COURSE_ID)).thenReturn(courseOf(OWNER_TEACHER));
         MultipartFile f = mock(MultipartFile.class);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> directController(
+        BusinessException ex = assertThrows(BusinessException.class, () -> directUploadController(
                 mock(ResourceService.class), cs, mock(CourseEnrollmentService.class))
                 .uploadResource(f, COURSE_ID, null, null));
         assertEquals(403, ex.getCode());
@@ -509,7 +520,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     void uploadResource_courseMissing_throws404() {
         CourseService cs = mock(CourseService.class);
         when(cs.getById(COURSE_ID)).thenReturn(null);
-        BusinessException ex = assertThrows(BusinessException.class, () -> directController(
+        BusinessException ex = assertThrows(BusinessException.class, () -> directUploadController(
                 mock(ResourceService.class), cs, mock(CourseEnrollmentService.class))
                 .uploadResource(mock(MultipartFile.class), COURSE_ID, null, teacherAuth()));
         assertEquals(404, ex.getCode());

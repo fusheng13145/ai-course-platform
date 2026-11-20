@@ -384,7 +384,7 @@ onMounted(loadClasses)
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .check-row input {
   width: 16px;

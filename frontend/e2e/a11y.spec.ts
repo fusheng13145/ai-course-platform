@@ -37,7 +37,7 @@ const ROLE_PAGES: Array<{ role: Role; pages: PageTarget[] }> = [
     role: 'TEACHER',
     pages: [
       { path: '/teacher/inbox', ready: '.inbox-body' },
-      { path: '/teacher/exams', ready: '.module .kpi-grid' },
+      { path: '/teacher/courses/1/exams', ready: '.module .kpi-grid' },
     ],
   },
   {

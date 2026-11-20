@@ -425,7 +425,7 @@ onMounted(() => {
 .scope-note {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 14px;
 }
 .warn-text {
   color: var(--danger);
@@ -433,6 +433,6 @@ onMounted(() => {
 .modal-error {
   margin: 8px 0 0;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 14px;
 }
 </style>

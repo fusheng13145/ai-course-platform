@@ -484,16 +484,16 @@ file:
     # 单用户所有未完成会话声明字节数之和上限（默认 4GB）
     max-active-bytes-per-user: ${FILE_MAX_ACTIVE_BYTES:4294967296}
 
-# ===================== MinIO 对象存储配置（默认禁用） =====================
-# 启用后将使用 MinIO 替代本地磁盘作为文件存储后端。
-# 设置 minio.enabled=true 并提供正确的 endpoint/access-key/secret-key 即可激活。
-# 注意：启用前请确保 MinIO 服务已启动且网络可达。
+# ===================== MinIO 对象存储配置（默认启用） =====================
+# 新上传与分片合并产物统一写 MinIO；本地目录只保留历史文件只读兼容。
+# 凭据优先读 MINIO_ACCESS_KEY / MINIO_SECRET_KEY，未设置时回退到容器同源的
+# MINIO_ROOT_USER / MINIO_ROOT_PASSWORD，避免两套凭据漂移。
 minio:
-  enabled: false
-  endpoint: http://localhost:9000
-  access-key: ${MINIO_ACCESS_KEY:}
-  secret-key: ${MINIO_SECRET_KEY:}
-  bucket: aicourse-uploads
+  enabled: ${MINIO_ENABLED:true}
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:}}
+  secret-key: ${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}
+  bucket: ${MINIO_BUCKET:aicourse-uploads}
 
 # ===================== 可观测性 / Actuator 配置 =====================
 # 暴露端点：health 默认公开（供 Docker/K8s 探针与负载均衡探活），

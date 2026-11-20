@@ -3,35 +3,51 @@
     <template #form>
       <header class="av-form-head">
         <h2>登录</h2>
+        <router-link class="av-head-link" to="/register">创建账号</router-link>
       </header>
 
       <form class="av-form" @submit.prevent="submit">
         <label class="av-field">
           <span>用户名</span>
-          <input
-            v-model="form.username"
-            class="av-input"
-            name="username"
-            autocomplete="username"
-            placeholder="用户名 / 邮箱"
-            :disabled="submitting"
-          />
+          <div class="av-control">
+            <Icon name="user" cls="av-control-icon" />
+            <input
+              v-model="form.username"
+              class="av-input"
+              name="username"
+              autocomplete="username"
+              placeholder="用户名 / 邮箱"
+              :disabled="submitting"
+            />
+          </div>
         </label>
         <label class="av-field">
           <span>密码</span>
-          <input
-            v-model="form.password"
-            class="av-input"
-            type="password"
-            name="password"
-            autocomplete="current-password"
-            placeholder="密码"
-            :disabled="submitting"
-          />
+          <div class="av-control has-action">
+            <Icon name="lock" cls="av-control-icon" />
+            <input
+              v-model="form.password"
+              class="av-input"
+              :type="showPassword ? 'text' : 'password'"
+              name="password"
+              autocomplete="current-password"
+              placeholder="密码"
+              :disabled="submitting"
+            />
+            <button
+              class="av-reveal"
+              type="button"
+              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+              @click="showPassword = !showPassword"
+            >
+              {{ showPassword ? '隐藏' : '显示' }}
+            </button>
+          </div>
         </label>
         <div class="av-row">
           <label class="av-check">
             <input v-model="form.remember" type="checkbox" />
+            <span class="av-check-box" aria-hidden="true"></span>
             <span>记住我</span>
           </label>
           <router-link class="av-link" to="/forgot-password">忘记密码？</router-link>
@@ -41,8 +57,6 @@
           {{ submitting ? '登录中…' : '登录' }}
         </button>
       </form>
-
-      <p class="av-switch">还没有账号？<router-link to="/register">注册</router-link></p>
     </template>
   </AuthShell>
 </template>
@@ -53,6 +67,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { isSafeInternalRedirect } from '@/utils/redirect'
 import AuthShell from './AuthShell.vue'
+import Icon from '../../components/Icon.vue'
 import { clearCourses } from '../../data/api'
 import { useUi } from '../../composables/ui'
 import { ROLE_HOME, type Role } from '../../types'
@@ -64,6 +79,7 @@ const { toast } = useUi()
 
 const form = reactive({ username: '', password: '', remember: false })
 const submitting = ref(false)
+const showPassword = ref(false)
 const error = ref('')
 
 function home(): string {

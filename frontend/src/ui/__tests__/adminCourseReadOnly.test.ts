@@ -163,6 +163,47 @@ describe('课程空间 · 总览三态与去示例兜底', () => {
     wrapper.unmount()
   })
 
+  it('学生总览用真实章节与课程档案填充内容，不制造示例读数', async () => {
+    mocks.chapter.getChapters = vi.fn(async () => ({
+      data: {
+        list: [
+          { id: 101, title: '网络体系结构' },
+          { id: 102, title: '物理层与数据通信' },
+          { id: 103, title: '网络层协议' },
+        ],
+      },
+    }))
+    const wrapper = mount(CourseOverviewTab, {
+      props: {
+        courseId: 4178,
+        role: 'student',
+        course: {
+          name: '计算机网络',
+          code: 'CN202',
+          semester: '2026秋',
+          credits: 4,
+          category: '专业核心课',
+          teacher: '张建国',
+          approvalStatus: 'APPROVED',
+          description: '从体系结构到协议实现，建立完整的计算机网络知识框架。',
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(mocks.chapter.getChapters).toHaveBeenCalledWith(4178)
+    expect(wrapper.text()).toContain('课程性质')
+    expect(wrapper.text()).toContain('专业核心课')
+    expect(wrapper.text()).toContain('授课教师')
+    expect(wrapper.text()).toContain('张建国')
+    expect(wrapper.text()).toContain('课程简介')
+    expect(wrapper.text()).toContain('完整的计算机网络知识框架')
+    expect(wrapper.findAll('.overview-outline-list li')).toHaveLength(3)
+    expect(wrapper.find('.overview-outline-list').text()).toContain('网络体系结构')
+    expect(wrapper.findAllComponents({ name: 'NumberBadge' })).toHaveLength(3)
+    wrapper.unmount()
+  })
+
   it('课程头部不再保留只弹演示 toast 的课程通知按钮', async () => {
     setRole('teacher')
     state.tab = 'overview'

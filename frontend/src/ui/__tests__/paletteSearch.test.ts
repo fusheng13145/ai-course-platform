@@ -236,21 +236,21 @@ describe('命令面板接入服务端全站检索', () => {
     await flushPromises()
     expect(searchApi.searchAll).toHaveBeenCalledTimes(1)
 
-    // 请求在途时用 ↓ 选中第 3 条本地命中：学习任务
+    // 请求在途时用 ↓ 选中第 3 条本地命中：学业档案
     await wrapper.find('input').trigger('keydown', { key: 'ArrowDown' })
     await wrapper.find('input').trigger('keydown', { key: 'ArrowDown' })
-    expect(wrapper.find('.palette-item.is-active').text()).toContain('学习任务')
+    expect(wrapper.find('.palette-item.is-active').text()).toContain('学业档案')
 
     pending.resolve([{ type: 'course', id: 4007, title: '服务端命中', snippet: '', score: 1 }])
     await flushPromises()
 
     // 服务端结果追加后，选中项仍停在原条目
     const active = wrapper.find('.palette-item.is-active')
-    expect(active.text()).toContain('学习任务')
+    expect(active.text()).toContain('学业档案')
     expect(active.text()).not.toContain('服务端命中')
 
     await wrapper.find('input').trigger('keydown', { key: 'Enter' })
-    expect(router.push).toHaveBeenCalledWith('/student/tasks')
+    expect(router.push).toHaveBeenCalledWith('/student/academic')
   })
 
   it('课程命中缺少 id 时不可点，重复缺 id 的命中也能共存', async () => {

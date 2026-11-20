@@ -62,9 +62,8 @@ class AIControllerSessionOwnershipTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AIController(aiService, analyticsService, learningPathService,
-                courseEnrollmentService, courseService, aiChatSessionService,
-                learningRecommendationService, knowledgePointService, courseAccessControl);
+        controller = new AIController(aiService, aiChatSessionService,
+                new com.aicourse.security.AIAccessSupport(courseAccessControl));
         when(auth.getPrincipal()).thenReturn(5001L);
     }
 

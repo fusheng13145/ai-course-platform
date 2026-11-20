@@ -2,12 +2,7 @@
   <section class="ai-center">
     <div class="course-tab-bar">
       <div>
-        <h2>{{ isStudent ? 'AI 学习助手' : 'AI 教学助手' }}</h2>
-      </div>
-      <div class="course-tab-actions">
-        <span class="head-hint">{{
-          isStudent ? '回答由模型生成，仅供学习参考' : '回答由模型生成，需人工复核后再用于教学'
-        }}</span>
+        <h2>{{ isStudent ? 'AI 学习助手' : 'AI 助教' }}</h2>
       </div>
     </div>
 
@@ -49,7 +44,6 @@
       </div>
       <div v-else class="empty-state compact">
         <b>还没有提问</b>
-        <p>就本课程的学习内容提问，回答会带上检索到的资料出处。</p>
       </div>
       <footer class="qa-foot">
         <textarea
@@ -89,7 +83,6 @@
       </ul>
       <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
         <b>没有可报告的薄弱点</b>
-        <p>学习数据积累后重试。</p>
       </div>
       <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
     </section>
@@ -195,6 +188,8 @@
         <pre>{{ pathRaw }}</pre>
       </details>
     </section>
+
+    <AiCorpusTab v-if="active === 'corpus' && !isStudent" :course-id="courseId" />
   </section>
 </template>
 
@@ -204,6 +199,7 @@ import { useUi } from '../../../composables/ui'
 import aiApi from '@/api/ai'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
+import AiCorpusTab from './AiCorpusTab.vue'
 
 interface Source {
   documentName?: string
@@ -223,6 +219,7 @@ const AI_TABS = [
   { key: 'advice', label: '学习建议' },
   { key: 'essay', label: '作文批改', teacherOnly: true },
   { key: 'path', label: '学习路径' },
+  { key: 'corpus', label: '课程语料', teacherOnly: true },
 ] as const
 
 // 学生复用同一套真接口，只裁掉教师专属的「作文批改」（其结论由教师采纳）
@@ -455,10 +452,6 @@ watch(
   flex-direction: column;
   gap: 14px;
 }
-.head-hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
 .msg-list {
   display: flex;
   flex-direction: column;
@@ -477,14 +470,14 @@ watch(
 }
 .msg-body {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.8;
   white-space: pre-wrap;
 }
 .src-list {
   margin: 8px 0 0;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
   display: flex;
   flex-direction: column;
@@ -518,7 +511,7 @@ watch(
 }
 .ai-summary {
   margin: 0 0 12px;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--ink-2);
 }
@@ -551,7 +544,7 @@ watch(
 }
 .raw {
   margin-top: 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .raw pre {
   margin: 6px 0 0;

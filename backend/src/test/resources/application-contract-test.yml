@@ -102,6 +102,8 @@ spring:
         - classpath:db/migration/V28__course_lifecycle.sql
         # V29（2026-11-18）：退役 classrooms / users.class_id，行政班收敛到 admin_classes
         - classpath:db/migration/V29__retire_legacy_classrooms.sql
+        # V30（2026-11-18）：users.gender 性别列（个人中心）
+        - classpath:db/migration/V30__user_gender.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
@@ -135,6 +137,8 @@ knowledge-graph:
 rag:
   enabled: false
 fine-tune:
+  enabled: false
+minio:
   enabled: false
 
 # 限流依赖 Redis（本机已运行），保持开启

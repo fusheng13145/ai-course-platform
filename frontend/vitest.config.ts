@@ -43,15 +43,16 @@ export default defineConfig({
       ],
       exclude: ['src/main.ts', 'src/utils/logger.ts', 'src/**/__tests__/**', 'src/**/*.d.ts'],
       thresholds: {
-        // 基线 2026-10-04 重测（1092 用例 / 54 文件全绿）：
-        //   lines 34.19 / statements 34.19 / functions 67.31 / branches 82.99
-        // 上一档（2026-10-04 上午）：lines 20.35 / functions 50.59 / branches 76.58；
-        // 再上一档（2026-09-05）：lines 8.3 / functions 25.7 / branches 64.4。
+        // 基线 2026-11-19 重测（103 文件 / 1238 例全绿）：
+        //   lines 80.24 / statements 80.24 / functions 73.90 / branches 84.47
+        // 上一档（2026-10-04）：lines 34.19 / statements 34.19 / functions 67.31 / branches 82.99；
+        // 2026-09-05：lines 8.3 / functions 25.7 / branches 64.4。
         // 棘轮制：只许上调、不得下调；下调需在评审中说明理由。
-        lines: 30,
-        functions: 62,
-        branches: 78,
-        statements: 30,
+        // 当前档按实测值留约 2pp 缓冲，避免日常改动因单个未测分支立刻红门。
+        lines: 78,
+        functions: 70,
+        branches: 82,
+        statements: 78,
       },
     },
   },

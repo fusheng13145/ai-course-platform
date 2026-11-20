@@ -29,6 +29,10 @@ const RETIRED_CLASSES = [
   'av-feat',
   'av-motto',
   'av-note',
+  'av-context',
+  'practice-subtitle',
+  'toc-note',
+  'kg-guide',
 ]
 
 /** 曾写死在侧栏的机构 / 学期假数据：任何源码文件都不得再出现 */

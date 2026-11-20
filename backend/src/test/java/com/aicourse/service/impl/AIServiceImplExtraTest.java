@@ -13,6 +13,7 @@ import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
 import com.aicourse.service.component.ai.CourseEvidenceComponent;
+import com.aicourse.service.component.ai.PromptGuard;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;

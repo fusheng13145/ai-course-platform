@@ -49,6 +49,9 @@ public class User {
 
     private String phone;
 
+    /** 性别：MALE / FEMALE / OTHER（V30，可空） */
+    private String gender;
+
     private String studentId;
 
     private String major;
@@ -117,5 +120,22 @@ public class User {
     /** 自动填充更新时间 */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /* ---- 资料展示派生字段（不落库，仅 getUserProfile 按组织 ID 回填）----
+       前端个人中心需要展示学校/学院/专业/行政班名称；这些名称的权威来源
+       分别是 schools / colleges / majors / admin_classes，避免在 users 表里
+       再复制一份名称造成漂移。 */
+
+    @TableField(exist = false)
+    private String schoolName;
+
+    @TableField(exist = false)
+    private String collegeName;
+
+    @TableField(exist = false)
+    private String majorName;
+
+    @TableField(exist = false)
+    private String adminClassName;
 
 }

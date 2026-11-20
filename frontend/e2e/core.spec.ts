@@ -232,7 +232,8 @@ test.describe.serial('核心链路（真栈）', () => {
     await expect(page.locator('[data-block]')).toHaveCount(3)
     await expect(page.locator('.page-kicker')).toHaveCount(0)
 
-    await page.goto('/teacher/bank', { waitUntil: 'domcontentloaded' })
+    // 题库已归入课程页签；旧 /teacher/bank 会重定向到课程列表
+    await page.goto(`/teacher/courses/${EXAM_COURSE_ID}/bank`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('button', { name: '导入', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '导出', exact: true })).toBeVisible()
     await expect(page.locator('body')).not.toContainText('示例数据')
@@ -242,8 +243,9 @@ test.describe.serial('核心链路（真栈）', () => {
   test('学生任务与消息是真实读数，不戴示例数据章', async ({ browser }) => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const page = await context.newPage()
-    await page.goto('/student/tasks', { waitUntil: 'domcontentloaded' })
-    await expect(page.locator('.tasks-body')).toBeVisible()
+    // 任务已归入课程页签；旧 /student/tasks 会重定向到课程列表
+    await page.goto(`/student/courses/${EXAM_COURSE_ID}/tasks`, { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.tasks')).toBeVisible()
     await expect(page.locator('.page-kicker')).toHaveCount(0)
 
     await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
@@ -252,9 +254,7 @@ test.describe.serial('核心链路（真栈）', () => {
     await context.close()
   })
 
-  test('其余核心页可打开并读到真数据（上传会话／AI 用量／试卷库／成绩管理）', async ({
-    browser,
-  }) => {
+  test('其余核心页可打开并读到真数据（上传会话／AI 用量／考试／成绩管理）', async ({ browser }) => {
     const admin = await browser.newContext({ baseURL: BASE, storageState: states!.admin })
     const adminPage = await admin.newPage()
     await adminPage.goto('/admin/uploads', { waitUntil: 'domcontentloaded' })
@@ -272,10 +272,14 @@ test.describe.serial('核心链路（真栈）', () => {
 
     const teacher = await browser.newContext({ baseURL: BASE, storageState: states!.teacher })
     const teacherPage = await teacher.newPage()
-    await teacherPage.goto('/teacher/exams', { waitUntil: 'domcontentloaded' })
-    await expect(teacherPage.getByRole('heading', { name: '试卷库' })).toBeVisible()
-    await teacherPage.goto('/teacher/grades', { waitUntil: 'domcontentloaded' })
-    await expect(teacherPage.getByRole('heading', { name: '成绩管理' })).toBeVisible()
+    await teacherPage.goto(`/teacher/courses/${EXAM_COURSE_ID}/exams`, {
+      waitUntil: 'domcontentloaded',
+    })
+    await expect(teacherPage.getByRole('heading', { name: '考试', exact: true })).toBeVisible()
+    await teacherPage.goto(`/teacher/courses/${EXAM_COURSE_ID}/grades`, {
+      waitUntil: 'domcontentloaded',
+    })
+    await expect(teacherPage.getByRole('heading', { name: '成绩管理', exact: true })).toBeVisible()
     await expect(teacherPage.locator('body')).not.toContainText('示例数据')
     await teacher.close()
   })
@@ -295,7 +299,7 @@ test.describe.serial('核心链路（真栈）', () => {
 
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const page = await context.newPage()
-    await page.goto('/student/exams', { waitUntil: 'domcontentloaded' })
+    await page.goto(`/student/courses/${EXAM_COURSE_ID}/exams`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.exam-panel')).toBeVisible()
 
     const row = page.locator('.exam-row', { hasText: paperTitle })
@@ -341,7 +345,7 @@ test.describe.serial('核心链路（真栈）', () => {
 
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const page = await context.newPage()
-    await page.goto('/student/exams', { waitUntil: 'domcontentloaded' })
+    await page.goto(`/student/courses/${EXAM_COURSE_ID}/exams`, { waitUntil: 'domcontentloaded' })
     const row = page.locator('.exam-row', { hasText: title })
     await expect(row, '学生考试列表里没有刚发布的卷子').toBeVisible()
     await startFromRow(page, row)

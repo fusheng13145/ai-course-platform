@@ -1,275 +1,191 @@
 <template>
-  <!-- 学生个人中心：基本资料 / 安全 / 偏好 + 扩展三面：数据概览 / 我的课程 / 学习动态 -->
   <section class="profile-body">
-    <div v-if="loadError" class="callout danger" role="alert">
-      <span>资料</span>
-      <p>{{ loadError }}</p>
-      <button class="btn btn-sm" :disabled="profileLoading" @click="loadProfile">重新加载</button>
-    </div>
-    <div v-else-if="notice" class="callout" role="status">
-      <span>INFO / 资料</span>
-      <p>{{ notice }}</p>
-      <button class="btn btn-sm" :disabled="profileLoading" @click="loadProfile">重新加载</button>
+    <div v-if="loadError" class="callout danger profile-error" role="alert">
+      <span>{{ loadError }}</span>
+      <button class="btn btn-sm" type="button" @click="loadProfile">重新加载</button>
     </div>
 
-    <div class="profile-grid">
-      <section class="card profile-card basic-card">
-        <header class="card-head">
-          <div>
-            <h2>基本资料</h2>
+    <section class="card profile-card" :aria-busy="profileLoading">
+      <header class="profile-hero">
+        <div class="profile-person">
+          <span v-if="avatarPreview && !avatarBroken" class="profile-avatar">
+            <img :src="avatarPreview" alt="" @error="avatarBroken = true" />
+          </span>
+          <span v-else class="profile-avatar" aria-hidden="true">{{ avatarText }}</span>
+
+          <div class="profile-person-main">
+            <div class="profile-name-row">
+              <b class="profile-name">{{ displayName }}</b>
+              <span class="chip chip-mute">{{ roleLabel }}</span>
+            </div>
+
+            <div class="profile-uid-row">
+              <span class="profile-uid mono">UID {{ uidText || '—' }}</span>
+              <button
+                v-if="uidText"
+                class="profile-copy"
+                type="button"
+                aria-label="复制 UID"
+                @click="copyUid"
+              >
+                复制
+              </button>
+            </div>
+
+            <p v-if="affiliationText" class="profile-affiliation">{{ affiliationText }}</p>
           </div>
-          <button type="button" class="btn btn-sm btn-primary" @click="openProfileModal">
+        </div>
+
+        <div class="profile-actions">
+          <button class="btn btn-sm" type="button" @click="openPasswordModal">修改密码</button>
+          <button class="btn btn-sm btn-primary" type="button" @click="openProfileModal">
             编辑资料
           </button>
-        </header>
-
-        <div class="profile-identity">
-          <span class="profile-avatar" aria-hidden="true">{{ avatarText }}</span>
-          <div class="profile-identity-main">
-            <b>{{ displayName }}</b>
-            <span v-if="roleLabel" class="chip chip-mute">{{ roleLabel }}</span>
-          </div>
         </div>
+      </header>
 
-        <dl class="profile-static">
-          <div>
-            <dt>用户名</dt>
-            <dd>{{ profile.username || '—' }}</dd>
-          </div>
-          <div v-if="isStudent">
-            <dt>学号</dt>
-            <dd>{{ profile.studentId || '—' }}</dd>
-          </div>
-          <div v-if="profile.major">
-            <dt>专业</dt>
-            <dd>{{ profile.major }}</dd>
-          </div>
-          <div v-if="profile.grade">
-            <dt>年级</dt>
-            <dd>{{ profile.grade }}</dd>
-          </div>
-          <div v-if="profile.department">
-            <dt>院系</dt>
-            <dd>{{ profile.department }}</dd>
-          </div>
-        </dl>
-
-        <p class="profile-hint">
-          <template v-if="isStudent">用户名、学号由管理员维护；</template>
-          <template v-else>用户名由管理员维护；</template>
-          点击「编辑资料」可修改姓名、邮箱、手机号。
-        </p>
-
-        <div class="profile-divider"></div>
-        <div class="settings-block">
-          <div class="settings-row">
-            <span class="settings-label">账号安全</span>
-            <span class="profile-meta">上次登录：{{ lastLoginText }}</span>
-            <button type="button" class="btn btn-sm settings-action" @click="openPasswordModal">
-              修改密码
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="isStudent" class="card profile-card stats-card">
-        <header class="card-head">
-          <div>
-            <h2>数据概览</h2>
-          </div>
-        </header>
-        <div class="stat-grid">
-          <button type="button" class="profile-stat" @click="openCourses">
-            <span class="profile-stat-num">{{ courseList.length }}</span>
-            <span class="profile-stat-label">在学课程</span>
-          </button>
-          <button type="button" class="profile-stat" @click="openAssignments">
-            <span class="profile-stat-num">{{ pendingAssignments.length }}</span>
-            <span class="profile-stat-label">待办作业</span>
-          </button>
-          <button type="button" class="profile-stat" @click="openNotifications">
-            <span class="profile-stat-num">{{ unreadCount }}</span>
-            <span class="profile-stat-label">未读通知</span>
-          </button>
-          <button type="button" class="profile-stat" @click="openAssignments">
-            <span class="profile-stat-num">{{ completedAssignments.length }}</span>
-            <span class="profile-stat-label">已完成</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="card profile-card activity-card">
-        <header class="card-head">
-          <div>
-            <h2>{{ activityTitle }}</h2>
-          </div>
-          <button v-if="isStudent" type="button" class="btn btn-sm" @click="openAssignments">
-            全部待办
-          </button>
-          <button v-else-if="isTeacher" type="button" class="btn btn-sm" @click="openMessages">
-            全部消息
-          </button>
-        </header>
-        <div v-if="feedLoading" class="profile-loading">加载中…</div>
-        <p v-else-if="activityFeed.length === 0" class="profile-empty">
-          {{ isStudent ? '暂无学习动态' : '暂无通知' }}
-        </p>
-        <ul v-else class="profile-feed-list">
-          <li
-            v-for="(a, i) in activityFeed"
-            :key="i"
-            class="profile-feed-item"
-            :class="{ clickable: a.courseId != null }"
-            role="button"
-            tabindex="0"
-            @click="a.courseId != null && openCourseById(a.courseId)"
-            @keyup.enter="a.courseId != null && openCourseById(a.courseId)"
-          >
-            <span class="feed-dot" :style="{ background: feedColor(a.color) }"></span>
-            <div class="profile-feed-main">
-              <div class="profile-feed-title">
-                <span class="chip" :class="'chip-' + a.color">{{ a.type }}</span>
-                <span class="profile-feed-name">{{ a.title }}</span>
-              </div>
-              <div v-if="a.due" class="profile-feed-due">{{ a.metaLabel }} {{ a.due }}</div>
+      <div class="profile-detail">
+        <section v-for="group in fieldGroups" :key="group.title" class="profile-group">
+          <h2>{{ group.title }}</h2>
+          <dl class="profile-fields">
+            <div v-for="row in group.fields" :key="row.label" class="profile-field">
+              <dt>{{ row.label }}</dt>
+              <dd :class="{ 'is-empty': !row.value }" :title="row.value || undefined">
+                {{ row.value || '—' }}
+              </dd>
             </div>
-          </li>
-        </ul>
-      </section>
-
-      <section class="card profile-card courses-card" :class="{ 'is-full': !isStudent }">
-        <header class="card-head">
-          <div>
-            <h2>{{ coursesTitle }}</h2>
-          </div>
-          <button type="button" class="btn btn-sm" @click="openCourses">查看全部</button>
-        </header>
-        <div v-if="coursesLoading" class="profile-loading">加载中…</div>
-        <p v-else-if="courseList.length === 0" class="profile-empty">
-          {{ isAdmin ? '课程库暂无课程' : '还没有在学课程' }}
-        </p>
-        <ul v-else class="profile-course-list">
-          <li
-            v-for="c in courseList"
-            :key="c.id"
-            class="profile-course-item"
-            role="button"
-            tabindex="0"
-            @click="openCourse(c)"
-            @keyup.enter="openCourse(c)"
-          >
-            <span class="course-cover" :data-tone="c.tone">{{ c.short }}</span>
-            <div class="profile-course-info">
-              <div class="course-name">{{ c.name }}</div>
-              <span class="course-bar"
-                ><i
-                  :style="{
-                    '--p': clampPct(c.progress) + '%',
-                    width: clampPct(c.progress) + '%',
-                    background: progressColor(c.progress),
-                  }"
-                ></i
-              ></span>
-            </div>
-            <span class="course-progress">{{ clampPct(c.progress) }}<small>%</small></span>
-          </li>
-        </ul>
-      </section>
-    </div>
+          </dl>
+        </section>
+      </div>
+    </section>
 
     <Modal v-model:open="profileOpen" title="编辑资料" width="480px" @close="closeProfileModal">
+      <div class="profile-avatar-row">
+        <span v-if="formAvatarPreview" class="profile-avatar is-sm">
+          <img :src="formAvatarPreview" alt="" />
+        </span>
+        <span v-else class="profile-avatar is-sm" aria-hidden="true">{{ avatarText }}</span>
+        <div class="profile-avatar-copy">
+          <button
+            class="btn btn-sm"
+            type="button"
+            :disabled="avatarUploading"
+            @click="avatarInput?.click()"
+          >
+            {{ avatarUploading ? '上传中…' : '更换头像' }}
+          </button>
+          <p>JPG / PNG / WebP，2 MB 以内</p>
+        </div>
+        <input
+          ref="avatarInput"
+          class="profile-file"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          data-field="avatar"
+          @change="onAvatarChange"
+        />
+      </div>
+
       <div class="form-grid">
-        <label class="field">
+        <label class="field span-2">
           <span>姓名</span>
           <input
             v-model="form.fullName"
             class="input"
-            data-field="fullName"
+            type="text"
             maxlength="50"
-            autocomplete="name"
+            data-field="fullName"
           />
         </label>
+
+        <div class="field span-2" data-field="gender">
+          <span>性别</span>
+          <div class="profile-seg" role="group" aria-label="性别">
+            <button
+              v-for="item in GENDERS"
+              :key="item.value"
+              class="profile-seg-btn"
+              :class="{ 'is-active': form.gender === item.value }"
+              type="button"
+              :data-gender="item.value"
+              @click="form.gender = item.value"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>手机号</span>
+          <input v-model="form.phone" class="input" type="tel" maxlength="11" data-field="phone" />
+        </label>
+
         <label class="field">
           <span>邮箱</span>
-          <input
-            v-model="form.email"
-            class="input"
-            data-field="email"
-            type="email"
-            autocomplete="email"
-          />
-        </label>
-        <label class="field span-2">
-          <span>手机号</span>
-          <input
-            v-model="form.phone"
-            class="input"
-            data-field="phone"
-            maxlength="11"
-            autocomplete="tel"
-            placeholder="11 位手机号"
-          />
+          <input v-model="form.email" class="input" type="email" data-field="email" />
         </label>
       </div>
+
       <p v-if="saveError" class="form-error" role="alert">{{ saveError }}</p>
+      <p class="profile-readonly">{{ readonlyHint }}</p>
+
       <template #footer>
-        <button type="button" class="btn btn-ghost" :disabled="saving" @click="closeProfileModal">
+        <button class="btn" type="button" :disabled="saving" @click="closeProfileModal">
           取消
         </button>
-        <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
+        <button
+          class="btn btn-primary"
+          type="button"
+          :disabled="saving || avatarUploading"
+          @click="submitProfile"
+        >
           {{ saving ? '保存中…' : '保存' }}
         </button>
       </template>
     </Modal>
 
-    <Modal v-model:open="passwordOpen" title="修改密码" width="480px" @close="resetPasswordForm">
-      <p class="profile-hint">
-        修改密码需验证当前密码；新密码 8–32 位且同时包含大写字母、小写字母、数字和特殊字符。
-        修改成功后当前会话会失效，需要重新登录。
-      </p>
+    <Modal v-model:open="passwordOpen" title="修改密码" width="480px" @close="closePasswordModal">
       <div class="form-grid">
         <label class="field span-2">
           <span>当前密码</span>
           <input
             v-model="password.oldPassword"
             class="input"
-            data-field="oldPassword"
             type="password"
             autocomplete="current-password"
+            data-field="oldPassword"
           />
         </label>
-        <label class="field">
+        <label class="field span-2">
           <span>新密码</span>
           <input
             v-model="password.newPassword"
             class="input"
-            data-field="newPassword"
             type="password"
             autocomplete="new-password"
+            data-field="newPassword"
           />
         </label>
-        <label class="field">
+        <label class="field span-2">
           <span>确认新密码</span>
           <input
             v-model="password.confirmPassword"
             class="input"
-            data-field="confirmPassword"
             type="password"
             autocomplete="new-password"
+            data-field="confirmPassword"
           />
         </label>
       </div>
+
+      <p class="profile-readonly">8–32 位，需包含大小写字母、数字与特殊字符。</p>
       <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
+
       <template #footer>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          :disabled="changing"
-          @click="closePasswordModal"
-        >
+        <button class="btn" type="button" :disabled="changing" @click="closePasswordModal">
           取消
         </button>
-        <button type="button" class="btn btn-primary" :disabled="changing" @click="changePassword">
+        <button class="btn btn-primary" type="button" :disabled="changing" @click="submitPassword">
           {{ changing ? '提交中…' : '确认修改' }}
         </button>
       </template>
@@ -278,16 +194,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import authApi from '@/api/auth'
+import commonApi from '@/api/common'
 import userApi from '@/api/user'
-import studentApi from '@/api/student'
-import { unwrap, pickList } from '@/utils/response'
-import logger from '@/utils/logger'
-import { loadCourses, loadNotifications, type CourseCard, type Notification } from '../../data/api'
+import { unwrap } from '@/utils/response'
+import safeUrl from '@/utils/safeUrl'
 
 interface ProfileUser {
   id?: number | string | null
@@ -295,15 +210,37 @@ interface ProfileUser {
   fullName?: string
   email?: string
   phone?: string
+  gender?: string
+  avatarUrl?: string
   studentId?: string
+  teacherId?: string
   major?: string
+  majorName?: string
   grade?: string
   department?: string
-  className?: string
+  collegeName?: string
+  schoolName?: string
+  adminClassName?: string
+  adminScope?: string
+  title?: string
   role?: string
-  lastLogin?: string
-  createdAt?: string
 }
+
+interface ProfileField {
+  label: string
+  value: string
+}
+
+interface ProfileGroup {
+  title: string
+  fields: ProfileField[]
+}
+
+const GENDERS = [
+  { value: 'MALE', label: '男' },
+  { value: 'FEMALE', label: '女' },
+  { value: 'OTHER', label: '保密' },
+] as const
 
 const ui = useUi()
 const router = useRouter()
@@ -312,42 +249,30 @@ const { toast } = ui
 const cached = ((ui.auth?.user as ProfileUser | null) ?? {}) as ProfileUser
 const profile = ref<ProfileUser>({ ...cached })
 const form = reactive({
-  fullName: cached.fullName ?? '',
-  email: cached.email ?? '',
-  phone: cached.phone ?? '',
+  fullName: '',
+  email: '',
+  phone: '',
+  gender: '',
+  avatarUrl: '',
 })
 const password = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 
-const saving = ref(false)
-const changing = ref(false)
 const profileLoading = ref(false)
 const profileOpen = ref(false)
 const passwordOpen = ref(false)
+const saving = ref(false)
+const changing = ref(false)
+const avatarUploading = ref(false)
+const avatarBroken = ref(false)
+const avatarPreview = ref(resolveAvatar(cached.avatarUrl))
+const formAvatarPreview = ref('')
+const avatarInput = ref<HTMLInputElement | null>(null)
 const saveError = ref('')
 const passwordError = ref('')
-const notice = ref('')
 const loadError = ref('')
-
-// —— 扩展三面（M-06）：数据概览 / 我的课程 / 学习动态 ——
-const courseList = ref<CourseCard[]>([])
-const pendingAssignments = ref<Task[]>([])
-const completedAssignments = ref<Task[]>([])
-const notifications = ref<Notification[]>([])
-const coursesLoading = ref(false)
-const feedLoading = ref(false)
-
-interface Task {
-  id?: number | string
-  title?: string
-  taskType?: string
-  courseId?: number | string | null
-  dueDate?: string
-  status?: string
-}
 
 const uiRole = computed(() => {
   // useUi 暴露的 role 可能是 ref，也可能已解包成字符串：两种形态都要取到值。
-  // 直接 String(ref) 会得到 "[object Object]"，导致角色判定这一层永远失效。
   const raw = ui.role as unknown
   const val =
     raw !== null && typeof raw === 'object' && 'value' in (raw as Record<string, unknown>)
@@ -357,597 +282,683 @@ const uiRole = computed(() => {
 })
 const profileRole = computed(() => String(profile.value.role ?? '').toUpperCase())
 const roleKey = computed<'student' | 'teacher' | 'admin'>(() => {
-  if (uiRole.value === 'teacher' || uiRole.value === 'admin') return uiRole.value
-  if (profileRole.value === 'TEACHER') return 'teacher'
-  if (profileRole.value === 'ADMIN') return 'admin'
+  const candidate = profileRole.value
+  if (candidate === 'TEACHER' || candidate === 'ADMIN') {
+    return candidate === 'TEACHER' ? 'teacher' : 'admin'
+  }
+  if (candidate === 'STUDENT') return 'student'
+  if (uiRole.value === 'teacher' || uiRole.value === 'admin') {
+    return uiRole.value
+  }
   return 'student'
 })
 const isStudent = computed(() => roleKey.value === 'student')
 const isTeacher = computed(() => roleKey.value === 'teacher')
-const isAdmin = computed(() => roleKey.value === 'admin')
-const displayName = computed(() => profile.value.fullName || profile.value.username || '未登录')
-const avatarText = computed(() => displayName.value.trim().slice(0, 1) || '云')
+
+const currentUserId = computed<number | string | null>(
+  () => profile.value.id ?? ui.auth?.userId ?? cached.id ?? null,
+)
+const uidText = computed(() => {
+  const id = currentUserId.value
+  return id == null || id === '' ? '' : String(id)
+})
+
+const displayName = computed(
+  () => profile.value.fullName || profile.value.username || cached.fullName || '未登录',
+)
+const avatarText = computed(() => displayName.value.slice(0, 1))
+
 const roleLabel = computed(() => {
-  if (roleKey.value === 'admin') return '管理员'
   if (roleKey.value === 'teacher') return '教师'
+  if (roleKey.value === 'admin') {
+    const scope = String(profile.value.adminScope ?? '').toUpperCase()
+    if (scope === 'COLLEGE') return '院系管理员'
+    if (scope === 'SCHOOL') return '校级管理员'
+    return '管理员'
+  }
   return '学生'
 })
-const activityTitle = computed(() => (isStudent.value ? '学习动态' : '最近通知'))
-const coursesTitle = computed(() => (isAdmin.value ? '课程概览' : '我的课程'))
-const lastLoginText = computed(() => fmtTime(profile.value.lastLogin))
 
-function fmtTime(value: unknown): string {
-  const text = String(value ?? '')
-  return text ? text.replace('T', ' ').slice(0, 16) : '—'
-}
+const collegeText = computed(() => profile.value.collegeName || profile.value.department || '')
+const majorText = computed(() => profile.value.majorName || profile.value.major || '')
+const adminScopeText = computed(() => {
+  const scope = String(profile.value.adminScope ?? '').toUpperCase()
+  if (scope === 'SCHOOL') return '校级'
+  if (scope === 'COLLEGE') return '院系'
+  return ''
+})
 
-function currentUserId(): number | string | null {
-  const raw = ui.auth?.userId ?? profile.value.id ?? cached.id
-  return raw == null || raw === '' ? null : (raw as number | string)
-}
+const affiliationText = computed(() => {
+  const parts = isStudent.value
+    ? [collegeText.value, majorText.value, profile.value.grade]
+    : isTeacher.value
+      ? [collegeText.value, profile.value.title]
+      : [profile.value.schoolName]
+  return parts
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .join(' · ')
+})
 
-function applyProfile(next: ProfileUser) {
-  // 资料接口是权威来源：不把登录缓存的旧值补进已下发为空的字段
-  profile.value = { ...next }
-  form.fullName = profile.value.fullName ?? ''
-  form.email = profile.value.email ?? ''
-  form.phone = profile.value.phone ?? ''
-}
+const fieldGroups = computed<ProfileGroup[]>(() => {
+  const groups: ProfileGroup[] = [
+    {
+      title: '基本资料',
+      fields: [
+        { label: '性别', value: genderLabel(profile.value.gender) },
+        { label: '手机号', value: profile.value.phone ?? '' },
+        { label: '邮箱', value: profile.value.email ?? '' },
+        { label: '用户名', value: profile.value.username ?? '' },
+      ],
+    },
+    {
+      title: '组织信息',
+      fields: [
+        { label: '所属学校', value: profile.value.schoolName ?? '' },
+        { label: '学院', value: collegeText.value },
+      ],
+    },
+  ]
 
-/** 资料写成功后同步会话缓存，避免刷新后侧栏仍显示旧姓名。 */
-function syncAuthUser(next: ProfileUser) {
-  const auth = ui.auth
-  if (!auth) return
-  auth.user = next
-  try {
-    if (window.localStorage.getItem('user')) {
-      window.localStorage.setItem('user', JSON.stringify(next))
-    }
-    if (window.sessionStorage.getItem('user')) {
-      window.sessionStorage.setItem('user', JSON.stringify(next))
-    }
-  } catch {
-    // 存储不可用时只保留内存态，不影响已提交成功的资料
+  if (isStudent.value) {
+    groups.push({
+      title: '学籍信息',
+      fields: [
+        { label: '学号', value: profile.value.studentId ?? '' },
+        { label: '专业', value: majorText.value },
+        { label: '年级', value: profile.value.grade ?? '' },
+        { label: '行政班', value: profile.value.adminClassName ?? '' },
+      ],
+    })
+  } else if (isTeacher.value) {
+    groups.push({
+      title: '任职信息',
+      fields: [
+        { label: '工号', value: profile.value.teacherId ?? '' },
+        { label: '职称', value: profile.value.title ?? '' },
+      ],
+    })
+  } else {
+    groups.push({
+      title: '管理信息',
+      fields: [
+        { label: '工号', value: profile.value.teacherId ?? '' },
+        { label: '管理范围', value: adminScopeText.value },
+      ],
+    })
   }
-}
+
+  return groups
+})
+
+const readonlyHint = computed(() =>
+  isStudent.value ? '身份、学校、学院与学号由管理员维护。' : '身份、学校、学院与工号由管理员维护。',
+)
+
+watch(
+  () => profile.value.avatarUrl,
+  (value) => {
+    avatarPreview.value = resolveAvatar(value)
+    avatarBroken.value = false
+  },
+)
+
+onMounted(loadProfile)
 
 async function loadProfile() {
-  notice.value = ''
+  const id = currentUserId.value
   loadError.value = ''
-  const id = currentUserId()
-  if (id == null) {
-    notice.value = '未获取到当前账号标识，以下展示登录会话中的资料。'
-    return
-  }
+  if (!id) return
   profileLoading.value = true
   try {
-    const payload = unwrap<ProfileUser | null>(await userApi.getProfile(id))
-    if (payload && typeof payload === 'object') applyProfile(payload)
-  } catch (reason) {
-    logger.error('加载个人信息失败', reason)
-    loadError.value = '详细资料未能加载，以下展示登录会话中的资料。'
+    const payload = unwrap<ProfileUser>(await userApi.getProfile(id))
+    if (payload) applyProfile(payload)
+  } catch {
+    loadError.value = '详细资料未能加载，请重试'
   } finally {
     profileLoading.value = false
   }
 }
 
+function applyProfile(next: ProfileUser) {
+  profile.value = { ...next }
+  syncAuthUser(next)
+}
+
+function syncAuthUser(next: ProfileUser) {
+  if (ui.auth && 'user' in ui.auth) {
+    ;(ui.auth as { user?: unknown }).user = next
+  }
+}
+
+function genderLabel(value?: string) {
+  return GENDERS.find((item) => item.value === value)?.label ?? ''
+}
+
+function resolveAvatar(raw?: string | null): string {
+  if (!raw) return ''
+  // 仅接受本页 FileReader 生成的位图预览，不接受任意 data: 内容。
+  if (/^data:image\/(png|jpeg|webp);base64,/.test(raw)) return raw
+  const safe = safeUrl(raw)
+  if (!safe) return ''
+  const url = new URL(safe)
+  if (url.origin !== window.location.origin) return url.href
+  // 开发服务器只代理 /api；后端上传返回 /uploads/**，渲染时补上 /api 前缀。
+  if (url.pathname.startsWith('/uploads/')) return `/api${url.pathname}${url.search}`
+  return url.href
+}
+
+async function copyUid() {
+  const text = uidText.value
+  if (!text) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const node = document.createElement('textarea')
+      node.value = text
+      node.style.position = 'fixed'
+      node.style.opacity = '0'
+      document.body.appendChild(node)
+      node.select()
+      document.execCommand('copy')
+      document.body.removeChild(node)
+    }
+    toast('已复制 UID', 'ok')
+  } catch {
+    toast('复制失败，请手动选择 UID', 'warn')
+  }
+}
+
 function openProfileModal() {
-  saveError.value = ''
   form.fullName = profile.value.fullName ?? ''
   form.email = profile.value.email ?? ''
   form.phone = profile.value.phone ?? ''
+  form.gender = profile.value.gender ?? ''
+  form.avatarUrl = profile.value.avatarUrl ?? ''
+  formAvatarPreview.value = resolveAvatar(form.avatarUrl)
+  saveError.value = ''
   profileOpen.value = true
 }
 
 function closeProfileModal() {
+  if (saving.value || avatarUploading.value) return
   profileOpen.value = false
   saveError.value = ''
-  form.fullName = profile.value.fullName ?? ''
-  form.email = profile.value.email ?? ''
-  form.phone = profile.value.phone ?? ''
 }
 
-async function save() {
+async function onAvatarChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    saveError.value = '头像仅支持 JPG / PNG / WebP'
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    saveError.value = '头像不能超过 2 MB'
+    return
+  }
+
   saveError.value = ''
+  const reader = new FileReader()
+  reader.onload = () => {
+    formAvatarPreview.value = String(reader.result ?? '')
+  }
+  reader.readAsDataURL(file)
+
+  avatarUploading.value = true
+  try {
+    const uploaded = unwrap<{ url?: string }>(await commonApi.uploadFile(file))
+    if (!uploaded?.url) throw new Error('上传结果缺少地址')
+    form.avatarUrl = uploaded.url
+    formAvatarPreview.value = resolveAvatar(uploaded.url) || formAvatarPreview.value
+  } catch (error) {
+    saveError.value = errorMessage(error, '头像上传失败，请重试')
+    formAvatarPreview.value = resolveAvatar(form.avatarUrl)
+  } finally {
+    avatarUploading.value = false
+  }
+}
+
+async function submitProfile() {
+  if (avatarUploading.value) {
+    saveError.value = '头像还在上传，请稍候'
+    return
+  }
+
   const fullName = form.fullName.trim()
-  const email = form.email.trim()
-  const phone = form.phone.trim()
   if (!fullName) {
-    saveError.value = '请填写姓名'
+    saveError.value = '姓名不能为空'
     return
   }
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    saveError.value = '邮箱格式不正确'
-    return
-  }
+  const phone = form.phone.trim()
   if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
     saveError.value = '手机号格式不正确'
     return
   }
+  const email = form.email.trim()
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    saveError.value = '邮箱格式不正确'
+    return
+  }
+
+  const payload: Record<string, string> = { fullName }
+  if (phone) payload.phone = phone
+  if (email) payload.email = email
+  if (form.gender && form.gender !== (profile.value.gender ?? '')) payload.gender = form.gender
+  if (form.avatarUrl && form.avatarUrl !== (profile.value.avatarUrl ?? '')) {
+    payload.avatar = form.avatarUrl
+  }
+
   saving.value = true
+  saveError.value = ''
   try {
-    // 后端 UserUpdateDTO 白名单：fullName / phone / email / avatar / bio。
-    // 留空表示“不修改”，不能把空字符串当清空下发。
-    const payload: Record<string, string> = { fullName }
-    if (email) payload.email = email
-    if (phone) payload.phone = phone
-    const updated = unwrap<ProfileUser | null>(await authApi.updateCurrentUser(payload))
-    const patch: ProfileUser = { fullName }
-    if (email) patch.email = email
-    if (phone) patch.phone = phone
-    const merged: ProfileUser = {
-      ...profile.value,
-      ...(updated && typeof updated === 'object' ? updated : {}),
-      ...patch,
-    }
-    profile.value = merged
-    form.email = merged.email ?? ''
-    syncAuthUser(merged)
+    const updated = unwrap<ProfileUser>(await authApi.updateCurrentUser(payload))
+    if (!updated) throw new Error('更新结果为空')
+    applyProfile({ ...profile.value, ...updated })
     profileOpen.value = false
     toast('资料已更新', 'ok')
-  } catch (reason) {
-    logger.error('保存个人信息失败', reason)
-    saveError.value = '保存失败，请稍后重试'
+  } catch (error) {
+    saveError.value = errorMessage(error, '保存失败，请稍后重试')
   } finally {
     saving.value = false
   }
 }
 
 function openPasswordModal() {
-  resetPasswordForm()
-  passwordOpen.value = true
-}
-
-function resetPasswordForm() {
-  passwordError.value = ''
   password.oldPassword = ''
   password.newPassword = ''
   password.confirmPassword = ''
+  passwordError.value = ''
+  passwordOpen.value = true
 }
 
 function closePasswordModal() {
+  if (changing.value) return
   passwordOpen.value = false
-  resetPasswordForm()
+  passwordError.value = ''
 }
 
-async function changePassword() {
-  passwordError.value = ''
-  const oldPassword = password.oldPassword
-  const newPassword = password.newPassword
-  if (!oldPassword) {
-    passwordError.value = '请输入当前密码'
+async function submitPassword() {
+  if (!password.oldPassword || !password.newPassword || !password.confirmPassword) {
+    passwordError.value = '请填写完整的密码信息'
     return
   }
-  if (newPassword.length < 8 || newPassword.length > 32) {
-    passwordError.value = '新密码需为 8–32 位'
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,32}$/.test(password.newPassword)) {
+    passwordError.value = '新密码需 8–32 位，且包含大小写字母、数字与特殊字符'
     return
   }
-  if (
-    !/[a-z]/.test(newPassword) ||
-    !/[A-Z]/.test(newPassword) ||
-    !/\d/.test(newPassword) ||
-    !/[~!@#$%^&*()_+\-={}[\]:;"'<>,.?/\\|`]/.test(newPassword)
-  ) {
-    passwordError.value = '新密码需同时包含大小写字母、数字和特殊字符'
+  if (password.newPassword === password.oldPassword) {
+    passwordError.value = '新密码不能与当前密码相同'
     return
   }
-  if (newPassword !== password.confirmPassword) {
+  if (password.newPassword !== password.confirmPassword) {
     passwordError.value = '两次输入的新密码不一致'
     return
   }
+
   changing.value = true
+  passwordError.value = ''
   try {
-    // 后端 ChangePasswordDTO 三个字段都必填（confirmPassword 同步下发做服务端二次校验）
     await authApi.changePassword({
-      oldPassword,
-      newPassword,
+      oldPassword: password.oldPassword,
+      newPassword: password.newPassword,
       confirmPassword: password.confirmPassword,
     })
-    password.oldPassword = ''
-    password.newPassword = ''
-    password.confirmPassword = ''
     passwordOpen.value = false
     toast('密码已修改，请重新登录', 'ok')
-    // 后端改密成功即吊销全部会话：本地登录态必须同步清空，否则页面仍显示已登录。
+    // 后端改密即吊销会话：本地登录态必须清空并回登录页。
     ui.auth?.resetAuthState?.()
     router.push('/login')
-  } catch (reason) {
-    logger.error('修改密码失败', reason)
-    passwordError.value = '密码修改失败，请核对当前密码后重试'
+  } catch (error) {
+    passwordError.value = errorMessage(error, '修改失败，请稍后重试')
   } finally {
     changing.value = false
   }
 }
 
-// —— M-06 扩展三面的数据加载与导航 ——
-function clampPct(value: unknown): number {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return 0
-  return Math.max(0, Math.min(100, Math.round(n)))
+function errorMessage(error: unknown, fallback: string) {
+  const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message
+  return typeof message === 'string' && message.trim() ? message : fallback
 }
-
-function progressColor(pct: number): string {
-  if (pct >= 80) return 'var(--ok)'
-  if (pct >= 40) return 'var(--warn)'
-  return 'var(--danger)'
-}
-
-function feedColor(color: string): string {
-  if (color === 'ok') return 'var(--ok)'
-  if (color === 'warning') return 'var(--warn)'
-  if (color === 'danger') return 'var(--danger)'
-  if (color === 'info') return 'var(--info)'
-  return 'var(--accent)'
-}
-
-function notifyColor(kind: string): ActivityColor {
-  const k = String(kind || '').toLowerCase()
-  if (k.includes('exam') || k.includes('考试')) return 'danger'
-  if (k.includes('assignment') || k.includes('作业') || k.includes('任务')) return 'warning'
-  if (k.includes('grade') || k.includes('成绩')) return 'ok'
-  return 'accent'
-}
-
-function normalizeTask(raw: unknown): Task {
-  const r = (raw ?? {}) as Record<string, unknown>
-  return {
-    id: (r.id as number) ?? undefined,
-    title: String(r.title ?? r.name ?? '未命名'),
-    taskType: String(r.taskType ?? r.type ?? ''),
-    courseId: (r.courseId ?? r.course_id ?? null) as number | string | null,
-    dueDate: String(r.dueDate ?? r.due_date ?? r.deadline ?? ''),
-    status: String(r.status ?? ''),
-  }
-}
-
-type ActivityColor = 'ok' | 'warning' | 'danger' | 'info' | 'accent'
-
-interface ActivityItem {
-  courseId: number | null
-  color: ActivityColor
-  type: string
-  title: string
-  due: string
-  metaLabel: string
-}
-
-const unreadCount = computed(() => notifications.value.filter((n) => n.unread).length)
-
-const activityFeed = computed<ActivityItem[]>(() => {
-  const items: ActivityItem[] = []
-  if (isStudent.value) {
-    for (const a of pendingAssignments.value.slice(0, 6)) {
-      items.push({
-        courseId: a.courseId != null ? Number(a.courseId) : null,
-        color: 'warning',
-        type: '待办作业',
-        title: a.title || '未命名作业',
-        due: fmtTime(a.dueDate),
-        metaLabel: '截止',
-      })
-    }
-  }
-  for (const n of notifications.value.slice(0, 6)) {
-    items.push({
-      courseId: null,
-      color: notifyColor(n.kind),
-      type: n.kind || '通知',
-      title: n.title,
-      due: fmtTime(n.time),
-      metaLabel: '时间',
-    })
-  }
-  return items.slice(0, 8)
-})
-
-function openCourses() {
-  router.push(`/${roleKey.value}/courses`)
-}
-function openCourse(c: CourseCard) {
-  router.push(`/${roleKey.value}/courses/${c.id}`)
-}
-function openCourseById(id: number) {
-  router.push(`/${roleKey.value}/courses/${id}`)
-}
-function openAssignments() {
-  router.push('/student/tasks')
-}
-function openNotifications() {
-  router.push('/student/messages')
-}
-function openMessages() {
-  router.push('/teacher/messages')
-}
-
-async function loadExtra() {
-  coursesLoading.value = true
-  feedLoading.value = true
-  try {
-    const rows = await loadCourses(roleKey.value)
-    courseList.value = rows.slice(0, 6)
-  } catch {
-    courseList.value = []
-  } finally {
-    coursesLoading.value = false
-  }
-  const [notes] = await Promise.allSettled([loadNotifications()])
-  if (notes.status === 'fulfilled') {
-    notifications.value = notes.value as Notification[]
-  }
-  // 学生专属作业数据：教师/管理员调用 /student/** 会 403，不再发起
-  if (isStudent.value) {
-    const [pending, completed] = await Promise.allSettled([
-      studentApi.getPendingAssignments(),
-      studentApi.getCompletedAssignments(),
-    ])
-    // 分路归因：单路失败不应把其它路也清成空（与 loadAdminOverview 同判据）
-    if (pending.status === 'fulfilled') {
-      pendingAssignments.value = pickList<Record<string, unknown>>(unwrap(pending.value)).map(
-        normalizeTask,
-      )
-    }
-    if (completed.status === 'fulfilled') {
-      completedAssignments.value = pickList<Record<string, unknown>>(unwrap(completed.value)).map(
-        normalizeTask,
-      )
-    }
-  }
-  feedLoading.value = false
-}
-
-onMounted(async () => {
-  // 角色判定依赖 profile 返回：profile 未就绪时 roleKey 会按 profileRole 为空回落到
-  // student，导致教师/管理员也发一次 /student/** 请求（CI 慢环境必现）。
-  // 先等 profile 定稿，再决定 loadExtra 是否发起学生专属请求。
-  await loadProfile()
-  await loadExtra()
-})
 </script>
 
 <style scoped>
 .profile-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
-.callout.danger {
-  border-left-color: var(--danger);
-}
-.callout.danger > span {
-  color: var(--danger);
-}
-.profile-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-.basic-card {
-  grid-column: span 7;
-}
-.stats-card {
-  grid-column: span 5;
-}
-.activity-card {
-  grid-column: span 5;
-}
-.courses-card {
-  grid-column: span 7;
-}
-.courses-card.is-full {
-  grid-column: 1 / -1;
-}
-.profile-identity {
+
+.profile-error {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 14px;
-  margin-bottom: 14px;
+  margin: 0;
+  border-left-color: var(--danger);
 }
+
+.profile-error span {
+  color: var(--danger);
+}
+
+.profile-error .btn {
+  flex: none;
+}
+
+.profile-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.profile-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
+  padding: 24px 26px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-person {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.profile-person-main {
+  min-width: 0;
+}
+
 .profile-avatar {
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  flex: none;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
   border-radius: var(--r-circle);
   background: var(--accent-soft);
   color: var(--accent-strong);
-  font-family: 'Noto Serif SC', Georgia, serif;
-  font-size: 24px;
+  font-family: var(--font);
+  font-size: 32px;
   font-weight: 600;
-}
-.profile-identity-main b {
-  display: block;
-  font-size: 20px;
-  font-weight: 650;
-}
-.profile-identity-main .chip {
-  margin-top: 5px;
-}
-.profile-static {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 14px;
-  margin: 0 0 10px;
-}
-.profile-static dt {
-  font-size: 8.5px;
-  letter-spacing: 0.04em;
-  color: var(--ink-3);
-}
-.profile-static dd {
-  margin: 2px 0 0;
-  font-size: 11.5px;
-  color: var(--ink);
-  word-break: break-all;
-}
-.profile-hint {
-  margin: 0 0 4px;
-  font-size: 10px;
-  line-height: 1.7;
-  color: var(--ink-3);
-}
-.profile-meta {
-  margin: 10px 0 0;
-  font-size: 9.5px;
-  color: var(--ink-3);
-}
-.profile-divider {
-  margin: 16px 0 12px;
-  border-top: 1px solid var(--line);
-}
-.settings-block {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.settings-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.settings-label {
-  min-width: 52px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--ink-3);
-}
-.settings-row .profile-meta {
-  margin: 0;
-}
-.settings-action {
-  margin-left: auto;
-}
-@media (max-width: 980px) {
-  .basic-card,
-  .stats-card,
-  .activity-card,
-  .courses-card {
-    grid-column: 1 / -1;
-  }
+  line-height: 1;
 }
 
-/* —— M-06 扩展三面 —— */
-.stats-card .stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
-.profile-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s ease,
-    background 0.15s ease;
+
+.profile-avatar.is-sm {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
 }
-.profile-stat:hover {
-  border-color: var(--accent);
-  background: var(--surface-2);
-  transform: translateY(-1px);
-}
-.profile-stat-num {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  color: var(--ink);
-}
-.profile-stat-label {
-  font-size: 10px;
-  color: var(--ink-3);
-}
-.profile-loading,
-.profile-empty {
-  margin: 0;
-  padding: 18px 4px;
-  font-size: 11px;
-  color: var(--ink-3);
-  text-align: center;
-}
-.profile-course-list,
-.profile-feed-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-.profile-course-item {
+
+.profile-name-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 4px;
-  border-top: 1px solid var(--line);
-  border-radius: var(--r-xs);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.profile-course-item:first-child {
-  border-top: 0;
-}
-.profile-course-item:hover {
-  background: var(--surface-2);
-}
-.profile-course-info {
-  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
 }
-.profile-course-info .course-name {
-  margin-bottom: 6px;
-}
-.profile-feed-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 10px 4px;
-  border-top: 1px solid var(--line);
-  border-radius: var(--r-xs);
-  transition: background 0.15s ease;
-}
-.profile-feed-item:first-child {
-  border-top: 0;
-}
-.profile-feed-item.clickable {
-  cursor: pointer;
-}
-.profile-feed-item.clickable:hover {
-  background: var(--surface-2);
-}
-.profile-feed-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.profile-feed-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.profile-feed-name {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink);
+
+.profile-name {
   overflow: hidden;
+  max-width: 100%;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.profile-feed-due {
-  font-size: 9.5px;
+
+.profile-uid-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.profile-uid {
+  font-size: 12px;
   color: var(--ink-3);
 }
-@media (max-width: 760px) {
-  .settings-row .settings-action {
-    margin-left: 0;
+
+.profile-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.profile-copy:hover {
+  color: var(--accent-strong);
+}
+
+.profile-affiliation {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink-3);
+}
+
+.profile-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.profile-detail {
+  min-width: 0;
+  padding: 24px 26px 26px;
+}
+
+.profile-group + .profile-group {
+  margin-top: 20px;
+}
+
+.profile-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+
+.profile-group h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.profile-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-field {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-field dt {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.profile-field dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-field dd.is-empty {
+  color: var(--ink-3);
+}
+
+.profile-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-avatar-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.profile-avatar-copy p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.profile-file {
+  display: none;
+}
+
+.profile-seg {
+  display: flex;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+}
+
+.profile-seg-btn {
+  flex: 1;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.profile-seg-btn:first-child {
+  border-left: 0;
+}
+
+.profile-seg-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+
+.profile-readonly {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+@media (max-width: 980px) {
+  .profile-hero {
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .profile-avatar {
+    width: 88px;
+    height: 88px;
+    font-size: 29px;
+  }
+
+  .profile-name {
+    font-size: 26px;
+  }
+
+  .profile-detail {
+    padding: 22px 22px 24px;
+  }
+}
+
+@media (max-width: 820px) {
+  .profile-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .profile-actions {
+    width: 100%;
+  }
+
+  .profile-actions .btn {
+    flex: 1;
+  }
+
+  .profile-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .profile-hero {
+    padding: 20px 18px;
+  }
+
+  .profile-detail {
+    padding: 18px 16px 20px;
+  }
+
+  .profile-avatar {
+    width: 76px;
+    height: 76px;
+    font-size: 26px;
+  }
+
+  .profile-name {
+    font-size: 23px;
   }
 }
 </style>

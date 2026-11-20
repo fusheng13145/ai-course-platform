@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * MinIO 对象存储配置
  *
- * 默认禁用（minio.enabled=false），启用时需在 application.yaml 中设置 minio.enabled=true
- * 并提供正确的 endpoint / access-key / secret-key。
+ * 默认启用（minio.enabled=true）；测试 profile 显式关闭后回退本地实现。
+ * 启用时必须提供 endpoint / access-key / secret-key，凭据为空则在启动期 fail-fast。
  * Bean 创建后自动检查 bucket 是否存在，不存在则自动创建。
  */
 @Slf4j
@@ -25,14 +25,20 @@ import org.springframework.context.annotation.Configuration;
 public class MinioConfig {
 
     private String endpoint = "http://localhost:9000";
-    // 凭据来自 MINIO_ACCESS_KEY / MINIO_SECRET_KEY 环境变量（经 application.yaml 注入，无默认值）：
-    // 未设置时凭据为空，MinIO 客户端在首次请求时 fail-fast，避免沿用 minioadmin 弱口令默认凭据。
+    // 凭据由 application.yaml 注入：MINIO_ACCESS_KEY / MINIO_SECRET_KEY 优先，
+    // 未设置时回退 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD（与 Compose 容器同源，避免两套凭据漂移）。
+    // 两者都为空时在下面的 Bean 创建处 fail-fast，不再静默落到本地实现或使用 minioadmin 弱口令。
     private String accessKey;
     private String secretKey;
     private String bucket = "aicourse-uploads";
 
     @Bean
     public MinioClient minioClient() {
+        if (isBlank(accessKey) || isBlank(secretKey)) {
+            throw new IllegalStateException(
+                    "MinIO 已启用但凭据为空：请设置 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD"
+                            + "（或 MINIO_ACCESS_KEY / MINIO_SECRET_KEY）");
+        }
         log.info("初始化 MinIO 客户端: endpoint={}, bucket={}", endpoint, bucket);
         MinioClient client = MinioClient.builder()
                 .endpoint(endpoint)
@@ -54,5 +60,9 @@ public class MinioConfig {
         }
 
         return client;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

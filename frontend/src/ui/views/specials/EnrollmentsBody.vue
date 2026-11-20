@@ -107,23 +107,16 @@
       <div v-else-if="loading" class="empty-state compact"><b>正在加载选课记录…</b></div>
       <div v-else class="empty-state compact">
         <b>暂无符合条件的选课记录</b>
-        <p>调整筛选后重试。</p>
       </div>
 
       <footer class="card-foot">
         <span>第 {{ page }} 页 · 共 {{ total }} 条</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1 || loading" @click="turnPage(page - 1)">
-            上一页
-          </button>
-          <button
-            class="btn btn-sm"
-            :disabled="page * pageSize >= total || loading"
-            @click="turnPage(page + 1)"
-          >
-            下一页
-          </button>
-        </div>
+        <Pagination
+          :page="page"
+          :page-count="Math.ceil(total / pageSize)"
+          :loading="loading"
+          @turn="turnPage(page + $event)"
+        />
       </footer>
     </section>
 
@@ -165,6 +158,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import Modal from '../../components/Modal.vue'
+import Pagination from '../../components/Pagination.vue'
 import Stat from '../../components/Stat.vue'
 import { useUi } from '../../composables/ui'
 import { getAllUsers, listAllEnrollments } from '@/api/admin'
@@ -395,7 +389,7 @@ input.filter-select {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .check-row input {
   width: 16px;

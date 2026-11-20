@@ -137,7 +137,14 @@
           <div>
             <h2>{{ weakTitle }}</h2>
           </div>
-          <Icon name="chart" />
+          <button
+            v-if="role === 'teacher'"
+            class="text-btn"
+            @click="go('/teacher/advising/alerts')"
+          >
+            全部预警 <Icon name="arrow" />
+          </button>
+          <Icon v-else name="chart" />
         </header>
 
         <div v-if="courseLoading" class="empty-state compact"><b>正在加载…</b></div>
@@ -428,7 +435,7 @@ const studentQueueRows = computed<QueueRow[]>(() => {
   const lists = studentTodoLists.value
   const coursePath = (courseId: unknown, tab: string) => {
     const id = num(courseId)
-    return id === null ? '/student/tasks' : `/student/courses/${id}/${tab}`
+    return id === null ? '/student/courses' : `/student/courses/${id}/${tab}`
   }
   return [
     ...lists.assignments.map((row) => ({
@@ -783,7 +790,10 @@ const aiSummary = computed(() => {
 })
 const showAiCard = computed(() => role.value === 'teacher' && !!aiSummary.value)
 const aiActionLabel = '查看学情分析'
-const aiTo = '/teacher/analytics'
+const aiTo = computed(() => {
+  const id = courses.value[0]?.id
+  return id ? `/teacher/courses/${id}/analytics` : '/teacher/courses'
+})
 
 const weakTitle = computed(() => {
   if (role.value === 'teacher') return '风险学生'
@@ -809,7 +819,7 @@ const primary = computed(() => {
 })
 const secondary = computed(() => {
   if (role.value === 'student') return { label: '问 AI 助手' }
-  if (role.value === 'teacher') return { label: '教学任务' }
+  if (role.value === 'teacher') return { label: '我的课程' }
   return { label: '教学班监管' }
 })
 
@@ -852,7 +862,7 @@ function openCourse(id: number) {
 }
 
 function goQueue() {
-  if (role.value === 'student') router.push('/student/tasks')
+  if (role.value === 'student') router.push('/student/courses')
   else if (role.value === 'teacher') router.push('/teacher/inbox')
   else router.push('/admin/approvals')
 }
@@ -865,7 +875,7 @@ function primaryAction() {
   }
   if (role.value === 'teacher') {
     const id = courses.value[0]?.id
-    router.push(id ? `/teacher/courses/${id}/grading` : '/teacher/inbox')
+    router.push(id ? `/teacher/courses/${id}/grading` : '/teacher/courses')
     return
   }
   router.push('/admin/approvals')
@@ -878,14 +888,14 @@ function secondaryAction() {
     return
   }
   if (role.value === 'teacher') {
-    router.push('/teacher/inbox')
+    router.push('/teacher/courses')
     return
   }
   router.push('/admin/teaching-classes')
 }
 
 function aiAction() {
-  go(aiTo)
+  router.push(aiTo.value)
 }
 
 async function fetchFeed() {

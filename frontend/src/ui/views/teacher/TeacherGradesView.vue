@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead title="成绩管理">
+    <PageHead v-if="!embedded" title="成绩管理">
       <template #actions>
         <button class="btn btn-ghost" :disabled="!selectedCourseId" @click="openPolicy">
           成绩方案
@@ -11,6 +11,21 @@
         <button class="btn btn-ghost" :disabled="loading" @click="refresh">刷新</button>
       </template>
     </PageHead>
+
+    <div v-else class="course-tab-bar">
+      <div>
+        <h2>成绩管理</h2>
+      </div>
+      <div class="course-tab-actions">
+        <button class="btn btn-ghost" :disabled="!selectedCourseId" @click="openPolicy">
+          成绩方案
+        </button>
+        <button class="btn btn-ghost" :disabled="!filteredGradeList.length" @click="handleExport">
+          导出成绩
+        </button>
+        <button class="btn btn-ghost" :disabled="loading" @click="refresh">刷新</button>
+      </div>
+    </div>
 
     <div v-if="loadNotice" class="callout">
       <span>数据可用性</span>
@@ -28,6 +43,7 @@
         </div>
         <div class="filter-row">
           <select
+            v-if="!embedded"
             v-model="selectedCourseId"
             class="input filter-course"
             aria-label="按课程筛选成绩"
@@ -292,6 +308,11 @@ import gradeApi from '@/api/grade'
 import { unwrap } from '@/utils/response'
 import type { Metric } from '../../nav'
 
+const props = defineProps<{ embedCourseId?: number | string }>()
+const embedded = computed(
+  () =>
+    props.embedCourseId !== undefined && props.embedCourseId !== null && props.embedCourseId !== '',
+)
 const router = useRouter()
 const { toast } = useUi()
 
@@ -325,6 +346,7 @@ const {
   openGrading: (task) => {
     router.push(`/teacher/courses/${task.courseId}/grading?taskId=${String(task.id)}`)
   },
+  courseId: props.embedCourseId,
 })
 
 interface PolicyComponent {
@@ -556,7 +578,7 @@ function levelChip(level: string): string {
   width: auto;
   min-width: 150px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .filter-search {
   flex: 1;
@@ -589,7 +611,7 @@ function levelChip(level: string): string {
 }
 .dist-label {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .dist-track {
@@ -634,7 +656,7 @@ function levelChip(level: string): string {
 }
 .policy-sum {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 .policy-sum.danger {
@@ -659,7 +681,7 @@ function levelChip(level: string): string {
 }
 .detail-meta dd {
   margin: 3px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 @media (max-width: 900px) {

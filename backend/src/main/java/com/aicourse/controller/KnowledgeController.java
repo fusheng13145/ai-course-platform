@@ -1,112 +1,82 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
-import com.aicourse.common.RoleConstants;
-import com.aicourse.exception.BusinessException;
-import com.aicourse.integration.ContractPaths;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.dto.KnowledgeExtractDTO;
-import com.aicourse.dto.KnowledgeRelationDTO;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
-import com.aicourse.dto.KnowledgePathPlanDTO;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
-import com.aicourse.service.AIService;
+import com.aicourse.security.KnowledgeAccessSupport;
 import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
-import com.aicourse.service.component.ai.AiCallContext;
-import com.aicourse.vo.KnowledgeGraphDataVO;
 import com.aicourse.vo.KnowledgeGraphVO;
-import com.aicourse.vo.KnowledgeOverviewVO;
 import com.aicourse.vo.KnowledgePointRelationsVO;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.vo.MasteryVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * 知识点与知识图谱统一域控制器。
- * <p>
- * 由原 KnowledgePointController(/knowledge-points)、KnowledgeGraphController(/knowledge)、
- * KnowledgePointRelationController(/knowledge-relations) 三控制器合并而来，统一为单一
- * /knowledge 域，端点按 points / relations 子资源重排，消除三套路径与重复逻辑。
- * 基础路径: /api/knowledge
+ * 知识点与课程知识树接口（2026-11-18 从 709 行 KnowledgeController 拆分）。
+ *
+ * <p>保留 points 的 CRUD、分页、详情、知识点子资源（关联/前置/后继/子节点/掌握度）、
+ * 课程知识树与图谱全量数据。关系写入见 {@link KnowledgeRelationController}。</p>
  */
 @RestController
 @RequestMapping("/knowledge")
-@Slf4j
-@Tag(name = "知识图谱")
+@Tag(name = "知识图谱-知识点")
 public class KnowledgeController {
 
     private final KnowledgePointService knowledgePointService;
     private final KnowledgePointRelationService relationService;
-    private final AIService aiService;
-    private final KnowledgeGraphService knowledgeGraphService;
     private final CourseAccessControl courseAccessControl;
     private final CourseEnrollmentService courseEnrollmentService;
-
-    private static final ObjectMapper KG_OM = new ObjectMapper();
-    /** 核心知识点判定阈值：重要度不低于该值 */
-    private static final int CORE_IMPORTANCE = 8;
+    private final KnowledgeAccessSupport knowledgeAccessSupport;
 
     public KnowledgeController(KnowledgePointService knowledgePointService,
                                KnowledgePointRelationService relationService,
-                               AIService aiService,
-                               KnowledgeGraphService knowledgeGraphService,
                                CourseAccessControl courseAccessControl,
-                               CourseEnrollmentService courseEnrollmentService) {
+                               CourseEnrollmentService courseEnrollmentService,
+                               KnowledgeAccessSupport knowledgeAccessSupport) {
         this.knowledgePointService = knowledgePointService;
         this.relationService = relationService;
-        this.aiService = aiService;
-        this.knowledgeGraphService = knowledgeGraphService;
         this.courseAccessControl = courseAccessControl;
         this.courseEnrollmentService = courseEnrollmentService;
+        this.knowledgeAccessSupport = knowledgeAccessSupport;
     }
 
     // ==================== 知识点 CRUD / 列表（/knowledge/points） ====================
 
-    /**
-     * 分页/条件查询知识点列表
-     * GET /api/knowledge/points
-     */
+    /** 分页/条件查询知识点列表。 */
     @GetMapping("/points")
     public ApiResponse<List<KnowledgePoint>> listPoints(
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
         LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<>();
-        if (!applyCourseScope(qw, courseId, auth)) {
+        if (!knowledgeAccessSupport.applyCourseScope(qw, courseId, auth)) {
             return ApiResponse.success(Collections.emptyList());
         }
         qw.like(keyword != null && !keyword.isEmpty(), KnowledgePoint::getName, keyword);
         return ApiResponse.success(knowledgePointService.list(qw));
     }
 
-    /**
-     * 分页查询知识点列表（性能维度补强：消除图谱/列表全量加载瓶颈）
-     * GET /api/knowledge/points/page?page=1&size=10&courseId=&keyword=
-     * 响应含 total / pages / records，供前端渐进迁移分页展示。
-     * 与原 /points 并存：不传分页参数仍走全量，向后完全兼容。
-     */
+    /** 分页查询知识点列表；size 上限 200，page 下限 1。 */
     @GetMapping("/points/page")
     public ApiResponse<PagedResponse<KnowledgePoint>> listPointsPaged(
             @RequestParam(defaultValue = "1") int page,
@@ -114,11 +84,10 @@ public class KnowledgeController {
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
-        // size 上限保护：防止单次拉取过大（默认 10，最大 200）
         int safeSize = Math.min(Math.max(size, 1), 200);
         int safePage = Math.max(page, 1);
         LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<>();
-        if (!applyCourseScope(qw, courseId, auth)) {
+        if (!knowledgeAccessSupport.applyCourseScope(qw, courseId, auth)) {
             return ApiResponse.success(PagedResponse.of(new Page<>(safePage, safeSize)));
         }
         qw.like(keyword != null && !keyword.isEmpty(), KnowledgePoint::getName, keyword)
@@ -128,21 +97,15 @@ public class KnowledgeController {
         return ApiResponse.success(PagedResponse.of(result));
     }
 
-    /**
-     * 根据ID查询知识点详情
-     * GET /api/knowledge/points/{id}
-     */
+    /** 根据 ID 查询知识点详情。 */
     @GetMapping("/points/{id}")
     public ApiResponse<KnowledgePoint> getPointDetail(@PathVariable Long id, Authentication auth) {
-        KnowledgePoint point = requirePoint(id);
+        KnowledgePoint point = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
         return ApiResponse.success(point);
     }
 
-    /**
-     * 新增知识点（教师/管理员权限）
-     * POST /api/knowledge/points
-     */
+    /** 新增知识点（教师/管理员权限）。 */
     @PostMapping("/points")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<KnowledgePoint> createPoint(@Valid @RequestBody KnowledgePoint point,
@@ -152,16 +115,13 @@ public class KnowledgeController {
         return ApiResponse.success("创建成功", point);
     }
 
-    /**
-     * 修改知识点（教师/管理员权限）
-     * PUT /api/knowledge/points/{id}
-     */
+    /** 修改知识点（教师/管理员权限）。 */
     @PutMapping("/points/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<KnowledgePoint> updatePoint(@PathVariable Long id,
                                                    @Valid @RequestBody KnowledgePoint point,
                                                    Authentication auth) {
-        KnowledgePoint existing = requirePoint(id);
+        KnowledgePoint existing = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         point.setId(id);
         point.setCourseId(existing.getCourseId());
@@ -169,14 +129,11 @@ public class KnowledgeController {
         return ApiResponse.success("更新成功", knowledgePointService.getById(id));
     }
 
-    /**
-     * 删除知识点（教师/管理员权限）
-     * DELETE /api/knowledge/points/{id}
-     */
+    /** 删除知识点（教师/管理员权限）。 */
     @DeleteMapping("/points/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> deletePoint(@PathVariable Long id, Authentication auth) {
-        KnowledgePoint existing = requirePoint(id);
+        KnowledgePoint existing = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         knowledgePointService.removeById(id);
         return ApiResponse.success("删除成功", null);
@@ -184,14 +141,11 @@ public class KnowledgeController {
 
     // ==================== 知识点子资源（/knowledge/points/{id}/...） ====================
 
-    /**
-     * 查询当前知识点的所有关联关系（节点 + 边）
-     * GET /api/knowledge/points/{id}/relations
-     */
+    /** 查询当前知识点的所有关联关系（节点 + 边），只下发同课程节点/边。 */
     @GetMapping("/points/{id}/relations")
     public ApiResponse<KnowledgePointRelationsVO> getPointRelations(@PathVariable Long id,
                                                                    Authentication auth) {
-        KnowledgePoint point = requirePoint(id);
+        KnowledgePoint point = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
 
         LambdaQueryWrapper<KnowledgePointRelation> qw = new LambdaQueryWrapper<KnowledgePointRelation>()
@@ -205,7 +159,6 @@ public class KnowledgeController {
             pointIdSet.add(r.getSourceId());
             pointIdSet.add(r.getTargetId());
         }
-        // 只下发同课程节点/边，避免历史脏数据把其他课程的知识点带进本课图谱。
         List<KnowledgePoint> nodes = knowledgePointService.listByIds(pointIdSet).stream()
                 .filter(node -> Objects.equals(node.getCourseId(), point.getCourseId()))
                 .toList();
@@ -217,53 +170,42 @@ public class KnowledgeController {
         return ApiResponse.success(new KnowledgePointRelationsVO(nodes, scopedRelations));
     }
 
-    /**
-     * 获取知识点的前置依赖
-     * GET /api/knowledge/points/{id}/prerequisites
-     */
+    /** 获取知识点的前置依赖。 */
     @GetMapping("/points/{id}/prerequisites")
     public ApiResponse<List<KnowledgePoint>> getPrerequisites(@PathVariable Long id, Authentication auth) {
-        KnowledgePoint point = requirePoint(id);
+        KnowledgePoint point = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(filterSameCourse(
+        return ApiResponse.success(knowledgeAccessSupport.filterSameCourse(
                 knowledgePointService.getPrerequisites(id), point.getCourseId()));
     }
 
-    /**
-     * 获取知识点的后续知识点（被谁依赖）
-     * GET /api/knowledge/points/{id}/successors
-     */
+    /** 获取知识点的后续知识点（被谁依赖）。 */
     @GetMapping("/points/{id}/successors")
     public ApiResponse<List<KnowledgePoint>> getSubsequentPoints(@PathVariable Long id, Authentication auth) {
-        KnowledgePoint point = requirePoint(id);
+        KnowledgePoint point = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(filterSameCourse(
+        return ApiResponse.success(knowledgeAccessSupport.filterSameCourse(
                 knowledgePointService.getSubsequentPoints(id), point.getCourseId()));
     }
 
-    /**
-     * 获取某知识点的直接子节点
-     * GET /api/knowledge/points/{id}/children
-     */
+    /** 获取某知识点的直接子节点。 */
     @GetMapping("/points/{id}/children")
     public ApiResponse<List<KnowledgePoint>> getChildPoints(@PathVariable Long id, Authentication auth) {
-        KnowledgePoint point = requirePoint(id);
+        KnowledgePoint point = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(filterSameCourse(
+        return ApiResponse.success(knowledgeAccessSupport.filterSameCourse(
                 knowledgePointService.getChildPoints(id), point.getCourseId()));
     }
 
     /**
      * 计算学生对某知识点的掌握度。
-     * GET /api/knowledge/points/{id}/mastery/{userId}
-     * <p>2026-11-16 P0-4：返回结构化对象（score/level/answered/关联题统计），不再返回裸数值；
-     * 教师/管理员查询时必须确认目标学生确实在该课程中有有效选课，避免学情隐私越权。</p>
+     * 教师/管理员查询时必须确认目标学生确实在该课程中有有效选课，避免学情隐私越权。
      */
     @GetMapping("/points/{id}/mastery/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER') or #userId == authentication.principal")
     public ApiResponse<MasteryVO> calculateMastery(@PathVariable Long id, @PathVariable Long userId,
                                                    Authentication auth) {
-        KnowledgePoint point = requirePoint(id);
+        KnowledgePoint point = knowledgeAccessSupport.requirePoint(id);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
         if (userId == null || !courseEnrollmentService.hasApprovedEnrollment(userId, point.getCourseId())) {
             throw new BusinessException(ApiCode.FORBIDDEN, "该学生不在此课程，无法读取掌握度");
@@ -271,10 +213,7 @@ public class KnowledgeController {
         return ApiResponse.success(knowledgePointService.calculateMasteryDetail(id, userId));
     }
 
-    /**
-     * 获取课程的完整知识树（层级结构）
-     * GET /api/knowledge/points/tree/{courseId}
-     */
+    /** 获取课程的完整知识树（层级结构）。 */
     @GetMapping("/points/tree/{courseId}")
     public ApiResponse<List<KnowledgeTreeNodeVO>> getKnowledgeTree(@PathVariable Long courseId,
                                                                    Authentication auth) {
@@ -282,10 +221,7 @@ public class KnowledgeController {
         return ApiResponse.success(knowledgePointService.getKnowledgeTree(courseId));
     }
 
-    /**
-     * 获取课程的根级知识点
-     * GET /api/knowledge/points/root/{courseId}
-     */
+    /** 获取课程的根级知识点。 */
     @GetMapping("/points/root/{courseId}")
     public ApiResponse<List<KnowledgePoint>> getRootPoints(@PathVariable Long courseId,
                                                            Authentication auth) {
@@ -293,10 +229,7 @@ public class KnowledgeController {
         return ApiResponse.success(knowledgePointService.getRootPoints(courseId));
     }
 
-    /**
-     * 获取课程知识点图谱全量数据（nodes + edges + 统计）
-     * GET /api/knowledge/points/graph?courseId=
-     */
+    /** 获取课程知识点图谱全量数据（nodes + edges + 统计）。 */
     @GetMapping("/points/graph")
     @Operation(summary = "获取知识图谱全量数据", description = "返回课程知识点图谱的所有节点和边关系数据")
     public ApiResponse<KnowledgeGraphVO> getGraph(@RequestParam Long courseId, Authentication auth) {
@@ -305,8 +238,6 @@ public class KnowledgeController {
                 .eq(KnowledgePoint::getCourseId, courseId);
         List<KnowledgePoint> pointList = knowledgePointService.list(pointWrapper);
 
-        // 边与节点必须同域：本端点一次返回整图数据，若按课程过滤节点却取全表关系，
-        // 其他课程的关联行会一起下发（力导向图里表现为悬空边与虚高的 totalRelations）。
         Set<Long> pointIds = new HashSet<>();
         for (KnowledgePoint point : pointList) {
             pointIds.add(point.getId());
@@ -319,391 +250,5 @@ public class KnowledgeController {
 
         return ApiResponse.success(new KnowledgeGraphVO(
                 pointList, relationList, pointList.size(), relationList.size()));
-    }
-
-    // ==================== 知识点关联（/knowledge/relations） ====================
-
-    /**
-     * 创建知识点关联关系（教师/管理员权限，支持 strength/description）
-     * POST /api/knowledge/relations
-     */
-    @PostMapping("/relations")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePointRelation> createRelation(@Valid @RequestBody KnowledgeRelationDTO dto,
-                                                              Authentication auth) {
-        KnowledgePoint source = requirePoint(dto.getSourceId());
-        KnowledgePoint target = requirePoint(dto.getTargetId());
-        courseAccessControl.assertCanManageCourse(source.getCourseId(), auth);
-        if (!java.util.Objects.equals(source.getCourseId(), target.getCourseId())) {
-            throw new BusinessException(ApiCode.BAD_REQUEST, "关联关系只能建立在同一课程的知识点之间");
-        }
-        KnowledgePointRelation relation = relationService.createRelation(
-                dto.getSourceId(), dto.getTargetId(), dto.getRelationType(), dto.getStrength(), dto.getDescription());
-        return ApiResponse.success("创建成功", relation);
-    }
-
-    /**
-     * 删除知识点关联关系（教师/管理员权限）
-     * DELETE /api/knowledge/relations/{id}
-     */
-    @DeleteMapping("/relations/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> deleteRelation(@PathVariable Long id, Authentication auth) {
-        KnowledgePointRelation relation = relationService.getById(id);
-        if (relation == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "知识点关系不存在");
-        }
-        KnowledgePoint source = requirePoint(relation.getSourceId());
-        courseAccessControl.assertCanManageCourse(source.getCourseId(), auth);
-        relationService.deleteRelation(id);
-        return ApiResponse.success("删除成功", null);
-    }
-
-    /**
-     * 获取关联关系列表（分页，支持课程筛选）
-     * GET /api/knowledge/relations
-     */
-    @GetMapping("/relations")
-    public ApiResponse<PagedResponse<KnowledgePointRelation>> getRelationList(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) Long courseId,
-            Authentication auth) {
-        Page<KnowledgePointRelation> result;
-        if (courseId != null) {
-            courseAccessControl.assertCanReadCourse(courseId, auth);
-            result = relationService.getRelationList(page, size, courseId);
-        } else if (!isAdmin(auth)) {
-            // 关系表没有 course_id 列，无法在不指定课程时按「本人课程」过滤；
-            // 非管理员必须显式指定课程，避免全站关系目录式读面。
-            throw new BusinessException(ApiCode.BAD_REQUEST, "请指定课程ID后再查询知识点关系");
-        } else {
-            // 管理员无课程时按学院/校级作用域过滤：readableCourseIds 返回 null 表示校级全平台。
-            List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
-            result = readableCourseIds == null
-                    ? relationService.getRelationList(page, size, (Long) null)
-                    : relationService.getRelationListByCourses(page, size, readableCourseIds);
-        }
-        return ApiResponse.success(PagedResponse.of(result));
-    }
-
-    /**
-     * 获取某知识点的所有关联关系（入向+出向）
-     * GET /api/knowledge/relations/point/{pointId}
-     */
-    @GetMapping("/relations/point/{pointId}")
-    public ApiResponse<List<KnowledgePointRelation>> getRelationsByPoint(@PathVariable Long pointId,
-                                                                         Authentication auth) {
-        KnowledgePoint point = requirePoint(pointId);
-        courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(filterRelationsSameCourse(
-                relationService.getRelationsByPoint(pointId), point.getCourseId()));
-    }
-
-    /**
-     * 获取某知识点的出边（作为源节点）
-     * GET /api/knowledge/relations/source/{sourceId}
-     */
-    @GetMapping("/relations/source/{sourceId}")
-    public ApiResponse<List<KnowledgePointRelation>> getSourceRelations(@PathVariable Long sourceId,
-                                                                        Authentication auth) {
-        KnowledgePoint point = requirePoint(sourceId);
-        courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(filterRelationsSameCourse(
-                relationService.getSourceRelations(sourceId), point.getCourseId()));
-    }
-
-    /**
-     * 获取某知识点的入边（作为目标节点）
-     * GET /api/knowledge/relations/target/{targetId}
-     */
-    @GetMapping("/relations/target/{targetId}")
-    public ApiResponse<List<KnowledgePointRelation>> getTargetRelations(@PathVariable Long targetId,
-                                                                        Authentication auth) {
-        KnowledgePoint point = requirePoint(targetId);
-        courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(filterRelationsSameCourse(
-                relationService.getTargetRelations(targetId), point.getCourseId()));
-    }
-
-    /**
-     * 获取课程知识图谱可视化图数据（nodes + links，供 ECharts/D3 渲染）
-     * GET /api/knowledge/relations/graph/{courseId}
-     */
-    @GetMapping("/relations/graph/{courseId}")
-    @Operation(summary = "获取知识图谱可视化数据", description = "返回可供前端 ECharts/D3 渲染的图数据，包含节点和连接关系")
-    public ApiResponse<KnowledgeGraphDataVO> getRelationGraphData(@PathVariable Long courseId,
-                                                                  Authentication auth) {
-        courseAccessControl.assertCanReadCourse(courseId, auth);
-        return ApiResponse.success(relationService.getGraphData(courseId));
-    }
-
-    // ==================== 查询与抽取（/knowledge/*） ====================
-
-    /**
-     * 知识点搜索（全文检索）
-     * GET /api/knowledge/search
-     */
-    @GetMapping("/search")
-    public ApiResponse<List<KnowledgePoint>> search(
-            @RequestParam String keyword,
-            @RequestParam(required = false) Long courseId,
-            Authentication auth) {
-        LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<>();
-        if (!applyCourseScope(qw, courseId, auth)) {
-            return ApiResponse.success(Collections.emptyList());
-        }
-        qw.like(KnowledgePoint::getName, keyword);
-        return ApiResponse.success(knowledgePointService.list(qw));
-    }
-
-    /**
-     * 知识图谱概览统计
-     * GET /api/knowledge/overview
-     * <p>给定 courseId 时为课程口径：关系数、核心知识点、覆盖度均限定在该课程的知识点集合内，
-     * 与图谱可视化端点保持一致；courseId 为空时按当前用户可读课程集合统计，不返回全站目录。</p>
-     */
-    @GetMapping("/overview")
-    public ApiResponse<KnowledgeOverviewVO> overview(
-            @RequestParam(required = false) Long courseId,
-            Authentication auth) {
-        List<KnowledgePoint> points;
-        if (courseId != null) {
-            courseAccessControl.assertCanReadCourse(courseId, auth);
-            points = knowledgePointService.list(new LambdaQueryWrapper<KnowledgePoint>()
-                    .eq(KnowledgePoint::getCourseId, courseId));
-        } else {
-            points = listReadablePoints(auth);
-        }
-
-        Set<Long> pointIds = new HashSet<>();
-        for (KnowledgePoint point : points) {
-            pointIds.add(point.getId());
-        }
-
-        List<KnowledgePointRelation> relations = pointIds.isEmpty()
-                ? Collections.emptyList()
-                : relationService.list(new LambdaQueryWrapper<KnowledgePointRelation>()
-                        .in(KnowledgePointRelation::getSourceId, pointIds)
-                        .in(KnowledgePointRelation::getTargetId, pointIds));
-
-        Set<Long> coveredIds = new HashSet<>();
-        for (KnowledgePointRelation relation : relations) {
-            coveredIds.add(relation.getSourceId());
-            coveredIds.add(relation.getTargetId());
-        }
-        long corePoints = 0;
-        for (KnowledgePoint point : points) {
-            if (point.getImportance() != null && point.getImportance() >= CORE_IMPORTANCE) {
-                corePoints++;
-            }
-        }
-        double coverageRate = points.isEmpty() ? 0d : (double) coveredIds.size() / points.size();
-
-        return ApiResponse.success(new KnowledgeOverviewVO(
-                (long) points.size(), (long) relations.size(), corePoints, coverageRate, courseId));
-    }
-
-
-    /**
-     * AI 抽取知识点与关系（教师/管理员权限）
-     * 从课程内容调用大模型抽取结构，写入课程知识点表与关系表（真实持久化，前端列表立即可见）。
-     * <p>2026-11-14 P2-3（U1 收口）：解析与逐条落库下沉
-     * {@link KnowledgePointService#extractAndSaveGraph}（事务化 + 缓存逐出），控制器只保留
-     * 参数校验、AI 调用与跨课程统计作用域——此前约 80 行业务内联在控制器且无事务，
-     * 节点写一半解析失败即留半成品图谱。</p>
-     * POST /api/knowledge/extract
-     */
-    @PostMapping("/extract")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public Callable<ApiResponse<Map<String, Object>>> extractGraph(@Valid @RequestBody KnowledgeExtractDTO dto,
-                                                                   Authentication auth) {
-        final Long courseId = dto.getCourseId();
-        final String content = dto.getContent() != null ? dto.getContent() : "";
-        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
-        courseAccessControl.assertCanManageCourse(courseId, auth);
-        return () -> {
-            if (content.isBlank()) {
-                return ApiResponse.error(ApiCode.BAD_REQUEST, "请提供待抽取的课程内容");
-            }
-            // 跨课程 AI 统计：图谱抽取同样是一次真实大模型调用，按课程归属落库
-            String json = AiCallContext.run(userId, courseId, "GRAPH_EXTRACT",
-                    () -> aiService.extractKnowledgeGraphJson(content));
-            Map<String, Object> result = knowledgePointService.extractAndSaveGraph(courseId, json);
-            Object nodeCount = result.getOrDefault("nodeCount", 0);
-            return ApiResponse.success("AI 抽取完成，共写入 " + nodeCount + " 个知识点", result);
-        };
-    }
-
-    // ==================== 学习路径规划（/knowledge/path/plan） ====================
-
-    /**
-     * 起点到目标知识点的最优（最短跳数）学习路径规划。
-     * <p>
-     * 对应 PRD 知识图谱模块 {@code POST /api/knowledge/path/plan}（起点到目标的最优路径）。
-     * 业务委托 {@code KnowledgeGraphService.planLearningPath}：优先由图谱引擎（Python 8001）执行多跳推理，
-     * 引擎未启用/不可达时由本端消费侧本地 BFS 兜底（直读 {@code knowledge_point_relations}），
-     * 保证端点始终返回真实路径数据。
-     * </p>
-     * POST /api/knowledge/path/plan
-     */
-    @PostMapping("/path/plan")
-    public ResponseEntity<ApiResponse<com.aicourse.vo.KnowledgePathPlanVO>> planLearningPath(
-            @Valid @RequestBody KnowledgePathPlanDTO dto, Authentication auth) {
-        KnowledgePoint source = requirePoint(dto.getSourceId());
-        KnowledgePoint target = requirePoint(dto.getTargetId());
-        courseAccessControl.assertCanReadCourse(source.getCourseId(), auth);
-        if (!Objects.equals(source.getCourseId(), target.getCourseId())) {
-            throw new BusinessException(ApiCode.BAD_REQUEST, "学习路径只能在同一课程的知识点之间规划");
-        }
-        com.aicourse.vo.KnowledgePathPlanVO plan = knowledgeGraphService.planLearningPath(
-                dto.getSourceId(), dto.getTargetId(), dto.getMaxHops() != null ? dto.getMaxHops() : 0);
-        if (!plan.isFound()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(ApiCode.NOT_FOUND,
-                    plan.getNote() != null ? plan.getNote() : "未找到从起点到目标的学习路径"));
-        }
-        if (dto.getSourceId().equals(dto.getTargetId())) {
-            return ResponseEntity.ok(ApiResponse.success("起点与终点相同，无需规划", plan));
-        }
-        return ResponseEntity.ok(ApiResponse.success(plan));
-    }
-
-    /**
-     * 知识图谱摄取（将课程知识点/关系同步至图谱引擎）。
-     * 引擎未接入时返回消费侧本地确认（{@code mode=LOCAL}），端点始终可用，与 {@code planLearningPath} 同款降级策略。
-     */
-    @PostMapping("/ingest")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, Object>> ingestGraph(@RequestParam Long courseId, Authentication auth) {
-        courseAccessControl.assertCanManageCourse(courseId, auth);
-        String raw = knowledgeGraphService.ingest(courseId);
-        return ApiResponse.success(parseKgJson(raw));
-    }
-
-    /**
-     * 获取课程知识子图（节点 + 边）。
-     * 引擎未接入时返回消费侧 MySQL 直读结果（{@code mode=LOCAL}），端点始终可用。
-     */
-    @GetMapping("/subgraph/{courseId}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, Object>> getSubGraph(@PathVariable Long courseId,
-                                                        @RequestParam(required = false) Integer maxHops,
-                                                        Authentication auth) {
-        courseAccessControl.assertCanManageCourse(courseId, auth);
-        String raw = knowledgeGraphService.getSubGraph(courseId, maxHops != null ? maxHops : 0);
-        return ApiResponse.success(parseKgJson(raw));
-    }
-
-    /**
-     * 给知识点查询套上「显式课程 ACL 或当前用户可读课程集合」。
-     * <p>返回 false 表示当前用户没有任何可读课程，调用方应直接返回空结果，
-     * 不得退化为全平台查询。管理员校级作用域的 readableCourseIds 为 null，保留全量口径。</p>
-     */
-    private boolean applyCourseScope(LambdaQueryWrapper<KnowledgePoint> qw,
-                                     Long courseId,
-                                     Authentication auth) {
-        if (courseId != null) {
-            courseAccessControl.assertCanReadCourse(courseId, auth);
-            qw.eq(KnowledgePoint::getCourseId, courseId);
-            return true;
-        }
-        List<Long> readableIds = courseAccessControl.readableCourseIds(auth);
-        if (readableIds == null) {
-            return true;
-        }
-        if (readableIds.isEmpty()) {
-            return false;
-        }
-        qw.in(KnowledgePoint::getCourseId, readableIds);
-        return true;
-    }
-
-    /** 无 courseId 的概览口径：按当前用户可读课程集合统计，不返回全站目录。 */
-    private List<KnowledgePoint> listReadablePoints(Authentication auth) {
-        List<Long> readableIds = courseAccessControl.readableCourseIds(auth);
-        if (readableIds == null) {
-            return knowledgePointService.list();
-        }
-        if (readableIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return knowledgePointService.list(new LambdaQueryWrapper<KnowledgePoint>()
-                .in(KnowledgePoint::getCourseId, readableIds));
-    }
-
-    /** 过滤服务层返回的跨课程历史数据，保证只下发当前知识点所属课程。 */
-    private List<KnowledgePoint> filterSameCourse(List<KnowledgePoint> points, Long courseId) {
-        if (points == null || points.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return points.stream()
-                .filter(point -> Objects.equals(point.getCourseId(), courseId))
-                .toList();
-    }
-
-    /** 关系两端都必须在同一课程内，避免历史跨课程脏数据带出他课节点/边。 */
-    private List<KnowledgePointRelation> filterRelationsSameCourse(
-            List<KnowledgePointRelation> relations, Long courseId) {
-        if (relations == null || relations.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Set<Long> pointIds = new HashSet<>();
-        for (KnowledgePointRelation relation : relations) {
-            pointIds.add(relation.getSourceId());
-            pointIds.add(relation.getTargetId());
-        }
-        Set<Long> allowedIds = knowledgePointService.listByIds(pointIds).stream()
-                .filter(point -> Objects.equals(point.getCourseId(), courseId))
-                .map(KnowledgePoint::getId)
-                .collect(Collectors.toSet());
-        return relations.stream()
-                .filter(relation -> allowedIds.contains(relation.getSourceId())
-                        && allowedIds.contains(relation.getTargetId()))
-                .toList();
-    }
-
-    private boolean isAdmin(Authentication auth) {
-        if (auth == null || auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + RoleConstants.ADMIN)::equals);
-    }
-
-    private Map<String, Object> parseKgJson(String raw) {
-        if (raw == null || raw.isBlank()) {
-            Map<String, Object> fallback = new LinkedHashMap<>();
-            fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
-            fallback.put("note", "知识图谱服务返回为空，已使用本地降级");
-            return fallback;
-        }
-        try {
-            JsonNode node = KG_OM.readTree(raw);
-            // 判定口径保持与改造前一致（只看 code=503），仅把魔法数换成契约常量；
-            // 若改用 ContractPaths.isUnavailable 会把 mode=UNAVAILABLE 也判为不可用，属于行为变更，不在本批范围。
-            if (node.has(ContractPaths.R_CODE)
-                    && node.get(ContractPaths.R_CODE).asInt() == ContractPaths.CODE_UNAVAILABLE) {
-                Map<String, Object> fallback = new LinkedHashMap<>();
-                fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_UNAVAILABLE);
-                fallback.put("note", "知识图谱引擎未接入或不可用");
-                return fallback;
-            }
-            Map<String, Object> map = KG_OM.convertValue(node, Map.class);
-            return map != null ? map : Map.of(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
-        } catch (Exception e) {
-            Map<String, Object> fallback = new LinkedHashMap<>();
-            fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
-            fallback.put("note", "知识图谱服务返回解析失败，已使用本地降级");
-            return fallback;
-        }
-    }
-
-    private KnowledgePoint requirePoint(Long id) {
-        KnowledgePoint point = knowledgePointService.getById(id);
-        if (point == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "知识点不存在");
-        }
-        return point;
     }
 }

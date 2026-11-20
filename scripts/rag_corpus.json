@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "description": "RAG 演示语料的版本控制权威副本。python-services/rag_service/data/ 已被 .gitignore 排除（运行态产物），换机器或清空数据目录后须用 scripts/seed-rag-corpus.py 重放本文件，否则 AI 问答按契约降级为不可用。内容口径：课程 1 语料逐字取自原运行态 documents.json；**课程 4178（计算机网络，2026-11-14 新建的样例课，替代已被 V18 清除的 4007）**语料全部由仓库内权威种子 scripts/generate-cn-showcase-seed.py 派生——章节主题取 CHAPTERS、模块与知识点叙述取 MODULES、可核查的结论句取题库 56 题的解析与标准答案，不新写教材正文，因此问答命中范围与库内教学内容口径一致（章节标题已对齐 4178 库内 8 章）。成篇规则：一门课一篇讲义，跨多个知识模块的章按模块簇拆分（第 7、8 章各拆两篇），单篇 400～700 字、段落句子自足，匹配引擎默认 RAG_CHUNK_SIZE=300 的句子打包分块。（2026-11-15 B5：全部 course_id 由 4007 迁至 4178。）",
+  "description": "RAG 演示语料的版本控制权威副本。python-services/rag_service/data/ 已被 .gitignore 排除（运行态产物），换机器或清空数据目录后须用 scripts/seed-rag-corpus.py 重放本文件，否则 AI 问答按契约降级为不可用。内容口径：课程 1 语料逐字取自原运行态 documents.json；**课程 4178（计算机网络，2026-11-14 新建的样例课，替代已被 V18 清除的 4007）**语料全部由仓库内权威种子 scripts/legacy/generate-cn-showcase-seed.py 派生——章节主题取 CHAPTERS、模块与知识点叙述取 MODULES、可核查的结论句取题库 56 题的解析与标准答案，不新写教材正文，因此问答命中范围与库内教学内容口径一致（章节标题已对齐 4178 库内 8 章）。成篇规则：一门课一篇讲义，跨多个知识模块的章按模块簇拆分（第 7、8 章各拆两篇），单篇 400～700 字、段落句子自足，匹配引擎默认 RAG_CHUNK_SIZE=300 的句子打包分块。（2026-11-15 B5：全部 course_id 由 4007 迁至 4178。）",
   "documents": [
     {
       "course_id": 1,

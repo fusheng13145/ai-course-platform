@@ -2,12 +2,12 @@
   <Sprite />
   <div class="auth">
     <header class="av-top">
-      <a class="av-brand" href="/">
+      <router-link class="av-brand" to="/">
         <span class="brand-mark">枢</span>
         <span class="av-brand-text">
           <b>云枢 AI 助教</b>
         </span>
-      </a>
+      </router-link>
       <div class="av-actions">
         <button
           class="icon-btn"
@@ -20,11 +20,12 @@
       </div>
     </header>
 
-    <main class="av-main">
-      <section class="av-card">
+    <main class="av-main" :class="{ 'av-main-wide': wide }">
+      <section class="av-card" :class="{ 'av-card-wide': wide }">
         <section class="av-panel">
           <slot name="form" />
         </section>
+        <AuthAside />
       </section>
     </main>
 
@@ -41,10 +42,14 @@ import '../../styles/record.css'
 import '../../styles/shell-fix.css'
 import '../../styles/typography.css'
 import '../../styles/auth.css'
+import '../../styles/coursera.css'
+import AuthAside from './AuthAside.vue'
 import Sprite from '../../components/Sprite.vue'
 import Icon from '../../components/Icon.vue'
 import { useUi } from '../../composables/ui'
 import { useRoot } from '../../composables/useRoot'
+
+withDefaults(defineProps<{ wide?: boolean }>(), { wide: false })
 
 const { theme, toggleTheme } = useUi()
 useRoot(theme)

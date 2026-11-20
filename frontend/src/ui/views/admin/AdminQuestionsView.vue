@@ -104,17 +104,11 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="book" /></span>
         <b>{{ loadError ? '题目列表未能加载' : '没有符合条件的题目' }}</b>
-        <p>{{ loadError ? '请查看上方提示后重试。' : '调整筛选条件，或点击「新建题目」。' }}</p>
       </div>
 
       <footer class="card-foot">
         <span>第 {{ page }} / {{ pageCount }} 页 · 共 {{ total }} 条</span>
-        <div class="pager">
-          <button class="btn btn-sm" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
-          <button class="btn btn-sm" :disabled="page >= pageCount" @click="goPage(1)">
-            下一页
-          </button>
-        </div>
+        <Pagination :page="page" :page-count="pageCount" @turn="goPage" />
       </footer>
     </section>
 
@@ -294,6 +288,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import PageHead from '../../components/PageHead.vue'
+import Pagination from '../../components/Pagination.vue'
 import Modal from '../../components/Modal.vue'
 import Stat from '../../components/Stat.vue'
 import Icon from '../../components/Icon.vue'
@@ -763,7 +758,7 @@ onMounted(async () => {
   width: auto;
   min-width: 116px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .filter-keyword {
   flex: 1;

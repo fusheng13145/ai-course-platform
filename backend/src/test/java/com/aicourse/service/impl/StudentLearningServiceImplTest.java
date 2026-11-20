@@ -101,6 +101,7 @@ class StudentLearningServiceImplTest {
 
         course = new Course();
         course.setId(1L); course.setName("Java 程序设计"); course.setCoverImage("cover.png");
+        course.setCode("CS101"); course.setCredits(new BigDecimal("3.0")); course.setSemester("2026-2027-1");
 
         task = new Task();
         task.setId(1L); task.setCourseId(1L); task.setChapterId(1L); task.setTaskType("VIDEO");
@@ -665,6 +666,9 @@ class StudentLearningServiceImplTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> courses = (List<Map<String, Object>>) r.get("courses");
         assertEquals(1, courses.size());
+        assertEquals("CS101", courses.get(0).get("courseCode"));
+        assertEquals(new BigDecimal("3.0"), courses.get(0).get("credits"));
+        assertEquals("2026-2027-1", courses.get(0).get("semester"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> assignments = (List<Map<String, Object>>) courses.get(0).get("assignments");
         assertEquals(1, assignments.size());

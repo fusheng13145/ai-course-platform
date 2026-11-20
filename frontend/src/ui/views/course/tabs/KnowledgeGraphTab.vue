@@ -31,7 +31,6 @@
               <span class="chip chip-mute">{{ nodes.length }} 点 · {{ links.length }} 边</span>
             </h2>
           </div>
-          <span class="head-hint">点击节点查看详情与先修/后继关系</span>
         </header>
         <svg v-if="layoutNodes.length" class="kg-svg" :viewBox="`0 0 ${SVG_W} ${SVG_H}`" role="img">
           <line
@@ -69,13 +68,6 @@
         <div v-else class="empty-state compact">
           <span class="e-ico"><Icon name="graph" /></span>
           <b>{{ graphError ? '图谱数据未能加载' : '该课程还没有知识关系' }}</b>
-          <p>
-            {{
-              graphError
-                ? '请查看上方提示后重试。'
-                : '在「知识点管理」里建立前置依赖后，这里会出现关系图。'
-            }}
-          </p>
         </div>
         <footer v-if="selectedNode" class="card-foot">
           <span>{{ selectedNode.name }} · {{ categoryText(selectedNode.category) }}</span>
@@ -92,7 +84,7 @@
         <template v-if="!selectedNode">
           <header class="card-head">
             <div>
-              <h2>图谱导读</h2>
+              <h2>图例</h2>
             </div>
           </header>
           <div class="legend">
@@ -109,14 +101,6 @@
               <span>相关（同一主题的横向关联）</span>
             </div>
           </div>
-          <ol class="kg-guide">
-            <li>点击图中任意节点：右侧会给出它的学习价值与先修 / 后继清单。</li>
-            <li>先修没有掌握时，可把节点设为路径规划的终点，由图谱引擎给出学习顺序。</li>
-            <li>路径找到后，图上会以高亮标出整条学习路径。</li>
-            <li v-if="!isStudent">
-              教师可在下方「图谱引擎」把课程图谱同步到 Neo4j 引擎，由引擎执行多跳推理。
-            </li>
-          </ol>
         </template>
 
         <!-- 选中：节点详情 + 先修/后继分组 -->
@@ -204,7 +188,6 @@
           <div>
             <h2>学习路径规划</h2>
           </div>
-          <span class="head-hint">由图谱引擎按先修关系给出学习顺序</span>
         </header>
         <div class="form-grid">
           <label class="field">
@@ -896,10 +879,6 @@ watch(() => props.courseId, loadAll, { immediate: true })
   gap: 14px;
   align-items: start;
 }
-.head-hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
 .kg-svg {
   width: 100%;
   height: auto;
@@ -940,7 +919,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
   stroke-width: 2.4;
 }
 .kg-node text {
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--ink-2);
   pointer-events: none;
 }
@@ -995,7 +974,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
 }
 .kg-rel-group h3 {
   margin: 0 0 4px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
   font-weight: 600;
 }
@@ -1014,7 +993,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
   border: 1px solid var(--line);
   border-radius: var(--r-chip);
   padding: 3px 10px;
-  font-size: 11.5px;
+  font-size: 12px;
   background: var(--surface);
 }
 .kg-rel-group .text-btn:hover {
@@ -1034,7 +1013,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 .legend-line {
@@ -1049,16 +1028,6 @@ watch(() => props.courseId, loadAll, { immediate: true })
 .legend-related line {
   stroke-dasharray: 5 4;
   stroke: var(--ink-3);
-}
-.kg-guide {
-  margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--ink-2);
 }
 .nb-list,
 .path-list {
@@ -1084,7 +1053,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
 }
 .nb-rel {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .path-list li {
@@ -1101,7 +1070,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
   border-radius: var(--r-circle);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 10px;
+  font-size: 12px;
 }
 .engine-actions {
   margin-bottom: 12px;
@@ -1113,7 +1082,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
   margin-bottom: 10px;
 }
 .engine-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
 }
 @media (max-width: 1100px) {

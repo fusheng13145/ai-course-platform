@@ -211,7 +211,7 @@ async function submit() {
   margin-bottom: 6px;
 }
 .file-name {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
   max-width: 380px;
   overflow: hidden;
@@ -220,7 +220,7 @@ async function submit() {
 }
 .upload-hint {
   margin: 0 0 14px;
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--ink-3);
 }

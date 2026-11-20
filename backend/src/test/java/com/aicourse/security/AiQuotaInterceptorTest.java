@@ -1,7 +1,7 @@
 package com.aicourse.security;
 
 import com.aicourse.exception.BusinessException;
-import com.aicourse.service.impl.AiQuotaService;
+import com.aicourse.service.component.ai.AiQuotaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;

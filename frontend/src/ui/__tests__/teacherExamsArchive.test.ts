@@ -63,6 +63,26 @@ beforeEach(() => {
 })
 
 describe('教师试卷库归档入口', () => {
+  it('课程内考试页把在线监考作为子页签，默认试卷，切换后挂载监考', async () => {
+    const wrapper = mount(TeacherExamsView, {
+      props: { courseId: 1 },
+      global: {
+        stubs: {
+          ...stubs,
+          ProctorTab: { template: '<div class="proctor-stub" />' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['试卷', '在线监考'])
+    expect(wrapper.find('.proctor-stub').exists()).toBe(false)
+
+    await wrapper.findAll('[role="tab"]')[1].trigger('click')
+    expect(wrapper.find('.proctor-stub').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('仅已发布试卷显示归档，确认后调用归档端点并刷新', async () => {
     const wrapper = mount(TeacherExamsView, { global: { stubs } })
     await flushPromises()

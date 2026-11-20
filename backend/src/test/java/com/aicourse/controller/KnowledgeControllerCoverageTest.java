@@ -22,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -70,7 +71,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>条件过滤（keyword 空白即不拼 LIKE）用「触发 getSqlSegment() 后读 wrapper 参数」实证，
  * 而不是只看返回码——否则把 {@code like(cond, ...)} 的条件写反也能过。
  */
-@WebMvcTest(KnowledgeController.class)
+@WebMvcTest({KnowledgeController.class, KnowledgeRelationController.class,
+        KnowledgeSearchController.class, KnowledgeExtractionController.class})
+@Import(com.aicourse.security.KnowledgeAccessSupport.class)
 class KnowledgeControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean private KnowledgePointService knowledgePointService;

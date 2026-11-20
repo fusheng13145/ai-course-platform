@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>注意：PasswordEncoder 由 SecurityConfig 提供的真实 bean 注入，无需 mock。
  */
-@WebMvcTest(SystemAdminController.class)
+@WebMvcTest({SystemAdminController.class, AdminStatisticsController.class, SystemMaintenanceController.class})
 @Import(AdminScopeGuard.class)
 class SystemAdminControllerTest extends ControllerTestBase {
 

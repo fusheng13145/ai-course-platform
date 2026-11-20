@@ -138,6 +138,21 @@ def test_prefer_own_dev_port_negative_order_only_choice_would_take_5173():
     assert [p for p in sa.WEB_PORTS if p in titles][0] == 5173
 
 
+def test_own_dev_port_never_adopts_a_foreign_title():
+    """5174 常被隔壁项目占着：只看端口就接管，本项目的 Vite 永远不会起来。"""
+    titles = {5173: "", 5174: "paper-agent · 科研工作台", 5175: ""}
+    assert sa.own_dev_port(lambda p: p in titles, lambda p: titles[p], "AI智能课程平台") is None
+    titles[5173] = "AI智能课程平台"
+    assert sa.own_dev_port(lambda p: p in titles, lambda p: titles[p], "AI智能课程平台") == 5173
+
+
+def test_own_dev_port_negative_control_fallback_would_pick_foreign():
+    """阴性对照：prefer_own_dev_port 的兜底会选 5174；own_dev_port 必须为空。"""
+    titles = {5174: "paper-agent · 科研工作台"}
+    assert sa.prefer_own_dev_port(lambda p: p in titles, lambda p: titles[p], "AI智能课程平台") == 5174
+    assert sa.own_dev_port(lambda p: p in titles, lambda p: titles[p], "AI智能课程平台") is None
+
+
 def test_prefer_own_dev_port_falls_back_when_nothing_is_recognized():
     assert sa.prefer_own_dev_port(lambda p: p == 5175, lambda p: "", "AI智能课程平台") == 5175
 
@@ -164,17 +179,20 @@ def test_expected_app_title_negative_html_without_title_is_empty():
 
 def test_todo_and_adopt_splits_by_status_and_want():
     """已在监听的是"接管"，缺的才"该起"，且顺序保持依赖序。"""
-    status = {"neo4j": True, "kg": False, "rag": False, "api": False, "web": False}
+    status = dict.fromkeys(sa.SERVICES, False)
+    status["neo4j"] = True
     want = dict.fromkeys(sa.SERVICES, True)
     todo, adopted = sa.todo_and_adopt(status, want)
     assert adopted == ["neo4j"]
-    assert todo == ["kg", "rag", "api", "web"]
+    assert todo == ["ollama", "minio", "kg", "rag", "ft", "api", "web"]
 
 
 def test_todo_and_adopt_negative_disabled_service_in_neither_list():
     """阴性对照：.env 显式关掉的服务既不起也不接管（否则会把用户主动关上的东西当"已就绪"报出来）。"""
-    status = {"neo4j": False, "kg": True, "rag": True, "api": True, "web": True}
-    want = {"neo4j": True, "kg": True, "rag": False, "api": True, "web": True}
+    status = dict.fromkeys(sa.SERVICES, False)
+    status.update({"kg": True, "rag": True, "api": True, "web": True})
+    want = dict.fromkeys(sa.SERVICES, False)
+    want.update({"neo4j": True, "kg": True, "api": True, "web": True})
     todo, adopted = sa.todo_and_adopt(status, want)
     assert "rag" not in todo and "rag" not in adopted
     assert todo == ["neo4j"]
@@ -333,6 +351,8 @@ def _dotenv(**over):
         "MYSQL_ROOT_PASSWORD": "root-pw-value",
         "JWT_SECRET": "jwt-signing-value",
         "REDIS_PASSWORD": "redis-pw-value",
+        "MINIO_ROOT_USER": "minio-user-value",
+        "MINIO_ROOT_PASSWORD": "minio-pw-value",
     }
     base.update(over)
     return base
@@ -389,6 +409,24 @@ def test_backend_env_negative_error_message_never_carries_the_value():
         sa.backend_env({}, dotenv, redis_open=True, kg_up=False, rag_up=False)
     message = str(excinfo.value)
     assert "root-pw-value" not in message
+
+
+def test_backend_env_requires_minio_credentials_when_minio_is_enabled():
+    """MinIO 默认启用：缺凭据必须 fail-fast，不能让后端起了一半才在 MinioClient 构造处报错。"""
+    dotenv = _dotenv()
+    for key in ("MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY"):
+        dotenv.pop(key, None)
+    with pytest.raises(sa.MissingCredential) as excinfo:
+        sa.backend_env({}, dotenv, redis_open=True, kg_up=False, rag_up=False)
+    assert "MINIO" in str(excinfo.value)
+
+
+def test_backend_env_skips_minio_credentials_when_explicitly_disabled():
+    dotenv = _dotenv(MINIO_ENABLED="false")
+    for key in ("MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY"):
+        dotenv.pop(key, None)
+    env = sa.backend_env({}, dotenv, redis_open=True, kg_up=False, rag_up=False)
+    assert env["MINIO_ENABLED"] == "false"
 
 
 # ------------------------------------------------------------- JDK 定位
@@ -528,15 +566,18 @@ def test_parse_args_negative_control_for_a_typo_in_a_known_mode():
 
 def test_wanted_services_scopes_every_service_by_subcommand():
     assert sa.wanted_services(sa.MODE_ALL) == {
-        "neo4j": True, "kg": True, "rag": True, "api": True, "web": True,
+        "ollama": True, "minio": True, "neo4j": True, "kg": True,
+        "rag": True, "ft": True, "api": True, "web": True,
     }
     backend = sa.wanted_services(sa.MODE_BACKEND)
     assert backend["api"] is True and backend["web"] is False
-    # 引擎跟着 api 走：backend 模式仍要拉引擎，这是旧 start-backend.bat 第 5 步的语义
+    # 引擎/存储/AI/微调跟着后端走：backend 模式仍要拉全量，这是旧 start-backend.bat 第 5 步的语义
     assert backend["kg"] is True and backend["rag"] is True
+    assert backend["ft"] is True and backend["minio"] is True and backend["ollama"] is True
     frontend = sa.wanted_services(sa.MODE_FRONTEND)
     assert frontend["web"] is True and frontend["api"] is False
     assert frontend["neo4j"] is False and frontend["kg"] is False and frontend["rag"] is False
+    assert frontend["ft"] is False and frontend["minio"] is False and frontend["ollama"] is False
 
 
 def test_wanted_services_negative_control():
@@ -563,6 +604,7 @@ def test_build_want_cuts_the_backend_and_engines_out_of_frontend_mode():
     want = sa.build_want({"KG_ENABLED": "true", "RAG_ENABLED": "true"}, _SinkStub(), sa.MODE_FRONTEND)
     assert want["api"] is False
     assert want["kg"] is False and want["rag"] is False and want["neo4j"] is False
+    assert want["ft"] is False and want["minio"] is False and want["ollama"] is False
     assert want["web"] is True
 
 
@@ -610,9 +652,48 @@ def test_engine_loop_detector_negative_control():
 
 
 def test_probe_url_has_a_single_definition_in_the_orchestrator():
-    """就绪判定、状态打印、frontend 提示共用同一个 URL；抄第二份就会有一处判错。"""
+    """就绪判定、状态打印、frontend 提示共用同一个 URL；抄第二份就会有一处判错。
+
+    路径常量 `API_PROBE_PATH` 只能有一处字面量；`api_probe_url()` 是唯一拼装点，
+    状态打印与 main 里的冲突判定都必须走它（API_PORT 并行口才能一致跟随）。
+    """
     text = MODULE_PATH.read_text(encoding="utf-8")
-    assert text.count("http://127.0.0.1:8080/api/actuator/health/probe") == 1
+    assert text.count('API_PROBE_PATH = "/api/actuator/health/probe"') == 1
+    assert text.count("api_probe_url(") >= 3
+    assert "http://127.0.0.1:8080/api/actuator/health/probe" not in text
+
+
+def test_probe_url_detector_negative_control():
+    """阴性对照：旧写法把 URL 写死两处时，检测器必须能判出来。"""
+    buggy = 'A = "http://127.0.0.1:8080/api/actuator/health/probe"\nB = "http://127.0.0.1:8080/api/actuator/health/probe"'
+    assert buggy.count("http://127.0.0.1:8080/api/actuator/health/probe") == 2
+    assert 'API_PROBE_PATH = "/api/actuator/health/probe"' not in buggy
+
+
+def test_api_port_defaults_and_parallel_override():
+    assert sa.api_port({}) == sa.DEFAULT_API_PORT
+    assert sa.api_port({"API_PORT": "8081"}) == 8081
+    assert sa.api_port({"API_PORT": "not-a-port"}) == sa.DEFAULT_API_PORT
+    assert sa.api_port({"API_PORT": "99999"}) == sa.DEFAULT_API_PORT
+    assert sa.api_probe_url(8081) == "http://127.0.0.1:8081/api/actuator/health/probe"
+
+
+def test_minio_credentials_prefer_access_key_and_can_fall_back_to_root():
+    assert sa.minio_credentials({"MINIO_ACCESS_KEY": "ak", "MINIO_SECRET_KEY": "sk"}) == ("ak", "sk")
+    assert sa.minio_credentials({"MINIO_ROOT_USER": "user", "MINIO_ROOT_PASSWORD": "pw"}) == ("user", "pw")
+
+
+def test_discover_minio_binary_respects_explicit_then_home_then_default_then_path():
+    assert sa.discover_minio_binary({"MINIO_BIN": "C:/minio.exe"}, exists=lambda p: p == "C:/minio.exe") == "C:/minio.exe"
+    assert sa.discover_minio_binary({"MINIO_HOME": "C:/m"}, exists=lambda p: p.endswith("minio.exe")) is not None
+    assert sa.discover_minio_binary({}, exists=lambda p: False, which=lambda name: "C:/from-path/minio.exe") == "C:/from-path/minio.exe"
+
+
+def test_ollama_needed_only_when_ai_or_ft_requests_it():
+    assert sa.ollama_needed({"AI_PROVIDER": "ollama"}) is True
+    assert sa.ollama_needed({"FT_ENABLED": "true", "FT_LLM_PROVIDER": "ollama"}) is True
+    assert sa.ollama_needed({"AI_PROVIDER": "deepseek", "FT_ENABLED": "false", "FT_LLM_PROVIDER": "ollama"}) is False
+    assert sa.ollama_needed({"AI_PROVIDER": "deepseek", "FT_LLM_PROVIDER": "engine"}) is False
 
 
 def _api_guarded_lines(tree) -> set:
