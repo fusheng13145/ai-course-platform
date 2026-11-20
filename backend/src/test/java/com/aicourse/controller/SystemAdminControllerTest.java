@@ -166,7 +166,7 @@ class SystemAdminControllerTest extends ControllerTestBase {
                 row.createCell(1).setCellValue("测试用户" + (r + 1));
                 row.createCell(2).setCellValue(usernames[r] + "@example.com");
                 row.createCell(3).setCellValue("STUDENT");
-                row.createCell(4).setCellValue("123456");
+                row.createCell(4).setCellValue("Audit@123");
             }
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             wb.write(bos);

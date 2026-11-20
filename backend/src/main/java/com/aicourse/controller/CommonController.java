@@ -193,7 +193,7 @@ public class CommonController {
             ));
         } catch (Exception e) {
             log.error("文件上传失败: {}", objectName, e);
-            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传失败: " + e.getMessage());
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传失败，请稍后重试");
         }
     }
 
@@ -228,7 +228,8 @@ public class CommonController {
                         safeName, String.valueOf(file.getSize())));
             } catch (Exception e) {
                 log.error("批量上传失败: {}", objectName, e);
-                results.add(new UploadResultVO("", safeName, "0", "上传失败: " + e.getMessage()));
+                // 不把存储层/IO 异常细节回给客户端（可能含路径、桶名、内部实现信息）。
+                results.add(new UploadResultVO("", safeName, "0", "上传失败，请稍后重试"));
             }
         }
         return ApiResponse.success(results);

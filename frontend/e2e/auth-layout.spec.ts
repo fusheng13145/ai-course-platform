@@ -34,7 +34,7 @@ test.describe('认证页布局', () => {
             viewportWidth: window.innerWidth,
             cardRight: card.right,
             maxControlRight: Math.max(...controls.map((box) => box.right)),
-            contextDisplay: getComputedStyle(document.querySelector('.av-context')!).display,
+            contextDisplay: getComputedStyle(document.querySelector('.av-brief')!).display,
           }
         })
 
@@ -46,7 +46,7 @@ test.describe('认证页布局', () => {
           layout.cardRight + 0.5,
         )
         expect(layout.contextDisplay, `${route} 品牌区显示状态异常`).toBe(
-          viewport.width > 1060 ? 'flex' : 'none',
+          viewport.width > 980 ? 'flex' : 'none',
         )
       }
     })

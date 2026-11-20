@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.HashSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -422,18 +423,20 @@ class ExcelUtilCoverageTest {
     // ==================== 杂项入口 ====================
 
     @Test
-    @DisplayName("generateRandomPassword：恒 8 位且只含去混淆字符集")
-    void generateRandomPassword_lengthAndCharset() {
+    @DisplayName("generateRandomPassword：恒 8 位、覆盖四类字符且通过 PasswordPolicy")
+    void generateRandomPassword_policyCompliant() {
         Set<Character> allowed = new HashSet<>();
-        for (char c : "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789".toCharArray()) {
+        for (char c : "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%*".toCharArray()) {
             allowed.add(c);
         }
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 50; i++) {
             String pwd = ExcelUtil.generateRandomPassword();
             assertEquals(8, pwd.length());
             for (char c : pwd.toCharArray()) {
                 assertTrue(allowed.contains(c), "非法字符: " + c);
             }
+            // 与统一口令策略同口径：缺任一类字符都会抛 BusinessException
+            assertDoesNotThrow(() -> PasswordPolicy.validate(pwd));
         }
     }
 

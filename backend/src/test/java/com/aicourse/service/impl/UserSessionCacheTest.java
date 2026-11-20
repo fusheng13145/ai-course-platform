@@ -58,6 +58,16 @@ class UserSessionCacheTest {
     }
 
     @Test
+    void tokenFingerprint_hashesRawJwtAndKeepsStoredHash() {
+        String raw = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0In0.signature";
+        String hashed = UserSessionServiceImpl.tokenFingerprint(raw);
+        assertThat(hashed).hasSize(64).matches("[0-9a-f]{64}");
+        assertThat(hashed).doesNotContain(raw);
+        // 已是库内指纹时原样返回，避免 evict/revoke 路径二次哈希
+        assertThat(UserSessionServiceImpl.tokenFingerprint(hashed)).isEqualTo(hashed);
+    }
+
+    @Test
     void isSessionActive_activeToken_returnsTrue() {
         // ServiceImpl.getOne(wrapper, false) 内部委托 baseMapper.selectOne(wrapper, throwEx)
         when(mapper.selectOne(any(), anyBoolean())).thenReturn(activeSession("jwt-token"));

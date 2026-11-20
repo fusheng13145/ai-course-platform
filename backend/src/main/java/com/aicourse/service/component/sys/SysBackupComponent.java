@@ -22,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import com.aicourse.util.SysFileUtil;
 
 /**
@@ -224,6 +225,13 @@ public class SysBackupComponent {
     private static final List<String> RESTORE_ISOLATION_PREFIXES = List.of("aicourse_restore_", "restore_");
 
     /**
+     * 恢复目标库标识符白名单：只允许字母、数字、下划线，长度 1–64。
+     * <p>该值会被拼进 {@code CREATE DATABASE} 的 SQL 文本，必须按 MySQL 标识符字符集收口；
+     * 仅校验前缀不足以阻止反引号闭合（如 {@code aicourse_restore_x`; DROP ...}）。</p>
+     */
+    private static final Pattern DB_IDENTIFIER_PATTERN = Pattern.compile("[A-Za-z0-9_]{1,64}");
+
+    /**
      * 恢复备份（2026-11-14 P0-2B/Q2=B 真实现，替换原「仅校验不执行」的假实现）。
      *
      * <p>执行路径与 createBackup 对称：凭据经 --defaults-extra-file 临时文件传递（0600 +
@@ -273,8 +281,13 @@ public class SysBackupComponent {
                     + " aicourse_restore_/restore_ 前缀；恢复当前应用库须显式传 targetDb=<当前库名>"
                     + " 并附 confirmCurrentDb=true（该操作会覆盖线上数据）");
         }
+        String resolvedDb = targetDb.trim();
+        // SQL 标识符白名单：必须先于任何拼接/连接解析拒绝非法字符（反引号、分号、空白、点号等）
+        if (!DB_IDENTIFIER_PATTERN.matcher(resolvedDb).matches()) {
+            throw new BusinessException("恢复目标库名只允许字母、数字、下划线，长度 1–64："
+                    + "拒绝包含 SQL/路径特殊字符的目标库名");
+        }
         ConnectionInfo conn = resolveConnection();
-        String resolvedDb = targetDb;
         if (resolvedDb.equals(conn.database())) {
             if (!confirmCurrentDb) {
                 throw new BusinessException("目标库 " + resolvedDb + " 即当前应用库，恢复将覆盖线上数据，"

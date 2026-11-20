@@ -17,6 +17,15 @@ import java.util.Map;
 public interface LoginLogService extends com.baomidou.mybatisplus.extension.service.IService<LoginLog> {
 
     /**
+     * 在独立事务中保存登录日志（REQUIRES_NEW）。
+     * <p>登录失败会在业务事务内抛异常回滚；审计行必须与业务结果解耦，
+     * 否则失败登录日志永远随异常一起消失，安全审计出现系统性盲区。</p>
+     *
+     * @param log 已组装完成的登录日志
+     */
+    void saveInNewTransaction(LoginLog log);
+
+    /**
      * 获取用户登录历史（分页）
      * @param userId 用户ID
      * @param page 页码

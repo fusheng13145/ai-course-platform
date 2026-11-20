@@ -3,6 +3,8 @@ package com.aicourse.aspect;
 import com.aicourse.entity.OperationLog;
 import com.aicourse.service.OperationLogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -14,9 +16,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -82,7 +88,12 @@ public class OperationLogAspect {
             // 序列化后对敏感字段统一打码，防止日志库泄露即凭据泄露）
             Object[] args = joinPoint.getArgs();
             try {
-                String params = objectMapper.writeValueAsString(args);
+                // Servlet 容器对象/文件流/鉴权对象不可 Jackson 序列化：此前整体序列化失败导致
+                // params 留空（审计缺参数）。这里只剔除不可序列化参数，保留 DTO 与普通字段。
+                Object[] loggableArgs = Arrays.stream(args)
+                        .filter(OperationLogAspect::isLoggableArgument)
+                        .toArray();
+                String params = objectMapper.writeValueAsString(loggableArgs);
                 params = maskSensitiveFields(params);
                 if (params.length() > 1000) params = params.substring(0, 1000) + "...";
                 log.setParams(params);
@@ -112,6 +123,20 @@ public class OperationLogAspect {
             operationLogService.save(log);
             throw e;
         }
+    }
+
+    /**
+     * 审计参数可序列化判定：容器对象与流不进入 JSON，避免一次序列化失败丢掉整条参数。
+     */
+    static boolean isLoggableArgument(Object arg) {
+        return arg == null
+                || !(arg instanceof ServletRequest
+                || arg instanceof ServletResponse
+                || arg instanceof MultipartFile
+                || arg instanceof InputStream
+                || arg instanceof OutputStream
+                || arg instanceof byte[]
+                || arg instanceof Authentication);
     }
 
     /**

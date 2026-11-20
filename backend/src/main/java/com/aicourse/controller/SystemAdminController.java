@@ -266,6 +266,9 @@ public class SystemAdminController {
                 if (!VALID_ROLES.contains(dto.getRole())) {
                     throw new BusinessException("角色不合法（应为 STUDENT/TEACHER/ADMIN）");
                 }
+                // 批量导入同样必须走统一密码策略：否则可一次落地 100 个弱口令账号，
+                // 成为「管理端创建/重置有策略、导入却绕过」的旁路。
+                PasswordPolicy.validate(dto.getPassword());
                 User user = new User();
                 user.setUsername(username);
                 user.setFullName(dto.getFullName());
@@ -350,6 +353,8 @@ public class SystemAdminController {
                     throw new BusinessException(
                             "手机号格式不正确（应为 1 开头的 11 位数字），当前值：「" + user.getPhone() + "」");
                 }
+                // Excel 明文初始密码（含系统随机生成）同样必须过统一策略，堵住导入旁路。
+                PasswordPolicy.validate(user.getPassword());
                 user.setId(null);
                 user.setPassword(passwordEncoder.encode(user.getPassword()));
                 user.setIsActive(true);

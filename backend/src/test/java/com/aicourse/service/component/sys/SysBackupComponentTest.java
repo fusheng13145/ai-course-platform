@@ -183,6 +183,34 @@ class SysBackupComponentTest {
         }
     }
 
+    @Test
+    @DisplayName("restoreBackup 拒绝带 SQL 特殊字符的 targetDb（反引号闭合注入）")
+    void restoreBackup_rejectsInjectedTargetDb() throws IOException {
+        Files.createDirectories(Path.of("backups"));
+        Path f = Path.of("backups", "valid4.sql");
+        Files.writeString(f, "x");
+        try {
+            // targetDb 白名单校验先于凭据解析，故不打桩 datasource（严格桩检查可通过）
+            SysBackupComponent c = newComponent();
+            String[] payloads = {
+                    "aicourse_restore_x`; DROP DATABASE ai_course_platform; --",
+                    "aicourse_restore_x; SELECT 1",
+                    "aicourse_restore_x.y",
+                    "aicourse_restore_x y",
+                    "aicourse_restore_x\\y"
+            };
+            for (String payload : payloads) {
+                BusinessException ex = assertThrows(BusinessException.class,
+                        () -> c.restoreBackup("valid4.sql", payload, false),
+                        "应拒绝非法 targetDb：" + payload);
+                assertTrue(ex.getMessage().contains("只允许字母、数字、下划线"),
+                        "拒绝原因须指向标识符白名单，实际=" + ex.getMessage());
+            }
+        } finally {
+            Files.deleteIfExists(f);
+        }
+    }
+
     /** 恢复路径的凭据解析桩：datasource 元数据给出当前库名 ai_course_platform。 */
     private void stubDatasourceForRestore() throws IOException {
         when(environment.getProperty("spring.datasource.url"))

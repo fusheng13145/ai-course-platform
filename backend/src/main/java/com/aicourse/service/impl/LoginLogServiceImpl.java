@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -30,6 +31,15 @@ import java.util.stream.Collectors;
 public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> implements LoginLogService {
 
     private static final Logger log = LoggerFactory.getLogger(LoginLogServiceImpl.class);
+
+    /**
+     * 独立事务保存登录日志：挂起调用方事务，确保「登录失败抛异常回滚」时审计行仍然落库。
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void saveInNewTransaction(LoginLog log) {
+        this.save(log);
+    }
 
     /**
      * 获取用户登录历史（分页）

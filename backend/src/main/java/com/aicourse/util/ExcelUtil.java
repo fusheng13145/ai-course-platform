@@ -24,6 +24,7 @@ import java.security.SecureRandom;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,19 +58,35 @@ public final class ExcelUtil {
     private static final String RANDOM_PASSWORD_CHARS =
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 
+    /** 随机密码必须覆盖的四类字符（与 PasswordPolicy 同口径），各先占一位再补足。 */
+    private static final String RANDOM_UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final String RANDOM_LOWER = "abcdefghjkmnpqrstuvwxyz";
+    private static final String RANDOM_DIGIT = "23456789";
+    private static final String RANDOM_SPECIAL = "!@#$%*";
+
     /** 章节导入「是否发布」列可识别的否定写法（小写键）；其余写法一律沿用缺省的已发布语义 */
     private static final Set<String> NEGATIVE_WORDS = Set.of("否", "false", "0", "n", "no");
 
     /**
-     * 生成随机初始密码（8 位，字母+数字，SecureRandom）。
+     * 生成随机初始密码（8 位，大小写字母+数字+特殊字符，SecureRandom）。
      * <p>Excel 导入用户未填写密码时使用，替代固定 {@code 123456} 弱口令；
      * 临时密码由导入接口返回给管理员转告用户，首次登录后应尽快修改。</p>
+     * <p>生成结果必须通过 {@link PasswordPolicy}：先各取一位四类字符，再用去混淆字符集补足并洗牌。</p>
      */
     public static String generateRandomPassword() {
         SecureRandom random = new SecureRandom();
+        List<Character> chars = new ArrayList<>(RANDOM_PASSWORD_LENGTH);
+        chars.add(RANDOM_UPPER.charAt(random.nextInt(RANDOM_UPPER.length())));
+        chars.add(RANDOM_LOWER.charAt(random.nextInt(RANDOM_LOWER.length())));
+        chars.add(RANDOM_DIGIT.charAt(random.nextInt(RANDOM_DIGIT.length())));
+        chars.add(RANDOM_SPECIAL.charAt(random.nextInt(RANDOM_SPECIAL.length())));
+        while (chars.size() < RANDOM_PASSWORD_LENGTH) {
+            chars.add(RANDOM_PASSWORD_CHARS.charAt(random.nextInt(RANDOM_PASSWORD_CHARS.length())));
+        }
+        Collections.shuffle(chars, random);
         StringBuilder sb = new StringBuilder(RANDOM_PASSWORD_LENGTH);
-        for (int i = 0; i < RANDOM_PASSWORD_LENGTH; i++) {
-            sb.append(RANDOM_PASSWORD_CHARS.charAt(random.nextInt(RANDOM_PASSWORD_CHARS.length())));
+        for (char c : chars) {
+            sb.append(c);
         }
         return sb.toString();
     }
