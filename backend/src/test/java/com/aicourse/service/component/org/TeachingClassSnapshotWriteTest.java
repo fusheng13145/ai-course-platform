@@ -82,8 +82,7 @@ class TeachingClassSnapshotWriteTest {
         when(sessionMapper.selectOne(any(), anyBoolean())).thenReturn(null);
 
         ExamSessionLifecycleComponent lifecycle = new ExamSessionLifecycleComponent(
-                examPaperService, sessionMapper, resolver, new ObjectMapper(),
-                mock(com.aicourse.mapper.ExamPaperMapper.class));
+                examPaperService, sessionMapper, resolver, new ObjectMapper());
         lifecycle.startExam(7L, STUDENT_ID, "127.0.0.1", "junit");
 
         ArgumentCaptor<ExamSession> captor = ArgumentCaptor.forClass(ExamSession.class);
@@ -165,8 +164,7 @@ class TeachingClassSnapshotWriteTest {
         when(resolver.resolveTeachingClassId(STUDENT_ID, COURSE_ID)).thenReturn(null);
 
         ExamSessionLifecycleComponent lifecycle = new ExamSessionLifecycleComponent(
-                examPaperService, sessionMapper, resolver, new ObjectMapper(),
-                mock(com.aicourse.mapper.ExamPaperMapper.class));
+                examPaperService, sessionMapper, resolver, new ObjectMapper());
         ExamSession session = lifecycle.startExam(7L, STUDENT_ID, "127.0.0.1", "junit");
 
         assertThat(session).isNotNull();
@@ -188,8 +186,7 @@ class TeachingClassSnapshotWriteTest {
         when(sessionMapper.selectOne(any(), anyBoolean())).thenReturn(null);
 
         ExamSessionLifecycleComponent lifecycle = new ExamSessionLifecycleComponent(
-                examPaperService, sessionMapper, resolver, new ObjectMapper(),
-                mock(com.aicourse.mapper.ExamPaperMapper.class));
+                examPaperService, sessionMapper, resolver, new ObjectMapper());
         lifecycle.startExam(7L, STUDENT_ID, "127.0.0.1", "junit");
 
         org.mockito.Mockito.verify(resolver).resolveTeachingClassId(eq(STUDENT_ID), eq(COURSE_ID));

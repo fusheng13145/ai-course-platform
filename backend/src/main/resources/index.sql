@@ -131,6 +131,7 @@ CREATE TABLE users (
   ban_reason VARCHAR(255) NULL COMMENT '封禁原因（经内容审核封禁时写入）',
   banned_at DATETIME NULL COMMENT '封禁时间',
   banned_by BIGINT NULL COMMENT '执行封禁的管理员ID',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0正常/1已删除（V31）',
   register_ip VARCHAR(50) NULL COMMENT '注册IP地址',
   last_login DATETIME NULL COMMENT '最后登录时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

@@ -16,6 +16,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -38,6 +40,17 @@ class LoginLogServiceImplTest {
 
     private LoginLog successLog;
     private LoginLog failedLog;
+
+    @Test
+    @DisplayName("saveInNewTransaction 必须声明 REQUIRES_NEW，避免失败登录日志随业务事务回滚")
+    void saveInNewTransaction_requiresNewPropagation() throws NoSuchMethodException {
+        java.lang.reflect.Method method = LoginLogServiceImpl.class
+                .getMethod("saveInNewTransaction", LoginLog.class);
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertNotNull(transactional, "必须带 @Transactional");
+        assertEquals(Propagation.REQUIRES_NEW, transactional.propagation(),
+                "登录审计必须独立事务提交");
+    }
 
     @BeforeEach
     void setUp() {

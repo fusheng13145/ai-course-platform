@@ -56,6 +56,7 @@ class CorsConfigurationTest {
         assertThat(cors.getAllowCredentials()).isTrue();
         assertThat(cors.getAllowedMethods())
                 .containsExactly("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS");
+        assertThat(cors.getAllowedHeaders()).contains("X-XSRF-TOKEN");
         assertThat(cors.checkOrigin("https://evil.example.com")).isNull();
     }
 

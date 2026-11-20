@@ -417,9 +417,10 @@ public class SecurityConfig {
         corsConfig.setAllowedOrigins(allowedOrigins);
         // 允许的请求方式
         corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        // 放行必要请求头（收窄自 "*"，降低被滥用风险）
+        // 放行必要请求头（收窄自 "*"，降低被滥用风险）。
+        // X-XSRF-TOKEN 是双提交 CSRF 的请求头；跨域部署时必须显式放行，否则所有写请求预检失败。
         corsConfig.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept",
-                "Origin", "X-Requested-With", "Cache-Control"));
+                "Origin", "X-Requested-With", "Cache-Control", "X-XSRF-TOKEN"));
         // 允许前端携带Cookie、Token等认证凭证
         corsConfig.setAllowCredentials(true);
 

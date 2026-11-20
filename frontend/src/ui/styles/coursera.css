@@ -6,23 +6,23 @@ body[data-style='record'][data-theme='light'] {
   --surface-3: #eef1f4;
   --ink: #1d2129;
   --ink-2: #1d2129;
-  --ink-3: #667085;
+  --ink-3: #5e6978;
   --ink-4: #667085;
   --line: #d9dee4;
   --line-soft: #eef1f4;
   --line-strong: #d9dee4;
-  --accent: #2b7de9;
-  --accent-strong: #2b7de9;
+  --accent: #1a6ad8;
+  --accent-strong: #155fc6;
   --accent-ink: #ffffff;
   --accent-soft: #f7f8fa;
-  --violet: #7c5cff;
-  --ok: #219653;
+  --violet: #5b45c4;
+  --ok: #16784f;
   --ok-soft: #f7f8fa;
   --warn: #b54708;
   --warn-soft: #f7f8fa;
   --danger: #b54708;
   --danger-soft: #f7f8fa;
-  --info: #2b7de9;
+  --info: #1a6ad8;
   --info-soft: #f7f8fa;
   --side-bg: #ffffff;
   --side-ink: #1d2129;
@@ -30,10 +30,10 @@ body[data-style='record'][data-theme='light'] {
   --side-line: #d9dee4;
   --side-hover: #f7f8fa;
   --side-active-bg: #f7f8fa;
-  --side-active-ink: #2b7de9;
+  --side-active-ink: #1a6ad8;
   --side-badge-bg: #eef1f4;
   --side-badge-ink: #667085;
-  --brand-mark-bg: #2b7de9;
+  --brand-mark-bg: #1a6ad8;
   --font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-display: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-mono: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
@@ -48,17 +48,17 @@ body[data-style='record'][data-theme='light'] {
   --sh-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.06);
   --sh-card-hover: 0 4px 12px rgba(43, 125, 233, 0.08);
   --sh-pop: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.06);
-  --focus: 0 0 0 2px #ffffff, 0 0 0 4px #2b7de9;
+  --focus: 0 0 0 2px #ffffff, 0 0 0 4px #1a6ad8;
   --tone-1: #f7f8fa;
-  --tone-1-ink: #2b7de9;
+  --tone-1-ink: #1a6ad8;
   --tone-2: #f7f8fa;
-  --tone-2-ink: #7c5cff;
+  --tone-2-ink: #5b45c4;
   --tone-3: #f7f8fa;
   --tone-3-ink: #b54708;
   --tone-4: #f7f8fa;
-  --tone-4-ink: #219653;
+  --tone-4-ink: #16784f;
   --tone-5: #eef1f4;
-  --tone-5-ink: #667085;
+  --tone-5-ink: #5e6978;
 }
 
 body[data-app='ui'] {

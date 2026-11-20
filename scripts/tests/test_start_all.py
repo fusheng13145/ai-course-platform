@@ -365,7 +365,7 @@ def test_backend_env_pins_datasource_and_least_privilege_user():
     assert "ai_course_platform" in env["SPRING_DATASOURCE_URL"]
     assert env["SPRING_DATA_REDIS_HOST"] == "localhost"
     assert env["COOKIE_SECURE"] == "false"
-    assert env["CSRF_ENABLED"] == "false"
+    assert env["CSRF_ENABLED"] == "true"
 
 
 def test_backend_env_drops_redis_password_when_local_redis_is_open():

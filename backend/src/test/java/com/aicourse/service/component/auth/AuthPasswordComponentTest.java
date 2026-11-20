@@ -153,6 +153,18 @@ class AuthPasswordComponentTest {
     // ===================== 手机号重置密码 =====================
 
     @Test
+    @DisplayName("手机重置-验证码尝试超限前置拒绝，连验证码都不查询")
+    void resetByPhone_burstGuardThrows_beforeLookup() {
+        org.mockito.Mockito.doThrow(new BusinessException(429, "尝试过于频繁"))
+                .when(verificationComponent).assertVerifyAttemptAllowed("13800001111");
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> component.resetPassword("13800001111", "123456", VALID_NEW));
+        assertEquals(429, ex.getCode());
+        verify(verificationCodeService, never()).getOne(any());
+        verify(userService, never()).updateById(any(User.class));
+    }
+
+    @Test
     @DisplayName("手机重置-验证码无效/过期拒绝，且不落库")
     void resetByPhone_invalidCode_noDbWrite() {
         when(verificationCodeService.getOne(any())).thenReturn(null);

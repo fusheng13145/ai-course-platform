@@ -99,11 +99,12 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         return StorageLayout.uploadRoot(uploadDir);
     }
 
-    /** 允许上传的文件扩展名白名单（小写） */
+    /** 允许上传的文件扩展名白名单（小写）。<b>刻意不含 svg</b>：本地静态模式会按扩展名回
+     * {@code image/svg+xml} 并同源内联，任何登录用户可经分片上传构造存储型 XSS。 */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
             "txt", "csv", "md", "json", "xml",
-            "png", "jpg", "jpeg", "gif", "svg", "bmp",
+            "png", "jpg", "jpeg", "gif", "bmp",
             "mp4", "webm", "mov",
             "zip", "rar", "7z"
     );

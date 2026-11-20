@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
@@ -206,15 +207,19 @@ public class SystemAdminController {
     }
 
     /**
-     * 删除用户
+     * 删除用户（软删除：users.deleted=1，保留历史引用）。
+     * 先吊销该用户全部活跃会话，再落软删除；两步同事务，避免出现“已删用户仍有有效令牌”。
      */
     @DeleteMapping("/admin/users/{userId}")
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> deleteUser(@PathVariable Long userId) {
         User existing = userService.getById(userId);
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
         adminScopeGuard.assertUserManageable(existing);
+        int revoked = userSessionService.revokeAllActiveSessions(userId);
+        log.info("[admin] 删除用户前吊销活跃会话: userId={}, revoked={}", userId, revoked);
         userService.removeById(userId);
         return ApiResponse.success("删除成功", null);
     }
@@ -266,6 +271,9 @@ public class SystemAdminController {
                 if (!VALID_ROLES.contains(dto.getRole())) {
                     throw new BusinessException("角色不合法（应为 STUDENT/TEACHER/ADMIN）");
                 }
+                // 批量导入同样必须走统一密码策略：否则可一次落地 100 个弱口令账号，
+                // 成为「管理端创建/重置有策略、导入却绕过」的旁路。
+                PasswordPolicy.validate(dto.getPassword());
                 User user = new User();
                 user.setUsername(username);
                 user.setFullName(dto.getFullName());
@@ -350,6 +358,8 @@ public class SystemAdminController {
                     throw new BusinessException(
                             "手机号格式不正确（应为 1 开头的 11 位数字），当前值：「" + user.getPhone() + "」");
                 }
+                // Excel 明文初始密码（含系统随机生成）同样必须过统一策略，堵住导入旁路。
+                PasswordPolicy.validate(user.getPassword());
                 user.setId(null);
                 user.setPassword(passwordEncoder.encode(user.getPassword()));
                 user.setIsActive(true);

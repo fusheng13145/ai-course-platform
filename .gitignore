@@ -5,6 +5,8 @@
 # 文件式密钥文件（Docker Compose secrets / Vault Agent 渲染目标，禁止入库）
 deploy/secrets/*
 !deploy/secrets/.gitkeep
+# 生产环境实际值（由 env.production.template 复制填写，含真实域名与口令，禁止入库）
+deploy/env.production
 
 # IDE
 .idea/

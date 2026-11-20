@@ -124,6 +124,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${ratelimit.register.window-seconds:3600}")
     private int registerWindowSeconds;
 
+    /**
+     * 上传频率上限（按 IP，滑动窗口）：主上传与分片会话共用。
+     * <p>单文件另有 50MB 上限，但此前没有频率约束：登录用户可脚本化无限次小文件上传，
+     * 打满 MinIO/磁盘与数据库会话表。60 次/分钟足够 50MB×5MB 分片（10 片），
+     * 且对批量资料上传留有余量。</p>
+     */
+    @Value("${ratelimit.upload.limit:60}")
+    private int uploadLimit;
+
+    @Value("${ratelimit.upload.window-seconds:60}")
+    private int uploadWindowSeconds;
+
     /** Redis 集群限流器；当 redisEnabled=false 或 Redis 不可用时回退到内存桶。 */
     private final StringRedisTemplate redisTemplate;
 
@@ -188,8 +200,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return new Rule("verify", clientIp, verifyLimit, verifyWindowSeconds);
         } else if (path.startsWith("/api/ai/")) {
             return new Rule("ai", clientIp, aiLimit, aiWindowSeconds);
+        } else if (path.startsWith("/api/admin/ai/test")) {
+            // 管理端 AI 连通性测试会真实出网调用模型：不挂限流时管理员会话被脚本化即可打爆额度。
+            return new Rule("ai", clientIp, aiLimit, aiWindowSeconds);
         } else if (path.startsWith("/api/common/verify-code")) {
             return new Rule("verify", clientIp, verifyLimit, verifyWindowSeconds);
+        } else if (path.startsWith("/api/common/upload")
+                || path.startsWith("/api/upload-sessions")) {
+            return new Rule("upload", clientIp, uploadLimit, uploadWindowSeconds);
         }
         return null;
     }

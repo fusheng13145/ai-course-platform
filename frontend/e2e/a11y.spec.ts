@@ -104,6 +104,14 @@ async function scan(page: Page, target: PageTarget, theme: Theme) {
       `[a11y]   ${violation.id} (${violation.impact}, ${violation.nodes.length} nodes): ` +
         nodes.join(' | '),
     )
+    for (const node of violation.nodes.slice(0, 5)) {
+      const detail = node.any[0]?.data as Record<string, unknown> | undefined
+      console.log(
+        `[a11y]     ${node.target.join(' ')} -> ` +
+          `fg=${String(detail?.fgColor)} bg=${String(detail?.bgColor)} ` +
+          `ratio=${String(detail?.contrastRatio)} fontSize=${String(detail?.fontSize)}`,
+      )
+    }
   }
 
   expect(

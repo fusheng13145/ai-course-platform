@@ -17,6 +17,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -253,7 +255,7 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("DELETE /admin/users/{id} - 不存在 400 / 存在则删除并返回删除成功")
+    @DisplayName("DELETE /admin/users/{id} - 不存在 400 / 存在则先吊销会话再软删除")
     void deleteUser_notFound_and_success() throws Exception {
         when(userService.getById(8L)).thenReturn(null);
         mockMvc.perform(delete("/admin/users/8").with(withUser(1L, "ADMIN")))
@@ -261,10 +263,14 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("用户不存在"));
 
         when(userService.getById(9L)).thenReturn(new User());
+        when(userSessionService.revokeAllActiveSessions(9L)).thenReturn(2);
         mockMvc.perform(delete("/admin/users/9").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("删除成功"));
-        verify(userService).removeById(eq(9L));
+        InOrder order = inOrder(userSessionService, userService);
+        order.verify(userSessionService).revokeAllActiveSessions(9L);
+        order.verify(userService).removeById(eq(9L));
+        verify(userService, never()).removeById(eq(8L));
     }
 
     // ==================== 重置密码 ====================
@@ -338,8 +344,8 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
         when(userService.save(any(User.class))).thenReturn(true);
 
         mockMvc.perform(post("/admin/users/import").contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"username\":\"imp_a\",\"password\":\"" + DTO_ONLY_PWD + "\",\"role\":\"STUDENT\"},"
-                                + "{\"username\":\"imp_b\",\"password\":\"" + DTO_ONLY_PWD + "\","
+                        .content("[{\"username\":\"imp_a\",\"password\":\"" + STRONG_PWD + "\",\"role\":\"STUDENT\"},"
+                                + "{\"username\":\"imp_b\",\"password\":\"" + STRONG_PWD + "\","
                                 + "\"role\":\"TEACHER\",\"isActive\":false}]")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
@@ -352,6 +358,22 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
                 && Boolean.TRUE.equals(u.getIsActive())));
         verify(userService).save(argThat(u -> "imp_b".equals(u.getUsername())
                 && Boolean.FALSE.equals(u.getIsActive())));
+    }
+
+    @Test
+    @DisplayName("POST /admin/users/import - 弱口令逐行拒绝，绝不落库（导入旁路回归）")
+    void importUsers_weakPasswordRejected() throws Exception {
+        mockMvc.perform(post("/admin/users/import").contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"username\":\"weak_a\",\"password\":\"" + DTO_ONLY_PWD + "\","
+                                + "\"role\":\"STUDENT\"}]")
+                        .with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.successCount").value(0))
+                .andExpect(jsonPath("$.data.failCount").value(1))
+                .andExpect(jsonPath("$.data.errors[0]").value(org.hamcrest.Matchers.containsString(
+                        "密码必须包含大写字母、小写字母、数字和特殊字符")));
+
+        verify(userService, never()).save(any(User.class));
     }
 
     @Test
@@ -373,7 +395,7 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
         });
 
         // 片段（不含大括号）：与每行的 {"username":"..."," 拼接后才是合法 JSON 对象
-        String dto = "\"password\":\"" + DTO_ONLY_PWD + "\",\"role\":\"STUDENT\"";
+        String dto = "\"password\":\"" + STRONG_PWD + "\",\"role\":\"STUDENT\"";
         mockMvc.perform(post("/admin/users/import").contentType(MediaType.APPLICATION_JSON)
                         .content("["
                                 + "{\"username\":\"u_ok\"," + dto + "},"
@@ -453,11 +475,11 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
         });
 
         MockMultipartFile file = userExcel(
-                new String[]{"valid1", "张三", "v1@example.com", "STUDENT", DTO_ONLY_PWD, "13800138000"},
-                new String[]{"badrole", "老王", "w@example.com", "BOSS", DTO_ONLY_PWD, null},
-                new String[]{"badphone", "老李", "l@example.com", "STUDENT", DTO_ONLY_PWD, "12345"},
+                new String[]{"valid1", "张三", "v1@example.com", "STUDENT", STRONG_PWD, "13800138000"},
+                new String[]{"badrole", "老王", "w@example.com", "BOSS", STRONG_PWD, null},
+                new String[]{"badphone", "老李", "l@example.com", "STUDENT", STRONG_PWD, "12345"},
                 new String[]{"genpwd", "缺密码", "g@example.com", "TEACHER", null, null},
-                new String[]{"dupx", "重复", "d@example.com", "STUDENT", DTO_ONLY_PWD, null});
+                new String[]{"dupx", "重复", "d@example.com", "STUDENT", STRONG_PWD, null});
 
         mockMvc.perform(multipart("/admin/users/import-excel").file(file).with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
@@ -668,7 +690,7 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
         when(userService.save(any(User.class))).thenReturn(true);
 
         mockMvc.perform(post("/admin/users/import").contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"username\":\"imp_null\",\"password\":\"" + DTO_ONLY_PWD + "\","
+                        .content("[{\"username\":\"imp_null\",\"password\":\"" + STRONG_PWD + "\","
                                 + "\"role\":\"STUDENT\",\"isActive\":null}]")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())

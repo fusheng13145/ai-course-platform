@@ -284,7 +284,7 @@ public class AuthSessionComponent {
         // 修复 P1-12：刷新令牌轮换（rotation）——每次刷新生成全新 refreshToken 并作废旧值，
         // 窃取的刷新令牌最多生效一次，无法无限期接管会话。
         String newRefreshToken = UUID.randomUUID().toString().replace("-", "");
-        session.setSessionToken(newToken);
+        session.setSessionToken(com.aicourse.util.JwtUtils.sha256Hex(newToken));
         session.setRefreshToken(jwtUtils.sha256Hex(newRefreshToken));
         session.setLastActivity(LocalDateTime.now());
         userSessionService.updateById(session);
@@ -347,7 +347,7 @@ public class AuthSessionComponent {
                                          boolean rememberMe, LocalDateTime now, ClientInfo clientInfo) {
         UserSession session = new UserSession();
         session.setUserId(user.getId());
-        session.setSessionToken(token);
+        session.setSessionToken(com.aicourse.util.JwtUtils.sha256Hex(token));
         session.setRefreshToken(refreshToken);
         session.setIsActive(true);
         session.setIsCurrent(true);
@@ -369,17 +369,23 @@ public class AuthSessionComponent {
      */
     private void saveLoginLog(Long userId, String username, String status,
                               ClientInfo clientInfo, String reason) {
-        LoginLog log = new LoginLog();
-        log.setUserId(userId);
-        log.setUsername(username);
-        log.setLoginStatus(status);
-        log.setIpAddress(clientInfo.getIpAddress());
-        log.setDeviceName(clientInfo.getDeviceName());
-        log.setBrowser(clientInfo.getBrowser());
-        log.setOperatingSystem(clientInfo.getOperatingSystem());
-        log.setUserAgent(clientInfo.getUserAgent());
-        log.setFailureReason(reason);
-        loginLogService.save(log);
+        LoginLog loginLog = new LoginLog();
+        loginLog.setUserId(userId);
+        loginLog.setUsername(username);
+        loginLog.setLoginStatus(status);
+        loginLog.setIpAddress(clientInfo.getIpAddress());
+        loginLog.setDeviceName(clientInfo.getDeviceName());
+        loginLog.setBrowser(clientInfo.getBrowser());
+        loginLog.setOperatingSystem(clientInfo.getOperatingSystem());
+        loginLog.setUserAgent(clientInfo.getUserAgent());
+        loginLog.setFailureReason(reason);
+        try {
+            // REQUIRES_NEW：登录失败后续会抛异常回滚业务事务，审计行必须独立提交
+            loginLogService.saveInNewTransaction(loginLog);
+        } catch (RuntimeException e) {
+            // 审计写失败不得反噬认证主流程（否则会把「密码错误」变成 500）
+            log.warn("写入登录日志失败（不影响本次认证结果）: {}", e.getMessage());
+        }
     }
 
     // ===================== 登录失败节流（P0-1） =====================

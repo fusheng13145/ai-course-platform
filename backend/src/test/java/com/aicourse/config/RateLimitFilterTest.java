@@ -58,6 +58,8 @@ class RateLimitFilterTest {
         // 安全修复 B1：注册端点 IP 限流（默认 20 次 / 3600 秒）
         ReflectionTestUtils.setField(filter, "registerLimit", 20);
         ReflectionTestUtils.setField(filter, "registerWindowSeconds", 3600);
+        ReflectionTestUtils.setField(filter, "uploadLimit", 60);
+        ReflectionTestUtils.setField(filter, "uploadWindowSeconds", 60);
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
         chain = mock(FilterChain.class);
@@ -97,6 +99,31 @@ class RateLimitFilterTest {
         request.setRemoteAddr("192.168.1.3");
         when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
                 .thenReturn(21L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void adminAiTestEndpoint_usesAiLimit() throws Exception {
+        // 管理端 AI 连通性测试此前不在 /api/ai/** 桶内；补规则后必须同样受限。
+        request.setRequestURI("/api/admin/ai/test");
+        request.setRemoteAddr("192.168.1.31");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(21L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void uploadEndpoint_usesUploadLimit() throws Exception {
+        request.setRequestURI("/api/upload-sessions/1/chunks/0");
+        request.setRemoteAddr("192.168.1.51");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(61L);
 
         filter.doFilterInternal(request, response, chain);
 

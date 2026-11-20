@@ -39,10 +39,15 @@ class SysLogComponentTest {
     }
 
     @Test
-    @DisplayName("readLogFile 含分隔符抛异常")
+    @DisplayName("readLogFile 含分隔符/父目录/盘符/反斜杠一律拒绝")
     void readLogFile_separator() {
         assertThrows(BusinessException.class, () -> component.readLogFile("a/b.log", 10, null));
+        assertThrows(BusinessException.class, () -> component.readLogFile("a\\b.log", 10, null));
         assertThrows(BusinessException.class, () -> component.readLogFile("..escape", 10, null));
+        assertThrows(BusinessException.class, () -> component.readLogFile("../api.log", 10, null));
+        assertThrows(BusinessException.class, () -> component.readLogFile("/etc/passwd", 10, null));
+        assertThrows(BusinessException.class, () -> component.readLogFile("C:\\Windows\\win.ini", 10, null));
+        assertThrows(BusinessException.class, () -> component.readLogFile("api.txt", 10, null));
     }
 
     @Test

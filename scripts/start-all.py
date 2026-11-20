@@ -464,7 +464,9 @@ def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_
     env["SPRING_DATA_REDIS_PORT"] = str(CACHE_PORT)
     env["COOKIE_SECURE"] = "false"
     env["REQUIRE_HTTPS"] = "false"
-    env["CSRF_ENABLED"] = "false"
+    # 本地默认开启双提交 CSRF：前端 axios 已自动回填 X-XSRF-TOKEN，不再需要为方便脚本而关防护。
+    # 需要裸 HTTP 脚本联调时在 .env 显式写 CSRF_ENABLED=false（仅限受信本机）。
+    env["CSRF_ENABLED"] = dotenv.get("CSRF_ENABLED", "true")
     # 并行口：Spring Boot 的 server.port 用环境变量覆盖（默认仍是 8080）
     api_port_value = api_port(dotenv)
     if api_port_value != DEFAULT_API_PORT:

@@ -209,6 +209,24 @@ class OperationLogAspectCoverageTest {
     }
 
     @Test
+    @DisplayName("参数含 HttpServletRequest 时剔除容器对象，DTO 仍被序列化（审计不再丢参数）")
+    void servletArgsAreFilteredButDtoKept() throws Throwable {
+        request("POST");
+        java.util.Map<String, String> payload = new java.util.LinkedHashMap<>();
+        payload.put("username", "student");
+        when(joinPoint.getArgs()).thenReturn(new Object[]{
+                new MockHttpServletRequest("POST", "/api/test"), payload});
+        when(joinPoint.proceed()).thenReturn("ok");
+        aspect.aroundController(joinPoint);
+
+        ArgumentCaptor<OperationLog> captor = ArgumentCaptor.forClass(OperationLog.class);
+        verify(operationLogService).save(captor.capture());
+        String params = captor.getValue().getParams();
+        assertTrue(params.contains("\"username\":\"student\""), "实际=" + params);
+        assertFalse(params.contains("MockHttpServletRequest"), "容器对象不得进入审计参数");
+    }
+
+    @Test
     @DisplayName("超过 1000 字的参数截断并保留省略号")
     void longParamsAreTruncated() throws Throwable {
         request("POST");

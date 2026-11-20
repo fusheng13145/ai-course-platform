@@ -91,6 +91,10 @@ public class AuthPasswordComponent {
     public ApiResponse<Void> resetPassword(String phone, String code, String newPassword) {
         log.info("重置认证");
 
+        // 验证码尝试计数前置：手机通道此前缺失，6 位码可被无限枚举；
+        // 与邮箱通道共用同一 Redis 滑动计数（key 以传入 target 区分）。
+        verificationComponent.assertVerifyAttemptAllowed(phone);
+
         VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
                 .eq(VerificationCode::getPhone, phone)
                 .eq(VerificationCode::getCode, code)

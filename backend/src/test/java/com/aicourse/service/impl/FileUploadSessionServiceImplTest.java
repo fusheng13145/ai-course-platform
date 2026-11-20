@@ -126,6 +126,15 @@ class FileUploadSessionServiceImplTest {
     }
 
     @Test
+    @DisplayName("createUploadSession 拒绝 SVG（本地静态模式会内联为 image/svg+xml，构成存储型 XSS）")
+    void create_svgRejected() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.createUploadSession("evil.svg", 1024L, 1L, 99L));
+        assertTrue(ex.getMessage().contains(".svg"), "拒绝原因须点名扩展名，实际=" + ex.getMessage());
+        verify(fileUploadSessionMapper, never()).insert(any(FileUploadSession.class));
+    }
+
+    @Test
     @DisplayName("createUploadSession 文件过大")
     void create_tooLarge() {
         assertThrows(BusinessException.class,

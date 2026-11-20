@@ -7,6 +7,7 @@ import com.aicourse.entity.UserSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.UserSessionMapper;
 import com.aicourse.service.UserSessionService;
+import com.aicourse.util.JwtUtils;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.ObjectProvider;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -33,6 +35,22 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
      * 现改为 Redis 缓存回填，仅缓存未命中时才查询数据库）
      */
     private static final String SESSION_ACTIVE_KEY_PREFIX = "auth:session:active:";
+
+    /** 会话令牌指纹：库内只存 JWT 的 SHA-256（64 位小写十六进制），泄露库/备份也无法重放。 */
+    private static final Pattern TOKEN_FINGERPRINT_PATTERN = Pattern.compile("[0-9a-f]{64}");
+
+    /**
+     * 归一化会话令牌：入参可能是客户端原始 JWT，也可能是库内已存的 64 位指纹。
+     * <p>原始 JWT 一律转 SHA-256；已是 64 位小写十六进制则视为库内指纹原样使用。
+     * 这样兼容历史明文行（查询时同时按指纹与原文匹配），新会话只写指纹。</p>
+     */
+    static String tokenFingerprint(String token) {
+        String normalized = token.trim();
+        if (TOKEN_FINGERPRINT_PATTERN.matcher(normalized).matches()) {
+            return normalized;
+        }
+        return JwtUtils.sha256Hex(normalized);
+    }
     /** 缓存 TTL 下限（秒）：即使会话剩余时间很短也至少保留该窗口，避免高频回填 */
     private static final long CACHE_TTL_MIN_SECONDS = 60L;
 
@@ -86,7 +104,7 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
         this.updateById(session);
         // 同步失效 Redis 活跃缓存（修复 P1-11 缓存一致性）
         if (redisTemplate != null && session.getSessionToken() != null) {
-            redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + session.getSessionToken());
+            redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + tokenFingerprint(session.getSessionToken()));
         }
     }
 
@@ -177,9 +195,10 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
         if (token == null || token.isEmpty()) {
             return false;
         }
-        // 1) 缓存命中直接返回（活跃 = "1"）
+        String fingerprint = tokenFingerprint(token);
+        // 1) 缓存命中直接返回（活跃 = "1"）；缓存键用指纹，不含原始 JWT
         if (redisTemplate != null) {
-            String cached = redisTemplate.opsForValue().get(SESSION_ACTIVE_KEY_PREFIX + token);
+            String cached = redisTemplate.opsForValue().get(SESSION_ACTIVE_KEY_PREFIX + fingerprint);
             if ("1".equals(cached)) {
                 return true;
             }
@@ -188,9 +207,11 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
                 return false;
             }
         }
-        // 2) 缓存未命中：查库
+        // 2) 缓存未命中：查库。新行只有指纹；历史明文行按原文兼容匹配（到期自然淘汰）。
         LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
-                .eq(UserSession::getSessionToken, token)
+                .and(w -> w.eq(UserSession::getSessionToken, fingerprint)
+                        .or()
+                        .eq(UserSession::getSessionToken, token))
                 .eq(UserSession::getIsActive, true)
                 .gt(UserSession::getExpiresAt, LocalDateTime.now());
         UserSession session = this.getOne(wrapper, false);
@@ -198,7 +219,7 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
             // 回填缓存，TTL 与会话剩余时间对齐（有下限），到期自动过期
             long ttlSeconds = Math.max(CACHE_TTL_MIN_SECONDS,
                     java.time.Duration.between(LocalDateTime.now(), session.getExpiresAt()).getSeconds());
-            redisTemplate.opsForValue().set(SESSION_ACTIVE_KEY_PREFIX + token, "1",
+            redisTemplate.opsForValue().set(SESSION_ACTIVE_KEY_PREFIX + fingerprint, "1",
                     Duration.ofSeconds(ttlSeconds));
             return true;
         }
@@ -223,11 +244,14 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
         if (token == null || token.isBlank()) {
             return;
         }
+        String fingerprint = tokenFingerprint(token);
         if (redisTemplate != null) {
-            redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + token);
+            redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + fingerprint);
         }
         this.lambdaUpdate()
-                .eq(UserSession::getSessionToken, token)
+                .and(w -> w.eq(UserSession::getSessionToken, fingerprint)
+                        .or()
+                        .eq(UserSession::getSessionToken, token))
                 .set(UserSession::getIsActive, false)
                 .update();
     }

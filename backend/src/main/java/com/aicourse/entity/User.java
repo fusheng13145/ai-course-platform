@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -107,6 +108,11 @@ public class User {
     /** 执行封禁的管理员ID */
     @TableField("banned_by")
     private Long bannedBy;
+
+    /** 逻辑删除：0 正常 / 1 已删除（V31）。@TableLogic 使 removeById 改为 UPDATE。 */
+    @JsonIgnore
+    @TableLogic
+    private Integer deleted;
 
     @JsonIgnore
     private String registerIp;
