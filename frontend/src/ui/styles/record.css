@@ -63,6 +63,9 @@ body[data-app="ui"] {
   --r-sm: 7px;
   --r-md: 10px;
   --r-lg: 12px;
+  /* 对话面：气泡与大输入容器需要比卡片更柔的圆角，集中出令牌以免 .vue 里写字面量 */
+  --r-bubble: 18px;
+  --r-xl: 22px;
   --r-circle: 50%;
   --r-bar: 6px 6px 2px 2px;
   /* V3b：滚动条色阶（令牌出生地；dark 经 --ink-3 覆写自动适配） */

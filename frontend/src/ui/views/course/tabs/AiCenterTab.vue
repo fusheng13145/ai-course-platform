@@ -1,8 +1,173 @@
 <template>
-  <section class="ai-center">
+  <!-- 学生端：沉浸式对话工作区（历史侧栏 + 主对话区） -->
+  <section v-if="isStudent" ref="shellRef" class="ai-shell" :style="shellStyle">
+    <div class="ai-workspace">
+      <aside
+        v-if="!isNarrow || sideOpen"
+        id="ai-history"
+        ref="sideRef"
+        class="ai-side"
+        :class="{ 'is-collapsed': !sideOpen, 'is-narrow': isNarrow }"
+        @keydown.esc.stop="closeSide"
+      >
+        <div class="side-inner">
+          <div class="side-top">
+            <button class="side-new" @click="newChat">
+              <Icon name="plus" />
+              <span>新对话</span>
+            </button>
+            <button class="side-close" aria-label="收起对话历史" @click="closeSide">
+              <Icon name="x" />
+            </button>
+          </div>
+
+          <div class="side-scroll">
+            <p class="side-label">历史对话</p>
+            <template v-for="group in sessionGroups" :key="group.key">
+              <p class="side-group">{{ group.label }}</p>
+              <button
+                v-for="item in group.items"
+                :key="item.id"
+                class="side-item"
+                :class="{ 'is-active': item.id === activeId }"
+                :aria-current="item.id === activeId ? 'true' : undefined"
+                @click="openSession(item)"
+              >
+                <span class="side-item-title">{{ item.title }}</span>
+                <span class="side-item-meta">
+                  <span class="side-item-last">{{ item.lastText || '（无消息）' }}</span>
+                  <time>{{ shortTime(item.updatedAt) }}</time>
+                </span>
+              </button>
+            </template>
+            <p v-if="!sessionGroups.length" class="side-empty">暂无历史对话</p>
+          </div>
+        </div>
+      </aside>
+
+      <div v-if="isNarrow && sideOpen" class="side-scrim" @click="closeSide"></div>
+
+      <div class="ai-main">
+        <header class="ai-top">
+          <div class="ai-top-row">
+            <button
+              ref="toggleRef"
+              class="top-icon"
+              :aria-label="sideOpen ? '收起对话历史' : '展开对话历史'"
+              :aria-expanded="sideOpen ? 'true' : 'false'"
+              aria-controls="ai-history"
+              @click="toggleSide"
+            >
+              <Icon name="menu" />
+            </button>
+            <div class="ai-top-title">
+              <b>{{ activeTitle }}</b>
+              <small v-if="courseName">{{ courseName }}</small>
+            </div>
+            <button v-if="active === 'qa'" class="top-new" @click="newChat">
+              <Icon name="plus" />
+              <span>新对话</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- 智能答疑：学生端的薄弱点/建议/路径已改为输入框上方的提问模板 -->
+        <div ref="scrollRef" class="ai-stream" @scroll="onChatScroll">
+          <p v-if="blockedNotice" class="stream-notice">
+            这条对话已存在于云端，但当前接口不返回历史消息，无法在这里回放。继续提问会接着这条会话。
+          </p>
+
+          <div v-if="!messages.length && !qaSending" class="welcome">
+            <div class="welcome-mark"><Icon name="sparkle" /></div>
+            <h2>你好，我是你的 AI 学习助手</h2>
+            <p>可以问我本课程的概念、作业思路或复习方法。</p>
+            <div class="suggest">
+              <button
+                v-for="suggestion in SUGGESTIONS"
+                :key="suggestion"
+                class="suggest-item"
+                @click="send(suggestion)"
+              >
+                {{ suggestion }}
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="stream-inner">
+            <article
+              v-for="(msg, index) in messages"
+              :key="index"
+              :class="['turn', `turn-${msg.role}`]"
+            >
+              <div v-if="msg.role === 'ai'" class="turn-avatar"><Icon name="sparkle" /></div>
+              <div class="turn-body">
+                <p v-if="msg.content" class="turn-text">{{ msg.content }}</p>
+                <div v-if="msg.failed" class="turn-fail">
+                  <span>回答失败，请检查网络后重试。</span>
+                  <button class="mini-btn" @click="retry(index)">重试</button>
+                </div>
+                <details v-if="msg.sources?.length" class="src">
+                  <summary>参考了 {{ msg.sources.length }} 份资料</summary>
+                  <ul>
+                    <li v-for="(source, sIndex) in msg.sources" :key="sIndex">
+                      <b>{{ source.documentName || `资料 ${sIndex + 1}` }}</b>
+                      <p v-if="source.snippet">{{ source.snippet }}</p>
+                    </li>
+                  </ul>
+                </details>
+              </div>
+            </article>
+            <p v-if="qaSending" class="thinking">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="thinking-text">正在思考…</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="composer">
+          <!-- 学习工具改成提问模板：点一下把模板问题填进输入框，仍由同一个会话回答 -->
+          <div class="quick-prompts">
+            <button
+              v-for="prompt in QUICK_PROMPTS"
+              :key="prompt.key"
+              class="quick-chip"
+              :aria-label="`填入${prompt.label}的提问模板`"
+              @click="fillPrompt(prompt.key)"
+            >
+              <Icon :name="prompt.icon" />
+              <span>{{ prompt.label }}</span>
+            </button>
+          </div>
+          <div class="composer-box">
+            <textarea
+              ref="taRef"
+              v-model="qaInput"
+              class="composer-input"
+              rows="1"
+              maxlength="2000"
+              placeholder="问我任何关于本课程的问题…"
+              @input="autosize"
+              @keydown="onComposerKey"
+              @compositionstart="composing = true"
+              @compositionend="composing = false"
+            ></textarea>
+            <button class="composer-send" :disabled="!canSend" aria-label="发送" @click="send()">
+              <Icon name="arrow" />
+            </button>
+          </div>
+          <p class="composer-note">AI 回答仅供学习参考，重要结论请以课程资料为准。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 教师端：保留原有卡片布局与教师专属能力 -->
+  <section v-else class="ai-center">
     <div class="course-tab-bar">
       <div>
-        <h2>{{ isStudent ? 'AI 学习助手' : 'AI 助教' }}</h2>
+        <h2>AI 助教</h2>
       </div>
     </div>
 
@@ -28,7 +193,7 @@
           </h2>
         </div>
         <div class="course-tab-actions">
-          <button class="btn btn-ghost" :disabled="!sessionId" @click="resetQa">新会话</button>
+          <button class="btn btn-ghost" :disabled="!sessionId" @click="newChat">新会话</button>
         </div>
       </header>
       <div v-if="messages.length" class="msg-list">
@@ -44,6 +209,7 @@
       </div>
       <div v-else class="empty-state compact">
         <b>还没有提问</b>
+        <p>就本课程的学习内容提问，回答会带上检索到的资料出处。</p>
       </div>
       <footer class="qa-foot">
         <textarea
@@ -53,7 +219,7 @@
           :disabled="qaSending"
           placeholder="例如：子网划分时主机位数怎么算？"
         ></textarea>
-        <button class="btn btn-primary" :disabled="qaSending || !qaInput.trim()" @click="askQa">
+        <button class="btn btn-primary" :disabled="qaSending || !qaInput.trim()" @click="send()">
           {{ qaSending ? '思考中…' : '提问' }}
         </button>
       </footer>
@@ -83,6 +249,7 @@
       </ul>
       <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
         <b>没有可报告的薄弱点</b>
+        <p>学习数据积累后重试。</p>
       </div>
       <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
     </section>
@@ -189,17 +356,20 @@
       </details>
     </section>
 
+    <!-- 课程语料（教师专属） -->
     <AiCorpusTab v-if="active === 'corpus' && !isStudent" :course-id="courseId" />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Icon from '../../../components/Icon.vue'
+import AiCorpusTab from './AiCorpusTab.vue'
 import { useUi } from '../../../composables/ui'
 import aiApi from '@/api/ai'
+import courseApi from '@/api/course'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
-import AiCorpusTab from './AiCorpusTab.vue'
 
 interface Source {
   documentName?: string
@@ -211,7 +381,23 @@ interface Message {
   role: 'user' | 'ai'
   content: string
   sources?: Source[]
+  /** 请求失败时占位：只渲染错误条与重试，不伪造一条成功回答 */
+  failed?: boolean
+  retryText?: string
 }
+
+interface ChatSession {
+  id: string
+  title: string
+  messages: Message[]
+  updatedAt: number
+  lastText: string
+  courseId: number
+  /** 来自 GET /ai/qa/sessions 的记录：只有标题与时间，读不到消息正文 */
+  remote?: boolean
+}
+
+type TabKey = 'qa' | 'weak' | 'advice' | 'essay' | 'path' | 'corpus'
 
 const AI_TABS = [
   { key: 'qa', label: '智能答疑' },
@@ -222,6 +408,31 @@ const AI_TABS = [
   { key: 'corpus', label: '课程语料', teacherOnly: true },
 ] as const
 
+const SUGGESTIONS = [
+  '帮我梳理本课程的核心知识点',
+  '这个概念可以举例说明吗？',
+  '给我出 3 道练习题',
+  '帮我制定本周复习计划',
+]
+
+/**
+ * 学习工具（薄弱点 / 建议 / 路径）从独立页签改为提问模板：
+ * 点一下只把问题填进输入框，答案仍由当前会话按普通提问给出，用户可先改再发。
+ */
+const QUICK_PROMPTS = [
+  { key: 'weak', label: '薄弱点分析', icon: 'target' },
+  { key: 'advice', label: '学习建议', icon: 'sparkle' },
+  { key: 'path', label: '学习路径', icon: 'path' },
+] as const
+
+const PROMPT_TEMPLATES: Record<string, (course: string) => string> = {
+  weak: (course) => `请帮我分析一下我在《${course}》各章节的薄弱点，并说明判断依据。`,
+  advice: (course) => `请根据我目前的学习进度，给我一些《${course}》的学习建议。`,
+  path: (course) => `请帮我制定一份《${course}》的学习路径，按先修顺序列出阶段目标。`,
+}
+
+const NARROW_QUERY = '(max-width: 900px)'
+
 // 学生复用同一套真接口，只裁掉教师专属的「作文批改」（其结论由教师采纳）
 const props = defineProps<{ courseId: number; mode?: 'teacher' | 'student' }>()
 const isStudent = computed(() => props.mode === 'student')
@@ -230,7 +441,7 @@ const visibleTabs = computed(() =>
 )
 const { toast } = useUi()
 
-const active = ref<(typeof AI_TABS)[number]['key']>('qa')
+const active = ref<TabKey>('qa')
 
 const messages = ref<Message[]>([])
 const qaInput = ref('')
@@ -258,6 +469,364 @@ const pathLoading = ref(false)
 const pathError = ref('')
 const pathResult = ref<{ status?: string; message?: string } | null>(null)
 const pathRaw = ref('')
+
+/* -------------------------------- 会话与历史 -------------------------------- */
+
+/**
+ * 会话缓存只活在本次页面会话的内存里（模块级 Map，按课程分桶）。
+ * 不写 localStorage、不冒充云端历史：刷新后侧栏为空是诚实的，而不是"看起来有记录点开是空的"。
+ */
+const sessionStore = new Map<number, ChatSession[]>()
+const sessions = ref<ChatSession[]>([])
+const activeId = ref('')
+const blockedNotice = ref(false)
+
+const sessionGroups = computed(() => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const today = start.getTime()
+  const day = 86_400_000
+  const buckets = [
+    { key: 'today', label: '今天', from: today, to: Number.POSITIVE_INFINITY },
+    { key: 'yesterday', label: '昨天', from: today - day, to: today },
+    { key: 'week', label: '近 7 天', from: today - 6 * day, to: today - day },
+    { key: 'older', label: '更早', from: Number.NEGATIVE_INFINITY, to: today - 6 * day },
+  ]
+  const sorted = [...sessions.value].sort((a, b) => b.updatedAt - a.updatedAt)
+  return buckets
+    .map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      items: sorted.filter((item) => item.updatedAt >= bucket.from && item.updatedAt < bucket.to),
+    }))
+    .filter((bucket) => bucket.items.length > 0)
+})
+
+const activeTitle = computed(() => {
+  if (!isStudent.value) return 'AI 教学助手'
+  if (active.value !== 'qa') {
+    return AI_TABS.find((tab) => tab.key === active.value)?.label || 'AI 学习助手'
+  }
+  const current = sessions.value.find((item) => item.id === activeId.value)
+  return current?.title || 'AI 学习助手'
+})
+
+function titleFrom(list: Message[]): string {
+  const first = list.find((item) => item.role === 'user' && item.content.trim())
+  if (!first) return '新对话'
+  const text = first.content.trim().replace(/\s+/g, ' ')
+  return text.length > 18 ? `${text.slice(0, 18)}…` : text
+}
+
+function lastTextFrom(list: Message[]): string {
+  const last = [...list].reverse().find((item) => item.content.trim())
+  if (!last) return ''
+  const text = last.content.trim().replace(/\s+/g, ' ')
+  return text.length > 30 ? `${text.slice(0, 30)}…` : text
+}
+
+function shortTime(ts: number): string {
+  const diff = Date.now() - ts
+  if (diff < 60_000) return '刚刚'
+  if (diff < 3_600_000) return `${Math.max(1, Math.floor(diff / 60_000))} 分钟前`
+  const date = new Date(ts)
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  if (ts >= start.getTime()) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+  if (ts >= start.getTime() - 86_400_000) return '昨天'
+  if (ts >= start.getTime() - 6 * 86_400_000) return `${Math.floor(diff / 86_400_000)} 天前`
+  return `${date.getMonth() + 1}-${date.getDate()}`
+}
+
+function loadSessions() {
+  const cached = sessionStore.get(props.courseId)
+  if (cached) {
+    sessions.value = cached
+    return
+  }
+  sessions.value = []
+  sessionStore.set(props.courseId, sessions.value)
+}
+
+function syncActiveSession() {
+  if (!activeId.value) return
+  const current = sessions.value.find((item) => item.id === activeId.value)
+  if (!current) return
+  current.messages = messages.value.map((item) => ({ ...item }))
+  current.updatedAt = Date.now()
+  current.lastText = lastTextFrom(messages.value)
+  if (!current.title || current.title === '新对话') current.title = titleFrom(messages.value)
+}
+
+/** 首次提问拿到后端 sessionId 后才落一条侧栏记录——没有真实会话就不凭空造条目 */
+function ensureSession() {
+  const id = sessionId.value
+  if (!id) return
+  let current = sessions.value.find((item) => item.id === id)
+  if (!current) {
+    current = {
+      id,
+      title: '',
+      messages: [],
+      updatedAt: Date.now(),
+      lastText: '',
+      courseId: props.courseId,
+    }
+    sessions.value.unshift(current)
+  }
+  activeId.value = id
+  syncActiveSession()
+}
+
+/**
+ * 只认明确标了本课程的云端会话。
+ * 当前 /ai/qa/sessions 不返回 courseId，因此这里通常为空——宁可不显示，也不把全量列表冒充成本课程历史。
+ */
+async function loadRemoteSessions() {
+  try {
+    const body = unwrap(await aiApi.getSessions()) as unknown
+    const payload = unwrap(body as never) as unknown
+    const list = Array.isArray(payload)
+      ? payload
+      : ((payload as { list?: unknown[]; sessions?: unknown[] })?.list ??
+        (payload as { sessions?: unknown[] })?.sessions ??
+        [])
+    for (const raw of list as Record<string, unknown>[]) {
+      if (Number(raw?.courseId) !== Number(props.courseId)) continue
+      const id = String(raw?.sessionId ?? '')
+      if (!id || sessions.value.some((item) => item.id === id)) continue
+      const stamp = Date.parse(String(raw?.updatedAt ?? raw?.createdAt ?? '')) || Date.now()
+      sessions.value.push({
+        id,
+        title: String(raw?.title ?? '未命名对话'),
+        messages: [],
+        updatedAt: stamp,
+        lastText: String(raw?.lastMessage ?? ''),
+        courseId: props.courseId,
+        remote: true,
+      })
+    }
+  } catch {
+    // 列表接口不可用不该影响对话本身；侧栏退化为只显示本页产生的会话
+  }
+}
+
+function openSession(item: ChatSession) {
+  if (item.id === activeId.value) {
+    if (isNarrow.value) closeSide()
+    return
+  }
+  activeId.value = item.id
+  sessionId.value = item.id
+  messages.value = item.messages.map((msg) => ({ ...msg }))
+  blockedNotice.value = Boolean(item.remote) && messages.value.length === 0
+  if (isNarrow.value) closeSide()
+  void scrollToEnd(true)
+}
+
+function newChat() {
+  messages.value = []
+  sessionId.value = ''
+  activeId.value = ''
+  blockedNotice.value = false
+  qaInput.value = ''
+  atBottom.value = true
+  void nextTick(() => {
+    taRef.value?.focus()
+    autosize()
+  })
+}
+
+/* -------------------------------- 侧栏开合 -------------------------------- */
+
+const shellRef = ref<HTMLElement | null>(null)
+const sideRef = ref<HTMLElement | null>(null)
+const toggleRef = ref<HTMLButtonElement | null>(null)
+const sideOpen = ref(true)
+const isNarrow = ref(false)
+const shellHeight = ref(0)
+
+const shellStyle = computed(() =>
+  shellHeight.value ? { '--ai-h': `${shellHeight.value}px` } : undefined,
+)
+
+function measureShell() {
+  const element = shellRef.value
+  if (!element) return
+  const top = element.getBoundingClientRect().top
+  // 减掉 main-inner 的底部内边距，否则页面外层会多出一条滚动条（与消息区滚动叠加成双滚动条）
+  const inner = element.closest('.main-inner')
+  const padBottom = inner ? Number.parseFloat(getComputedStyle(inner).paddingBottom) || 0 : 24
+  // 课程头 + 页头会随断点变化，按实测量而不是猜一个 calc 常数
+  shellHeight.value = Math.max(440, Math.round(window.innerHeight - top - padBottom - 4))
+  // 课程详情异步到达会垫高课程头，上面的测量于是偏大：按外层真实溢出量再收紧一次即收敛
+  requestAnimationFrame(() => {
+    const overflow = document.documentElement.scrollHeight - window.innerHeight
+    if (overflow > 0) shellHeight.value = Math.max(440, shellHeight.value - overflow)
+  })
+}
+
+/** jsdom 等无 matchMedia 的环境退化为宽屏，避免挂载期直接抛错 */
+function narrowQuery(): MediaQueryList | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null
+  return window.matchMedia(NARROW_QUERY)
+}
+
+function syncNarrow(event?: MediaQueryList | MediaQueryListEvent) {
+  const narrow = event ? event.matches : Boolean(narrowQuery()?.matches)
+  const wasNarrow = isNarrow.value
+  isNarrow.value = narrow
+  if (narrow && !wasNarrow) sideOpen.value = false
+  if (!narrow && wasNarrow) sideOpen.value = true
+}
+
+function toggleSide() {
+  if (sideOpen.value) {
+    closeSide()
+    return
+  }
+  sideOpen.value = true
+  if (isNarrow.value) {
+    void nextTick(() => sideRef.value?.querySelector<HTMLButtonElement>('.side-new')?.focus())
+  }
+}
+
+function closeSide() {
+  if (!sideOpen.value) return
+  sideOpen.value = false
+  if (isNarrow.value) void nextTick(() => toggleRef.value?.focus())
+}
+
+function onDocumentKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !isNarrow.value || !sideOpen.value) return
+  event.preventDefault()
+  closeSide()
+}
+
+/* -------------------------------- 对话交互 -------------------------------- */
+
+const scrollRef = ref<HTMLElement | null>(null)
+const taRef = ref<HTMLTextAreaElement | null>(null)
+const atBottom = ref(true)
+const composing = ref(false)
+
+const canSend = computed(() => Boolean(qaInput.value.trim()) && !qaSending.value)
+
+function scrollToEnd(force = false) {
+  return nextTick().then(() => {
+    const element = scrollRef.value
+    if (!element) return
+    if (!force && !atBottom.value) return
+    element.scrollTop = element.scrollHeight
+  })
+}
+
+function onChatScroll() {
+  const element = scrollRef.value
+  if (!element) return
+  // 用户向上翻阅时不再强行拉回底部：留 90px 容差，贴底才算"跟随"
+  atBottom.value = element.scrollHeight - element.scrollTop - element.clientHeight < 90
+}
+
+function autosize() {
+  const element = taRef.value
+  if (!element) return
+  element.style.height = 'auto'
+  const max = 22 * 6 + 20
+  element.style.height = `${Math.min(element.scrollHeight, max)}px`
+  element.style.overflowY = element.scrollHeight > max ? 'auto' : 'hidden'
+}
+
+/** 模板只填不发送：用户往往要补一句「哪一章」，直接发反而打断 */
+function fillPrompt(key: string) {
+  const build = PROMPT_TEMPLATES[key]
+  if (!build || qaSending.value) return
+  qaInput.value = build(courseName.value || '本课程')
+  void nextTick(() => {
+    const element = taRef.value
+    if (!element) return
+    element.focus()
+    element.setSelectionRange(element.value.length, element.value.length)
+    autosize()
+  })
+}
+
+function onComposerKey(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || event.shiftKey) return
+  // 中文输入法回车选词时不能发送：isComposing 在部分浏览器 keydown 阶段为 false，另用组合态兜底
+  if (event.isComposing || composing.value || event.keyCode === 229) return
+  event.preventDefault()
+  void send()
+}
+
+async function send(preset?: string) {
+  const text = (preset ?? qaInput.value).trim()
+  if (!text || qaSending.value) return
+  blockedNotice.value = false
+  messages.value.push({ role: 'user', content: text })
+  qaInput.value = ''
+  atBottom.value = true
+  void nextTick(autosize)
+  await scrollToEnd(true)
+  await requestAnswer(text)
+}
+
+/** 只补发 AI 侧，用于失败重试——不再重复插入一条用户消息 */
+async function requestAnswer(text: string) {
+  qaSending.value = true
+  try {
+    const data = await callTwice<{
+      sessionId?: string
+      answer?: string
+      sources?: Source[]
+    }>(
+      sessionId.value
+        ? aiApi.qaContinue({ sessionId: sessionId.value, message: text })
+        : aiApi.qaAsk({ courseId: props.courseId, question: text }),
+    )
+    if (data.sessionId) sessionId.value = String(data.sessionId)
+    messages.value.push({
+      role: 'ai',
+      content: data.answer || '（暂无回答）',
+      sources: Array.isArray(data.sources) ? data.sources : [],
+    })
+    ensureSession()
+  } catch (error) {
+    logger.error('智能答疑失败', error)
+    // 保留用户消息与失败占位，不伪造成功回答
+    messages.value.push({ role: 'ai', content: '', failed: true, retryText: text })
+  } finally {
+    qaSending.value = false
+    await scrollToEnd()
+  }
+}
+
+function retry(index: number) {
+  const target = messages.value[index]
+  if (!target?.retryText || qaSending.value) return
+  messages.value.splice(index, 1)
+  void requestAnswer(target.retryText)
+}
+
+watch(messages, syncActiveSession, { deep: true })
+
+/* -------------------------------- 课程名 -------------------------------- */
+
+const courseName = ref('')
+
+async function loadCourseName() {
+  try {
+    const body = unwrap(await courseApi.getCourseById(props.courseId)) as Record<string, unknown>
+    const detail = (body?.data ?? body) as Record<string, unknown>
+    courseName.value = String(detail?.name ?? '')
+  } catch {
+    courseName.value = ''
+  }
+}
+
+/* -------------------------------- 其它能力 -------------------------------- */
 
 function levelText(level: unknown): string {
   const key = String(level ?? '')
@@ -287,41 +856,6 @@ function itemLevel(item: Record<string, unknown>): unknown {
 async function callTwice<T>(request: Promise<unknown>): Promise<T> {
   const body = unwrap(await request)
   return (unwrap(body) || {}) as T
-}
-
-async function askQa() {
-  const text = qaInput.value.trim()
-  if (!text || qaSending.value) return
-  messages.value.push({ role: 'user', content: text })
-  qaInput.value = ''
-  qaSending.value = true
-  try {
-    const data = await callTwice<{
-      sessionId?: string
-      answer?: string
-      sources?: Source[]
-    }>(
-      sessionId.value
-        ? aiApi.qaContinue({ sessionId: sessionId.value, message: text })
-        : aiApi.qaAsk({ courseId: props.courseId, question: text }),
-    )
-    if (data.sessionId) sessionId.value = String(data.sessionId)
-    messages.value.push({
-      role: 'ai',
-      content: data.answer || '（暂无回答）',
-      sources: Array.isArray(data.sources) ? data.sources : [],
-    })
-  } catch (error) {
-    logger.error('智能答疑失败', error)
-    messages.value.push({ role: 'ai', content: '抱歉，回答失败，请稍后重试。' })
-  } finally {
-    qaSending.value = false
-  }
-}
-
-function resetQa() {
-  sessionId.value = ''
-  messages.value = []
 }
 
 async function loadWeak() {
@@ -429,28 +963,785 @@ async function runPath() {
   }
 }
 
+/* -------------------------------- 生命周期 -------------------------------- */
+
+let narrowMedia: MediaQueryList | null = null
+let resizeObserver: ResizeObserver | null = null
+
 onMounted(() => {
-  void loadAdvice()
-  void loadWeak()
+  loadSessions()
+  syncNarrow()
+  narrowMedia = narrowQuery()
+  narrowMedia?.addEventListener('change', syncNarrow)
+  document.addEventListener('keydown', onDocumentKeydown)
+  window.addEventListener('resize', measureShell)
+  measureShell()
+  // 只盯课程头：观察自身父容器会被 shell 高度变化反复触发，形成测量抖动
+  const courseHead = shellRef.value?.closest('.main-inner')?.querySelector('.course-head')
+  if (typeof ResizeObserver !== 'undefined' && courseHead) {
+    resizeObserver = new ResizeObserver(() => measureShell())
+    resizeObserver.observe(courseHead)
+  }
+  // 学生端已没有薄弱点/建议面板，不预拉这两个接口（AI 不可用时会平白弹错误提示）
+  if (!isStudent.value) {
+    void loadAdvice()
+    void loadWeak()
+  }
+  void loadCourseName().then(measureShell)
+  void loadRemoteSessions()
+  void nextTick(autosize)
+})
+
+onBeforeUnmount(() => {
+  narrowMedia?.removeEventListener('change', syncNarrow)
+  document.removeEventListener('keydown', onDocumentKeydown)
+  window.removeEventListener('resize', measureShell)
+  resizeObserver?.disconnect()
 })
 
 watch(
   () => props.courseId,
   () => {
-    resetQa()
+    syncActiveSession()
+    newChat()
+    loadSessions()
     pathResult.value = null
     pathRaw.value = ''
-    void loadAdvice()
-    void loadWeak()
+    courseName.value = ''
+    if (!isStudent.value) {
+      void loadAdvice()
+      void loadWeak()
+    }
+    void loadCourseName()
+    void loadRemoteSessions()
+    void nextTick(measureShell)
   },
 )
 </script>
 
 <style scoped>
+.ai-shell {
+  display: flex;
+  flex-direction: column;
+  height: var(--ai-h, calc(100dvh - 320px));
+  min-height: 440px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.ai-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* 侧栏 */
+.ai-side {
+  flex: none;
+  width: 252px;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  transition: width 0.22s var(--ease);
+}
+.ai-side.is-collapsed {
+  width: 0;
+  border-right-color: transparent;
+}
+.side-inner {
+  width: 252px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+}
+.side-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 10px 8px;
+}
+.side-new {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.16s var(--ease),
+    border-color 0.16s var(--ease);
+}
+.side-new:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+}
+.side-new .icon {
+  width: 14px;
+  height: 14px;
+}
+.side-close {
+  display: none;
+  width: 32px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.side-close .icon {
+  width: 14px;
+  height: 14px;
+}
+.side-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 8px 12px;
+  scrollbar-width: thin;
+}
+.side-label {
+  margin: 8px 8px 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.side-group {
+  margin: 10px 8px 4px;
+  font-size: 10px;
+  color: var(--ink-4);
+}
+.side-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s var(--ease);
+}
+.side-item:hover {
+  background: var(--surface-3);
+}
+.side-item.is-active {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.side-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.side-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.side-item-last {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.side-item-meta time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.side-empty {
+  margin: 18px 10px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+/* 主区 */
+.ai-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.ai-top {
+  flex: none;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ai-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.top-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    background 0.16s var(--ease),
+    color 0.16s var(--ease);
+}
+.top-icon:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.top-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+.ai-top-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.ai-top-title b {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ai-top-title small {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.top-new {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s var(--ease),
+    color 0.16s var(--ease);
+}
+.top-new:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.top-new .icon {
+  width: 12px;
+  height: 12px;
+}
+/* 对话流 */
+.ai-stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 18px 20px 8px;
+  scrollbar-width: thin;
+}
+.stream-notice {
+  max-width: 760px;
+  margin: 0 auto 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.stream-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 欢迎态 */
+.welcome {
+  max-width: 640px;
+  margin: 8vh auto 0;
+  padding: 0 4px;
+  text-align: center;
+}
+.welcome-mark {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-circle);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.welcome-mark .icon {
+  width: 20px;
+  height: 20px;
+}
+.welcome h2 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.welcome p {
+  margin: 0 0 22px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--ink-3);
+}
+.suggest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.suggest-item {
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.16s var(--ease),
+    background 0.16s var(--ease),
+    color 0.16s var(--ease);
+}
+.suggest-item:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+/* 消息 */
+.turn {
+  display: flex;
+  gap: 9px;
+  max-width: 100%;
+}
+.turn-user {
+  justify-content: flex-end;
+}
+.turn-avatar {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-circle);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.turn-avatar .icon {
+  width: 14px;
+  height: 14px;
+}
+.turn-body {
+  min-width: 0;
+  max-width: 76%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.turn-user .turn-body {
+  align-items: flex-end;
+}
+.turn-text {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.turn-user .turn-text {
+  padding: 9px 14px;
+  border-radius: var(--r-bubble) var(--r-bubble) var(--r-ctl) var(--r-bubble);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.turn-fail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.mini-btn {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--ink);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.mini-btn:hover {
+  background: var(--surface-2);
+}
+
+/* 资料出处 */
+.src {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.src summary {
+  width: fit-content;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+.src summary::-webkit-details-marker {
+  display: none;
+}
+.src[open] summary {
+  margin-bottom: 8px;
+}
+.src ul {
+  margin: 0;
+  padding: 0 0 0 2px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.src li {
+  padding: 8px 11px;
+  border-left: 2px solid var(--line-strong);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--surface);
+}
+.src li b {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.src li p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* 思考中 */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding-left: 35px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.thinking .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-circle);
+  background: var(--ink-3);
+  animation: aiDot 1.1s infinite ease-in-out;
+}
+.thinking .dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.thinking .dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+.thinking-text {
+  margin-left: 4px;
+}
+@keyframes aiDot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* 输入区 */
+.quick-prompts {
+  max-width: 800px;
+  margin: 0 auto 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.16s var(--ease),
+    background 0.16s var(--ease),
+    color 0.16s var(--ease);
+}
+.quick-chip:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.quick-chip .icon {
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+}
+.composer {
+  flex: none;
+  padding: 10px 20px 12px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 28%);
+}
+.composer-box {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink) 5%, transparent);
+  transition: border-color 0.16s var(--ease);
+}
+.composer-box:focus-within {
+  border-color: var(--accent);
+  /* 焦点环跟随胶囊圆角；全局 :focus-visible 的直角 outline 会把输入框框成方角 */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 152px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  resize: none;
+  outline: none;
+  overflow-y: hidden;
+}
+.composer-input::placeholder {
+  color: var(--ink-4);
+}
+/* 焦点由外层容器的圆角描边承担，避免直角 outline 破坏胶囊形状 */
+.composer-input:focus-visible {
+  outline: none;
+}
+.composer-send {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-circle);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  transition:
+    opacity 0.16s var(--ease),
+    background 0.16s var(--ease);
+}
+.composer-send .icon {
+  width: 15px;
+  height: 15px;
+  transform: rotate(-45deg);
+}
+.composer-send:disabled {
+  background: var(--surface-3);
+  color: var(--ink-4);
+  cursor: not-allowed;
+}
+.composer-note {
+  max-width: 800px;
+  margin: 7px auto 0;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ink-4);
+}
+
+/* 学习工具面板 */
+.item-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.item-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 12.5px;
+}
+.nb-name {
+  flex: 1;
+  min-width: 0;
+}
+.advice-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.advice-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.advice-list p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--ink-2);
+}
+
+/* 窄屏：侧栏改为抽屉 */
+@media (max-width: 900px) {
+  .ai-side {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    width: 272px;
+    border-right: 1px solid var(--line);
+    box-shadow: 0 18px 44px color-mix(in srgb, var(--ink) 22%, transparent);
+  }
+  .ai-side.is-collapsed {
+    width: 272px;
+    border-right-color: var(--line);
+  }
+  .side-inner {
+    width: 272px;
+  }
+  .side-close {
+    display: grid;
+  }
+  .side-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--ink) 34%, transparent);
+  }
+  .ai-stream {
+    padding: 16px 14px 8px;
+  }
+  .composer {
+    padding: 8px 14px 10px;
+  }
+  .welcome {
+    margin-top: 4vh;
+  }
+  .suggest {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .turn-body {
+    max-width: 86%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-side,
+  .side-item,
+  .suggest-item,
+  .composer-box,
+  .composer-send {
+    transition: none;
+  }
+  .thinking .dot {
+    animation: none;
+  }
+}
+
+/* 教师端沿用原有卡片风格 */
 .ai-center {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+.head-hint {
+  font-size: 10.5px;
+  color: var(--ink-3);
 }
 .msg-list {
   display: flex;
@@ -491,46 +1782,10 @@ watch(
 .qa-foot .textarea {
   flex: 1;
 }
-.item-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.item-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-}
-.nb-name {
-  flex: 1;
-  min-width: 0;
-}
 .ai-summary {
   margin: 0 0 12px;
   font-size: 14px;
   line-height: 1.8;
-  color: var(--ink-2);
-}
-.advice-list {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.advice-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.advice-list p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.75;
   color: var(--ink-2);
 }
 .essay-actions {
