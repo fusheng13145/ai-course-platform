@@ -494,7 +494,8 @@ const pathRaw = ref('')
 
 /**
  * 会话缓存只活在本次页面会话的内存里（模块级 Map，按课程分桶）。
- * 不写 localStorage、不冒充云端历史：刷新后侧栏为空是诚实的，而不是"看起来有记录点开是空的"。
+ * 不写 localStorage：历史真相在云端，由 /qa/sessions 与 /qa/sessions/{id} 提供；
+ * 这里的缓存只用于同一页面内避免重复拉取列表与正文。
  */
 const sessionStore = new Map<number, ChatSession[]>()
 const sessions = ref<ChatSession[]>([])
@@ -627,6 +628,14 @@ async function loadRemoteSessions() {
         remote: true,
         loaded: false,
       })
+    }
+    // 重进页面默认恢复最近一条本课程会话，而不是停在欢迎态等人再点一次
+    if (!activeId.value && !messages.value.length && !qaInput.value.trim() && !qaSending.value) {
+      const latest = sessions.value.reduce<ChatSession | null>(
+        (best, item) => (!best || item.updatedAt > best.updatedAt ? item : best),
+        null,
+      )
+      if (latest) await openSession(latest)
     }
   } catch {
     // 列表接口不可用不该影响对话本身；侧栏退化为只显示本页产生的会话

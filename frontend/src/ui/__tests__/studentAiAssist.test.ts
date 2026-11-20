@@ -282,6 +282,9 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     await flushPromises()
 
     expect(wrapper.findAll('.side-item')).toHaveLength(1)
+    // 重进页面不应停在欢迎态：最近一条本课程会话自动回放
+    expect(aiApi.getSessionDetail).toHaveBeenCalledWith('777')
+    expect(wrapper.text()).toContain('上次你问的是协议分层。')
     await wrapper.find('.side-item').trigger('click')
     await flushPromises()
 
