@@ -17,6 +17,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -253,7 +255,7 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("DELETE /admin/users/{id} - 不存在 400 / 存在则删除并返回删除成功")
+    @DisplayName("DELETE /admin/users/{id} - 不存在 400 / 存在则先吊销会话再软删除")
     void deleteUser_notFound_and_success() throws Exception {
         when(userService.getById(8L)).thenReturn(null);
         mockMvc.perform(delete("/admin/users/8").with(withUser(1L, "ADMIN")))
@@ -261,10 +263,14 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("用户不存在"));
 
         when(userService.getById(9L)).thenReturn(new User());
+        when(userSessionService.revokeAllActiveSessions(9L)).thenReturn(2);
         mockMvc.perform(delete("/admin/users/9").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("删除成功"));
-        verify(userService).removeById(eq(9L));
+        InOrder order = inOrder(userSessionService, userService);
+        order.verify(userSessionService).revokeAllActiveSessions(9L);
+        order.verify(userService).removeById(eq(9L));
+        verify(userService, never()).removeById(eq(8L));
     }
 
     // ==================== 重置密码 ====================

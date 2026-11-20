@@ -19,12 +19,12 @@ public interface MetricsMapper {
     @Select("SELECT COUNT(*) FROM course_enrollments WHERE approval_status = 'APPROVED'")
     long countApprovedEnrollments();
 
-    /** 已激活（is_active=1）的学生数 */
-    @Select("SELECT COUNT(*) FROM users WHERE role = 'STUDENT' AND is_active = 1")
+    /** 已激活（is_active=1）且未软删除的学生数 */
+    @Select("SELECT COUNT(*) FROM users WHERE role = 'STUDENT' AND is_active = 1 AND deleted = 0")
     long countActiveStudents();
 
-    /** 教师数 */
-    @Select("SELECT COUNT(*) FROM users WHERE role = 'TEACHER'")
+    /** 未软删除的教师数 */
+    @Select("SELECT COUNT(*) FROM users WHERE role = 'TEACHER' AND deleted = 0")
     long countTeachers();
 
     /** 作业提交总数（含草稿转正后的正式提交） */
@@ -61,7 +61,7 @@ public interface MetricsMapper {
     @Select("SELECT c.code AS `course`, c.name AS `course_name`, " +
             "c.teacher_id AS `teacher`, u.full_name AS `teacher_name`, COUNT(ce.student_id) AS val " +
             "FROM courses c " +
-            "LEFT JOIN users u ON u.id = c.teacher_id " +
+            "LEFT JOIN users u ON u.id = c.teacher_id AND u.deleted = 0 " +
             "LEFT JOIN course_enrollments ce ON ce.course_id = c.id AND ce.approval_status = 'APPROVED' " +
             "GROUP BY c.id, c.code, c.name, c.teacher_id, u.full_name")
     java.util.List<java.util.Map<String, Object>> courseEnrollments();
@@ -70,7 +70,7 @@ public interface MetricsMapper {
     @Select("SELECT c.code AS `course`, c.name AS `course_name`, " +
             "c.teacher_id AS `teacher`, u.full_name AS `teacher_name`, COUNT(s.id) AS val " +
             "FROM courses c " +
-            "LEFT JOIN users u ON u.id = c.teacher_id " +
+            "LEFT JOIN users u ON u.id = c.teacher_id AND u.deleted = 0 " +
             "LEFT JOIN tasks t ON t.course_id = c.id " +
             "LEFT JOIN submissions s ON s.task_id = t.id " +
             "GROUP BY c.id, c.code, c.name, c.teacher_id, u.full_name")
@@ -81,7 +81,7 @@ public interface MetricsMapper {
             "c.teacher_id AS `teacher`, u.full_name AS `teacher_name`, " +
             "COUNT(CASE WHEN s.status = 'SUBMITTED' THEN s.id END) AS val " +
             "FROM courses c " +
-            "LEFT JOIN users u ON u.id = c.teacher_id " +
+            "LEFT JOIN users u ON u.id = c.teacher_id AND u.deleted = 0 " +
             "LEFT JOIN tasks t ON t.course_id = c.id " +
             "LEFT JOIN submissions s ON s.task_id = t.id " +
             "GROUP BY c.id, c.code, c.name, c.teacher_id, u.full_name")
@@ -91,7 +91,7 @@ public interface MetricsMapper {
     @Select("SELECT c.code AS `course`, c.name AS `course_name`, " +
             "c.teacher_id AS `teacher`, u.full_name AS `teacher_name`, COUNT(q.id) AS val " +
             "FROM courses c " +
-            "LEFT JOIN users u ON u.id = c.teacher_id " +
+            "LEFT JOIN users u ON u.id = c.teacher_id AND u.deleted = 0 " +
             "LEFT JOIN questions q ON q.course_id = c.id " +
             "GROUP BY c.id, c.code, c.name, c.teacher_id, u.full_name")
     java.util.List<java.util.Map<String, Object>> courseQuestions();
@@ -100,7 +100,7 @@ public interface MetricsMapper {
     @Select("SELECT c.code AS `course`, c.name AS `course_name`, " +
             "c.teacher_id AS `teacher`, u.full_name AS `teacher_name`, COUNT(e.id) AS val " +
             "FROM courses c " +
-            "LEFT JOIN users u ON u.id = c.teacher_id " +
+            "LEFT JOIN users u ON u.id = c.teacher_id AND u.deleted = 0 " +
             "LEFT JOIN exam_papers e ON e.course_id = c.id " +
             "GROUP BY c.id, c.code, c.name, c.teacher_id, u.full_name")
     java.util.List<java.util.Map<String, Object>> courseExams();
@@ -110,14 +110,14 @@ public interface MetricsMapper {
     /** 每个行政班的学生总数 */
     @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, COUNT(u.id) AS val " +
             "FROM admin_classes ac " +
-            "LEFT JOIN users u ON u.admin_class_id = ac.id AND u.role = 'STUDENT' " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id AND u.role = 'STUDENT' AND u.deleted = 0 " +
             "GROUP BY ac.id, ac.code, ac.name")
     java.util.List<java.util.Map<String, Object>> adminClassStudents();
 
     /** 每个行政班已审批选课人次 */
     @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, COUNT(ce.student_id) AS val " +
             "FROM admin_classes ac " +
-            "LEFT JOIN users u ON u.admin_class_id = ac.id " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id AND u.deleted = 0 " +
             "LEFT JOIN course_enrollments ce ON ce.student_id = u.id AND ce.approval_status = 'APPROVED' " +
             "GROUP BY ac.id, ac.code, ac.name")
     java.util.List<java.util.Map<String, Object>> adminClassEnrollments();
@@ -125,7 +125,7 @@ public interface MetricsMapper {
     /** 每个行政班作业提交总数 */
     @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, COUNT(s.id) AS val " +
             "FROM admin_classes ac " +
-            "LEFT JOIN users u ON u.admin_class_id = ac.id " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id AND u.deleted = 0 " +
             "LEFT JOIN submissions s ON s.student_id = u.id " +
             "GROUP BY ac.id, ac.code, ac.name")
     java.util.List<java.util.Map<String, Object>> adminClassSubmissions();
@@ -134,7 +134,7 @@ public interface MetricsMapper {
     @Select("SELECT ac.code AS `class`, ac.name AS `class_name`, " +
             "COUNT(CASE WHEN s.status = 'SUBMITTED' THEN s.id END) AS val " +
             "FROM admin_classes ac " +
-            "LEFT JOIN users u ON u.admin_class_id = ac.id " +
+            "LEFT JOIN users u ON u.admin_class_id = ac.id AND u.deleted = 0 " +
             "LEFT JOIN submissions s ON s.student_id = u.id " +
             "GROUP BY ac.id, ac.code, ac.name")
     java.util.List<java.util.Map<String, Object>> adminClassPendingSubmissions();

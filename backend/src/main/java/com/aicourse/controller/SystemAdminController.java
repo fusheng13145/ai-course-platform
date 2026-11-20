@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
@@ -206,15 +207,19 @@ public class SystemAdminController {
     }
 
     /**
-     * 删除用户
+     * 删除用户（软删除：users.deleted=1，保留历史引用）。
+     * 先吊销该用户全部活跃会话，再落软删除；两步同事务，避免出现“已删用户仍有有效令牌”。
      */
     @DeleteMapping("/admin/users/{userId}")
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> deleteUser(@PathVariable Long userId) {
         User existing = userService.getById(userId);
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
         adminScopeGuard.assertUserManageable(existing);
+        int revoked = userSessionService.revokeAllActiveSessions(userId);
+        log.info("[admin] 删除用户前吊销活跃会话: userId={}, revoked={}", userId, revoked);
         userService.removeById(userId);
         return ApiResponse.success("删除成功", null);
     }

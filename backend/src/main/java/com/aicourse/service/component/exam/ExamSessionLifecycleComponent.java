@@ -4,7 +4,6 @@ import com.aicourse.constant.ExamSessionStatus;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
-import com.aicourse.mapper.ExamPaperMapper;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.component.org.TeachingClassSnapshotResolver;
@@ -13,6 +12,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -31,18 +31,15 @@ public class ExamSessionLifecycleComponent {
     private final ExamSessionMapper examSessionMapper;
     private final TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     private final ObjectMapper objectMapper;
-    private final ExamPaperMapper examPaperMapper;
 
     public ExamSessionLifecycleComponent(ExamPaperService examPaperService,
                                          ExamSessionMapper examSessionMapper,
                                          TeachingClassSnapshotResolver teachingClassSnapshotResolver,
-                                         ObjectMapper objectMapper,
-                                         ExamPaperMapper examPaperMapper) {
+                                         ObjectMapper objectMapper) {
         this.examPaperService = examPaperService;
         this.examSessionMapper = examSessionMapper;
         this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
         this.objectMapper = objectMapper;
-        this.examPaperMapper = examPaperMapper;
     }
 
     /**
@@ -67,10 +64,9 @@ public class ExamSessionLifecycleComponent {
             throw new BusinessException("考试已结束");
         }
 
-        // 修复 A-01 #4：对试卷行加悲观锁（FOR UPDATE），使同卷并发开考的
-        // 「检查尝试次数/活跃会话 → insert 会话」串行化，杜绝双击并发开出两个 STARTED 会话绕过 maxAttempts。
-        // 事务由门面 ExamSessionServiceImpl#startExam 提供（@Transactional），锁随事务提交释放。
-        examPaperMapper.selectByIdForUpdate(examPaperId);
+        // R2：不再对试卷行加 FOR UPDATE。原整卷锁让同一试卷的所有学生开考串行化，
+        // 把「同学生双击」的冲突成本转嫁成全场排队。并发正确性改由数据库唯一键
+        // uk_exam_sessions_student_paper_attempt(student_id, exam_paper_id, attempt_number) 兜底。
 
         // 检查尝试次数限制
         Integer maxAttempts = examPaper.getMaxAttempts();
@@ -111,7 +107,20 @@ public class ExamSessionLifecycleComponent {
         session.setAttemptNumber(attemptNumber);
         session.setIpAddress(ipAddress);
         session.setUserAgent(userAgent);
-        examSessionMapper.insert(session);
+        try {
+            examSessionMapper.insert(session);
+        } catch (DuplicateKeyException e) {
+            // 双击/并发开考：另一请求已用同一 attempt_number 落库。
+            // 若对方会话仍在进行，直接返回该会话（幂等）；否则说明并发窗口已变化，要求重试。
+            ExamSession concurrent = examSessionMapper.selectOne(activeWrapper, false);
+            if (concurrent != null) {
+                log.warn("并发开考命中唯一键，返回已存在的进行中会话: paperId={}, studentId={}, sessionId={}",
+                        examPaperId, studentId, concurrent.getId());
+                return concurrent;
+            }
+            log.warn("并发开考命中唯一键且未找到进行中会话: paperId={}, studentId={}", examPaperId, studentId);
+            throw new BusinessException("开考请求冲突，请重试");
+        }
 
         return session;
     }

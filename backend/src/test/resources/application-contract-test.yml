@@ -104,6 +104,10 @@ spring:
         - classpath:db/migration/V29__retire_legacy_classrooms.sql
         # V30（2026-11-18）：users.gender 性别列（个人中心）
         - classpath:db/migration/V30__user_gender.sql
+        # V31（2026-11-20，R2）：users.deleted 逻辑删除
+        - classpath:db/migration/V31__user_soft_delete.sql
+        # V32（2026-11-20，R2）：存量 session_token 全量 SHA-256 回填
+        - classpath:db/migration/V32__session_token_hash_backfill.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

@@ -9,7 +9,6 @@ import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
-import com.aicourse.mapper.ExamPaperMapper;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
@@ -63,7 +62,6 @@ class ExamSessionServiceImplTest {
     @Mock private WrongQuestionService wrongQuestionService;
     @Mock private ExamSessionGradingService gradingService;
     @Mock private ExamSessionMapper examSessionMapper;
-    @Mock private ExamPaperMapper examPaperMapper;
 
     private ExamSessionServiceImpl examSessionService;
 
@@ -77,7 +75,7 @@ class ExamSessionServiceImplTest {
         ExamSessionLifecycleComponent lifecycleComponent =
                 new ExamSessionLifecycleComponent(examPaperService, null,
                         org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
-                        objectMapper, examPaperMapper);
+                        objectMapper);
         ExamSessionCheatingComponent cheatingComponent =
                 new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
         ExamSessionQueryComponent queryComponent =
@@ -202,29 +200,30 @@ class ExamSessionServiceImplTest {
         assertEquals("您有正在进行的考试，请先完成或结束当前考试", ex.getMessage());
     }
 
-    // A-01 #4 回归：两次顺序调用模拟被试卷行悲观锁（FOR UPDATE）串行化的并发双击。
-    // 第一次开考成功 insert STARTED 会话；第二次开考在锁释放后重查，命中该 STARTED 会话被拒——
-    // check-then-insert 不再可能双双通过（修复前并发双开可绕过 maxAttempts）。
+    // R2 回归：不再依赖试卷行悲观锁串行化全场。并发双击时唯一键
+    // uk_exam_sessions_student_paper_attempt 让第二次 insert 失败，组件捕获后
+    // 重新查询进行中会话并幂等返回，调用方不会拿到 500，也不会开出第二个会话。
     @Test
-    @DisplayName("startExam - 并发双开被悲观锁串行化：第二次开考命中已存在的 STARTED 会话被拒绝")
-    void testStartExam_ConcurrentDoubleStart_rejected() {
+    @DisplayName("startExam - 并发双击命中唯一键：第二次返回已存在的 STARTED 会话")
+    void testStartExam_ConcurrentDoubleStart_returnsExistingSession() {
         when(examPaperService.getById(1L)).thenReturn(publishedPaper);
         when(examSessionMapper.selectCount(any())).thenReturn(0L);
-        // 第一次开考无活跃会话；第二次开考（锁串行化后重查）看到第一次创建的 STARTED 会话
-        when(examSessionMapper.selectOne(any(), anyBoolean())).thenReturn(null, startedSession);
-        when(examSessionMapper.insert(any(ExamSession.class))).thenReturn(1);
+        // 第 1 次开考活跃检查 null；第 2 次开考活跃检查仍 null（模拟两次检查之间的竞态窗口）；
+        // 唯一键冲突后组件再查一次，拿到第一次已落库的 STARTED 会话。
+        when(examSessionMapper.selectOne(any(), anyBoolean())).thenReturn(null, null, startedSession);
+        doReturn(1)
+                .doThrow(new org.springframework.dao.DuplicateKeyException("uk_exam_sessions_student_paper_attempt"))
+                .when(examSessionMapper).insert(any(ExamSession.class));
 
         ExamSession first = examSessionService.startExam(1L, 2L, "ip", "ua");
         assertNotNull(first);
         assertEquals("STARTED", first.getStatus());
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> examSessionService.startExam(1L, 2L, "ip", "ua"));
-        assertEquals("您有正在进行的考试，请先完成或结束当前考试", ex.getMessage());
+        ExamSession second = examSessionService.startExam(1L, 2L, "ip", "ua");
+        assertSame(startedSession, second, "并发冲突应幂等返回已存在的进行中会话");
 
-        // 两次开考都必须先对试卷行取 FOR UPDATE 锁（串行化点），且会话仅插入一次
-        verify(examPaperMapper, times(2)).selectByIdForUpdate(1L);
-        verify(examSessionMapper, times(1)).insert(any(ExamSession.class));
+        // 已移除整卷 FOR UPDATE；两次 insert 中第二次由唯一键拒绝
+        verify(examSessionMapper, times(2)).insert(any(ExamSession.class));
     }
 
     // ===================== autoSaveAnswers =====================
