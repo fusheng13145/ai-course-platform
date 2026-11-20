@@ -64,7 +64,8 @@
               <b>{{ activeTitle }}</b>
               <small v-if="courseName">{{ courseName }}</small>
             </div>
-            <button v-if="active === 'qa'" class="top-new" @click="newChat">
+            <!-- 侧栏展开时已有「新对话」，顶栏只在侧栏收起或窄屏时补位，避免出现两个入口 -->
+            <button v-if="active === 'qa' && !sideOpen" class="top-new" @click="newChat">
               <Icon name="plus" />
               <span>新对话</span>
             </button>
@@ -124,7 +125,7 @@
               <div class="turn-body">
                 <p v-if="msg.content" class="turn-text">{{ msg.content }}</p>
                 <div v-if="msg.failed" class="turn-fail">
-                  <span>回答失败，请检查网络后重试。</span>
+                  <span>{{ msg.failure || '回答失败，请稍后重试。' }}</span>
                   <button class="mini-btn" @click="retry(index)">重试</button>
                 </div>
                 <details v-if="msg.sources?.length" class="src">
@@ -341,6 +342,8 @@ interface Message {
   /** 请求失败时占位：只渲染错误条与重试，不伪造一条成功回答 */
   failed?: boolean
   retryText?: string
+  /** 失败原因：优先后端 message（如配额超限），否则回退通用文案 */
+  failure?: string
 }
 
 interface ChatSession {
@@ -419,11 +422,13 @@ const weakPoints = ref<Record<string, unknown>[]>([])
 const weakSummary = ref('')
 const weakLoading = ref(false)
 const weakError = ref('')
+const weakLoaded = ref(false)
 
 const adviceItems = ref<{ title?: string; detail?: string; level?: string }[]>([])
 const adviceSummary = ref('')
 const adviceLoading = ref(false)
 const adviceError = ref('')
+const adviceLoaded = ref(false)
 
 const essayText = ref('')
 const essayResult = ref('')
@@ -681,8 +686,15 @@ const atBottom = ref(true)
 const composing = ref(false)
 
 // 切回某个能力页签时从顶部开始，避免沿用上一个面板的滚动位置
-watch(active, () => {
+/**
+ * 页签切换：滚动复位，并按需加载该面板数据。
+ * 不在挂载时预拉薄弱点/学习建议——两次真实 LLM 调用会把本地 Ollama 的单并发队列占满，
+ * 用户紧接着提问只能排队到超时；改为进入对应页签时才请求。
+ */
+watch(active, (tab) => {
   if (panelRef.value) panelRef.value.scrollTop = 0
+  if (tab === 'weak' && !weakLoaded.value) void loadWeak()
+  if (tab === 'advice' && !adviceLoaded.value) void loadAdvice()
 })
 
 const canSend = computed(() => Boolean(qaInput.value.trim()) && !qaSending.value)
@@ -768,8 +780,14 @@ async function requestAnswer(text: string) {
     ensureSession()
   } catch (error) {
     logger.error('智能答疑失败', error)
-    // 保留用户消息与失败占位，不伪造成功回答
-    messages.value.push({ role: 'ai', content: '', failed: true, retryText: text })
+    // 保留用户消息与失败占位，不伪造成功回答；后端原因（配额/模型不可用）直接展示，避免误判成断网
+    messages.value.push({
+      role: 'ai',
+      content: '',
+      failed: true,
+      retryText: text,
+      failure: failureText(error),
+    })
   } finally {
     qaSending.value = false
     await scrollToEnd()
@@ -781,6 +799,13 @@ function retry(index: number) {
   if (!target?.retryText || qaSending.value) return
   messages.value.splice(index, 1)
   void requestAnswer(target.retryText)
+}
+
+/** 失败原因：后端业务异常带 message（配额、模型不可用），比“检查网络”更能指向真实问题 */
+function failureText(error: unknown): string {
+  const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message
+  return typeof message === 'string' && message.trim() ? message.trim() : '回答失败，请稍后重试。'
 }
 
 watch(messages, syncActiveSession, { deep: true })
@@ -832,7 +857,7 @@ async function callTwice<T>(request: Promise<unknown>): Promise<T> {
 }
 
 async function loadWeak() {
-  if (!props.courseId) return
+  if (!props.courseId || weakLoading.value) return
   weakLoading.value = true
   weakError.value = ''
   try {
@@ -850,11 +875,13 @@ async function loadWeak() {
     weakError.value = '薄弱点分析加载失败，已保留上一次结果，请稍后重试'
   } finally {
     weakLoading.value = false
+    // 自动加载只做一次：失败后由面板上的「重新分析」显式重试，避免切页签反复烧配额
+    weakLoaded.value = true
   }
 }
 
 async function loadAdvice() {
-  if (!props.courseId) return
+  if (!props.courseId || adviceLoading.value) return
   adviceLoading.value = true
   adviceError.value = ''
   try {
@@ -871,6 +898,7 @@ async function loadAdvice() {
     adviceError.value = '学习建议加载失败，已保留上一次结果，请稍后重试'
   } finally {
     adviceLoading.value = false
+    adviceLoaded.value = true
   }
 }
 
@@ -955,11 +983,8 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(() => measureShell())
     resizeObserver.observe(courseHead)
   }
-  // 学生端已没有薄弱点/建议面板，不预拉这两个接口（AI 不可用时会平白弹错误提示）
-  if (!isStudent.value) {
-    void loadAdvice()
-    void loadWeak()
-  }
+  // 教师端的薄弱点/学习建议改为进入页签时按需加载：
+  // 挂载即预拉会连续占用两次真实 LLM 调用，把本地单并发模型队列排满，直接提问要等到超时
   void loadCourseName().then(measureShell)
   void loadRemoteSessions()
   void nextTick(autosize)
@@ -981,10 +1006,15 @@ watch(
     pathResult.value = null
     pathRaw.value = ''
     courseName.value = ''
-    if (!isStudent.value) {
-      void loadAdvice()
-      void loadWeak()
-    }
+    // 课程切换：清空上一门课的洞察读数，等用户进入对应页签再拉
+    weakLoaded.value = false
+    adviceLoaded.value = false
+    weakPoints.value = []
+    weakSummary.value = ''
+    weakError.value = ''
+    adviceItems.value = []
+    adviceSummary.value = ''
+    adviceError.value = ''
     void loadCourseName()
     void loadRemoteSessions()
     void nextTick(measureShell)

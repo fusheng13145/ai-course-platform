@@ -1,48 +1,68 @@
 import request from './request'
 import { type ApiEnvelope, type ApiData } from '@/utils/response'
 
+/**
+ * AI 端点专用超时：本地 Ollama / 长上下文生成经常超过全局 30s。
+ * 全局 30s 会让「还在生成」被前端判成断网（错误体为空，只剩“回答失败”）。
+ * 120s 覆盖单次 RAG 生成；后端自身的 60s 读超时仍优先兜底。
+ */
+const AI_TIMEOUT = 120_000
+
 // ==================== （当前推荐接口） ====================
 /** AI 问答提问 */
 export const qaAsk = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
-  request.post('/ai/qa/ask', data) as Promise<ApiEnvelope<ApiData>>
+  request.post('/ai/qa/ask', data, { timeout: AI_TIMEOUT }) as Promise<ApiEnvelope<ApiData>>
 /** 全局 AI 助手提问（不读取课程知识库，不能携带 courseId） */
 export const qaAskGlobal = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
-  request.post('/ai/qa/global/ask', data) as Promise<ApiEnvelope<ApiData>>
+  request.post('/ai/qa/global/ask', data, { timeout: AI_TIMEOUT }) as Promise<ApiEnvelope<ApiData>>
 /** AI 问答追问 */
 export const qaContinue = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
-  request.post('/ai/qa/continue', data) as Promise<ApiEnvelope<ApiData>>
+  request.post('/ai/qa/continue', data, { timeout: AI_TIMEOUT }) as Promise<ApiEnvelope<ApiData>>
 /** 获取问答会话列表 */
 export const getSessions = (): Promise<ApiEnvelope<ApiData>> =>
   request.get('/ai/qa/sessions') as Promise<ApiEnvelope<ApiData>>
 /** AI 作文批改 */
 export const essayCorrect = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
-  request.post('/ai/essay/correct', data) as Promise<ApiEnvelope<ApiData>>
+  request.post('/ai/essay/correct', data, { timeout: AI_TIMEOUT }) as Promise<ApiEnvelope<ApiData>>
 /** AI 作文润色 */
 export const essayPolish = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
-  request.post('/ai/essay/polish', data) as Promise<ApiEnvelope<ApiData>>
+  request.post('/ai/essay/polish', data, { timeout: AI_TIMEOUT }) as Promise<ApiEnvelope<ApiData>>
 /** 获取学习推荐 */
 export const learningRecommendations = (): Promise<ApiEnvelope<ApiData>> =>
-  request.get('/ai/recommendations/learning') as Promise<ApiEnvelope<ApiData>>
+  request.get('/ai/recommendations/learning', {
+    timeout: AI_TIMEOUT,
+  }) as Promise<ApiEnvelope<ApiData>>
 /** 获取题目推荐 */
 export const questionRecommendations = (
   params: Record<string, unknown> = {},
 ): Promise<ApiEnvelope<ApiData>> =>
-  request.get('/ai/recommendations/questions', { params }) as Promise<ApiEnvelope<ApiData>>
+  request.get('/ai/recommendations/questions', {
+    params,
+    timeout: AI_TIMEOUT,
+  }) as Promise<ApiEnvelope<ApiData>>
 /** 薄弱点分析 */
 export const weakPointsAnalysis = (
   params: Record<string, unknown> = {},
 ): Promise<ApiEnvelope<ApiData>> =>
-  request.get('/ai/analysis/weak-points', { params }) as Promise<ApiEnvelope<ApiData>>
+  request.get('/ai/analysis/weak-points', {
+    params,
+    timeout: AI_TIMEOUT,
+  }) as Promise<ApiEnvelope<ApiData>>
 /** 获取学习建议 */
 export const learningAdvice = (
   params: Record<string, unknown> = {},
 ): Promise<ApiEnvelope<ApiData>> =>
-  request.get('/ai/advice/learning', { params }) as Promise<ApiEnvelope<ApiData>>
+  request.get('/ai/advice/learning', {
+    params,
+    timeout: AI_TIMEOUT,
+  }) as Promise<ApiEnvelope<ApiData>>
 /** 生成学习路径 */
 export const generateLearningPath = (
   data: Record<string, unknown>,
 ): Promise<ApiEnvelope<ApiData>> =>
-  request.post('/ai/learning-path/generate', data) as Promise<ApiEnvelope<ApiData>>
+  request.post('/ai/learning-path/generate', data, {
+    timeout: AI_TIMEOUT,
+  }) as Promise<ApiEnvelope<ApiData>>
 
 /**
  * 检索出处条目（与后端 QaSourceVO 对齐；后端下发前已做 HTML 转义）。

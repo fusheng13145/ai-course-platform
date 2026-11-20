@@ -93,15 +93,25 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     expect(teacher.text()).toContain('AI 助教')
   })
 
-  it('学生端不预拉薄弱点/建议（面板已移除），教师端仍按原口径拉取', async () => {
+  it('两端都不在挂载时预拉洞察；教师进入页签才发对应请求', async () => {
     mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
     expect(aiApi.weakPointsAnalysis).not.toHaveBeenCalled()
     expect(aiApi.learningAdvice).not.toHaveBeenCalled()
 
-    mount(AiCenterTab, { props: { courseId: courseId + 1, mode: 'teacher' } })
+    const teacher = mount(AiCenterTab, { props: { courseId: courseId + 1, mode: 'teacher' } })
+    await flushPromises()
+    // 挂载不预拉：避免两次真实 LLM 调用占满本地单并发队列
+    expect(aiApi.weakPointsAnalysis).not.toHaveBeenCalled()
+    expect(aiApi.learningAdvice).not.toHaveBeenCalled()
+
+    await findButton(teacher, '薄弱点分析')!.trigger('click')
     await flushPromises()
     expect(aiApi.weakPointsAnalysis).toHaveBeenCalledWith({ courseId: courseId + 1 })
+    expect(aiApi.learningAdvice).not.toHaveBeenCalled()
+
+    await findButton(teacher, '学习建议')!.trigger('click')
+    await flushPromises()
     expect(aiApi.learningAdvice).toHaveBeenCalledWith({ courseId: courseId + 1 })
   })
 
@@ -205,11 +215,37 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     await flushPromises()
     expect(wrapper.findAll('.turn')).toHaveLength(2)
 
-    await wrapper.find('.top-new').trigger('click')
+    await wrapper.find('.side-new').trigger('click')
     await flushPromises()
 
     expect(wrapper.findAll('.turn')).toHaveLength(0)
     expect(wrapper.text()).toContain('你好，我是你的 AI 学习助手')
+  })
+
+  it('侧栏展开时只有侧栏「新对话」，收起后才由顶栏补位', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    expect(wrapper.find('.side-new').exists()).toBe(true)
+    expect(wrapper.find('.top-new').exists()).toBe(false)
+
+    await wrapper.find('.top-icon').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.top-new').exists()).toBe(true)
+  })
+
+  it('失败提示优先后端原因（例如配额超限），不再一律说检查网络', async () => {
+    aiApi.qaAsk.mockRejectedValueOnce({
+      response: { data: { message: '今日 AI 使用次数已达上限（100 次/日）' } },
+    })
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+
+    await wrapper.find('textarea').setValue('配额用完了吗')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('今日 AI 使用次数已达上限')
+    expect(wrapper.text()).not.toContain('请检查网络')
   })
 
   it('请求失败保留用户消息，只给错误与重试，不伪造 AI 回答', async () => {
@@ -224,7 +260,7 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     await flushPromises()
 
     expect(wrapper.findAll('.turn-user')).toHaveLength(1)
-    expect(wrapper.text()).toContain('回答失败，请检查网络后重试。')
+    expect(wrapper.text()).toContain('回答失败，请稍后重试。')
     // 失败只留占位与重试入口，绝不伪造一条 AI 正文
     expect(wrapper.findAll('.turn-ai .turn-text')).toHaveLength(0)
 
