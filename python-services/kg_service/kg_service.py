@@ -49,6 +49,20 @@ async def _internal_auth_guard(request: Request, call_next):
     return await call_next(request)
 
 
+# ---------------- 全局兜底：未捕获异常按 503 降级契约返回（2026-11-19） ----------------
+# 与 rag/ft 服务对齐（rag_service.py 同款语义）：任何未捕获异常返回 code=503/mode=UNAVAILABLE，
+# Java 端 HttpKnowledgeGraphProvider 按 isUnavailable 契约对 503 不重试、直接回退本地 BFS；
+# 裸 500 则会触发 Java 侧满额重试等待。HTTPException（404）与 422 校验错误由 FastAPI 自身处理，
+# 不进本兜底。
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=503,
+        content={"code": 503, "mode": "UNAVAILABLE",
+                 "message": "知识图谱服务内部错误，已按降级契约返回"},
+    )
+
+
 # ---------------- 请求体模型 ----------------
 class NodeIn(BaseModel):
     course_id: int = Field(ge=1)
@@ -72,23 +86,6 @@ class PathPlanIn(BaseModel):
     # 普遍可达 9~10 跳（如「计算机网络的定义与组成」→「TCP拥塞控制」），
     # 旧上限 5 会让超过 5 跳的点对一律查空，Java 端被迫降级为本地 BFS（mode=LOCAL）。
     max_hops: int = Field(2, ge=1, le=12)
-
-
-class IngestNodeIn(BaseModel):
-    """快照节点：id 与 Java 侧 MySQL 知识点主键一致，入库按 id MERGE。"""
-    id: int = Field(ge=1)
-    course_id: Optional[int] = Field(default=None, ge=1)
-    name: str = Field(min_length=1, max_length=255)
-    content: str = ""
-    type: str = "CONCEPT"
-
-
-class IngestRelationIn(BaseModel):
-    """快照关系：id 与 Java 侧 MySQL 知识点关系主键一致。"""
-    id: int = Field(ge=1)
-    source_id: int = Field(ge=1)
-    target_id: int = Field(ge=1)
-    relation_type: str = Field(min_length=1, max_length=255)
 
 
 class IngestNodeIn(BaseModel):

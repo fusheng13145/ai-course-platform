@@ -407,3 +407,22 @@ def test_internal_api_key_disabled_by_default(monkeypatch):
     with TestClient(app) as c:
         resp = c.get("/api/v1/graph/course/1")
         assert resp.status_code == 200
+
+
+def test_unhandled_exception_returns_503(monkeypatch):
+    """未捕获异常按降级契约返回 503（与 rag/ft 服务对齐），不得裸 500。
+
+    Java 端 HttpKnowledgeGraphProvider 对 503（isUnavailable 契约）不重试直接回退本地 BFS；
+    裸 500 会走满重试等待。
+    """
+    def _boom():
+        raise RuntimeError("store exploded")
+
+    monkeypatch.setattr(kg_store, "get_store", _boom)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        resp = c.post("/api/v1/graph/path/plan",
+                      json={"source_id": 1, "target_id": 2, "max_hops": 2})
+    assert resp.status_code == 503
+    body = resp.json()
+    assert body["code"] == 503
+    assert body.get("mode") == "UNAVAILABLE"

@@ -184,19 +184,22 @@ public class ResourceController {
 
         try {
             InputStream inputStream = fileStorageService.downloadByUrl(resource.getUrl());
-            if (inputStream != null) {
-                // 修复 P1-6：文件名中的 CRLF/引号会污染 Content-Disposition 头（头注入），统一清洗
-                String safeFileName = sanitizeHeaderValue(resource.getFileName());
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .header("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"")
-                        .body(new InputStreamResource(inputStream));
+            if (inputStream == null) {
+                // 文件在存储层确实不存在：404 语义成立
+                return ResponseEntity.notFound().build();
             }
+            // 修复 P1-6：文件名中的 CRLF/引号会污染 Content-Disposition 头（头注入），统一清洗
+            String safeFileName = sanitizeHeaderValue(resource.getFileName());
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"")
+                    .body(new InputStreamResource(inputStream));
         } catch (Exception e) {
-            // 捕获路径、IO 异常，统一返回404
-            log.warn("下载资源文件异常，返回404: id={}", id, e);
+            // 2026-11-19 错误处理收口：存储层/IO 故障返回 500，不得把故障伪装成 404
+            // （404 通常不告警而 500 才告警，伪装会误导排障方向）；「资源不存在」已在上游 getById 判空处理
+            log.error("下载资源文件失败（存储层异常），返回500: id={}", id, e);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        return ResponseEntity.notFound().build();
     }
 
     /**

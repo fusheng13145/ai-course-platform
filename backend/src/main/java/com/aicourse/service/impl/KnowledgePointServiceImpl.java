@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.JsonUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -353,12 +354,9 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
 
         String raw = JsonUtils.extractJsonObject(rawJson);
         if (raw == null) {
-            result.put("parseError", "AI 未返回有效结构");
-            result.put("nodeCount", 0);
-            result.put("nodes", created);
-            result.put("relationCount", 0);
-            result.put("relations", new ArrayList<>());
-            return result;
+            // 2026-11-19 错误处理收口（DR-74）：AI 调用失败必须如实报错，不得以 parseError 假 200；
+            // 抛 503 业务异常由事务整体回滚，保证不落任何半成品节点
+            throw new BusinessException(ApiCode.SERVICE_UNAVAILABLE, "AI 未返回有效结构，请稍后重试");
         }
 
         List<Map<String, Object>> createdRelations = new ArrayList<>();
@@ -412,8 +410,9 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
                 }
             }
         } catch (Exception e) {
-            log.warn("知识图谱抽取结果解析失败: {}", e.getMessage());
-            result.put("parseError", "AI 返回结构解析失败，请稍后重试");
+            // 2026-11-19 错误处理收口（DR-74）：解析失败抛 503 业务异常，事务整体回滚，
+            // 不再出现「部分节点已写 + parseError 假 200」的半成品图谱
+            throw new BusinessException(ApiCode.SERVICE_UNAVAILABLE, "AI 返回结构解析失败，请稍后重试", e);
         }
 
         result.put("nodeCount", created.size());

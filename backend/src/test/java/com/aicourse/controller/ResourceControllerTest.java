@@ -320,6 +320,16 @@ class ResourceControllerTest extends ControllerTestBase {
 
 
     @Test
+    @DisplayName("GET /resources/download/1 - 存储层异常返回500（不再把故障伪装成404）")
+    void downloadResource_storageFailure_returns_500() throws Exception {
+        when(resourceService.getById(1L)).thenReturn(sampleResource(1L, "课件.pdf"));
+        when(fileStorageService.downloadByUrl(anyString())).thenThrow(new RuntimeException("disk broken"));
+        mockMvc.perform(get("/resources/download/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isInternalServerError());
+    }
+
+
+    @Test
     @DisplayName("GET /resources/download/1 - 未认证返回401")
     void downloadResource_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/resources/download/1"))

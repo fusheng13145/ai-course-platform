@@ -1,5 +1,6 @@
 package com.aicourse.service.component.learning;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
@@ -189,8 +190,9 @@ public class LearningPathGenerateComponent {
         try {
             path.setStages(objectMapper.writeValueAsString(stagesList));
         } catch (Exception e) {
-            log.error("生成学习路径失败: {}", e.getMessage(), e);
-            path.setStages("[{\"error\":\"序列化失败\"}]");
+            // 2026-11-19 错误处理收口：序列化失败抛 500 业务异常，由调用方 @Transactional 整体回滚，
+            // 不得把错误字面量持久化为「成功」路径
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "学习路径生成失败：结果序列化异常", e);
         }
 
         // 初始化dailyTasks JSON结构（生成前7天的每日任务计划）
@@ -198,8 +200,9 @@ public class LearningPathGenerateComponent {
         try {
             path.setDailyTasks(objectMapper.writeValueAsString(dailyTasksList));
         } catch (Exception e) {
-            log.error("生成学习路径失败: {}", e.getMessage(), e);
-            path.setDailyTasks("[]");
+            // 2026-11-19 错误处理收口：序列化失败抛 500 业务异常，由调用方 @Transactional 整体回滚，
+            // 不得把错误字面量持久化为「成功」路径
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "学习路径生成失败：结果序列化异常", e);
         }
 
         // 初始化planDetail JSON结构
@@ -211,8 +214,9 @@ public class LearningPathGenerateComponent {
         try {
             path.setPlanDetail(objectMapper.writeValueAsString(planDetailMap));
         } catch (Exception e) {
-            log.error("生成学习路径失败: {}", e.getMessage(), e);
-            path.setPlanDetail("{}");
+            // 2026-11-19 错误处理收口：序列化失败抛 500 业务异常，由调用方 @Transactional 整体回滚，
+            // 不得把错误字面量持久化为「成功」路径
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "学习路径生成失败：结果序列化异常", e);
         }
 
         // 预估完成日期（默认30天后）
@@ -353,16 +357,18 @@ public class LearningPathGenerateComponent {
         try {
             path.setStages(objectMapper.writeValueAsString(stagesList));
         } catch (Exception e) {
-            log.error("生成学习路径失败: {}", e.getMessage(), e);
-            path.setStages("[{\"error\":\"序列化失败\"}]");
+            // 2026-11-19 错误处理收口：序列化失败抛 500 业务异常，由调用方 @Transactional 整体回滚，
+            // 不得把错误字面量持久化为「成功」路径
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "学习路径生成失败：结果序列化异常", e);
         }
 
         List<Map<String, Object>> dailyTasksList = generateDailyTasksPlan(stagesList);
         try {
             path.setDailyTasks(objectMapper.writeValueAsString(dailyTasksList));
         } catch (Exception e) {
-            log.error("生成学习路径失败: {}", e.getMessage(), e);
-            path.setDailyTasks("[]");
+            // 2026-11-19 错误处理收口：序列化失败抛 500 业务异常，由调用方 @Transactional 整体回滚，
+            // 不得把错误字面量持久化为「成功」路径
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "学习路径生成失败：结果序列化异常", e);
         }
 
         Map<String, Object> planDetailMap = new LinkedHashMap<>();
@@ -374,8 +380,9 @@ public class LearningPathGenerateComponent {
         try {
             path.setPlanDetail(objectMapper.writeValueAsString(planDetailMap));
         } catch (Exception e) {
-            log.error("生成学习路径失败: {}", e.getMessage(), e);
-            path.setPlanDetail("{}");
+            // 2026-11-19 错误处理收口：序列化失败抛 500 业务异常，由调用方 @Transactional 整体回滚，
+            // 不得把错误字面量持久化为「成功」路径
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "学习路径生成失败：结果序列化异常", e);
         }
 
         // 自适应完成时间：总 estimatedTime / 日均学习 60 分钟

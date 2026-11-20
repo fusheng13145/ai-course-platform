@@ -754,7 +754,11 @@ body[data-app='ui'] .course-overview-grid {
   }
 }
 
-.av-main {
+/* 认证页覆盖层必须带 `.auth` 前缀。
+   AuthShell 与 Shell 都会 import 本文件，路由懒加载会让两份 CSS 的注入顺序随首访页面变化；
+   仅靠同权重后置会时灵时不灵（2026-11-20：从 /admin/courses 退出登录后卡片被压回 420px 并纵向拉满）。
+   `.auth` 前缀把这里的规则与 auth.css 的基础规则拉开一级，保证顺序无关。 */
+.auth .av-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
@@ -764,8 +768,8 @@ body[data-app='ui'] .course-overview-grid {
   padding: 24px 0;
 }
 
-.av-card,
-.av-card-wide {
+.auth .av-card,
+.auth .av-card-wide {
   width: 100%;
   max-width: 1180px;
   display: grid;
@@ -777,47 +781,47 @@ body[data-app='ui'] .course-overview-grid {
   box-shadow: var(--sh-card);
 }
 
-.av-card-wide {
+.auth .av-card-wide {
   grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
 }
 
-.av-panel {
+.auth .av-panel {
   justify-content: center;
   padding: 32px;
   gap: 24px;
 }
 
-.av-form {
+.auth .av-form {
   gap: 16px;
 }
 
-.av-field {
+.auth .av-field {
   gap: 8px;
 }
 
-.av-field > span,
-.av-row,
-.av-switch,
-.av-foot {
+.auth .av-field > span,
+.auth .av-row,
+.auth .av-switch,
+.auth .av-foot {
   font-size: 12px;
 }
 
-.av-submit {
+.auth .av-submit {
   font-size: 14px;
 }
 
 @media (max-width: 980px) {
-  .av-card,
-  .av-card-wide {
+  .auth .av-card,
+  .auth .av-card-wide {
     grid-template-columns: minmax(0, 1fr);
     max-width: 560px;
   }
 
-  .av-card-wide {
+  .auth .av-card-wide {
     max-width: 620px;
   }
 
-  .av-panel {
+  .auth .av-panel {
     padding: 24px;
   }
 }

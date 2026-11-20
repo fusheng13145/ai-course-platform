@@ -1,7 +1,9 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.component.learning.KnowledgeMasteryComponent;
@@ -130,22 +132,22 @@ class KnowledgePointServiceImplExtractGraphTest {
     }
 
     @Test
-    @DisplayName("大模型返回无 JSON 结构的纯文本：parseError=「AI 未返回有效结构」，不落任何点")
-    void noJsonObject_reportsParseError() {
+    @DisplayName("大模型返回无 JSON 结构的纯文本：抛 503 业务异常（DR-74，不得假 200），不落任何点")
+    void noJsonObject_throwsServiceUnavailable() {
         stubSelectReturning(List.of());
-        Map<String, Object> result = service.extractAndSaveGraph(1L, "模型说它无法抽取");
-        assertEquals("AI 未返回有效结构", result.get("parseError"));
-        assertEquals(0, result.get("nodeCount"));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.extractAndSaveGraph(1L, "模型说它无法抽取"));
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
         verify(kpMapper, never()).insert(any(KnowledgePoint.class));
     }
 
     @Test
-    @DisplayName("有花括号但 JSON 语法坏：整体解析失败降级为 parseError，不抛 500")
-    void malformedJson_reportsParseFailure() {
+    @DisplayName("有花括号但 JSON 语法坏：整体解析失败抛 503 业务异常（不抛裸 500，也不假 200）")
+    void malformedJson_throwsServiceUnavailable() {
         stubSelectReturning(List.of());
-        Map<String, Object> result = service.extractAndSaveGraph(1L, "{nodes: [坏掉的 JSON}");
-        assertEquals("AI 返回结构解析失败，请稍后重试", result.get("parseError"));
-        assertEquals(0, result.get("nodeCount"));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.extractAndSaveGraph(1L, "{nodes: [坏掉的 JSON}"));
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
     }
 
     @Test
