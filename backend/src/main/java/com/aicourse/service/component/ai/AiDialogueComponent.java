@@ -182,6 +182,15 @@ public class AiDialogueComponent {
      * 失败同样计入按类型分桶的失败埋点。
      */
     public QaStreamVO streamChat(String question, Long courseId) {
+        return streamChat(question, courseId, List.of());
+    }
+
+    /**
+     * 流式问答（可带会话历史）。
+     *
+     * <p>历史只作为模型上下文，不重复写入数据库；本轮问题由调用方决定是否落库。</p>
+     */
+    public QaStreamVO streamChat(String question, Long courseId, List<Map<String, String>> history) {
         if (!core.isProviderEnabled()) {
             // 未配 Key 时过去把提示文案当成"流式回答"的第一帧发出去，界面看到的就是正常回答在打字；
             // 现在同步抛出 → 端点以 503 结束，SSE 根本不开播（口径与同步出口一致）
@@ -207,9 +216,23 @@ public class AiDialogueComponent {
             }
         }
 
-        List<Map<String, String>> messages = new ArrayList<>(grounding != null ? 2 : 1);
+        int historySize = history == null ? 0 : history.size();
+        List<Map<String, String>> messages = new ArrayList<>((grounding != null ? 1 : 0) + historySize + 1);
         if (grounding != null) {
             messages.add(Map.of("role", "system", "content", grounding));
+        }
+        // 历史只接受 user/assistant 两种角色；system 由本方法统一注入，调用方不得夹带
+        if (history != null) {
+            for (Map<String, String> item : history) {
+                if (item == null) {
+                    continue;
+                }
+                String role = item.get("role");
+                String content = item.get("content");
+                if (("user".equals(role) || "assistant".equals(role)) && content != null) {
+                    messages.add(Map.of("role", role, "content", content));
+                }
+            }
         }
         messages.add(Map.of("role", "user", "content", safeQuestion));
         core.recordAiToken("chat", core.estimateInputTokens(messages));

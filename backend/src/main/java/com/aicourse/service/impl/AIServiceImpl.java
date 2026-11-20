@@ -77,6 +77,11 @@ public class AIServiceImpl implements AIService {
         return dialogueComponent.streamChat(question, courseId);
     }
 
+    @Override
+    public QaStreamVO streamChat(String question, Long courseId, java.util.List<java.util.Map<String, String>> history) {
+        return dialogueComponent.streamChat(question, courseId, history);
+    }
+
     // ===================== RAG 问答 =====================
 
     @Override

@@ -18,6 +18,8 @@ import com.aicourse.vo.QaStreamVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -37,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -243,7 +246,12 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /ai/qa/stream - SSE 逐段下发 JSON token 帧，末尾补空 sources 帧")
     void streamChat_returnsStreamedTokens() throws Exception {
-        when(aiService.streamChat("hi", null))
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("s-stream-1");
+        session.setUserId(1L);
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
+        when(aiChatSessionService.getMessages("s-stream-1")).thenReturn(List.of());
+        when(aiService.streamChat(eq("hi"), isNull(), anyList()))
                 .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("A", "B"), List.of()));
 
         MvcResult mvc = mockMvc.perform(get("/ai/qa/stream").param("question", "hi")
@@ -251,6 +259,8 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(request().asyncStarted()).andReturn();
         mockMvc.perform(asyncDispatch(mvc))
                 .andExpect(status().isOk())
+                // 首帧先给客户端会话ID，再进入逐 token 帧
+                .andExpect(content().string(containsString("{\"sessionId\":\"s-stream-1\"}")))
                 // token 帧必须是 JSON 包装：裸文本里的换行会被 SSE 分行规则截断而失真
                 .andExpect(content().string(containsString("{\"token\":\"A\"}")))
                 .andExpect(content().string(containsString("{\"token\":\"B\"}")))
@@ -258,13 +268,21 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(content().string(containsString("{\"sources\":[]}")));
 
         // courseId 未提供：以 null 透传检索接地
-        verify(aiService).streamChat(eq("hi"), isNull());
+        verify(aiService).streamChat(eq("hi"), isNull(), anyList());
+        verify(aiChatSessionService).appendMessage("s-stream-1", "user", "hi");
+        verify(aiChatSessionService).appendMessage("s-stream-1", "assistant", "AB");
     }
 
     @Test
     @DisplayName("GET /ai/qa/stream - 携带 courseId 与出处：末帧下发原文 sources")
     void streamChat_withCourseId_emitsPlainTextSources() throws Exception {
-        when(aiService.streamChat("什么是闭包", 7L))
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("s-stream-2");
+        session.setUserId(1L);
+        session.setCourseId(7L);
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
+        when(aiChatSessionService.getMessages("s-stream-2")).thenReturn(List.of());
+        when(aiService.streamChat(eq("什么是闭包"), eq(7L), anyList()))
                 .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("答案"),
                         List.of(new QaSourceVO(3L, "第<1>章", 0.8, "<script>危险片段</script>"))));
 
@@ -282,7 +300,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
         assertTrue(body.contains("第<1>章"), body);
         assertTrue(body.contains("<script>危险片段</script>"), body);
 
-        verify(aiService).streamChat(eq("什么是闭包"), eq(7L));
+        verify(aiService).streamChat(eq("什么是闭包"), eq(7L), anyList());
     }
 
     @Test
@@ -290,9 +308,15 @@ class AIControllerCoverageTest extends ControllerTestBase {
     void streamChat_runsWithinQaStreamCallContext() throws Exception {
         AtomicReference<com.aicourse.service.component.ai.AiCallContext.Snapshot> captured =
                 new AtomicReference<>();
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("s-stream-3");
+        session.setUserId(9L);
+        session.setCourseId(7L);
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
+        when(aiChatSessionService.getMessages("s-stream-3")).thenReturn(List.of());
         // 服务层在该端点的真实链路里于作用域内捕获归属快照（AiDialogueComponent.streamChat），
         // 这里以 thenAnswer 原位捕获，验证控制器确实建立了 userId/courseId/scene 三元组作用域
-        when(aiService.streamChat("什么是闭包", 7L)).thenAnswer(inv -> {
+        when(aiService.streamChat(eq("什么是闭包"), eq(7L), anyList())).thenAnswer(inv -> {
             captured.set(com.aicourse.service.component.ai.AiCallContext.capture());
             return new QaStreamVO(reactor.core.publisher.Flux.just("答案"), List.of());
         });
@@ -306,6 +330,161 @@ class AIControllerCoverageTest extends ControllerTestBase {
         org.junit.jupiter.api.Assertions.assertEquals(9L, captured.get().userId());
         org.junit.jupiter.api.Assertions.assertEquals(7L, captured.get().courseId());
         org.junit.jupiter.api.Assertions.assertEquals("QA_STREAM", captured.get().scene());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/sessions/{id} - 会话不存在返回 404，不读取消息")
+    void getSessionDetail_missing_returnsNotFound() throws Exception {
+        when(aiChatSessionService.getBySessionId("missing")).thenReturn(null);
+
+        MvcResult mvc = mockMvc.perform(get("/ai/qa/sessions/missing").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+
+        verify(aiChatSessionService, never()).getMessages(anyString());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/sessions/{id} - 全局会话无 courseId 时不做课程 ACL")
+    void getSessionDetail_globalSession_skipsCourseAcl() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("global-1");
+        session.setUserId(1L);
+        when(aiChatSessionService.getBySessionId("global-1")).thenReturn(session);
+        when(aiChatSessionService.getMessages("global-1")).thenReturn(List.of());
+
+        MvcResult mvc = mockMvc.perform(get("/ai/qa/sessions/global-1").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sessionId").value("global-1"));
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 会话不存在在开流前返回 404")
+    void streamChat_existingSession_missing_returnsNotFound() throws Exception {
+        when(aiChatSessionService.getBySessionId("missing")).thenReturn(null);
+
+        mockMvc.perform(get("/ai/qa/stream").param("question", "hi").param("sessionId", "missing")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+
+        verify(aiService, never()).streamChat(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 全局会话不能带课程ID继续")
+    void streamChat_globalSession_withCourseId_rejected() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("global-2");
+        session.setUserId(1L);
+        when(aiChatSessionService.getBySessionId("global-2")).thenReturn(session);
+
+        mockMvc.perform(get("/ai/qa/stream").param("question", "hi").param("courseId", "7")
+                        .param("sessionId", "global-2").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(aiService, never()).streamChat(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 课程会话必须携带课程ID")
+    void streamChat_courseSession_withoutCourseId_rejected() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("course-1");
+        session.setUserId(1L);
+        session.setCourseId(7L);
+        when(aiChatSessionService.getBySessionId("course-1")).thenReturn(session);
+
+        mockMvc.perform(get("/ai/qa/stream").param("question", "hi")
+                        .param("sessionId", "course-1").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(aiService, never()).streamChat(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 会话课程与请求课程不一致时拒绝")
+    void streamChat_courseMismatch_rejected() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("course-2");
+        session.setUserId(1L);
+        session.setCourseId(7L);
+        when(aiChatSessionService.getBySessionId("course-2")).thenReturn(session);
+
+        mockMvc.perform(get("/ai/qa/stream").param("question", "hi").param("courseId", "8")
+                        .param("sessionId", "course-2").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(aiService, never()).streamChat(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("流式续接：空正文/非法角色/空记录不进入模型上下文")
+    void streamChat_history_filtersInvalidMessages() {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("history-1");
+        session.setUserId(1L);
+        AiChatMessage nullRole = new AiChatMessage();
+        nullRole.setContent("无角色");
+        AiChatMessage system = new AiChatMessage();
+        system.setRole("system");
+        system.setContent("系统提示不应透传");
+        AiChatMessage blank = new AiChatMessage();
+        blank.setRole("assistant");
+        blank.setContent("   ");
+        AiChatMessage user = new AiChatMessage();
+        user.setRole("user");
+        user.setContent("上一问");
+        AiChatMessage assistant = new AiChatMessage();
+        assistant.setRole("assistant");
+        assistant.setContent("上一答");
+        when(aiChatSessionService.getBySessionId("history-1")).thenReturn(session);
+        when(aiChatSessionService.getMessages("history-1"))
+                .thenReturn(java.util.Arrays.asList(null, nullRole, system, blank, user, assistant));
+        when(aiService.streamChat(eq("新问题"), isNull(), anyList()))
+                .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("答"), List.of()));
+
+        AIController controller = new AIController(aiService, aiChatSessionService,
+                new com.aicourse.security.AIAccessSupport(courseAccessControl));
+        Authentication auth = new UsernamePasswordAuthenticationToken(1L, null, List.of());
+
+        List<String> frames = controller.streamChat("新问题", null, "history-1", auth).collectList().block();
+
+        assertEquals(3, frames.size());
+        verify(aiService).streamChat(eq("新问题"), isNull(), argThat(history ->
+                history.size() == 2
+                        && "user".equals(history.get(0).get("role"))
+                        && "assistant".equals(history.get(1).get("role"))));
+    }
+
+    @Test
+    @DisplayName("流式续接：助手回答落库失败不打断已经完成的 SSE")
+    void streamChat_assistantSaveFailure_keepsStream() {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("save-1");
+        session.setUserId(1L);
+        when(aiChatSessionService.getBySessionId("save-1")).thenReturn(session);
+        when(aiChatSessionService.getMessages("save-1")).thenReturn(List.of());
+        when(aiService.streamChat(eq("hi"), isNull(), anyList()))
+                .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("A"), List.of()));
+        org.mockito.Mockito.doThrow(new RuntimeException("db down"))
+                .when(aiChatSessionService).appendMessage("save-1", "assistant", "A");
+
+        AIController controller = new AIController(aiService, aiChatSessionService,
+                new com.aicourse.security.AIAccessSupport(courseAccessControl));
+        Authentication auth = new UsernamePasswordAuthenticationToken(1L, null, List.of());
+
+        List<String> frames = controller.streamChat("hi", null, "save-1", auth).collectList().block();
+
+        assertEquals(3, frames.size());
+        assertTrue(frames.get(1).contains("A"));
     }
 
     // ==================== /ai/recommendations/questions ====================

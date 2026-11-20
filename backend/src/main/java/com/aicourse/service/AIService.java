@@ -158,4 +158,14 @@ public interface AIService {
      * @return 流式回答聚合：{@code tokens} 为逐段增量，{@code sources} 为检索出处
      */
     QaStreamVO streamChat(String question, Long courseId);
+
+    /**
+     * 带历史上下文的流式问答：供同一会话的追问使用。
+     *
+     * @param question 本轮问题
+     * @param courseId 课程ID（可空）
+     * @param history  历史消息（role/content），按时间正序，不含本轮问题
+     * @return 流式回答聚合
+     */
+    QaStreamVO streamChat(String question, Long courseId, java.util.List<java.util.Map<String, String>> history);
 }

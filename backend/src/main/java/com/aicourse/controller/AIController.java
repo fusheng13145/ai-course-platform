@@ -19,10 +19,13 @@ import com.aicourse.vo.QaStreamVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,6 +51,8 @@ import java.util.concurrent.Callable;
 @Tag(name = "AI 助手-问答与作文")
 @PreAuthorize("isAuthenticated()")
 public class AIController {
+
+    private static final Logger log = LoggerFactory.getLogger(AIController.class);
 
     private final AIService aiService;
     private final AiChatSessionService aiChatSessionService;
@@ -191,6 +196,8 @@ public class AIController {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("sessionId", s.getSessionId());
                     m.put("title", s.getTitle() != null ? s.getTitle() : "");
+                    // 会话归属课程：前端据此只展示当前课程历史，避免把全局/他课会话混进来
+                    m.put("courseId", s.getCourseId());
                     m.put("messageCount", s.getMessageCount());
                     m.put("createdAt", s.getCreatedAt() != null ? s.getCreatedAt().toString() : null);
                     m.put("updatedAt", s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null);
@@ -206,12 +213,52 @@ public class AIController {
     }
 
     /**
+     * 单个会话详情：返回持久化的消息正文，供前端恢复历史对话。
+     * GET /api/ai/qa/sessions/{sessionId}
+     *
+     * <p>会话 ID 不可枚举，但仍必须校验归属人与课程 ACL：一条被转发的链接不能变成越权读。</p>
+     */
+    @GetMapping("/qa/sessions/{sessionId}")
+    public Callable<ApiResponse<Map<String, Object>>> getSessionDetail(@PathVariable String sessionId,
+                                                                      Authentication auth) {
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+        return () -> {
+            AiChatSession session = aiChatSessionService.getBySessionId(sessionId);
+            if (session == null) {
+                throw new BusinessException(ApiCode.NOT_FOUND, "会话不存在或已删除");
+            }
+            assertSessionOwned(session, userId);
+            if (session.getCourseId() != null) {
+                aiAccessSupport.assertCourseReadable(session.getCourseId(), auth);
+            }
+
+            List<Map<String, Object>> messages = new ArrayList<>();
+            for (AiChatMessage message : aiChatSessionService.getMessages(sessionId)) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("role", message.getRole());
+                item.put("content", message.getContent() != null ? message.getContent() : "");
+                item.put("createdAt", message.getCreatedAt() != null ? message.getCreatedAt().toString() : null);
+                messages.add(item);
+            }
+
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("sessionId", session.getSessionId());
+            detail.put("title", session.getTitle() != null ? session.getTitle() : "");
+            detail.put("courseId", session.getCourseId());
+            detail.put("updatedAt", session.getUpdatedAt() != null ? session.getUpdatedAt().toString() : null);
+            detail.put("messages", messages);
+            return ApiResponse.success(detail);
+        };
+    }
+
+    /**
      * 流式智能问答 - SSE 逐 token 推送（含课程资料溯源）。
      * GET /api/ai/qa/stream
      */
     @GetMapping(value = "/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamChat(@RequestParam @NotBlank(message = "提问内容不能为空") String question,
                                    @RequestParam(required = false) Long courseId,
+                                   @RequestParam(required = false) String sessionId,
                                    Authentication auth) {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         // courseId 可选：null 表示全局助手流式通道（不读课程资料）；非空必须先过课程 ACL，
@@ -219,14 +266,72 @@ public class AIController {
         if (courseId != null) {
             aiAccessSupport.assertCourseReadable(courseId, auth);
         }
+
+        AiChatSession session;
+        if (sessionId != null && !sessionId.isBlank()) {
+            session = aiChatSessionService.getBySessionId(sessionId);
+            if (session == null) {
+                throw new BusinessException(ApiCode.NOT_FOUND, "会话不存在或已删除");
+            }
+            assertSessionOwned(session, userId);
+            Long sessionCourseId = session.getCourseId();
+            if (sessionCourseId == null && courseId != null) {
+                throw new BusinessException(ApiCode.BAD_REQUEST, "该会话不属于课程，不能带课程ID继续");
+            }
+            if (sessionCourseId != null && (courseId == null || !sessionCourseId.equals(courseId))) {
+                throw new BusinessException(ApiCode.BAD_REQUEST, "会话所属课程与本次请求不一致");
+            }
+            // 已存在的课程会话在权限被收回后也不能继续成为绕过 ACL 的通道
+            if (sessionCourseId != null) {
+                aiAccessSupport.assertCourseReadable(sessionCourseId, auth);
+            }
+        } else {
+            session = aiChatSessionService.createSession(userId, null, courseId);
+        }
+
+        final String sid = session.getSessionId();
+        final Long effectiveCourseId = session.getCourseId();
+
+        // 历史只取最近 20 条，防止长会话把提示词撑爆；本轮问题在读取后单独追加，避免重复
+        List<Map<String, String>> history = new ArrayList<>();
+        List<AiChatMessage> stored = aiChatSessionService.getMessages(sid);
+        int start = Math.max(0, stored.size() - 20);
+        for (int i = start; i < stored.size(); i++) {
+            AiChatMessage message = stored.get(i);
+            if (message == null || message.getContent() == null || message.getContent().isBlank()) {
+                continue;
+            }
+            String role = message.getRole();
+            if (!"user".equals(role) && !"assistant".equals(role)) {
+                continue;
+            }
+            history.add(Map.of("role", role, "content", message.getContent()));
+        }
+
+        // 用户提问在开流前落库：即使模型随后失败，历史里也能看到用户问过什么
+        aiChatSessionService.appendMessage(sid, "user", question);
+
         // 作用域仅覆盖 Tomcat 线程内的服务编排：AiDialogueComponent 在其中捕获归属快照供流式落库
-        QaStreamVO stream = AiCallContext.run(userId, courseId, "QA_STREAM",
-                () -> aiService.streamChat(question, courseId));
+        QaStreamVO stream = AiCallContext.run(userId, effectiveCourseId, "QA_STREAM",
+                () -> aiService.streamChat(question, effectiveCourseId, history));
+
         // 出处与 /qa/ask 同口径：原文下发，不做 HTML 转义
         List<QaSourceVO> sources = stream.getSources() != null ? stream.getSources() : List.of();
-        return stream.getTokens()
-                .map(this::tokenFrame)
-                .concatWith(Flux.just(sourcesFrame(sources)));
+        StringBuilder answer = new StringBuilder();
+        Flux<String> tokenFrames = stream.getTokens()
+                .doOnNext(answer::append)
+                .doOnComplete(() -> {
+                    try {
+                        aiChatSessionService.appendMessage(sid, "assistant", answer.toString());
+                    } catch (Exception e) {
+                        // 落库失败不能反过来打断已经成功的 SSE：用户已看到回答，日志留证即可
+                        log.error("流式回答落库失败 sessionId={}", sid, e);
+                    }
+                })
+                .map(this::tokenFrame);
+
+        // 首帧告知前端会话ID（新会话据此在侧栏落记录），随后才是增量与出处
+        return Flux.concat(Flux.just(sessionFrame(sid)), tokenFrames, Flux.just(sourcesFrame(sources)));
     }
 
     /**
@@ -248,6 +353,15 @@ public class AIController {
             return JsonUtils.toJson(Map.of("token", token != null ? token : ""));
         } catch (Exception e) {
             return "{\"token\":\"\"}";
+        }
+    }
+
+    /** 会话帧：首帧把服务端会话ID交给前端，便于新会话立即出现在历史侧栏。 */
+    private String sessionFrame(String sessionId) {
+        try {
+            return JsonUtils.toJson(Map.of("sessionId", sessionId != null ? sessionId : ""));
+        } catch (Exception e) {
+            return "{\"sessionId\":\"\"}";
         }
     }
 

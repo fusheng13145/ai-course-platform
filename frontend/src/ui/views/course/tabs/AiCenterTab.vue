@@ -90,11 +90,18 @@
         <!-- 智能答疑：两种角色共用同一对话流 -->
         <div v-if="active === 'qa'" ref="scrollRef" class="ai-stream" @scroll="onChatScroll">
           <p v-if="blockedNotice" class="stream-notice">
-            这条对话已存在于云端，但当前接口不返回历史消息，无法在这里回放。继续提问会接着这条会话。
+            对话历史加载失败，请稍后重试；继续提问仍会接着这条会话。
           </p>
 
-          <div v-if="!messages.length && !qaSending" class="welcome">
-            <div class="welcome-mark"><Icon name="sparkle" /></div>
+          <div v-if="sessionLoading" class="stream-loading">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span>正在加载对话…</span>
+          </div>
+
+          <div v-if="!messages.length && !qaSending && !sessionLoading" class="welcome">
+            <div class="welcome-mark"><img :src="aiAvatar" alt="" /></div>
             <h2>{{ isStudent ? '你好，我是你的 AI 学习助手' : '你好，我是你的 AI 助教' }}</h2>
             <p>
               {{
@@ -121,9 +128,19 @@
               :key="index"
               :class="['turn', `turn-${msg.role}`]"
             >
-              <div v-if="msg.role === 'ai'" class="turn-avatar"><Icon name="sparkle" /></div>
+              <div v-if="msg.role === 'ai'" class="turn-avatar ai-avatar">
+                <img :src="aiAvatar" alt="" />
+              </div>
               <div class="turn-body">
-                <p v-if="msg.content" class="turn-text">{{ msg.content }}</p>
+                <p v-if="msg.content" class="turn-text">
+                  {{ displayContent(msg) }}<span v-if="msg.streaming" class="stream-caret"></span>
+                </p>
+                <div v-if="msg.streaming && !msg.content" class="thinking-inline">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="thinking-text">正在思考…</span>
+                </div>
                 <div v-if="msg.failed" class="turn-fail">
                   <span>{{ msg.failure || '回答失败，请稍后重试。' }}</span>
                   <button class="mini-btn" @click="retry(index)">重试</button>
@@ -138,13 +155,16 @@
                   </ul>
                 </details>
               </div>
+              <div v-if="msg.role === 'user'" class="turn-avatar user-avatar">
+                <img
+                  v-if="userAvatarSrc"
+                  :src="userAvatarSrc"
+                  alt=""
+                  @error="userAvatarFailed = true"
+                />
+                <span v-else>{{ userInitial }}</span>
+              </div>
             </article>
-            <p v-if="qaSending" class="thinking">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="thinking-text">正在思考…</span>
-            </p>
           </div>
         </div>
 
@@ -326,8 +346,10 @@ import AiCorpusTab from './AiCorpusTab.vue'
 import { useUi } from '../../../composables/ui'
 import aiApi from '@/api/ai'
 import courseApi from '@/api/course'
+import { useAuthStore } from '@/stores/auth'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
+import aiAvatar from '@/assets/ai-assistant.png'
 
 interface Source {
   documentName?: string
@@ -339,6 +361,8 @@ interface Message {
   role: 'user' | 'ai'
   content: string
   sources?: Source[]
+  /** 正在流式接收：内容可能为空（此时显示思考动效） */
+  streaming?: boolean
   /** 请求失败时占位：只渲染错误条与重试，不伪造一条成功回答 */
   failed?: boolean
   retryText?: string
@@ -353,8 +377,10 @@ interface ChatSession {
   updatedAt: number
   lastText: string
   courseId: number
-  /** 来自 GET /ai/qa/sessions 的记录：只有标题与时间，读不到消息正文 */
+  /** 来自 GET /ai/qa/sessions 的记录；打开时按需拉取消息正文 */
   remote?: boolean
+  /** 正文是否已加载（远端历史首次打开为 false） */
+  loaded?: boolean
 }
 
 type TabKey = 'qa' | 'weak' | 'advice' | 'essay' | 'path' | 'corpus'
@@ -410,6 +436,23 @@ const visibleTabs = computed(() =>
 const showTabs = computed(() => !isStudent.value && visibleTabs.value.length > 1)
 const suggestions = computed(() => (isStudent.value ? STUDENT_SUGGESTIONS : TEACHER_SUGGESTIONS))
 const { toast } = useUi()
+const auth = useAuthStore()
+// 用户头像来自登录信息；落库形态是 /uploads/xxx，静态映射挂在 /api/uploads/**
+// 下，直接当 src 用会被 Vite 兜底成 index.html，图片解码失败后退化成姓名首字。
+const userAvatar = computed(() => {
+  const raw = (auth.userAvatar || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('/uploads/')) return `/api${raw}`
+  if (raw.startsWith('uploads/')) return `/api/${raw}`
+  return raw
+})
+const userInitial = computed(() => (auth.userName || '我').trim().slice(0, 1) || '我')
+// 头像 URL 可能指向已删除文件：加载失败就退回姓名首字，避免一个破图占着气泡边缘
+const userAvatarFailed = ref(false)
+const userAvatarSrc = computed(() => (userAvatarFailed.value ? '' : userAvatar.value))
+watch(userAvatar, () => {
+  userAvatarFailed.value = false
+})
 
 const active = ref<TabKey>('qa')
 
@@ -417,6 +460,11 @@ const messages = ref<Message[]>([])
 const qaInput = ref('')
 const qaSending = ref(false)
 const sessionId = ref('')
+const sessionLoading = ref(false)
+/** 会话详情请求序号：快速切换会话时只认最后一次响应 */
+let sessionLoadSeq = 0
+/** 当前 SSE 流：切换会话/新建对话时中止，避免 token 继续写进旧消息 */
+let streamController: AbortController | null = null
 
 const weakPoints = ref<Record<string, unknown>[]>([])
 const weakSummary = ref('')
@@ -543,6 +591,7 @@ function ensureSession() {
       updatedAt: Date.now(),
       lastText: '',
       courseId: props.courseId,
+      loaded: true,
     }
     sessions.value.unshift(current)
   }
@@ -551,8 +600,8 @@ function ensureSession() {
 }
 
 /**
- * 只认明确标了本课程的云端会话。
- * 当前 /ai/qa/sessions 不返回 courseId，因此这里通常为空——宁可不显示，也不把全量列表冒充成本课程历史。
+ * 云端会话列表现在带 courseId，只展示本课程的历史；
+ * 正文不随列表下发，点开时再调 /qa/sessions/{id} 拉取，避免一次拉全量长文本。
  */
 async function loadRemoteSessions() {
   try {
@@ -576,6 +625,7 @@ async function loadRemoteSessions() {
         lastText: String(raw?.lastMessage ?? ''),
         courseId: props.courseId,
         remote: true,
+        loaded: false,
       })
     }
   } catch {
@@ -583,26 +633,70 @@ async function loadRemoteSessions() {
   }
 }
 
-function openSession(item: ChatSession) {
-  if (item.id === activeId.value) {
+function abortStream() {
+  streamController?.abort()
+  streamController = null
+  qaSending.value = false
+}
+
+async function openSession(item: ChatSession) {
+  if (item.id === activeId.value && !blockedNotice.value) {
     if (isNarrow.value) closeSide()
     return
   }
+  abortStream()
   active.value = 'qa'
   activeId.value = item.id
   sessionId.value = item.id
-  messages.value = item.messages.map((msg) => ({ ...msg }))
-  blockedNotice.value = Boolean(item.remote) && messages.value.length === 0
+  blockedNotice.value = false
   if (isNarrow.value) closeSide()
+
+  if (item.remote && !item.loaded) {
+    const seq = ++sessionLoadSeq
+    sessionLoading.value = true
+    messages.value = []
+    try {
+      const data = await callTwice<{
+        title?: string
+        messages?: { role?: string; content?: string }[]
+      }>(aiApi.getSessionDetail(item.id))
+      if (seq !== sessionLoadSeq) return
+      const restored: Message[] = (data.messages ?? [])
+        .map((msg) => ({
+          role: msg.role === 'assistant' ? ('ai' as const) : ('user' as const),
+          content: String(msg.content ?? ''),
+        }))
+        .filter((msg) => msg.content.trim())
+      item.messages = restored
+      item.loaded = true
+      if (data.title) item.title = data.title
+      messages.value = restored.map((msg) => ({ ...msg }))
+    } catch (error) {
+      if (seq !== sessionLoadSeq) return
+      logger.error('加载会话历史失败', error)
+      // 读不到正文时明确提示，而不是把空对话框伪装成“新会话”
+      blockedNotice.value = true
+      messages.value = []
+    } finally {
+      if (seq === sessionLoadSeq) sessionLoading.value = false
+    }
+  } else {
+    sessionLoadSeq += 1
+    sessionLoading.value = false
+    messages.value = item.messages.map((msg) => ({ ...msg }))
+  }
   void scrollToEnd(true)
 }
 
 function newChat() {
+  abortStream()
+  sessionLoadSeq += 1
   active.value = 'qa'
   messages.value = []
   sessionId.value = ''
   activeId.value = ''
   blockedNotice.value = false
+  sessionLoading.value = false
   qaInput.value = ''
   atBottom.value = true
   void nextTick(() => {
@@ -697,7 +791,9 @@ watch(active, (tab) => {
   if (tab === 'advice' && !adviceLoaded.value) void loadAdvice()
 })
 
-const canSend = computed(() => Boolean(qaInput.value.trim()) && !qaSending.value)
+const canSend = computed(
+  () => Boolean(qaInput.value.trim()) && !qaSending.value && !sessionLoading.value,
+)
 
 function scrollToEnd(force = false) {
   return nextTick().then(() => {
@@ -748,7 +844,7 @@ function onComposerKey(event: KeyboardEvent) {
 
 async function send(preset?: string) {
   const text = (preset ?? qaInput.value).trim()
-  if (!text || qaSending.value) return
+  if (!text || qaSending.value || sessionLoading.value) return
   blockedNotice.value = false
   messages.value.push({ role: 'user', content: text })
   qaInput.value = ''
@@ -758,40 +854,64 @@ async function send(preset?: string) {
   await requestAnswer(text)
 }
 
-/** 只补发 AI 侧，用于失败重试——不再重复插入一条用户消息 */
+/**
+ * 真实流式回答：先插入一条空气泡（显示思考动效），token 到达后逐个追加。
+ * 会话ID 来自服务端首帧；用户问题与最终回答由后端按会话落库，刷新/重开课程都能恢复。
+ */
 async function requestAnswer(text: string) {
   qaSending.value = true
-  try {
-    const data = await callTwice<{
-      sessionId?: string
-      answer?: string
-      sources?: Source[]
-    }>(
-      sessionId.value
-        ? aiApi.qaContinue({ sessionId: sessionId.value, message: text })
-        : aiApi.qaAsk({ courseId: props.courseId, question: text }),
-    )
-    if (data.sessionId) sessionId.value = String(data.sessionId)
-    messages.value.push({
-      role: 'ai',
-      content: data.answer || '（暂无回答）',
-      sources: Array.isArray(data.sources) ? data.sources : [],
-    })
-    ensureSession()
-  } catch (error) {
-    logger.error('智能答疑失败', error)
-    // 保留用户消息与失败占位，不伪造成功回答；后端原因（配额/模型不可用）直接展示，避免误判成断网
-    messages.value.push({
-      role: 'ai',
-      content: '',
-      failed: true,
-      retryText: text,
-      failure: failureText(error),
-    })
-  } finally {
-    qaSending.value = false
-    await scrollToEnd()
-  }
+  messages.value.push({
+    role: 'ai',
+    content: '',
+    streaming: true,
+    retryText: text,
+  })
+  // 取数组里的响应式代理再改字段；直接改 push 前的原始对象不会触发视图更新
+  const reply = messages.value[messages.value.length - 1]
+  await scrollToEnd(true)
+
+  // qaStream 立即返回 AbortController，结果通过回调推进；不能 await 它，否则会误判成流已结束
+  streamController = aiApi.qaStream(
+    {
+      question: text,
+      courseId: props.courseId,
+      sessionId: sessionId.value || undefined,
+    },
+    {
+      onSession: (id) => {
+        sessionId.value = String(id)
+        ensureSession()
+      },
+      onToken: (token) => {
+        reply.content += token
+        void scrollToEnd()
+      },
+      onSources: (sources) => {
+        reply.sources = sources as Source[]
+      },
+      onDone: () => {
+        reply.streaming = false
+        if (!reply.content.trim()) {
+          reply.failed = true
+          reply.failure = '回答失败，请稍后重试。'
+        } else {
+          ensureSession()
+        }
+        qaSending.value = false
+        streamController = null
+        void scrollToEnd()
+      },
+      onError: (error) => {
+        logger.error('智能答疑失败', error)
+        reply.streaming = false
+        reply.failed = true
+        reply.failure = failureText(error)
+        qaSending.value = false
+        streamController = null
+        void scrollToEnd()
+      },
+    },
+  )
 }
 
 function retry(index: number) {
@@ -801,11 +921,28 @@ function retry(index: number) {
   void requestAnswer(target.retryText)
 }
 
-/** 失败原因：后端业务异常带 message（配额、模型不可用），比“检查网络”更能指向真实问题 */
+/** 模型习惯输出 **加粗**；本项目没有 Markdown 渲染位点（P-12 只保留三处 v-html），去掉标记比露出星号干净。 */
+function cleanAiText(content: string): string {
+  return content.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*\*/g, '')
+}
+function displayContent(message: Message): string {
+  return message.role === 'ai' ? cleanAiText(message.content) : message.content
+}
+
+/** 失败原因：SSE 错误体/业务 message 优先，比“检查网络”更能指向真实问题 */
 function failureText(error: unknown): string {
-  const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+  const responseMessage = (error as { response?: { data?: { message?: unknown } } })?.response?.data
     ?.message
-  return typeof message === 'string' && message.trim() ? message.trim() : '回答失败，请稍后重试。'
+  if (typeof responseMessage === 'string' && responseMessage.trim()) {
+    return responseMessage.trim()
+  }
+  // qaStream 把 HTTP 错误体拼进 Error.message；剥掉传输前缀只留后端话术
+  const message = (error as { message?: unknown })?.message
+  if (typeof message === 'string') {
+    const match = message.match(/^SSE 请求失败:\s*HTTP \d+\s*-\s*(.+)$/)
+    if (match?.[1]?.trim()) return match[1].trim()
+  }
+  return '回答失败，请稍后重试。'
 }
 
 watch(messages, syncActiveSession, { deep: true })
@@ -991,6 +1128,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  abortStream()
   narrowMedia?.removeEventListener('change', syncNarrow)
   document.removeEventListener('keydown', onDocumentKeydown)
   window.removeEventListener('resize', measureShell)
@@ -1341,14 +1479,21 @@ watch(
   text-align: center;
 }
 .welcome-mark {
-  width: 42px;
-  height: 42px;
+  width: 56px;
+  height: 56px;
   margin: 0 auto 14px;
   display: grid;
   place-items: center;
+  border: 1px solid var(--line);
   border-radius: var(--r-circle);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--surface);
+  overflow: hidden;
+}
+.welcome-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .welcome-mark .icon {
   width: 20px;
@@ -1404,18 +1549,33 @@ watch(
 }
 .turn-avatar {
   flex: none;
-  width: 26px;
-  height: 26px;
-  margin-top: 2px;
+  width: 32px;
+  height: 32px;
+  margin-top: 1px;
   display: grid;
   place-items: center;
+  border: 1px solid var(--line);
   border-radius: var(--r-circle);
-  background: var(--accent-soft);
+  background: var(--surface);
   color: var(--accent);
+  overflow: hidden;
+}
+.turn-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .turn-avatar .icon {
   width: 14px;
   height: 14px;
+}
+.user-avatar {
+  background: var(--accent-soft);
+  border-color: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 .turn-body {
   min-width: 0;
@@ -1440,6 +1600,21 @@ watch(
   border-radius: var(--r-bubble) var(--r-bubble) var(--r-ctl) var(--r-bubble);
   background: var(--accent-soft);
   color: var(--ink);
+}
+/* 流式回答的光标：只在 token 还在到达时出现，和气泡同色系 */
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--accent);
+  animation: streamCaret 0.9s step-end infinite;
+}
+@keyframes streamCaret {
+  50% {
+    opacity: 0;
+  }
 }
 .turn-fail {
   display: flex;
@@ -1517,31 +1692,46 @@ watch(
   overflow-wrap: anywhere;
 }
 
-/* 思考中 */
-.thinking {
+/* 思考中：气泡内三点，等首个 token 期间占位 */
+.thinking-inline {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: 0;
-  padding-left: 35px;
+  min-height: 24px;
   font-size: 12px;
   color: var(--ink-3);
 }
-.thinking .dot {
+.thinking-inline .dot,
+.stream-loading .dot {
   width: 4px;
   height: 4px;
   border-radius: var(--r-circle);
   background: var(--ink-3);
   animation: aiDot 1.1s infinite ease-in-out;
 }
-.thinking .dot:nth-child(2) {
+.thinking-inline .dot:nth-child(2),
+.stream-loading .dot:nth-child(2) {
   animation-delay: 0.16s;
 }
-.thinking .dot:nth-child(3) {
+.thinking-inline .dot:nth-child(3),
+.stream-loading .dot:nth-child(3) {
   animation-delay: 0.32s;
 }
 .thinking-text {
   margin-left: 4px;
+}
+.stream-loading {
+  max-width: 800px;
+  margin: 6vh auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.stream-loading span:last-child {
+  margin-left: 6px;
 }
 @keyframes aiDot {
   0%,
@@ -1773,7 +1963,11 @@ watch(
   .ai-tab {
     transition: none;
   }
-  .thinking .dot {
+  .thinking-inline .dot,
+  .stream-loading .dot {
+    animation: none;
+  }
+  .stream-caret {
     animation: none;
   }
 }

@@ -21,6 +21,9 @@ export const qaContinue = (data: Record<string, unknown>): Promise<ApiEnvelope<A
 /** 获取问答会话列表 */
 export const getSessions = (): Promise<ApiEnvelope<ApiData>> =>
   request.get('/ai/qa/sessions') as Promise<ApiEnvelope<ApiData>>
+/** 获取单个会话详情（含持久化的消息正文） */
+export const getSessionDetail = (sessionId: string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/ai/qa/sessions/${encodeURIComponent(sessionId)}`) as Promise<ApiEnvelope<ApiData>>
 /** AI 作文批改 */
 export const essayCorrect = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
   request.post('/ai/essay/correct', data, { timeout: AI_TIMEOUT }) as Promise<ApiEnvelope<ApiData>>
@@ -95,7 +98,7 @@ export function qaStream(
   params: {
     question: string
     courseId?: number | string
-    sessionId?: number
+    sessionId?: string | number
     context?: string
     [key: string]: string | number | boolean | undefined
   },
@@ -104,11 +107,13 @@ export function qaStream(
     onSources,
     onError,
     onDone,
+    onSession,
   }: {
     onToken?: (token: string) => void
     onSources?: (sources: QaSourcePayload[]) => void
     onError?: (error: Error) => void
     onDone?: () => void
+    onSession?: (sessionId: string) => void
   } = {},
 ): AbortController {
   const controller = new AbortController()
@@ -126,7 +131,18 @@ export function qaStream(
   })
     .then(async (response: ApiData) => {
       if (!response.ok) {
-        throw new Error(`SSE 请求失败: HTTP ${response.status}`)
+        // 503 等错误也走 SSE 通道：尽量把后端的业务话术带出来，避免前端只剩裸状态码
+        let detail = ''
+        try {
+          if (typeof response.text === 'function') {
+            const text = await response.text()
+            const parsed = JSON.parse(text)
+            detail = typeof parsed?.message === 'string' ? parsed.message : ''
+          }
+        } catch {
+          // 非 JSON 错误体：保留状态码即可
+        }
+        throw new Error(`SSE 请求失败: HTTP ${response.status}${detail ? ` - ${detail}` : ''}`)
       }
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
@@ -153,7 +169,10 @@ export function qaStream(
             }
             try {
               const parsed = JSON.parse(data)
-              if (Array.isArray(parsed.sources)) {
+              if (typeof parsed?.sessionId === 'string' && parsed.sessionId) {
+                // 首帧：服务端会话ID，供前端建立/续接历史记录
+                onSession?.(parsed.sessionId)
+              } else if (Array.isArray(parsed.sources)) {
                 // 出处末帧：与增量帧互斥，收到即回调 onSources（空数组也算，表示本次无溯源）
                 onSources?.(parsed.sources)
               } else if (parsed.token && onToken) {
@@ -186,6 +205,7 @@ export default {
   qaAskGlobal,
   qaContinue,
   getSessions,
+  getSessionDetail,
   qaStream,
   essayCorrect,
   essayPolish,
