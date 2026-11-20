@@ -222,6 +222,7 @@ python scripts/audit-stats.py
 | HyDE 一直不生效（`hyde.llm_ready=false`） | `provider=ollama` 时需显式放行 `RAG_HYDE_ALLOW_OLLAMA=true`（默认 false 是性能权衡：本地 8B 单次 5–15s） | 本地演示要 HyDE 时在 `.env` 打开并重启 8002 |
 | Ollama 抽取“0 条候选”或术语名全是“术语/名称/概念” | ① deepseek-r1 思考过程吃光 `num_predict`（给 800 时最终 JSON 永远出不来）；② 模型复读 prompt 里的格式示例 | 必须 `format:"json"` + `num_predict≥2500`；`think:false` 在 Ollama **0.40.14 不生效**（`ipa.py` 文档串记录） |
 | IREM 五类几乎全判 SIBLING，理由写“同一章节相邻” | 候选对的 evidence 只有位置信息，模型把“相邻”直接当“并列”，甚至自述“证据不足但必须五类选一” | 已修 `_CLASS_PROMPT`：明确“相邻不是语义证据、不足时必须判 OTHER”；8B 判关系能力仍弱 → **必须人工抽检，不得当作已具备 IREM 能力** |
+| `curl` 取 ClamAV 病毒库恒 403 | `database.clamav.net` 对普通 curl UA/协议拒绝 | 用 `freshclam` 取库（自带 UA/协议，本机实测成功）；库为 `main.cvd`/`daily.cvd`/`bytecode.cvd` |
 
 ---
 
