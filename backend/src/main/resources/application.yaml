@@ -393,12 +393,28 @@ sentinel:
       strategy: 0
       control-behavior: 0
       max-queueing-time-ms: 500
+    # 对 DeepGraph RAG（8501，文档图谱引擎）下游调用做方法级 QPS 限制（LLM/嵌入调用较重，限流更紧）
+    - resource: "deepgraph:http"
+      grade: 1
+      count: ${SENTINEL_FLOW_DEEPGRAPH_QPS:10}
+      limit-app: default
+      strategy: 0
+      control-behavior: 0
+      max-queueing-time-ms: 500
   # 熔断降级规则（按资源名精确匹配）
   degrade-rules:
     # 对 RAG 下游：慢调用比例策略 —— 10s 窗口内慢调用(>3000ms)占比 >50% 且请求数≥5 时熔断 10s
     - resource: "rag:http"
       grade: 0                      # 0=慢调用比例，1=异常比例，2=异常数
       count: 3000                   # 慢调用阈值(ms)
+      time-window: 10               # 熔断时长(s)
+      min-request-amount: 5
+      stat-interval-ms: 10000
+      slow-ratio-threshold: 0.5
+    # 对 DeepGraph RAG 下游：慢调用比例策略 —— 重排/嵌入/HyDE 单次可达数秒，阈值放宽到 10s
+    - resource: "deepgraph:http"
+      grade: 0
+      count: 10000                  # 慢调用阈值(ms)
       time-window: 10               # 熔断时长(s)
       min-request-amount: 5
       stat-interval-ms: 10000
@@ -452,6 +468,25 @@ rag:
   health-path: ${RAG_HEALTH_PATH:/api/v1/rag/health}
   # （引擎参数——bm25.k1/b、embedding、retriever.mode、vector.index、hybrid 权重——已随引擎实现剥离移除：
   #   RAG 检索引擎由团队另一成员负责，本端仅保留 RAGService 接口与上述 HTTP 代理配置）
+
+# ===================== DeepGraph RAG 文档图谱服务配置（8501，2026-11-21 接入） =====================
+# 来源：python-services/deepgraph_rag/（已验收的 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配器）。
+# 与 8002 互补：本服务面向整篇课程文档（PDF/DOCX/TXT 原文）的 FAISS+BM25 混合召回、
+# Neo4j GraphRAG 关系上下文、HyDE 与 Cross-Encoder 重排；问答主链（/ai/qa/*）在
+# enabled=true 时自动把其召回合并进接地证据，未启用/不可达时静默跳过（增量能力，不改变既有行为）。
+deepgraph-rag:
+  # 是否启用（默认 false；start-all 编排器在 8501 已监听时自动置位 DG_RAG_ENABLED）
+  enabled: ${DG_RAG_ENABLED:false}
+  # Python deepgraph_rag 服务地址
+  base-url: ${DG_RAG_BASE_URL:http://localhost:8501}
+  # HTTP 连接超时（秒）
+  connect-timeout: ${DG_RAG_CONNECT_TIMEOUT:5}
+  # HTTP 读取超时（秒）：章节图谱/生成走本地大模型时单次可达数十秒（Python 侧 call_llm 自身超时 180s）
+  read-timeout: ${DG_RAG_READ_TIMEOUT:180}
+  # 重试次数（读超时/连接拒绝/503 不重试，与 8002 同口径）
+  max-retries: ${DG_RAG_MAX_RETRIES:1}
+  # 健康检查路径
+  health-path: ${DG_RAG_HEALTH_PATH:/api/v1/deepgraph/health}
 
 # ===================== Python LoRA/微调 服务配置 =====================
 fine-tune:

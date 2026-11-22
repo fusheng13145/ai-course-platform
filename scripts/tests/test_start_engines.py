@@ -132,31 +132,31 @@ def test_should_start_respects_explicit_disabled_switch():
 
 
 def test_plan_starts_only_what_is_down_and_in_dependency_order():
-    # 2026-11-16：ft(8003) 入编排后 ORDER 为四项，本用例随之覆盖 ft
+    # 2026-11-21：deepgraph(8501) 入编排后 ORDER 为五项，本用例随之覆盖 deepgraph
     plan = eng.plan(
-        status={"neo4j": False, "kg": False, "rag": False, "ft": False},
-        want={"neo4j": True, "kg": True, "rag": True, "ft": True},
+        status={"neo4j": False, "kg": False, "rag": False, "deepgraph": False, "ft": False},
+        want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
     )
-    assert plan == ["neo4j", "kg", "rag", "ft"]
+    assert plan == ["neo4j", "kg", "rag", "deepgraph", "ft"]
 
     # 已在跑的绝不重启：双实例共用一套库却各自计限流（DR-36）
     plan = eng.plan(
-        status={"neo4j": True, "kg": True, "rag": False, "ft": False},
-        want={"neo4j": True, "kg": True, "rag": True, "ft": True},
+        status={"neo4j": True, "kg": True, "rag": False, "deepgraph": False, "ft": False},
+        want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
     )
-    assert plan == ["rag", "ft"]
+    assert plan == ["rag", "deepgraph", "ft"]
 
     # 图库起不来时 KG 照起（回落内存图），RAG 与图库无关
     plan = eng.plan(
-        status={"neo4j": False, "kg": False, "rag": False, "ft": False},
-        want={"neo4j": False, "kg": True, "rag": True, "ft": False},
+        status={"neo4j": False, "kg": False, "rag": False, "deepgraph": False, "ft": False},
+        want={"neo4j": False, "kg": True, "rag": True, "deepgraph": True, "ft": False},
     )
-    assert plan == ["kg", "rag"]
+    assert plan == ["kg", "rag", "deepgraph"]
 
     # ft 关掉（.env 写 FT_ENABLED=false）时不得被默认拉起来
     plan = eng.plan(
-        status={"neo4j": True, "kg": True, "rag": True, "ft": False},
-        want={"neo4j": True, "kg": True, "rag": True, "ft": False},
+        status={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": False},
+        want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": False},
     )
     assert plan == []
 
@@ -164,8 +164,8 @@ def test_plan_starts_only_what_is_down_and_in_dependency_order():
 def test_plan_is_empty_when_everything_is_already_up():
     assert (
         eng.plan(
-            status={"neo4j": True, "kg": True, "rag": True, "ft": True},
-            want={"neo4j": True, "kg": True, "rag": True, "ft": True},
+            status={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
+            want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
         )
         == []
     )

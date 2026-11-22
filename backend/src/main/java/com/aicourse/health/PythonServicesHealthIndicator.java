@@ -33,6 +33,9 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
     private final boolean ftEnabled;
     private final String ftBaseUrl;
     private final String ftHealthPath;
+    private final boolean deepgraphEnabled;
+    private final String deepgraphBaseUrl;
+    private final String deepgraphHealthPath;
 
     public PythonServicesHealthIndicator(
             @Value("${knowledge-graph.enabled:true}") boolean kgEnabled,
@@ -43,7 +46,10 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
             @Value("${rag.health-path:/api/v1/rag/health}") String ragHealthPath,
             @Value("${fine-tune.enabled:false}") boolean ftEnabled,
             @Value("${fine-tune.base-url:http://localhost:8003}") String ftBaseUrl,
-            @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String ftHealthPath) {
+            @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String ftHealthPath,
+            @Value("${deepgraph-rag.enabled:false}") boolean deepgraphEnabled,
+            @Value("${deepgraph-rag.base-url:http://localhost:8501}") String deepgraphBaseUrl,
+            @Value("${deepgraph-rag.health-path:" + ContractPaths.DEEPGRAPH_HEALTH + "}") String deepgraphHealthPath) {
         this.kgEnabled = kgEnabled;
         this.kgBaseUrl = kgBaseUrl;
         this.kgHealthPath = kgHealthPath;
@@ -53,6 +59,9 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
         this.ftEnabled = ftEnabled;
         this.ftBaseUrl = ftBaseUrl;
         this.ftHealthPath = ftHealthPath;
+        this.deepgraphEnabled = deepgraphEnabled;
+        this.deepgraphBaseUrl = deepgraphBaseUrl;
+        this.deepgraphHealthPath = deepgraphHealthPath;
 
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(2));
@@ -82,6 +91,11 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
         details.put("fine-tune", ft.detail());
         anyChecked |= ft.checked();
         allUp &= !ft.checked() || ft.up();
+
+        HealthStatus deepgraph = checkService("deepgraph-rag", deepgraphEnabled, deepgraphBaseUrl, deepgraphHealthPath);
+        details.put("deepgraph-rag", deepgraph.detail());
+        anyChecked |= deepgraph.checked();
+        allUp &= !deepgraph.checked() || deepgraph.up();
 
         // 全部未启用时视为 UP（无 Python 服务依赖），任一已启用服务 DOWN 才判 DOWN
         Health.Builder builder = (!anyChecked || allUp) ? Health.up() : Health.down();

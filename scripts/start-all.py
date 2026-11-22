@@ -76,9 +76,10 @@ LOG_DIR = ROOT / "logs"
 
 # 依赖序即启动序：Ollama（AI/FT 本地生成）→ MinIO（对象存储）→ Neo4j →
 # KG → RAG → LoRA 微调 → Java → 前端（代理要能打到 API）
-ENGINE_SERVICES = ("neo4j", "kg", "rag", "ft")
+ENGINE_SERVICES = ("neo4j", "kg", "rag", "deepgraph", "ft")
 SERVICES = ("ollama", "minio", *ENGINE_SERVICES, "api", "web")
-PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "rag": 8002, "ft": 8003, "api": 8080}
+# deepgraph(8501)：已验收 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配器（2026-11-21 接入）
+PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "rag": 8002, "deepgraph": 8501, "ft": 8003, "api": 8080}
 WEB_PORTS = (5173, 5174, 5175)
 DB_PORT, CACHE_PORT = 3306, 6379
 
@@ -137,6 +138,7 @@ def wanted_services(mode: str) -> dict:
         "neo4j": managed,
         "kg": managed,
         "rag": managed,
+        "deepgraph": managed,
         "ft": managed,
         "api": managed,
         "web": mode in (MODE_ALL, MODE_FRONTEND),
@@ -427,10 +429,15 @@ def engine_flags(in_use, ports=PORTS) -> dict:
     `KG_ENABLED`/`RAG_ENABLED` 就等于把"要重启后端才切 mode=ENGINE"（§18.5）
     固化进一键脚本——Java 的 `@Value` 只在启动那一刻读端口，之后不会再改。
     """
-    return {"kg": bool(in_use(ports["kg"])), "rag": bool(in_use(ports["rag"]))}
+    return {
+        "kg": bool(in_use(ports["kg"])),
+        "rag": bool(in_use(ports["rag"])),
+        "deepgraph": bool(in_use(ports["deepgraph"])),
+    }
 
 
-def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_up: bool) -> dict:
+def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_up: bool,
+                deepgraph_up: bool = False) -> dict:
     """复刻 start-backend.bat 第 1/5 步的注入口径，让"一键"与"分步"两份姿态行为一致。
 
     刻意与 .bat 同口径：整份 `.env` 都进进程环境（非只读那两把钥匙），否则同一台机器
@@ -484,6 +491,8 @@ def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_
         env["KG_ENABLED"] = "true"
     if rag_up and "RAG_ENABLED" not in dotenv:
         env["RAG_ENABLED"] = "true"
+    if deepgraph_up and "DG_RAG_ENABLED" not in dotenv:
+        env["DG_RAG_ENABLED"] = "true"
     return env
 
 
@@ -817,6 +826,7 @@ def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
         "neo4j": scope["neo4j"] and bool(neo4j_home) and eng.should_start(env.get("NEO4J_ENABLED")),
         "kg": scope["kg"] and eng.should_start(env.get("KG_ENABLED")),
         "rag": scope["rag"] and eng.should_start(env.get("RAG_ENABLED")),
+        "deepgraph": scope["deepgraph"] and eng.should_start(env.get("DG_RAG_ENABLED")),
         "ft": scope["ft"] and eng.should_start(env.get("FT_ENABLED")),
         "api": scope["api"],
         "web": scope["web"],
@@ -838,6 +848,7 @@ def snapshot(api_port_value: int = DEFAULT_API_PORT, app_title: str = "") -> dic
         "neo4j": port_in_use(PORTS["neo4j"]),
         "kg": port_in_use(PORTS["kg"]),
         "rag": port_in_use(PORTS["rag"]),
+        "deepgraph": port_in_use(PORTS["deepgraph"]),
         "ft": port_in_use(PORTS["ft"]),
         # 端口在听不等于本项目后端：只认 /probe 200，避免把 8080 上别人的应用接管成自己的
         "api": api_is_up(api_port_value),
@@ -850,7 +861,7 @@ def print_status(sink: Sink, status: dict, env: dict, app_title: str, api_port_v
     sink.info("-" * 62)
     for dep, port in (("mysql", DB_PORT), ("redis", CACHE_PORT)):
         sink.info(f"{dep:6s} :{port}  {'UP' if port_in_use(port) else 'DOWN'}")
-    for name in ("ollama", "minio", "neo4j", "kg", "rag", "ft"):
+    for name in ("ollama", "minio", "neo4j", "kg", "rag", "deepgraph", "ft"):
         if not status.get(name):
             sink.info(f"{name:6s} :{PORTS[name]}  DOWN")
             continue
@@ -1062,6 +1073,7 @@ def main(argv=None) -> int:
                 redis_open=not redis_needs_auth(),
                 kg_up=status["kg"],
                 rag_up=status["rag"],
+                deepgraph_up=status["deepgraph"],
             )
         except MissingCredential as exc:
             sink.info(f"[ERROR] {exc}")
@@ -1110,6 +1122,7 @@ def main(argv=None) -> int:
                 redis_open=not redis_needs_auth(),
                 kg_up=engine_live["kg"],
                 rag_up=engine_live["rag"],
+                deepgraph_up=engine_live["deepgraph"],
             )
             children["api"] = start_api(run_env, java_home, sink, api_port_value)
             ok = wait_for_api(sink, children["api"], api_port_value)

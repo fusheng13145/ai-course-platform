@@ -42,8 +42,12 @@ ROOT = Path(__file__).resolve().parent.parent
 # ft(8003) 于 2026-11-16 入编排（原 D5「存在但未入编排」）：LoRA 引擎懒加载重依赖，
 # 端口起来即代表服务活；引擎是否真可用由 /fine-tune/health 的 engine_available 如实上报，
 # 缺依赖时该服务仍能起（降级为 STRUCTURE），不阻断 KG/RAG 主链。
-ORDER = ("neo4j", "kg", "rag", "ft")
-PORTS = {"neo4j": 7687, "kg": 8001, "rag": 8002, "ft": 8003}
+ORDER = ("neo4j", "kg", "rag", "deepgraph", "ft")
+# deepgraph(8501) 于 2026-11-21 入编排：已验收 DeepSeek-RAG-Chatbot 原样复制（python-services/deepgraph_rag/）
+# + api_server.py 契约适配器。FastAPI 进程本身无重依赖（重依赖在适配器内懒加载），
+# 端口起来即代表服务活；引擎可用性与 Ollama/Neo4j 状态由 /api/v1/deepgraph/health 如实上报，
+# 缺依赖时端点按 503/UNAVAILABLE 降级，不阻断 KG/RAG 主链。
+PORTS = {"neo4j": 7687, "kg": 8001, "rag": 8002, "deepgraph": 8501, "ft": 8003}
 
 # Neo4j 是仓库外的本机单机安装（§18.5）。首选 .env 的 NEO4J_HOME，其次本机已知路径；
 # 都不存在则只上报，不猜路径、不装东西。
@@ -58,8 +62,9 @@ DEFAULT_NEO4J_HOMES = (
 )
 
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
-SERVICE_DIRS = {"kg": "kg_service", "rag": "rag_service", "ft": "fine_tune_service"}
-APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app", "ft": "lora_service:app"}
+SERVICE_DIRS = {"kg": "kg_service", "rag": "rag_service", "deepgraph": "deepgraph_rag", "ft": "fine_tune_service"}
+# deepgraph 的入口是契约适配器 api_server.py（复制的 app.py 是 Streamlit UI，不进 uvicorn）
+APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app", "deepgraph": "api_server:app", "ft": "lora_service:app"}
 
 # DR-63：引擎进程没有 dotenv，只调 os.getenv（kg_store.py:36/312-323、rag_engine.py:101-634）。
 # 因此「写在 .env 里」不等于「会生效」——只有在下面这份名单里的键才会被导出到子进程。
@@ -124,6 +129,30 @@ ENGINE_EXPORTS = {
         "RAG_RERANK_MAX_LENGTH",
         "HF_HOME",
         "HF_HUB_CACHE",
+    ),
+    # deepgraph_rag（8501，2026-11-21 接入）。键名依据复制内容 config.py / llm_client.py /
+    # neo4j_handler.py 的 os.getenv 实读点（DR-63 同型：不导出则 .env 配了也不生效）。
+    # DEEPSEEK_API_KEY 走 api_key 通道（见 engine_env），占位值一律不转；
+    # CROSS_ENCODER_MODEL 允许用平台缓存的中文重排模型覆盖默认英文模型。
+    "deepgraph": (
+        "LLM_PROVIDER",
+        "MODEL",
+        "DEEPSEEK_MODEL",
+        "OLLAMA_API_URL",
+        "OLLAMA_BASE_URL",
+        "NEO4J_URI",
+        "NEO4J_USERNAME",
+        "NEO4J_PASSWORD",
+        # 课程知识图谱桥接目标（2026-11-22）：抽取三元组/层次树并入 kg_service 课程图谱
+        "KG_BASE_URL",
+        "DG_KG_SYNC",
+        # 大文档嵌入批处理垫片的批大小（api_server 运行期兼容层）
+        "DG_EMBED_BATCH",
+        "CROSS_ENCODER_MODEL",
+        "HF_ENDPOINT",
+        "HF_HOME",
+        "HF_HUB_CACHE",
+        "INTERNAL_API_KEY",
     ),
 }
 
@@ -235,6 +264,11 @@ def engine_env(base: dict, *, service: str, neo4j_uri=None, api_key=None, offlin
         if api_key:
             env["DEEPSEEK_API_KEY"] = api_key
         env.update(offline or {})
+    elif service == "deepgraph":
+        # 已验收复制内容 llm_client.call_llm 需要 DeepSeek 密钥（LLM_PROVIDER=deepseek 时）；
+        # 与 rag 同通道：占位值不转（effective_api_key 已过滤）
+        if api_key:
+            env["DEEPSEEK_API_KEY"] = api_key
     elif service == "kg" and neo4j_uri:
         env["NEO4J_URI"] = neo4j_uri
     return env
@@ -285,6 +319,8 @@ def probe_url(service: str) -> str:
         return "http://127.0.0.1:8001/api/v1/graph/health"
     if service == "rag":
         return "http://127.0.0.1:8002/api/v1/rag/documents"
+    if service == "deepgraph":
+        return "http://127.0.0.1:8501/api/v1/deepgraph/health"
     if service == "ft":
         return "http://127.0.0.1:8003/api/v1/fine-tune/health"
     return "http://127.0.0.1:7474"
@@ -430,6 +466,15 @@ def describe(service: str, up: bool) -> str:
         tail = f"，缺 {','.join(map(str, missing))}" if missing else ""
         device = body.get("device") or "?"
         return f"UP (engine_available={ready}，device={device}{tail})"
+    if service == "deepgraph":
+        body = probe("deepgraph")
+        if not isinstance(body, dict):
+            return "UP (端口在监听，/api/v1/deepgraph/health 未响应)"
+        engine = body.get("engine") or {}
+        provider = engine.get("provider") or "?"
+        neo4j = (body.get("neo4j") or {}).get("reachable")
+        courses = body.get("courses_indexed") or []
+        return f"UP (provider={provider}，neo4j={'up' if neo4j else 'down'}，已建索引课程={courses or '无'})"
     return "UP"
 
 
@@ -480,6 +525,8 @@ def main(argv=None) -> int:
         "neo4j": should_start(env.get("NEO4J_ENABLED")) and bool(neo4j_home),
         "kg": should_start(env.get("KG_ENABLED")),
         "rag": should_start(env.get("RAG_ENABLED")),
+        # 默认也起（五引擎全编排）；不想要文档图谱引擎就在 .env 写 DG_RAG_ENABLED=false
+        "deepgraph": should_start(env.get("DG_RAG_ENABLED")),
         # 默认也起（四引擎全编排）；不想要 LoRA 就在 .env 写 FT_ENABLED=false
         "ft": should_start(env.get("FT_ENABLED")),
     }
@@ -491,7 +538,7 @@ def main(argv=None) -> int:
     uri = (env.get("KG_NEO4J_URI") or env.get("NEO4J_URI") or "bolt://127.0.0.1:7687").strip()
 
     print("=" * 60)
-    print(" AI Course Platform - engines (Neo4j / KG / RAG / LoRA)")
+    print(" AI Course Platform - engines (Neo4j / KG / RAG / DeepGraph / LoRA)")
     print("=" * 60)
     if not todo:
         print("[OK] 四个引擎端口都已在监听，本次不重复拉起任何进程。")
