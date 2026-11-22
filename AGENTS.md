@@ -13,7 +13,7 @@
 | **项目** | 校级大学生创新训练项目：**基于知识图谱 + LLM 的 AI 助教系统**，以《计算机网络》为样例课程 |
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
-| **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三服务**（8001 KG / 8002 RAG / 8003 LoRA） |
+| **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 四服务**（8001 KG / 8002 RAG / 8501 DeepGraph 文档图谱 / 8003 LoRA） |
 | **规模（实测）** | **622 main Java / 293 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；95 `.vue` / 106 `.test.ts` / 14 Playwright spec（13 功能 + 1 视觉）** |
 | **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口，V-SCAN（上传病毒扫描）已本地提交；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；本地 `main` 已对齐 `origin/main`（`812531f7`，PR #127 已合并），当前无 open PR |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
@@ -89,6 +89,7 @@ python scripts/audit-stats.py
 | **8001** | Python KG 服务 | |
 | **8002** | Python RAG 服务 | **本项目核心中的核心** |
 | 8003 | LoRA 微调 | `start-all.py` 在 `FT_ENABLED=true` 时自动编排；compose `ft` profile 另备 |
+| **8501** | DeepGraph 文档图谱 RAG（已验收 DeepSeek-RAG-Chatbot 契约适配接入，复制内容不改） | `DG_RAG_ENABLED=false` 可整体关闭；依赖本机 Ollama（嵌入）与 Neo4j（图谱），缺失自动降级 |
 | 9000 / 9001 | 本机 MinIO | `start-all.py` 在 `MINIO_ENABLED=true` 时启动原生进程；非 Docker |
 | 11434 | 本机 Ollama | `AI_PROVIDER=ollama` 或 `FT_LLM_PROVIDER=ollama` 时自动启动；缺模型只告警 |
 | 3306 / 6379 / 7687 | MySQL / Redis / Neo4j | **Redis 为必选依赖**（用户裁定，文档已回写） |
