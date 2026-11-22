@@ -9,7 +9,7 @@ import { join } from 'node:path'
  * 不做渐变条与辉光，标题与读数共用一套字族。这里用源码级断言钉住，避免这些效果在后续批次里
  * 一件件长回来；像素面仍由 anchors 视觉套件负责。
  */
-const CSS = readFileSync(join(__dirname, '../styles/record.css'), 'utf8')
+const CSS = readFileSync(join(__dirname, '../styles/app.css'), 'utf8')
 
 /** 从 from 起的第一个 `{` 做花括号配平，返回整段块（含外层花括号）。 */
 function balancedBlock(from: number): string {

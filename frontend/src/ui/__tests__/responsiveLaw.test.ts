@@ -9,8 +9,8 @@ import { join } from 'node:path'
  * 创建课程表单的 select 以 420px 固有宽度撑破容器。这里把修复钉在源码层，
  * 防止后续改顶栏或表单样式时把两条窄屏规则删回去；像素面仍由 p10 探针负责。
  */
-const RECORD = readFileSync(join(__dirname, '../styles/record.css'), 'utf8')
-const FORM = readFileSync(join(__dirname, '../styles/form.css'), 'utf8')
+const RECORD = readFileSync(join(__dirname, '../styles/app.css'), 'utf8')
+const FORM = readFileSync(join(__dirname, '../styles/app.css'), 'utf8')
 
 /** 取指定媒体查询的完整块；找不到返回空串，便于断言失败而不是抛错。 */
 function mediaBlock(css: string, header: string): string {

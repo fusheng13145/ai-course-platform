@@ -38,11 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import '../../styles/record.css'
-import '../../styles/shell-fix.css'
-import '../../styles/typography.css'
-import '../../styles/auth.css'
-import '../../styles/coursera.css'
+import '../../styles/app.css'
 import AuthAside from './AuthAside.vue'
 import Sprite from '../../components/Sprite.vue'
 import Icon from '../../components/Icon.vue'

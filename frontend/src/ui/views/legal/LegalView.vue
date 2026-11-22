@@ -43,10 +43,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import '../../styles/record.css'
-import '../../styles/coursera.css'
-import '../../styles/shell-fix.css'
-import '../../styles/typography.css'
+import '../../styles/app.css'
 import Sprite from '../../components/Sprite.vue'
 import Icon from '../../components/Icon.vue'
 import { sanitizeLegalHtml } from '@/utils/sanitize'

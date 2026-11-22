@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const CSS = readFileSync(join(__dirname, '../styles/coursera.css'), 'utf8')
-const DESIGN_LAYER = CSS.split('/* 冻结区：')[0]
+const CSS = readFileSync(join(__dirname, '../styles/app.css'), 'utf8')
+const DESIGN_LAYER = CSS.split('/* 冻结区：')[0].split('coursera 层（v3 目标视觉系统')[1]
 const AUTH_SHELL = readFileSync(join(__dirname, '../views/auth/AuthShell.vue'), 'utf8')
 const AUTH_ASIDE = readFileSync(join(__dirname, '../views/auth/AuthAside.vue'), 'utf8')
 

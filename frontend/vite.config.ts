@@ -73,6 +73,9 @@ export default defineConfig(({ mode }) => ({
             // html2canvas 同类（FE-11：全仓零引用，依赖已卸载），分支随之删除。
             if (id.includes('xlsx')) return 'xlsx'
             if (id.includes('dompurify')) return 'dompurify'
+            // echarts（知识图谱页层次树/章节图谱，2026-11-22 集成 DeepGraph 原型视图时引入，
+            // 按需注册 TreeChart/GraphChart；体积门禁 scripts/check-bundle-size.cjs 有独立预算 900KB）
+            if (id.includes('echarts')) return 'echarts'
             if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router'))
               return 'vue-vendor'
             if (id.includes('axios')) return 'axios'

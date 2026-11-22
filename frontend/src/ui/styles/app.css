@@ -1,3 +1,19 @@
+/*
+ * app.css · 平台唯一权威样式表（2026-11-22 样式重建）
+ * --------------------------------------------------------------
+ * 由 7 个世代层文件（record / shell-fix / typography / form / auth /
+ * consistency / coursera，合计 4026 行）按原级联顺序合并重建：
+ * - 单文件单级联，页面级导入差异（ErrorView/LegalView 曾漏导/乱序）从结构上消灭；
+ * - 各层以分段横幅标注来源世代，coursera 层为最终目标样式、自然最后生效；
+ * - 已剔除死残留：element-plus 私有令牌（--el-*，组件库已移除）；
+ * - 棘轮测试（courseraLaw / visualLaw / responsiveLaw / noHardcodedRadius /
+ *   noElementPlus）已同步指向本文件。
+ * 旧层文件已删除，不要再按世代新增文件——新规则直接追加到对应分段末尾。
+ */
+
+/* ============================================================
+   record — record 层（v1 基础：设计令牌作用域、壳层与基础组件类）
+   ============================================================ */
 /* 一次性抽取器 scripts/extract-assets.cjs 的产物，抽取后此文件一直手工维护；重跑脚本会覆盖已有样式。
    作用域：body[data-app="ui"]，仅在 壳层挂载并被设置该属性时生效。 */
 /* ============================================================
@@ -1644,3 +1660,2332 @@ body[data-style="record"][data-theme="dark"] {
   body[data-app="ui"] .tabs button { min-width: 0; max-width: 100%; }
 }
 
+/* ============================================================
+   shell-fix — shell-fix 层（窗口级滚动接缝与豁免账）
+   ============================================================ */
+/*
+ * 壳层与旧端全局约束的接缝修正。
+ * 旧端 App.vue 把 html/body/#app 设为 height:100%，页面滚动发生在 .content 内部；
+ * 是窗口级滚动，若沿用 height:100% 则会内容溢出到 body 盒之外，露出 html 的深色底。
+ */
+/* 豁免账（V2 批）：html 根兜底底色须保持字面量——--bg 等令牌定义在 body[data-app] 作用域，
+   html 层解析不到（CSS 自定义属性不可向上冒泡）。两值与令牌亮/暗值逐字相同，随令牌演进同步。 */
+html[data-ui] {
+  background: #f7f8fa;
+}
+html[data-ui][data-ui-theme='dark'] {
+  background: #0c0e11;
+}
+body[data-app='ui'] {
+  height: auto;
+  min-height: 100vh;
+}
+body[data-app='ui'] .sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+body[data-app='ui'] .course-progress {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   typography — typography 层（字族与标题层级）
+   ============================================================ */
+/*
+ * 排版层：一套系统字族、四档字号、标题无衬线。
+ * 只作用于 body[data-app="ui"]，旧端零影响。
+ * 四档：22 页标题 / 14 正文 / 13 控件与行标题 / 12 元信息。
+ */
+body[data-app='ui'] {
+  --font-body:
+    'Segoe UI', -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: 'Cascadia Code', 'Consolas', 'SFMono-Regular', monospace;
+  --fs-title: 22px;
+  --fs-body: 14px;
+  --fs-ui: 13px;
+  --fs-meta: 12px;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .page-head h1,
+body[data-app='ui'] .module-head h1,
+body[data-app='ui'] .course-title-line h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+body[data-app='ui'] .card-head h2 {
+  font-family: var(--font-body);
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .stat-label {
+  font-size: var(--fs-meta);
+}
+
+body[data-app='ui'] .stat-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-app='ui'] .stat-note {
+  font-size: 11.5px;
+}
+
+body[data-app='ui'] .nav-label {
+  font-size: var(--fs-ui);
+}
+
+body[data-app='ui'] .nav-item {
+  padding: 8px 10px;
+}
+
+body[data-app='ui'] .course-name {
+  font-size: var(--fs-ui);
+}
+
+body[data-app='ui'] .course-meta {
+  font-size: 11.5px;
+}
+
+body[data-app='ui'] .queue-main b {
+  font-size: var(--fs-ui);
+}
+
+body[data-app='ui'] .queue-main small {
+  font-size: 11.5px;
+}
+
+body[data-app='ui'] .queue-item {
+  padding: 10px 0;
+}
+
+body[data-app='ui'] th {
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+}
+
+body[data-app='ui'] td {
+  font-size: 12.5px;
+}
+
+body[data-app='ui'] .btn {
+  font-size: 12.5px;
+}
+
+body[data-app='ui'] .chip {
+  font-size: 11px;
+}
+
+body[data-app='ui'] .text-btn {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .hint {
+  font-size: var(--fs-meta);
+  line-height: 1.6;
+}
+
+body[data-app='ui'] .side-body,
+body[data-app='ui'] .side-list li {
+  font-size: var(--fs-meta);
+  line-height: 1.7;
+}
+
+/* ============================================================
+   form — form 层（表单控件与窄屏单列）
+   ============================================================ */
+/* 表单与表格通用件：从各视图重复的局部样式收敛而来，只在 壳层内生效。 */
+
+body[data-app='ui'] .course-tab-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+body[data-app='ui'] .course-tab-bar h2 {
+  margin: 4px 0 0;
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+body[data-app='ui'] .course-tab-actions {
+  display: flex;
+  gap: 8px;
+}
+
+body[data-app='ui'] .filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* card-head 内的筛选行收缩到内容宽并靠右（原 InboxBody / ExamGovernanceBody / TeacherGradesView 的 scoped 副本） */
+body[data-app='ui'] .card-head .filter-row {
+  width: auto;
+  justify-content: flex-end;
+}
+
+/* 表卡表头与右侧控件同基线（原 TeacherGradesView / ProctorTab 的 scoped 副本） */
+body[data-app='ui'] .table-card .card-head {
+  align-items: center;
+}
+
+body[data-app='ui'] .w-60 {
+  width: 60px;
+}
+
+body[data-app='ui'] .w-80 {
+  width: 80px;
+}
+
+body[data-app='ui'] .w-96 {
+  width: 96px;
+}
+
+body[data-app='ui'] .w-140 {
+  width: 140px;
+}
+
+body[data-app='ui'] .w-220 {
+  width: 220px;
+}
+
+body[data-app='ui'] .w-260 {
+  width: 260px;
+}
+
+body[data-app='ui'] .row-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+body[data-app='ui'] .row-actions .danger {
+  color: var(--danger);
+}
+
+body[data-app='ui'] .empty-state.compact {
+  padding: 26px 12px;
+}
+
+body[data-app='ui'] .pager {
+  display: flex;
+  gap: 6px;
+}
+
+body[data-app='ui'] .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+body[data-app='ui'] .form-grid .span-2 {
+  grid-column: span 2;
+}
+
+body[data-app='ui'] .form-error {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11px;
+}
+
+body[data-app='ui'] .modal-text {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--ink-2);
+}
+
+body[data-app='ui'] .modal-hint {
+  margin: 12px 0 0;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+body[data-app='ui'] .btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+body[data-app='ui'] .form-card {
+  max-width: 760px;
+}
+
+body[data-app='ui'] .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-app='ui'] .stats-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+}
+
+body[data-app='ui'] .stats-item span {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+body[data-app='ui'] .stats-item b {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink);
+}
+
+body[data-app='ui'] .form-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+  body[data-app='ui'] .form-grid {
+    grid-template-columns: 1fr;
+  }
+  body[data-app='ui'] .form-grid .span-2 {
+    grid-column: span 1;
+  }
+  /* 单列后仍要切断控件的固有宽度：长选项的 select 会以内容宽（实测 420px）
+     撑破 360/375 档，grid item 的 auto 最小宽会把整张表单推出容器。 */
+  body[data-app='ui'] .form-grid .field,
+  body[data-app='ui'] .form-grid .field > .input,
+  body[data-app='ui'] .form-grid .field > .textarea {
+    min-width: 0;
+    width: 100%;
+  }
+  body[data-app='ui'] .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* D2-6 响应式专项 · 窄屏增量：只新增本块，桌面档未改。
+   .filter-row 自身有 flex-wrap，但卡内一行里的搜索簇是各视图局部样式给的
+   定宽输入（220／240px）包在不换行的 .search-form 里，整簇的最小宽度
+   就是这一行的收缩下限；窄档把它放开，控件按行宽流动。
+   选择器多一层类＋元素，特异度高于视图的 scoped 副本，无需 !important。 */
+@media (max-width: 768px) {
+  body[data-app='ui'] .card-head .filter-row {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  body[data-app='ui'] .filter-row > .input {
+    max-width: 100%;
+    min-width: 0;
+  }
+  body[data-app='ui'] .filter-row .search-form {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  body[data-app='ui'] .filter-row .search-form > .input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ============================================================
+   auth — auth 层（认证双栏布局）
+   ============================================================ */
+/* 登录 / 注册 / 找回：左侧品牌版式 + 右侧表单卡片。
+   约束：单一字族、纯色、1px 分隔；不使用渐变、入场动画、hover 位移与辉光。 */
+.auth {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr) 64px;
+  padding: 0 clamp(20px, 4vw, 48px);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.av-top {
+  width: 100%;
+  max-width: 1180px;
+  height: 64px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.av-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.av-brand .brand-mark {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-ctl);
+  background: var(--brand-mark-bg);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.av-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.av-brand-text b {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.av-brand-text small {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.auth .av-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.av-actions .icon-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.auth .av-main {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: clamp(40px, 7vw, 92px);
+  padding: clamp(30px, 5vh, 54px) 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.auth .av-card {
+  width: 420px;
+  max-width: 100%;
+  align-self: center;
+  padding: clamp(24px, 2.4vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.auth .av-card-wide {
+  width: 620px;
+  max-width: 100%;
+}
+
+.auth .av-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.auth .av-form-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.av-form-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.av-head-link {
+  padding-top: 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.av-head-link:hover {
+  color: var(--accent);
+}
+
+.av-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+
+.av-step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px 8px 0;
+  border-right: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.av-step:nth-child(2) {
+  padding-left: 10px;
+}
+
+.av-step:last-child {
+  padding-right: 0;
+  padding-left: 10px;
+  border-right: 0;
+}
+
+.av-step b {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.av-step.is-active {
+  color: var(--accent);
+}
+
+.av-step.is-done {
+  color: var(--ink-2);
+}
+
+.av-step.is-done b {
+  color: var(--accent);
+}
+
+.auth .av-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.av-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.av-grid2 > .av-field {
+  min-width: 0;
+}
+
+.av-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.av-field > span {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.av-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.av-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+
+.av-control-icon {
+  position: absolute;
+  left: 12px;
+  width: 15px;
+  height: 15px;
+  color: var(--ink-4);
+  pointer-events: none;
+}
+
+body[data-app='ui'] .av-control-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.av-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 12px 0 36px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  outline: none;
+}
+
+.av-control.has-action .av-input {
+  padding-right: 56px;
+}
+
+.av-input::placeholder {
+  color: var(--ink-3);
+}
+
+.av-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.av-input:-webkit-autofill,
+.av-input:-webkit-autofill:hover,
+.av-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--ink);
+}
+
+.av-reveal {
+  position: absolute;
+  right: 4px;
+  height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 30px;
+}
+
+.av-reveal:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.av-code-row {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.av-code-row .av-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.av-code-btn {
+  flex: none;
+  height: 42px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.av-code-btn:hover:not(:disabled) {
+  border-color: var(--ink-4);
+}
+
+.av-code-btn:disabled {
+  cursor: not-allowed;
+  color: var(--ink-4);
+}
+
+.av-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.av-row > a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.av-row > a:hover {
+  text-decoration: underline;
+}
+
+.av-check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.av-check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.av-check-box {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.av-check input:checked + .av-check-box {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.av-check input:checked + .av-check-box::after {
+  content: '';
+  width: 7px;
+  height: 4px;
+  border-left: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.av-check input:focus-visible + .av-check-box {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.av-agree {
+  align-items: flex-start;
+  color: var(--ink-3);
+}
+
+.av-agree > span:last-child {
+  min-width: 0;
+}
+
+.av-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.av-link:hover {
+  text-decoration: underline;
+}
+
+.av-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 18%, transparent);
+  border-radius: var(--r-ctl);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.auth .av-submit {
+  width: 100%;
+  height: 44px;
+  margin-top: 2px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+}
+
+.av-switch {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.av-switch a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.av-switch a:hover {
+  text-decoration: underline;
+}
+
+.av-foot {
+  width: 100%;
+  max-width: 1180px;
+  height: 64px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.av-foot-sep {
+  color: var(--line-strong);
+}
+
+.av-foot a {
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.av-foot a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 1060px) {
+  .av-main {
+    display: flex;
+    justify-content: center;
+  }
+
+
+
+  .av-card {
+    align-self: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .auth {
+    grid-template-rows: 56px minmax(0, 1fr) 52px;
+    padding: 0 14px;
+  }
+
+  .av-top {
+    height: 56px;
+  }
+
+  .av-brand-text small {
+    display: none;
+  }
+
+  .av-main {
+    padding: 24px 0;
+  }
+
+  .av-card,
+  .av-card-wide {
+    width: min(520px, 100%);
+    padding: 22px;
+  }
+
+  .av-grid2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .av-foot {
+    height: 52px;
+    gap: 6px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 380px) {
+  .av-code-row {
+    flex-wrap: wrap;
+  }
+
+  .av-code-row .av-code-btn {
+    width: 100%;
+  }
+}
+
+/* ============================================================
+   consistency — consistency 层（v3.5 一致性收敛）
+   ============================================================ */
+/*
+ * v3 一致性层：在 record / shell-fix / typography / form 之后落地。
+ * 只收敛壳层、标题层级、控件尺寸与密度，不改任何业务类名与交互语义；
+ * 选择器统一带 body[data-app='ui'][data-style='record']，用于压过前序层与视图 scoped 副本。
+ */
+
+/* ---------- 主题令牌：输入面沿用暖白 #fffcf8，暗色跟随表面 ---------- */
+body[data-app='ui'][data-style='record'] {
+  --input-bg: #fffcf8;
+}
+body[data-app='ui'][data-style='record'][data-theme='dark'] {
+  --input-bg: var(--surface-2);
+}
+
+/* ---------- 壳层 ---------- */
+body[data-app='ui'][data-style='record'] .main-inner {
+  padding: 24px 28px 48px;
+}
+body[data-app='ui'][data-style='record'] .topbar {
+  padding: 0 16px;
+  gap: 12px;
+}
+body[data-app='ui'][data-style='record'] .context-kicker {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+body[data-app='ui'][data-style='record'] .crumb {
+  font-size: 13px;
+}
+body[data-app='ui'][data-style='record'] .search-trigger {
+  min-height: 32px;
+  padding: 0 10px;
+  gap: 7px;
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .search-trigger .icon {
+  width: 15px;
+  height: 15px;
+}
+body[data-app='ui'][data-style='record'] .icon-btn {
+  width: 32px;
+  height: 32px;
+}
+body[data-app='ui'][data-style='record'] .icon-btn .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- 侧栏：导航密度（账户区已上移顶栏） ---------- */
+body[data-app='ui'][data-style='record'] .sidenav {
+  padding: 12px 10px 10px;
+}
+body[data-app='ui'][data-style='record'] .nav-group {
+  margin-bottom: 12px;
+}
+body[data-app='ui'][data-style='record'] .nav-group-label {
+  padding: 0 10px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+body[data-app='ui'][data-style='record'] .nav-item {
+  padding: 8px 10px;
+  gap: 8px;
+}
+body[data-app='ui'][data-style='record'] .nav-item .icon {
+  width: 16px;
+  height: 16px;
+}
+body[data-app='ui'][data-style='record'] .nav-label {
+  font-size: var(--fs-ui);
+}
+body[data-app='ui'][data-style='record'] .nav-badge {
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
+/* 退出登录按钮已移除：入口收敛到顶栏右上角账号菜单（.user-dropdown） */
+
+/* ---------- 页面标题体系 ---------- */
+body[data-app='ui'][data-style='record'] .page-head,
+body[data-app='ui'][data-style='record'] .module-head {
+  padding: 4px 0 14px;
+  margin-bottom: 18px;
+}
+body[data-app='ui'][data-style='record'] .page-head h1,
+body[data-app='ui'][data-style='record'] .module-head h1,
+body[data-app='ui'][data-style='record'] .course-title-line h1 {
+  font-size: var(--fs-title);
+}
+body[data-app='ui'][data-style='record'] .page-head-actions {
+  gap: 8px;
+}
+body[data-app='ui'][data-style='record'] .back {
+  margin-bottom: 8px;
+  font-size: var(--fs-meta);
+}
+
+/* ---------- 卡片与栅格 ---------- */
+body[data-app='ui'][data-style='record'] .card {
+  padding: 16px;
+}
+body[data-app='ui'][data-style='record'] .dash-grid {
+  gap: 16px;
+}
+body[data-app='ui'][data-style='record'] .module-grid {
+  gap: 16px;
+}
+body[data-app='ui'][data-style='record'] .module-grid + .module-grid {
+  margin-top: 16px;
+}
+body[data-app='ui'][data-style='record'] .course-grid {
+  gap: 16px;
+}
+body[data-app='ui'][data-style='record'] .card-head {
+  margin-bottom: 12px;
+}
+body[data-app='ui'][data-style='record'] .card-head h2 {
+  font-size: var(--fs-ui);
+}
+body[data-app='ui'][data-style='record'] .card-foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  font-size: var(--fs-meta);
+}
+
+/* ---------- KPI ---------- */
+body[data-app='ui'][data-style='record'] .stat-grid {
+  gap: 14px;
+  margin-bottom: 22px;
+}
+body[data-app='ui'][data-style='record'] .stat {
+  padding: 16px 18px 15px;
+}
+body[data-app='ui'][data-style='record'] .stat-label {
+  font-size: var(--fs-meta);
+}
+body[data-app='ui'][data-style='record'] .stat-note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* ---------- 按钮：统一 32，同一行内不换行 ---------- */
+body[data-app='ui'][data-style='record'] .btn {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+body[data-app='ui'][data-style='record'] .btn:hover {
+  border-color: var(--ink-4);
+  background: var(--surface);
+}
+body[data-app='ui'][data-style='record'] .btn-sm {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .text-btn {
+  min-height: 24px;
+  padding: 2px 3px;
+  font-size: var(--fs-meta);
+}
+body[data-app='ui'][data-style='record'] .row-actions {
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 12px;
+}
+body[data-app='ui'][data-style='record'] td:has(.row-actions),
+body[data-app='ui'][data-style='record'] th.th-actions {
+  text-align: center;
+}
+
+/* ---------- 分段控件与标签 ---------- */
+body[data-app='ui'][data-style='record'] .tabs {
+  padding: 3px;
+}
+body[data-app='ui'][data-style='record'] .tabs button {
+  min-height: 30px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .chip {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+/* ---------- 表单控件：统一高度、字号与中性输入面 ---------- */
+body[data-app='ui'][data-style='record'] .field {
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .input,
+body[data-app='ui'][data-style='record'] .textarea {
+  min-height: 34px;
+  padding: 7px 10px;
+  background: var(--input-bg);
+  font-size: 13px;
+}
+body[data-app='ui'][data-style='record'] .textarea {
+  min-height: 96px;
+  line-height: 1.7;
+}
+body[data-app='ui'][data-style='record'] .hint {
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .form-error {
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .modal-text {
+  font-size: 13px;
+}
+body[data-app='ui'][data-style='record'] .modal-hint {
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .table-search {
+  height: 34px;
+  min-width: 210px;
+  padding: 0 10px;
+}
+body[data-app='ui'][data-style='record'] .table-search input {
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .course-switcher-wrap > span {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .class-switcher {
+  font-size: 10.5px;
+}
+body[data-app='ui'][data-style='record'] .scope-switch button {
+  padding: 6px 8px;
+  font-size: 10.5px;
+}
+body[data-app='ui'][data-style='record'] .course-mobile-tabs button {
+  min-height: 30px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+}
+body[data-app='ui'][data-style='record'] .class-switcher select {
+  min-height: 36px;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+body[data-app='ui'][data-style='record'] .course-switcher {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+/* ---------- 表格：可读字号、等距留白、无斑马纹 ---------- */
+body[data-app='ui'][data-style='record'] table {
+  font-size: 12.5px;
+}
+body[data-app='ui'][data-style='record'] .table-card {
+  padding: 18px 18px 12px;
+}
+body[data-app='ui'][data-style='record'] .table-toolbar {
+  padding: 0 0 12px;
+}
+body[data-app='ui'][data-style='record'] th {
+  padding: 10px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+body[data-app='ui'][data-style='record'] td {
+  padding: 11px 10px;
+  font-size: 12.5px;
+}
+body[data-app='ui'][data-style='record'] td:first-child {
+  font-size: 12.5px;
+}
+body[data-app='ui'][data-style='record'] tbody tr:hover {
+  background: transparent;
+}
+body[data-app='ui'][data-style='record'] .table-wrap tbody tr:hover td:first-child {
+  box-shadow: none;
+}
+body[data-app='ui'][data-style='record'] .cell-sub {
+  margin-top: 2px;
+  font-size: 10.5px;
+}
+body[data-app='ui'][data-style='record'] .table-empty td {
+  padding: 34px 12px;
+  font-size: 12px;
+}
+
+/* ---------- 空状态 ---------- */
+body[data-app='ui'][data-style='record'] .empty-state {
+  padding: 40px 24px;
+}
+body[data-app='ui'][data-style='record'] .empty-state b {
+  font-size: 14px;
+}
+body[data-app='ui'][data-style='record'] .empty-state p {
+  margin: 6px auto 12px;
+  max-width: 46ch;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* ---------- 保持 geek 语汇，但去掉装饰性 hover / 渐变 ---------- */
+body[data-app='ui'][data-style='record'] .card {
+}
+body[data-app='ui'][data-style='record'] .card:hover {
+  box-shadow: none;
+}
+body[data-app='ui'][data-style='record'] .course-row {
+  transition: none;
+}
+body[data-app='ui'][data-style='record'] .course-row:hover {
+  padding-left: 0;
+}
+body[data-app='ui'][data-style='record'] .bar-col:hover .bar {
+  opacity: 1;
+}
+body[data-app='ui'][data-style='record'] .course-bar i {
+  background: var(--accent);
+}
+body[data-app='ui'][data-style='record'] .weak-bar i {
+  background: var(--tone, var(--accent));
+}
+
+/* ---------- 课程空间与个人中心的次级交互 ---------- */
+body[data-app='ui'][data-style='record'] .course-back {
+  font-size: 11.5px;
+}
+body[data-app='ui'][data-style='record'] .course-code {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .course-meta {
+  font-size: 11px;
+}
+body[data-app='ui'][data-style='record'] .class-badge {
+  padding: 3px 7px;
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .course-nav-kicker {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .course-nav-meta {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .course-cover {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .bar-val {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .ai-caveat {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .mini-defs span {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .mini-defs b {
+  font-size: 11.5px;
+}
+body[data-app='ui'][data-style='record'] .simple-list b,
+body[data-app='ui'][data-style='record'] .mini-class b {
+  font-size: 11.5px;
+}
+body[data-app='ui'][data-style='record'] .simple-list small,
+body[data-app='ui'][data-style='record'] .mini-class small {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .settings-grid {
+  gap: 16px;
+}
+body[data-app='ui'][data-style='record'] .setting-form {
+  gap: 12px;
+}
+body[data-app='ui'][data-style='record'] .setting-form label {
+  font-size: 10.5px;
+}
+body[data-app='ui'][data-style='record'] .setting-form input,
+body[data-app='ui'][data-style='record'] .setting-form select {
+  min-height: 36px;
+  padding: 8px 10px;
+  background: var(--input-bg);
+  font-size: 12.5px;
+}
+body[data-app='ui'][data-style='record'] .profile-hint {
+  font-size: 11px;
+  line-height: 1.7;
+}
+body[data-app='ui'][data-style='record'] .profile-meta {
+  font-size: 10.5px;
+}
+body[data-app='ui'][data-style='record'] .profile-stat-label,
+body[data-app='ui'][data-style='record'] .profile dt {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .theme-switch button {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+}
+body[data-app='ui'][data-style='record'] .stat-value small {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .ev-kicker {
+  font-size: 10px;
+}
+body[data-app='ui'][data-style='record'] .ev-foot {
+  font-size: 10px;
+}
+
+/* 无 hover：回归静息态外观，保留 focus-visible 与 is-active 表达状态 */
+body[data-app='ui'][data-style='record'] .search-trigger:hover {
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+body[data-app='ui'][data-style='record'] .icon-btn:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+/* 用户胶囊现已是账号菜单触发器（下拉），保留轻量 hover 表达可点性 */
+body[data-app='ui'][data-style='record'] .user-chip:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+body[data-app='ui'][data-style='record'] .role-switch button:not(.is-active):hover {
+  color: var(--ink-3);
+}
+body[data-app='ui'][data-style='record'] .nav-item:not(.is-active):hover {
+  background: transparent;
+  color: var(--side-ink);
+}
+body[data-app='ui'][data-style='record'] .btn:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+body[data-app='ui'][data-style='record'] .btn-primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+body[data-app='ui'][data-style='record'] .btn-ghost:hover {
+  background: transparent;
+  border-color: var(--line-strong);
+}
+body[data-app='ui'][data-style='record'] .btn-danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+body[data-app='ui'][data-style='record'] .text-btn:not(.danger):hover {
+  color: var(--ink-3);
+}
+body[data-app='ui'][data-style='record'] .text-btn.danger:hover {
+  color: var(--danger);
+}
+body[data-app='ui'][data-style='record'] .back:hover,
+body[data-app='ui'][data-style='record'] .course-back:hover {
+  color: var(--ink-3);
+}
+body[data-app='ui'][data-style='record'] .grade-row:not(.is-active):hover,
+body[data-app='ui'][data-style='record'] .chapter-item:not(.is-active):hover {
+  background: transparent;
+}
+body[data-app='ui'][data-style='record'] .toc-panel a:hover {
+  color: var(--ink-2);
+}
+body[data-app='ui'].is-collapsed[data-style='record'] .course-rail-mark:hover {
+  background: var(--side-active-bg);
+}
+body[data-app='ui'][data-style='record'] .option:hover {
+  border-color: var(--line);
+}
+
+/* ---------- 响应式：桌面档不动，只在窄档回收增量 ---------- */
+@media (max-width: 1240px) {
+  body[data-app='ui'][data-style='record'] .main-inner {
+    padding: 20px 22px 48px;
+  }
+}
+@media (max-width: 960px) {
+  body[data-app='ui'][data-style='record'] .main-inner {
+    padding: 16px 14px 44px;
+  }
+  body[data-app='ui'][data-style='record'] .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+  body[data-app='ui'][data-style='record'] .page-head h1,
+  body[data-app='ui'][data-style='record'] .module-head h1,
+  body[data-app='ui'][data-style='record'] .course-title-line h1 {
+    font-size: 25px;
+  }
+  body[data-app='ui'][data-style='record'] .course-mobile-tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow-x: visible;
+  }
+}
+@media (max-width: 620px) {
+  body[data-app='ui'][data-style='record'] .page-head h1,
+  body[data-app='ui'][data-style='record'] .module-head h1,
+  body[data-app='ui'][data-style='record'] .course-title-line h1 {
+    font-size: 23px;
+  }
+  body[data-app='ui'][data-style='record'] .stat {
+    padding: 13px;
+  }
+  body[data-app='ui'][data-style='record'] .card {
+    padding: 16px;
+  }
+}
+
+/* ============================================================
+   coursera — coursera 层（v3 目标视觉系统，含课程卡片冻结区；调色板棘轮作用域 = 设计层小节）
+   ============================================================ */
+/* Coursera 风格增量层：只覆盖视觉与布局，不进入课程卡片内部。 */
+body[data-style='record'][data-theme='light'] {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --surface-3: #eef1f4;
+  --ink: #1d2129;
+  --ink-2: #1d2129;
+  --ink-3: #5e6978;
+  --ink-4: #667085;
+  --line: #d9dee4;
+  --line-soft: #eef1f4;
+  --line-strong: #d9dee4;
+  --accent: #1a6ad8;
+  --accent-strong: #155fc6;
+  --accent-ink: #ffffff;
+  --accent-soft: #f7f8fa;
+  --violet: #5b45c4;
+  --ok: #16784f;
+  --ok-soft: #f7f8fa;
+  --warn: #b54708;
+  --warn-soft: #f7f8fa;
+  --danger: #b54708;
+  --danger-soft: #f7f8fa;
+  --info: #1a6ad8;
+  --info-soft: #f7f8fa;
+  --side-bg: #ffffff;
+  --side-ink: #1d2129;
+  --side-ink-2: #667085;
+  --side-line: #d9dee4;
+  --side-hover: #f7f8fa;
+  --side-active-bg: #f7f8fa;
+  --side-active-ink: #1a6ad8;
+  --side-badge-bg: #eef1f4;
+  --side-badge-ink: #667085;
+  --brand-mark-bg: #1a6ad8;
+  --font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-display: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --r-lg: 6px;
+  --r-md: 4px;
+  --r-sm: 4px;
+  --r-ctl: 4px;
+  --r-xs: 4px;
+  --r-chip: 4px;
+  --r-card: 6px;
+  --r-circle: 50%;
+  --sh-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.06);
+  --sh-card-hover: 0 4px 12px rgba(43, 125, 233, 0.08);
+  --sh-pop: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.06);
+  --focus: 0 0 0 2px #ffffff, 0 0 0 4px #1a6ad8;
+  --tone-1: #f7f8fa;
+  --tone-1-ink: #1a6ad8;
+  --tone-2: #f7f8fa;
+  --tone-2-ink: #5b45c4;
+  --tone-3: #f7f8fa;
+  --tone-3-ink: #b54708;
+  --tone-4: #f7f8fa;
+  --tone-4-ink: #16784f;
+  --tone-5: #eef1f4;
+  --tone-5-ink: #5e6978;
+}
+
+body[data-app='ui'] {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .main-inner {
+  padding: 24px;
+}
+
+body[data-app='ui'] .page-head,
+body[data-app='ui'] .course-head,
+body[data-app='ui'] .module-head {
+  gap: 24px;
+  margin-bottom: 16px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .page-head-main,
+body[data-app='ui'] .course-head-main {
+  position: relative;
+}
+
+body[data-app='ui'] .page-head-main::after,
+body[data-app='ui'] .course-head-main::after {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 2px;
+  margin-top: 8px;
+  background: var(--violet);
+  opacity: 0.18;
+}
+
+body[data-app='ui'] .page-head h1,
+body[data-style='record'] .page-head h1,
+body[data-app='ui'] .module-head h1,
+body[data-style='record'] .module-head h1,
+body[data-app='ui'] .course-title-line h1,
+body[data-app='ui'] .card-head h2,
+body[data-style='record'] .card-head h2,
+body[data-app='ui'] .course-tab-bar h2,
+body[data-app='ui'] .side-card h2,
+body[data-app='ui'] .course-continue h2,
+body[data-app='ui'] .modal-head h2,
+.av-form-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .page-head-actions,
+body[data-app='ui'] .module-actions,
+body[data-app='ui'] .course-tab-actions {
+  gap: 8px;
+}
+
+body[data-app='ui'] .btn {
+  min-height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+body[data-app='ui'] .btn-sm {
+  min-height: 32px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+body[data-app='ui'] .btn-primary,
+body[data-app='ui'] .btn-primary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+body[data-app='ui'] .btn-ghost:hover:not(:disabled),
+body[data-app='ui'] .btn:not(.btn-primary):not(.btn-danger):hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  transform: none;
+}
+
+body[data-app='ui'] .btn:active,
+body[data-app='ui'] .btn-primary:active {
+  transform: none;
+}
+
+body[data-app='ui'] .icon-btn {
+  border-radius: var(--r-ctl);
+  color: var(--ink-3);
+}
+
+body[data-app='ui'] .text-btn {
+  min-height: 32px;
+  padding: 0 4px;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .text-btn.danger {
+  color: var(--danger);
+}
+
+body[data-app='ui'] .input,
+body[data-app='ui'] .textarea,
+body[data-app='ui'] .table-search,
+.av-control,
+.av-code-btn {
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .input {
+  min-height: 40px;
+  padding: 8px 16px;
+}
+
+body[data-app='ui'] .textarea {
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+body[data-app='ui'] .input:focus,
+body[data-app='ui'] .textarea:focus,
+body[data-app='ui'] .table-search:focus-within,
+.av-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+
+body[data-app='ui'] .field {
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .form-grid {
+  gap: 16px;
+}
+
+body[data-app='ui'] .form-grid .field {
+  margin-top: 0;
+}
+
+body[data-app='ui'] .form-card {
+  padding: 24px;
+}
+
+body[data-app='ui'] .form-foot {
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .card,
+body[data-app='ui'] .stat {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--sh-card);
+}
+
+body[data-app='ui'] .card {
+  padding: 16px;
+}
+
+body[data-app='ui'] .stat:hover,
+body[data-app='ui'] .card:not(.table-card):not(.course-tile):hover {
+  box-shadow: var(--sh-card-hover);
+}
+
+body[data-app='ui'] .stat {
+  padding: 16px;
+}
+
+body[data-app='ui'] .stat-grid,
+body[data-app='ui'] .dash-grid,
+body[data-app='ui'] .module-grid,
+body[data-app='ui'] .course-overview-grid {
+  gap: 16px;
+}
+
+body[data-app='ui'] .stat-grid {
+  margin-bottom: 16px;
+}
+
+body[data-app='ui'] .stat-label,
+body[data-app='ui'] .stat-note {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .stat-main {
+  margin-top: 8px;
+}
+
+body[data-app='ui'] .stat-value,
+body[data-style='record'] .stat-value {
+  font-family: var(--font-body);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .card-head {
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+body[data-app='ui'] .card-foot {
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .chip {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+body[data-app='ui'] .chip-info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+body[data-app='ui'] .chip-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+body[data-app='ui'] .chip-warn,
+body[data-app='ui'] .chip-danger {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+body[data-app='ui'] .table-card {
+  padding: 16px;
+}
+
+body[data-app='ui'] .table-wrap {
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] table,
+body[data-app='ui'] td,
+body[data-app='ui'] td:first-child {
+  font-size: 14px;
+}
+
+body[data-app='ui'] th {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] td {
+  padding: 16px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-2);
+}
+
+body[data-app='ui'] tbody tr:hover {
+  background: var(--surface-2);
+}
+
+body[data-app='ui'] .cell-sub,
+body[data-app='ui'] .course-meta,
+body[data-app='ui'] .queue-main small,
+body[data-app='ui'] .feed-main small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .tabs {
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-app='ui'] .tabs button {
+  padding: 8px 0;
+  border-radius: 0;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .tabs button.is-active {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+body[data-app='ui'] .page-tabs {
+  margin-bottom: 16px;
+}
+
+body[data-app='ui'] .course-tab-bar {
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .pager {
+  gap: 8px;
+}
+
+body[data-app='ui'] .nav-item {
+  min-height: 40px;
+  padding: 8px;
+  font-size: 14px;
+}
+
+body[data-app='ui'] .nav-label,
+body[data-style='record'] .nav-label {
+  font-size: 14px;
+}
+
+body[data-app='ui'] .nav-group-label {
+  padding: 16px 8px 8px;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .brand-text b {
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .course-nav-card {
+  padding: 16px;
+  border: 1px solid var(--side-line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+body[data-app='ui'] .course-nav-title,
+body[data-app='ui'] .course-nav-meta {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .course-code,
+body[data-app='ui'] .course-meta {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .reader-layout {
+  grid-template-columns: 240px minmax(0, 1fr) 200px;
+  gap: 16px;
+}
+
+body[data-app='ui'] .chapter-rail,
+body[data-app='ui'] .toc-panel {
+  padding: 16px;
+}
+
+body[data-app='ui'] .chapter-list {
+  gap: 4px;
+}
+
+body[data-app='ui'] .chapter-item {
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--r-ctl);
+  color: var(--ink-2);
+}
+
+body[data-app='ui'] .chapter-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+body[data-app='ui'] .chapter-item b,
+body[data-app='ui'] .chapter-item small {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .reader-panel {
+  padding: 32px;
+}
+
+body[data-app='ui'] .reader-panel h2,
+body[data-app='ui'] .reader-panel h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .reader-title {
+  margin: 8px 0 16px;
+}
+
+body[data-app='ui'] .reader-title::after {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 2px;
+  margin-top: 8px;
+  background: var(--violet);
+  opacity: 0.18;
+}
+
+body[data-app='ui'] .reader-panel p {
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+body[data-app='ui'] .reader-panel h3 {
+  margin: 24px 0 8px;
+}
+
+body[data-app='ui'] .reader-meta {
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+
+body[data-app='ui'] .toc-panel a {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .reader-actions {
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .callout {
+  margin: 16px 0;
+  padding: 16px;
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+}
+
+body[data-app='ui'] .callout > span,
+body[data-app='ui'] .callout p {
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .empty-state {
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+body[data-app='ui'] .empty-state.compact {
+  padding: 8px 0;
+}
+
+body[data-app='ui'] .chapters {
+  gap: 16px;
+}
+
+body[data-app='ui'] .ct-node {
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: var(--surface);
+}
+
+body[data-app='ui'] .ct-node:last-child {
+  border-bottom: 0;
+}
+
+body[data-app='ui'] .ct-row {
+  gap: 8px;
+  padding: 16px 8px;
+}
+
+body[data-app='ui'] .ct-row--child {
+  padding: 8px 8px 8px 32px;
+  border-top: 1px solid var(--line-soft);
+}
+
+body[data-app='ui'] .ct-children {
+  gap: 4px;
+  padding: 0 8px 8px 32px;
+}
+
+body[data-app='ui'] .ct-title {
+  font-size: 14px;
+}
+
+body[data-app='ui'] .ct-title--child,
+body[data-app='ui'] .ct-meta {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .practice-tab,
+body[data-app='ui'] .practice-list,
+body[data-app='ui'] .practice-card {
+  gap: 16px;
+}
+
+body[data-app='ui'] .practice-card {
+  padding: 16px;
+}
+
+body[data-app='ui'] .practice-content {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+body[data-app='ui'] .practice-option {
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--r-ctl);
+}
+
+body[data-app='ui'] .practice-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+body[data-app='ui'] .practice-result {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+body[data-app='ui'] .practice-result.is-correct {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+body[data-app='ui'] .practice-result {
+  padding: 16px;
+}
+
+body[data-app='ui'] .chapter-link {
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+body[data-app='ui'] .hint,
+body[data-app='ui'] .modal-hint,
+body[data-app='ui'] .plan-hint,
+body[data-app='ui'] .head-hint,
+body[data-app='ui'] .form-note,
+body[data-app='ui'] .scope-note,
+body[data-app='ui'] .academic-note,
+body[data-app='ui'] .empty-note,
+body[data-app='ui'] .detail-meta,
+body[data-app='ui'] .breadcrumb-line,
+body[data-app='ui'] .number-badge,
+body[data-app='ui'] small {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .modal-layer,
+body[data-app='ui'] .palette-layer,
+body[data-app='ui'] .notif-layer {
+  backdrop-filter: none;
+}
+
+body[data-app='ui'] .modal-card,
+body[data-app='ui'] .palette {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+}
+
+body[data-app='ui'] .modal-head {
+  padding: 24px;
+}
+
+body[data-app='ui'] .modal-body {
+  padding: 24px;
+}
+
+body[data-app='ui'] .modal-foot {
+  gap: 8px;
+  padding: 16px 24px;
+}
+
+body[data-app='ui'] .course-tile {
+  box-shadow: none;
+}
+
+body[data-app='ui'] .course-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+body[data-app='ui'] .course-head-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body[data-app='ui'] .course-head-meta span + span::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-circle);
+  background: var(--line-strong);
+}
+
+/* 信息密度：同排卡片等高，避免右列短卡下方悬空。 */
+body[data-app='ui'] .course-overview-grid {
+  align-items: stretch;
+}
+
+/* 工作台改为左右独立叠放：课程列表跨两行，待办与图表同列，下一行由预警和通知并排填满。 */
+@media (min-width: 961px) {
+  body[data-app='ui'] .card-courses {
+    grid-column: 1 / span 7;
+    grid-row: 1 / span 2;
+  }
+
+  body[data-app='ui'] .card-queue {
+    grid-column: 8 / -1;
+    grid-row: 1;
+  }
+
+  body[data-app='ui'] .card-chart {
+    grid-column: 8 / -1;
+    grid-row: 2;
+  }
+
+  body[data-app='ui'] .card-weak {
+    grid-column: 1 / span 5;
+    grid-row: 3;
+  }
+
+  body[data-app='ui'] .card-feed {
+    grid-column: 6 / -1;
+    grid-row: 3;
+    align-self: stretch;
+  }
+
+  body[data-app='ui'] .card-ai {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+}
+
+/* 认证页覆盖层必须带 `.auth` 前缀。
+   AuthShell 与 Shell 都会 import 本文件，路由懒加载会让两份 CSS 的注入顺序随首访页面变化；
+   仅靠同权重后置会时灵时不灵（2026-11-20：从 /admin/courses 退出登录后卡片被压回 420px 并纵向拉满）。
+   `.auth` 前缀把这里的规则与 auth.css 的基础规则拉开一级，保证顺序无关。 */
+.auth .av-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  gap: 0;
+  max-width: 1180px;
+  padding: 24px 0;
+}
+
+.auth .av-card,
+.auth .av-card-wide {
+  width: 100%;
+  max-width: 1180px;
+  display: grid;
+  grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+  align-self: center;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+}
+
+.auth .av-card-wide {
+  grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
+}
+
+.auth .av-panel {
+  justify-content: center;
+  padding: 32px;
+  gap: 24px;
+}
+
+.auth .av-form {
+  gap: 16px;
+}
+
+.auth .av-field {
+  gap: 8px;
+}
+
+.auth .av-field > span,
+.auth .av-row,
+.auth .av-switch,
+.auth .av-foot {
+  font-size: 12px;
+}
+
+.auth .av-submit {
+  font-size: 14px;
+}
+
+@media (max-width: 980px) {
+  .auth .av-card,
+  .auth .av-card-wide {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 560px;
+  }
+
+  .auth .av-card-wide {
+    max-width: 620px;
+  }
+
+  .auth .av-panel {
+    padding: 24px;
+  }
+}
+
+/* 冻结区：全局令牌不得改变课程文件夹卡片的任何原始外观。 */
+body[data-style='record'][data-theme='light'] .cf {
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --surface-3: #e5e8ee;
+  --ink: #17181c;
+  --ink-2: #42444c;
+  --ink-3: #83868f;
+  --ink-4: #a5a8b1;
+  --line: #e3e6ec;
+  --line-strong: #cdd2dc;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-ink: #ffffff;
+  --accent-soft: #eeeeff;
+  --r-lg: 12px;
+  --r-md: 6px;
+  --r-sm: 4px;
+  --r-ctl: 8px;
+  --r-xs: 3px;
+  --r-chip: 3px;
+  --r-card: 8px;
+  --font-body:
+    'Geist', 'Geist Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display:
+    'Geist', 'Geist Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --tone-1: #dbeafe;
+  --tone-1-ink: #3b82f6;
+  --tone-2: #ede9fe;
+  --tone-2-ink: #8b5cf6;
+  --tone-3: #ffedd5;
+  --tone-3-ink: #f97316;
+  --tone-4: #d1fae5;
+  --tone-4-ink: #10b981;
+  --tone-5: #fce7f3;
+  --tone-5-ink: #ec4899;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  body[data-app='ui'] .main-inner {
+    padding: 24px 16px 32px;
+  }
+
+  body[data-app='ui'] .reader-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  body[data-app='ui'] .main-inner {
+    padding: 16px 16px 32px;
+  }
+
+  body[data-app='ui'] .page-head h1,
+  body[data-style='record'] .page-head h1,
+  body[data-app='ui'] .module-head h1,
+  body[data-style='record'] .module-head h1,
+  body[data-app='ui'] .course-title-line h1,
+  body[data-app='ui'] .reader-panel h2 {
+    font-size: 18px;
+  }
+
+  body[data-app='ui'] .card,
+  body[data-app='ui'] .table-card,
+  body[data-app='ui'] .reader-panel {
+    padding: 16px;
+  }
+}

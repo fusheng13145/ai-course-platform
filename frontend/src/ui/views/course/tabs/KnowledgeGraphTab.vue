@@ -31,8 +31,57 @@
               <span class="chip chip-mute">{{ nodes.length }} 点 · {{ links.length }} 边</span>
             </h2>
           </div>
+          <div class="kg-view-switch">
+            <button
+              class="btn btn-ghost"
+              :class="{ 'is-active': activeView === 'panorama' }"
+              @click="activeView = 'panorama'"
+            >
+              全景
+            </button>
+            <button
+              class="btn btn-ghost"
+              :class="{ 'is-active': activeView === 'tree' }"
+              @click="activeView = 'tree'"
+            >
+              层次树
+            </button>
+            <button
+              class="btn btn-ghost"
+              :class="{ 'is-active': activeView === 'chapter' }"
+              @click="activeView = 'chapter'"
+            >
+              章节图谱
+            </button>
+            <button
+              v-if="activeView === 'panorama'"
+              class="btn btn-ghost"
+              @click="showAllLabels = !showAllLabels"
+            >
+              {{ showAllLabels ? '精简标签' : '显示全部标签' }}
+            </button>
+          </div>
         </header>
-        <svg v-if="layoutNodes.length" class="kg-svg" :viewBox="`0 0 ${SVG_W} ${SVG_H}`" role="img">
+        <div v-if="activeView === 'chapter'" class="kg-chapter-picker">
+          <label>选择章节：</label>
+          <select v-model="selectedChapterId" class="kg-chapter-select">
+            <option v-for="option in chapterOptions" :key="option.id" :value="option.id">
+              {{ option.name }}（{{ option.members }} 实体）
+            </option>
+          </select>
+        </div>
+        <div
+          v-show="activeView !== 'panorama'"
+          ref="echartsEl"
+          class="kg-echarts"
+          :class="{ 'is-loading': echartsLoading }"
+        ></div>
+        <svg
+          v-if="activeView === 'panorama' && layoutNodes.length"
+          class="kg-svg"
+          :viewBox="`0 0 ${SVG_W} ${SVG_H}`"
+          role="img"
+        >
           <line
             v-for="(link, index) in layoutLinks"
             :key="`l${index}`"
@@ -42,6 +91,7 @@
             :y2="link.y2"
             :class="{
               'is-related': isRelatedLink(link),
+              'is-chapter-frame': link.relationType === '包含章节',
               'is-dim':
                 (selectedId !== null && !link.touchesSelected) || (hasPath && !isPathLink(link)),
               'is-path': hasPath && isPathLink(link),
@@ -52,6 +102,7 @@
             :key="`n${node.id}`"
             :class="[
               'kg-node',
+              'kg-node--' + String(node.category ?? 'CONCEPT').toLowerCase(),
               {
                 'is-selected': node.id === selectedId,
                 'is-path': inPath(node.id),
@@ -61,11 +112,23 @@
             @click="select(node.id)"
           >
             <circle :cx="node.x" :cy="node.y" :r="node.r" />
-            <text :x="node.lx" :y="node.ly" :text-anchor="node.anchor">{{ node.name }}</text>
+            <title>{{ node.name }}</title>
+            <text
+              v-if="node.showLabel"
+              :x="node.lx"
+              :y="node.ly"
+              :text-anchor="node.anchor"
+              >{{ node.name }}</text
+            >
           </g>
         </svg>
-        <div v-else-if="graphLoading" class="empty-state compact"><b>正在加载图谱…</b></div>
-        <div v-else class="empty-state compact">
+        <div
+          v-else-if="activeView === 'panorama' && graphLoading"
+          class="empty-state compact"
+        >
+          <b>正在加载图谱…</b>
+        </div>
+        <div v-else-if="activeView === 'panorama'" class="empty-state compact">
           <span class="e-ico"><Icon name="graph" /></span>
           <b>{{ graphError ? '图谱数据未能加载' : '该课程还没有知识关系' }}</b>
         </div>
@@ -99,6 +162,24 @@
                 <line x1="2" y1="5" x2="62" y2="5" />
               </svg>
               <span>相关（同一主题的横向关联）</span>
+            </div>
+            <div class="legend-row">
+              <svg viewBox="0 0 64 10" class="legend-line">
+                <line x1="2" y1="5" x2="62" y2="5" class="is-chapter-frame" />
+              </svg>
+              <span>包含章节（教材章节骨架）</span>
+            </div>
+            <div class="legend-row">
+              <span class="kg-dot kg-dot--chapter"></span>
+              <span>章节（教材大纲，内环）</span>
+            </div>
+            <div class="legend-row">
+              <span class="kg-dot kg-dot--concept"></span>
+              <span>教材抽取实体（挂所属章节外环）</span>
+            </div>
+            <div class="legend-row">
+              <span class="kg-dot kg-dot--skill"></span>
+              <span>技能</span>
             </div>
           </div>
         </template>
@@ -287,7 +368,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import Stat from '../../../components/Stat.vue'
 import Icon from '../../../components/Icon.vue'
@@ -318,6 +399,7 @@ interface LayoutNode extends KgNode {
   lx: number
   ly: number
   anchor: 'start' | 'end' | 'middle'
+  showLabel: boolean
 }
 
 interface LayoutLink extends KgLink {
@@ -355,16 +437,13 @@ const SVG_W = 900
 const SVG_H = 640
 const CX = SVG_W / 2
 const CY = SVG_H / 2
-// 交错双环：外环约 6 成节点、内环其余并错开半步，弧间距比单环大一倍，标签不再成团
-const R_OUT = Math.min(CX, CY) - 78
-const R_IN = Math.min(CX, CY) - 170
-
 const MODE_TEXT: Record<string, string> = {
   ENGINE: '引擎计算',
   LOCAL: '本地兜底',
   UNAVAILABLE: '引擎不可用',
 }
 const CATEGORY_TEXT: Record<string, string> = {
+  CHAPTER: '章节',
   CONCEPT: '概念',
   SKILL: '技能',
   SUMMARY: '小结',
@@ -390,6 +469,13 @@ const links = ref<KgLink[]>([])
 const graphLoading = ref(false)
 const graphError = ref('')
 const selectedId = ref<number | string | null>(null)
+/** 标签密度开关：默认只标注章节骨架与高度数节点，避免 500+ 节点标签互相遮挡 */
+const showAllLabels = ref(false)
+/** 视图切换：全景（SVG 分层径向）/ 层次树 / 章节图谱（ECharts，与已验收 DeepGraph 原型同款） */
+const activeView = ref<'panorama' | 'tree' | 'chapter'>('panorama')
+const echartsEl = ref<HTMLDivElement | null>(null)
+const echartsLoading = ref(false)
+const selectedChapterId = ref('')
 
 const pathSource = ref(0)
 const pathTarget = ref(0)
@@ -443,41 +529,473 @@ const metrics = computed<Metric[]>(() => [
   },
 ])
 
+/**
+ * 章节骨架与归属（layoutNodes / chapterOptions / treeOption / chapterGraphOption
+ * 四处视图共用的唯一事实来源，消除各视图重复实现导致的口径漂移）：
+ * - parentOf/childrenOf/roots/depthOf：包含章节骨架（source=子章节 → target=父章节）；
+ * - memberChapter：属于归属（source=实体 → target=章节）；
+ * - chapterWeight：子树权重 = 1 + 子章节子树权重 + 直接挂靠实体数（记忆化）；
+ * - degree：全图度数（节点大小与标签密度用）。
+ */
+const chapterSkeleton = computed(() => {
+  const chapterIds = new Set(
+    nodes.value.filter((n) => String(n.category ?? '') === 'CHAPTER').map((n) => String(n.id)),
+  )
+  const parentOf = new Map<string, string>()
+  const memberChapter = new Map<string, string>()
+  for (const link of links.value) {
+    const s = String(link.source)
+    const t = String(link.target)
+    if (link.relationType === '包含章节' && chapterIds.has(s) && chapterIds.has(t)) {
+      parentOf.set(s, t)
+    } else if (link.relationType === '属于' && chapterIds.has(t)) {
+      memberChapter.set(s, t)
+    }
+  }
+  const childrenOf = new Map<string, string[]>()
+  const roots: string[] = []
+  for (const id of chapterIds) {
+    const parent = parentOf.get(id)
+    if (!parent || !chapterIds.has(parent)) {
+      roots.push(id)
+      continue
+    }
+    if (!childrenOf.has(parent)) childrenOf.set(parent, [])
+    childrenOf.get(parent)!.push(id)
+  }
+  const depthOf = new Map<string, number>()
+  const computeDepth = (id: string, seen: Set<string>): number => {
+    const known = depthOf.get(id)
+    if (known !== undefined) return known
+    const parent = parentOf.get(id)
+    if (!parent || !chapterIds.has(parent) || seen.has(id)) {
+      depthOf.set(id, 1)
+      return 1
+    }
+    seen.add(id)
+    const depth = Math.min(4, computeDepth(parent, seen) + 1)
+    depthOf.set(id, depth)
+    return depth
+  }
+  for (const id of chapterIds) computeDepth(id, new Set())
+  const directMembers = new Map<string, number>()
+  for (const [, chapterId] of memberChapter) {
+    directMembers.set(chapterId, (directMembers.get(chapterId) ?? 0) + 1)
+  }
+  const chapterWeight = new Map<string, number>()
+  const computeWeight = (id: string, seen: Set<string>): number => {
+    const known = chapterWeight.get(id)
+    if (known !== undefined) return known
+    if (seen.has(id)) return 1
+    seen.add(id)
+    let weight = 1 + (directMembers.get(id) ?? 0)
+    for (const child of childrenOf.get(id) ?? []) {
+      weight += computeWeight(child, seen)
+    }
+    chapterWeight.set(id, weight)
+    return weight
+  }
+  for (const id of chapterIds) computeWeight(id, new Set())
+  const degree = new Map<string, number>()
+  for (const link of links.value) {
+    const s = String(link.source)
+    const t = String(link.target)
+    degree.set(s, (degree.get(s) ?? 0) + 1)
+    degree.set(t, (degree.get(t) ?? 0) + 1)
+  }
+  return { chapterIds, parentOf, childrenOf, roots, depthOf, memberChapter, chapterWeight, degree }
+})
+
+/**
+ * 全景视图：分层径向布局（内环章节骨架、外环教材抽取实体）。
+ * 骨架/归属/权重/度数全部来自共享 computed chapterSkeleton（唯一事实来源）。
+ */
 const layoutNodes = computed<LayoutNode[]>(() => {
   const list = nodes.value
-  const count = list.length
-  if (!count) return []
-  const outerCount = Math.ceil(count / 2)
-  return list.map((node, index) => {
-    const isOuter = index % 2 === 0
-    const ringTotal = isOuter ? outerCount : count - outerCount
-    const ringIndex = Math.floor(index / 2)
-    const angle = (Math.PI * 2 * ringIndex) / ringTotal + (isOuter ? 0 : Math.PI / ringTotal)
-    const radius = isOuter ? R_OUT : R_IN
-    const r = 8 + Math.max(0, Math.min(10, Number(node.importance ?? 3))) * 0.9
-    const x = CX + radius * Math.cos(angle)
-    const y = CY + radius * Math.sin(angle)
-    // 标签避让：左半圆标签放左侧（右对齐），右半圆放右侧，顶/底放上下
-    const cos = Math.cos(angle)
-    const sin = Math.sin(angle)
-    let lx = x
-    let ly = y
+  if (!list.length) return []
+  const skeleton = chapterSkeleton.value
+  const R_MAX = Math.min(CX, CY) - 60
+
+  // 稳定散列：知识点 id 均以同一数字开头，旧实现只看首字符导致抖动全部同值失效
+  const idHash = (id: string) => [...id].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+
+  const positions = new Map<string, { x: number; y: number; angle: number; root?: boolean }>()
+
+  const placeChapter = (id: string, startAngle: number, endAngle: number, depth: number) => {
+    const mid = (startAngle + endAngle) / 2
+    const ring =
+      R_MAX * [0, 0.34, 0.6, 0.8][Math.min(depth, 3)] +
+      ((idHash(id) % 9) - 4) * (R_MAX * 0.006)
+    positions.set(id, {
+      x: CX + ring * Math.cos(mid),
+      y: CY + ring * Math.sin(mid),
+      angle: mid,
+      root: depth === 1,
+    })
+    // 子章节按权重瓜分扇区内带
+    const children = skeleton.childrenOf.get(id) ?? []
+    let cursor = startAngle
+    const totalChildWeight = children.reduce(
+      (sum, c) => sum + (skeleton.chapterWeight.get(c) ?? 1),
+      0,
+    )
+    for (const child of children) {
+      const span =
+        ((endAngle - startAngle) * (skeleton.chapterWeight.get(child) ?? 1)) /
+        Math.max(1, totalChildWeight)
+      placeChapter(child, cursor, cursor + span, depth + 1)
+      cursor += span
+    }
+    // 直接挂在本章的实体：扇区内按子环错开（每 20 个一圈），避免全部堆在同一圆上
+    const members = [...skeleton.memberChapter.entries()]
+      .filter(([, cid]) => cid === id)
+      .map(([eid]) => eid)
+    const memberRingBase = Math.min(R_MAX * 0.94, ring + R_MAX * 0.1)
+    const inner = Math.min(startAngle, endAngle)
+    const outer = Math.max(startAngle, endAngle)
+    members.forEach((eid, index) => {
+      if (positions.has(eid)) return
+      const subRing = Math.floor(index / 20)
+      const inRing = index % 20
+      const angle =
+        inner + ((outer - inner) * (inRing + 0.5)) / Math.max(1, Math.min(20, members.length))
+      const radius = memberRingBase + subRing * R_MAX * 0.045
+      const jitter = ((idHash(eid) % 9) - 4) * (R_MAX * 0.005)
+      positions.set(eid, {
+        x: CX + (radius + jitter) * Math.cos(angle),
+        y: CY + (radius + jitter) * Math.sin(angle),
+        angle,
+      })
+    })
+  }
+
+  // 根章扇区占比 ∝ 子树权重（章节 + 实体），保证同章内容视觉聚合
+  const roots = skeleton.roots
+  const totalRootWeight = roots.reduce((sum, r) => sum + (skeleton.chapterWeight.get(r) ?? 1), 0)
+  const looseOthers = list.filter(
+    (n) => !skeleton.chapterIds.has(String(n.id)) && !skeleton.memberChapter.has(String(n.id)),
+  )
+  const gap = Math.PI * 2 * 0.012
+  const usable = Math.PI * 2 - gap * Math.max(0, roots.length - 1) - (looseOthers.length ? gap : 0)
+  let cursor = -Math.PI / 2
+  for (const root of roots) {
+    const weight = skeleton.chapterWeight.get(root) ?? 1
+    const span = (usable * weight) / Math.max(1, totalRootWeight)
+    placeChapter(root, cursor, cursor + span, 1)
+    cursor += span + gap
+  }
+
+  // 无归属散点：最外环均分
+  looseOthers.forEach((node, index) => {
+    const angle = (Math.PI * 2 * index) / Math.max(1, looseOthers.length)
+    positions.set(String(node.id), {
+      x: CX + R_MAX * 0.985 * Math.cos(angle),
+      y: CY + R_MAX * 0.985 * Math.sin(angle),
+      angle,
+    })
+  })
+
+  return list.flatMap((node) => {
+    const pos = positions.get(String(node.id))
+    if (!pos) return []
+    const r = 6 + Math.min(20, skeleton.degree.get(String(node.id)) ?? 0) * 0.4
+    const cos = Math.cos(pos.angle)
+    const sin = Math.sin(pos.angle)
+    let lx = pos.x
+    let ly = pos.y
     let anchor: 'start' | 'end' | 'middle' = 'middle'
     if (cos > 0.35) {
-      lx = x + 15
-      ly = y + 4
+      lx = pos.x + 13
+      ly = pos.y + 4
       anchor = 'start'
     } else if (cos < -0.35) {
-      lx = x - 15
-      ly = y + 4
+      lx = pos.x - 13
+      ly = pos.y + 4
       anchor = 'end'
     } else if (sin < 0) {
-      ly = y - r - 9
+      ly = pos.y - r - 8
     } else {
-      ly = y + r + 16
+      ly = pos.y + r + 14
     }
-    return { ...node, x, y, r, lx, ly, anchor }
+    const showLabel =
+      showAllLabels.value ||
+      (pos.root ?? false) ||
+      (skeleton.degree.get(String(node.id)) ?? 0) >= 10
+    return [{ ...node, x: pos.x, y: pos.y, r, lx, ly, anchor, showLabel }]
   })
+})
+
+/** 章节下拉选项（层次树/章节图谱共用的选择器），按章号排序 */
+const chapterOptions = computed(() => {
+  const memberCount = new Map<string, number>()
+  for (const [, chapterId] of chapterSkeleton.value.memberChapter) {
+    memberCount.set(chapterId, (memberCount.get(chapterId) ?? 0) + 1)
+  }
+  const out = nodes.value
+    .filter((n) => String(n.category ?? '') === 'CHAPTER')
+    .map((n) => ({
+      id: String(n.id),
+      name: n.name ?? '',
+      members: memberCount.get(String(n.id)) ?? 0,
+    }))
+  const order = (name: string): number => {
+    const match = name.match(/第\s*(\d+)\s*章/)
+    return match ? Number(match[1]) : 999
+  }
+  return out.sort((a, b) => {
+    const oa = order(a.name)
+    const ob = order(b.name)
+    if (oa !== ob) return oa - ob
+    return a.name.localeCompare(b.name, 'zh-Hans-CN')
+  })
+})
+
+/** 默认选中实体最多的章节 */
+watch(
+  chapterOptions,
+  (options) => {
+    if (!options.length) {
+      selectedChapterId.value = ''
+      return
+    }
+    if (!options.some((option) => option.id === selectedChapterId.value)) {
+      const best = [...options].sort((a, b) => b.members - a.members)[0]
+      selectedChapterId.value = best.id
+    }
+  },
+  { immediate: true },
+)
+
+const TREE_COLORS = {
+  root: '#4a90d9',
+  depth1: '#42b983',
+  depth2: '#f5b041',
+  deeper: '#b2b8be',
+}
+
+/** 层次树视图：教材大纲骨架 radial tree（同已验收 DeepGraph 原型的层次知识图谱） */
+const treeOption = computed(() => {
+  const skeleton = chapterSkeleton.value
+  if (!skeleton.chapterIds.size) return null
+  const nameOf = (id: string) =>
+    nodes.value.find((n) => String(n.id) === id)?.name ?? id
+  const toTreeNode = (id: string, depth: number, seen: Set<string>): Record<string, unknown> => {
+    const children = (skeleton.childrenOf.get(id) ?? [])
+      .filter((child) => !seen.has(child))
+      .map((child) => toTreeNode(child, depth + 1, new Set([...seen, child])))
+    return {
+      name: nameOf(id),
+      itemStyle: {
+        color:
+          depth <= 0
+            ? TREE_COLORS.root
+            : depth === 1
+              ? TREE_COLORS.depth1
+              : depth === 2
+                ? TREE_COLORS.depth2
+                : TREE_COLORS.deeper,
+      },
+      lineStyle: { color: nodeColorFallback(Math.max(0, depth - 1)) },
+      label: { fontSize: depth <= 1 ? 13 : 11 },
+      symbolSize: depth <= 1 ? 22 : depth === 2 ? 13 : 9,
+      children,
+    }
+  }
+  // 单一根（教材大纲根节点）直接作为树根的子层，避免多包一层合成的根
+  const rootChildren =
+    skeleton.roots.length === 1
+      ? (skeleton.childrenOf.get(skeleton.roots[0]) ?? []).map((id) =>
+          toTreeNode(id, 1, new Set()),
+        )
+      : skeleton.roots.map((id) => toTreeNode(id, 1, new Set()))
+  return {
+    tooltip: { trigger: 'item', triggerOn: 'mousemove' },
+    series: [
+      {
+        type: 'tree',
+        data: [
+          {
+            name: '计算机网络 · 教材图谱',
+            itemStyle: { color: TREE_COLORS.root },
+            symbolSize: 26,
+            label: { fontSize: 14, fontWeight: 600 },
+            children: rootChildren,
+          },
+        ],
+        layout: 'radial',
+        roam: true,
+        top: '8%',
+        left: '8%',
+        bottom: '8%',
+        right: '8%',
+        symbol: 'circle',
+        expandAndCollapse: true,
+        initialTreeDepth: 3,
+        animationDuration: 400,
+        lineStyle: { width: 1.2, color: '#b2b8be', curveness: 0 },
+      },
+    ],
+  }
+})
+
+function nodeColorFallback(depth: number): string {
+  return depth <= 0
+    ? TREE_COLORS.root
+    : depth === 1
+      ? TREE_COLORS.depth1
+      : depth === 2
+        ? TREE_COLORS.depth2
+        : TREE_COLORS.deeper
+}
+
+/** 章节图谱视图：所选章节的实体子图（force graph，边带关系标签） */
+const chapterGraphOption = computed(() => {
+  if (!selectedChapterId.value) return null
+  const skeleton = chapterSkeleton.value
+  const chapterNode = nodes.value.find((n) => String(n.id) === selectedChapterId.value)
+  if (!chapterNode) return null
+  const memberIds = new Set<string>()
+  for (const [entityId, chapterId] of skeleton.memberChapter) {
+    if (chapterId === selectedChapterId.value) memberIds.add(entityId)
+  }
+  const inChapter = (id: string) =>
+    memberIds.has(String(id)) || String(id) === selectedChapterId.value
+  const data = [
+    {
+      id: selectedChapterId.value,
+      name: chapterNode.name ?? '',
+      category: 0,
+      symbolSize: 42,
+      itemStyle: { color: '#e74c3c' },
+      label: { fontWeight: 600, fontSize: 13 },
+    },
+    ...nodes.value
+      .filter((n) => memberIds.has(String(n.id)))
+      .map((n) => ({
+        id: String(n.id),
+        name: n.name ?? '',
+        category: 1,
+        symbolSize: 12 + Math.min(18, (n.importance ?? 3) * 2),
+        itemStyle: { color: '#3498db' },
+      })),
+  ]
+  const linksIn = links.value
+    .filter((link) => inChapter(String(link.source)) && inChapter(String(link.target)))
+    .filter(
+      (link) =>
+        link.relationType !== '属于' || String(link.target) === selectedChapterId.value,
+    )
+    .map((link) => ({
+      source: String(link.source),
+      target: String(link.target),
+      value: link.relationType ?? '相关',
+    }))
+  return {
+    tooltip: {},
+    legend: { show: false },
+    series: [
+      {
+        type: 'graph',
+        layout: 'force',
+        roam: true,
+        draggable: true,
+        data,
+        links: linksIn,
+        categories: [{ name: '章节' }, { name: '实体' }],
+        force: { repulsion: 220, edgeLength: 90, gravity: 0.08 },
+        label: { show: true, fontSize: 11, color: '#2c3e50' },
+        edgeLabel: {
+          show: true,
+          fontSize: 9,
+          color: '#8a8a8a',
+          formatter: '{c}',
+        },
+        edgeSymbol: ['none', 'arrow'],
+        edgeSymbolSize: 7,
+        lineStyle: { color: '#b2b8be', width: 1.1, curveness: 0.08 },
+        emphasis: { focus: 'adjacency', lineStyle: { width: 2.2 } },
+      },
+    ],
+  }
+})
+
+let echartsModule: Record<string, unknown> | null = null
+let chartInstance: {
+  setOption: (option: unknown, opts?: { notMerge?: boolean }) => void
+  resize: () => void
+  dispose: () => void
+  on: (event: string, handler: (params: { data?: { id?: string | number } }) => void) => void
+} | null = null
+
+async function renderEchartsView() {
+  if (activeView.value === 'panorama' || !echartsEl.value) {
+    chartInstance?.dispose()
+    chartInstance = null
+    return
+  }
+  const option =
+    activeView.value === 'tree' ? treeOption.value : chapterGraphOption.value
+  if (!option) {
+    chartInstance?.dispose()
+    chartInstance = null
+    return
+  }
+  echartsLoading.value = true
+  try {
+    // 关键：等 DOM 真正可见（v-show 的 display 已恢复、卡片完成布局）再 init——
+    // 隐藏容器宽高为 0，ECharts 力导/树布局会塌缩成一条竖带（2026-11-22 实测根因）
+    await nextTick()
+    if (!echartsEl.value || echartsEl.value.clientWidth < 80) {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      if (!echartsEl.value || echartsEl.value.clientWidth < 80) return
+    }
+    if (!echartsModule) {
+      const echarts = await import('echarts/core')
+      const { TreeChart, GraphChart } = await import('echarts/charts')
+      const {
+        TooltipComponent,
+        LegendComponent,
+        TitleComponent,
+      } = await import('echarts/components')
+      const { CanvasRenderer } = await import('echarts/renderers')
+      echarts.use([TreeChart, GraphChart, TooltipComponent, LegendComponent, TitleComponent, CanvasRenderer])
+      echartsModule = echarts as unknown as Record<string, unknown>
+    }
+    const echarts = echartsModule as unknown as {
+      init: (el: HTMLElement) => {
+        setOption: (option: unknown, opts?: { notMerge?: boolean }) => void
+        resize: () => void
+        dispose: () => void
+        on: (event: string, handler: (params: { data?: { id?: string | number } }) => void) => void
+      }
+    }
+    if (!chartInstance) {
+      chartInstance = echarts.init(echartsEl.value)
+      chartInstance.on('click', (params) => {
+        const id = params?.data?.id
+        if (id !== undefined) select(id)
+      })
+    }
+    chartInstance.setOption(option, { notMerge: true })
+    chartInstance.resize()
+    requestAnimationFrame(() => chartInstance?.resize())
+  } catch (error) {
+    logger.error('ECharts 渲染失败', error)
+  } finally {
+    echartsLoading.value = false
+  }
+}
+
+watch(
+  [activeView, treeOption, chapterGraphOption, selectedChapterId],
+  () => {
+    void renderEchartsView()
+  },
+  { flush: 'post' },
+)
+onBeforeUnmount(() => {
+  chartInstance?.dispose()
+  chartInstance = null
 })
 
 /**
@@ -884,6 +1402,29 @@ watch(() => props.courseId, loadAll, { immediate: true })
   height: auto;
   display: block;
 }
+.kg-echarts {
+  width: 100%;
+  height: 560px;
+}
+.kg-echarts.is-loading {
+  opacity: 0.5;
+}
+.kg-chapter-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.kg-chapter-select {
+  min-width: 320px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+  color: var(--ink-1);
+}
 .kg-svg line {
   stroke: var(--line-strong, var(--line));
   stroke-width: 1.3;
@@ -914,6 +1455,56 @@ watch(() => props.courseId, loadAll, { immediate: true })
   transition:
     stroke-width 0.15s,
     fill 0.15s;
+}
+/* 分层径向：章节骨架（橙）/教材抽取实体（蓝）/技能（绿） */
+.kg-node--chapter circle {
+  fill: #f5b041;
+  stroke: #b95c00;
+}
+.kg-node--chapter text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: #8a4a00;
+}
+.kg-node--concept circle {
+  stroke: var(--accent);
+}
+.kg-node--concept text {
+  font-size: 9.5px;
+  fill: var(--ink-3);
+}
+.kg-node--skill circle {
+  fill: var(--ok-soft, #e8f7ee);
+  stroke: var(--ok, #27ae60);
+}
+.kg-node--skill text {
+  font-size: 10px;
+  fill: var(--ok, #27ae60);
+}
+/* 章节骨架边（包含章节）：更醒目的框架线 */
+.is-chapter-frame {
+  stroke: #e6b973;
+  stroke-width: 1.6;
+}
+.kg-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-circle, 50%);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.kg-dot--chapter {
+  background: #f5b041;
+  border: 1px solid #b95c00;
+}
+.kg-dot--concept {
+  background: var(--surface-3);
+  border: 1.4px solid var(--accent);
+}
+.kg-dot--skill {
+  background: var(--ok-soft, #e8f7ee);
+  border: 1.4px solid var(--ok, #27ae60);
 }
 .kg-node:hover circle {
   stroke-width: 2.4;
