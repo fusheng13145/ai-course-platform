@@ -6,9 +6,18 @@ import com.aicourse.common.RoleConstants;
 import com.aicourse.dto.GradeDTO;
 import com.aicourse.dto.SubmissionCreateDTO;
 import com.aicourse.dto.SubmissionResubmitDTO;
+import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.Submission;
+import com.aicourse.entity.Task;
+import com.aicourse.entity.User;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.SubmissionAccessControl;
+import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.NotificationService;
 import com.aicourse.service.SubmissionService;
+import com.aicourse.service.TaskService;
+import com.aicourse.service.UserService;
 import com.aicourse.vo.PlagiarismCheckResultVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -19,10 +28,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -40,13 +54,28 @@ public class SubmissionController {
     private final SubmissionService submissionService;
     private final SubmissionAccessControl accessControl;
     private final com.aicourse.service.PlagiarismCheckService plagiarismCheckService;
+    private final TaskService taskService;
+    private final CourseEnrollmentService enrollmentService;
+    private final UserService userService;
+    private final NotificationService notificationService;
+    private final CourseAccessControl courseAccessControl;
 
     public SubmissionController(SubmissionService submissionService,
                                 SubmissionAccessControl accessControl,
-                                com.aicourse.service.PlagiarismCheckService plagiarismCheckService) {
+                                com.aicourse.service.PlagiarismCheckService plagiarismCheckService,
+                                TaskService taskService,
+                                CourseEnrollmentService enrollmentService,
+                                UserService userService,
+                                NotificationService notificationService,
+                                CourseAccessControl courseAccessControl) {
         this.submissionService = submissionService;
         this.accessControl = accessControl;
         this.plagiarismCheckService = plagiarismCheckService;
+        this.taskService = taskService;
+        this.enrollmentService = enrollmentService;
+        this.userService = userService;
+        this.notificationService = notificationService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -88,6 +117,109 @@ public class SubmissionController {
             }
         });
         return ApiResponse.success("提交成功", submission);
+    }
+
+    /**
+     * 保存作业草稿（学生）。
+     * <p>草稿与正式提交共用同一条 submission 行：草稿不计入成绩与次数统计，
+     * 正式提交时由 SubmissionWriteComponent 复用该行转正（attempt_number 沿用草稿预占号）。</p>
+     */
+    @PostMapping("/draft")
+    public ApiResponse<Submission> saveDraft(@Valid @RequestBody SubmissionCreateDTO body,
+                                             Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Task task = accessControl.assertCanSubmitTask(body.getTaskId(), auth);
+        Submission draft = submissionService.saveDraft(task.getId(), userId, body.getContent(), body.getFileUrls());
+        return ApiResponse.success("草稿已保存", draft);
+    }
+
+    /**
+     * 任务未提交学生名单（教师 / 管理员）。
+     * <p>口径：课程在册学生（enrollment.isActive）− 已有非草稿提交的学生。</p>
+     */
+    @GetMapping("/task/{taskId}/unsubmitted")
+    public ApiResponse<List<Map<String, Object>>> unsubmitted(@PathVariable Long taskId,
+                                                              Authentication auth) {
+        Task task = requireManageableTask(taskId, auth);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (User student : unsubmittedStudents(task)) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("studentId", student.getId());
+            row.put("username", student.getUsername());
+            row.put("fullName", student.getFullName());
+            row.put("studentNo", student.getStudentId());
+            rows.add(row);
+        }
+        return ApiResponse.success(rows);
+    }
+
+    /**
+     * 一键催交：给未提交学生批量投递系统通知。
+     * <p>直接走 notificationService 批量发送，不创建 Reminder 定时任务——催交是即时动作，
+     * 建 PENDING reminder 反而要额外触发 send-due。</p>
+     */
+    @PostMapping("/task/{taskId}/remind")
+    public ApiResponse<Map<String, Object>> remindUnsubmitted(@PathVariable Long taskId,
+                                                              Authentication auth) {
+        Task task = requireManageableTask(taskId, auth);
+        List<User> students = unsubmittedStudents(task);
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (students.isEmpty()) {
+            result.put("count", 0);
+            return ApiResponse.success("没有未提交的学生", result);
+        }
+        List<Long> userIds = students.stream().map(User::getId).collect(Collectors.toList());
+        String title = "作业催交：" + task.getTitle();
+        String content = task.getDueDate() != null
+                ? "请在 " + task.getDueDate().toString().replace('T', ' ') + " 前完成并提交；逾期将按规则扣分。"
+                : "请尽快完成并提交。";
+        notificationService.batchSendNotifications(userIds, title, content, "SYSTEM", "TASK_REMIND", "MEDIUM",
+                "/assignment/" + taskId, null);
+        result.put("count", userIds.size());
+        return ApiResponse.success("已向 " + userIds.size() + " 名学生发送催交通知", result);
+    }
+
+    /** 取任务并校验当前用户可管理其所属课程 */
+    private Task requireManageableTask(Long taskId, Authentication auth) {
+        Task task = taskService.getById(taskId);
+        if (task == null) {
+            throw new com.aicourse.exception.BusinessException(404, "作业任务不存在");
+        }
+        if (task.getCourseId() == null) {
+            throw new com.aicourse.exception.BusinessException(400, "任务未关联课程");
+        }
+        courseAccessControl.assertCanManageCourse(task.getCourseId(), auth);
+        return task;
+    }
+
+    /** 课程在册学生中，尚未正式提交该任务的人（按账号排序，便于教师核对） */
+    private List<User> unsubmittedStudents(Task task) {
+        List<CourseEnrollment> enrollments = enrollmentService.list(
+                new LambdaQueryWrapper<CourseEnrollment>()
+                        .eq(CourseEnrollment::getCourseId, task.getCourseId())
+                        .eq(CourseEnrollment::getIsActive, true));
+        if (enrollments.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> enrolledIds = enrollments.stream()
+                .map(CourseEnrollment::getStudentId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<Submission> submitted = submissionService.list(
+                new LambdaQueryWrapper<Submission>()
+                        .eq(Submission::getTaskId, task.getId())
+                        .ne(Submission::getStatus, "DRAFT"));
+        Set<Long> submittedIds = submitted.stream()
+                .map(Submission::getStudentId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        enrolledIds.removeAll(submittedIds);
+        if (enrolledIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return userService.listByIds(enrolledIds).stream()
+                .sorted((a, b) -> String.valueOf(a.getUsername()).compareTo(String.valueOf(b.getUsername())))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -218,8 +350,9 @@ public class SubmissionController {
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Object> checkPlagiarism(@PathVariable Long id, Authentication auth) {
         accessControl.assertManageable(id, auth);
-        Object result = submissionService.triggerPlagiarismCheck(id);
-        return ApiResponse.success("查重检测完成", result);
+        PlagiarismCheck check = submissionService.triggerPlagiarismCheck(id);
+        // 返回带 matches/摘要的 VO：前端查重面板直接渲染明细，不必再补一次 GET
+        return ApiResponse.success("查重检测完成", plagiarismCheckService.getCheckResult(check.getId()));
     }
 
     /**

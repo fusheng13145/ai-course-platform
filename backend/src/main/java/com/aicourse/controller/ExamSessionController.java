@@ -6,12 +6,18 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.ExamManualGradeDTO;
 import com.aicourse.dto.ExamSubmitDTO;
+import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.entity.User;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.ExamSessionAccessControl;
+import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamSessionService;
+import com.aicourse.service.UserService;
 import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,8 +28,14 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import com.aicourse.util.TrustedClientIpResolver;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 考试会话接口控制器
@@ -43,15 +55,71 @@ public class ExamSessionController {
      * 反代之后恒为代理 IP，「IP 变化」作弊检测（detectCheating）将天然失效。改与限流/节流
      * 同一 {@link TrustedClientIpResolver}，由 app.security.trust-proxy-header 单点决定。 */
     private final TrustedClientIpResolver clientIpResolver;
+    private final ExamPaperService examPaperService;
+    private final UserService userService;
 
     public ExamSessionController(ExamSessionService examSessionService,
                                  ExamSessionAccessControl examSessionAccessControl,
                                  CourseAccessControl courseAccessControl,
-                                 TrustedClientIpResolver clientIpResolver) {
+                                 TrustedClientIpResolver clientIpResolver,
+                                 ExamPaperService examPaperService,
+                                 UserService userService) {
         this.examSessionService = examSessionService;
         this.examSessionAccessControl = examSessionAccessControl;
         this.courseAccessControl = courseAccessControl;
         this.clientIpResolver = clientIpResolver;
+        this.examPaperService = examPaperService;
+        this.userService = userService;
+    }
+
+    /**
+     * 试卷的全部考试会话（教师阅卷台用）。
+     * <p>只返回已交卷的会话（SUBMITTED / GRADED / TIMEOUT / FORCE_SUBMITTED），
+     * 含学生姓名与学号，便于教师逐份核对主观题。</p>
+     */
+    @GetMapping("/paper/{examPaperId}/sessions")
+    @Operation(summary = "试卷全部考试会话", description = "教师/管理员查看某试卷下所有学生的作答会话")
+    public ApiResponse<List<Map<String, Object>>> paperSessions(@Parameter(description = "试卷ID") @PathVariable Long examPaperId,
+                                                                Authentication auth) {
+        ExamPaper paper = examPaperService.getById(examPaperId);
+        if (paper == null) {
+            throw new BusinessException(404, "试卷不存在");
+        }
+        if (paper.getCourseId() == null) {
+            throw new BusinessException(400, "试卷未关联课程");
+        }
+        courseAccessControl.assertCanManageCourse(paper.getCourseId(), auth);
+
+        List<ExamSession> sessions = examSessionService.list(new LambdaQueryWrapper<ExamSession>()
+                .eq(ExamSession::getExamPaperId, examPaperId)
+                .in(ExamSession::getStatus, "SUBMITTED", "GRADED", "TIMEOUT", "FORCE_SUBMITTED")
+                .orderByDesc(ExamSession::getSubmitTime)
+                .orderByDesc(ExamSession::getId));
+        Set<Long> studentIds = sessions.stream()
+                .map(ExamSession::getStudentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, User> userMap = studentIds.isEmpty() ? Collections.emptyMap()
+                : userService.listByIds(studentIds).stream()
+                        .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
+
+        List<Map<String, Object>> rows = new ArrayList<>(sessions.size());
+        for (ExamSession session : sessions) {
+            User student = userMap.get(session.getStudentId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("sessionId", session.getId());
+            row.put("studentId", session.getStudentId());
+            row.put("username", student != null ? student.getUsername() : null);
+            row.put("fullName", student != null ? student.getFullName() : null);
+            row.put("studentNo", student != null ? student.getStudentId() : null);
+            row.put("attemptNumber", session.getAttemptNumber());
+            row.put("status", session.getStatus());
+            row.put("totalScore", session.getTotalScore());
+            row.put("percentage", session.getPercentage());
+            row.put("submitTime", session.getSubmitTime() != null ? session.getSubmitTime().toString() : null);
+            rows.add(row);
+        }
+        return ApiResponse.success(rows);
     }
 
     /**

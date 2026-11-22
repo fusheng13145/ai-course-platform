@@ -6,12 +6,47 @@ import examApi from '@/api/exam'
 /**
  * 学生考试·作答域（useStudentExams 内部拆分，FE-06）。
  *
- * <p>承载题目装载、三容器作答状态（单选/判断 answers、多选 multiAnswers、
- * 简答 textAnswers）、题目导航、作答判定、按题目ID收集与回填（服务端
- * 落库形态归一）、题型展示映射。不持有会话/提交/定时器状态。</p>
+ * <p>承载题目装载、四类作答容器（单选/判断 answers、多选 multiAnswers、
+ * 主观题文本 textAnswers、填空题 fillAnswers）、题目导航、作答判定、按题目ID
+ * 收集与回填（服务端落库形态归一）、题型展示映射。不持有会话/提交/定时器状态。</p>
+ *
+ * <p>主观题包含简答（SHORT_ANSWER）与论述（ESSAY），后端自动阅卷把它们与
+ * 填空（FILL_BLANK）一并归入人工评分（ExamSessionGradingService）。</p>
  *
  * <p>仅由 useStudentExams 编排消费，不单独对外承诺导出面。</p>
  */
+
+/** 多空填空的落库分隔符：服务端按纯文本存，教师阅卷时按此符号辨认各空 */
+const FILL_SEPARATOR = '；'
+/** 单题最多渲染的空位数，避免题干误判导致页面出现大量输入框 */
+const MAX_FILL_BLANKS = 6
+
+/**
+ * 从题干推断填空题的空位数。
+ *
+ * <p>学生端题目接口不返回 correctAnswers（防泄露），无法按标准答案个数决定输入框数量，
+ * 只能看题干占位符：连续下划线优先；中文/英文空括号只有出现两次以上才算多空
+ * （单次括号多为普通标点，例如「（写出一个）」）。识别不到时按单空处理。</p>
+ */
+export function countFillBlanks(content: unknown): number {
+  const text = String(content ?? '')
+  const underscores = text.match(/_{2,}/g)
+  if (underscores && underscores.length > 0) {
+    return Math.min(underscores.length, MAX_FILL_BLANKS)
+  }
+  const brackets = text.match(/[（(]\s*[）)]/g)
+  if (brackets && brackets.length > 1) {
+    return Math.min(brackets.length, MAX_FILL_BLANKS)
+  }
+  return 1
+}
+
+/** 主观题：需要教师人工评分（自动阅卷只判客观题） */
+export function isSubjectiveType(type: unknown): boolean {
+  const normalized = String(type ?? '').toUpperCase()
+  return normalized === 'SHORT_ANSWER' || normalized === 'ESSAY' || normalized === 'FILL_BLANK'
+}
+
 export function useStudentExamSheet() {
   // 题目行尚未 per-endpoint 建模，沿用 ApiData 口径（题型/题目ID 访问点见 collectAnswers 等）
   const questions = ref<ApiData[]>([])
@@ -19,7 +54,8 @@ export function useStudentExamSheet() {
   const currentIndex = ref(0)
   const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案（单选为选项字母）
   const multiAnswers = ref({} as Record<number, string[]>) // 多选答案（选项字母数组）
-  const textAnswers = ref({} as Record<number, string>) // 简答答案
+  const textAnswers = ref({} as Record<number, string>) // 简答/论述答案
+  const fillAnswers = ref({} as Record<number, string[]>) // 填空题各空答案（下标 → 每个空的文本）
 
   /** 当前题目 */
   const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
@@ -37,6 +73,7 @@ export function useStudentExamSheet() {
       answers.value = {}
       multiAnswers.value = {}
       textAnswers.value = {}
+      fillAnswers.value = {}
     } catch (e) {
       logger.error('加载题目失败:', e)
       throw e
@@ -70,8 +107,12 @@ export function useStudentExamSheet() {
     if (q.type === 'MULTIPLE_CHOICE') {
       return multiAnswers.value[index]?.length > 0
     }
-    if (q.type === 'SHORT_ANSWER') {
+    if (q.type === 'SHORT_ANSWER' || q.type === 'ESSAY') {
       return !!textAnswers.value[index]?.trim()
+    }
+    if (q.type === 'FILL_BLANK') {
+      // 至少填出一个空就算已作答：空位数是按题干推断的，过严会把猜错空位数误判成未答
+      return (fillAnswers.value[index] || []).some((item) => String(item ?? '').trim().length > 0)
     }
     const value = answers.value[index]
     if (value === undefined || value === null) return false
@@ -88,6 +129,8 @@ export function useStudentExamSheet() {
       MULTIPLE_CHOICE: '多选题',
       TRUE_FALSE: '判断题',
       SHORT_ANSWER: '简答题',
+      ESSAY: '论述题',
+      FILL_BLANK: '填空题',
     }
     return map[type] || '未知题型'
   }
@@ -98,6 +141,8 @@ export function useStudentExamSheet() {
       MULTIPLE_CHOICE: 'warning',
       TRUE_FALSE: 'info',
       SHORT_ANSWER: 'success',
+      ESSAY: 'success',
+      FILL_BLANK: 'info',
     }
     return map[type] || ''
   }
@@ -132,8 +177,13 @@ export function useStudentExamSheet() {
       if (questionId === undefined || questionId === null) return
       if (q.type === 'MULTIPLE_CHOICE') {
         result[String(questionId)] = multiAnswers.value[idx] || []
-      } else if (q.type === 'SHORT_ANSWER') {
+      } else if (q.type === 'SHORT_ANSWER' || q.type === 'ESSAY') {
         result[String(questionId)] = textAnswers.value[idx] || ''
+      } else if (q.type === 'FILL_BLANK') {
+        // 服务端 answers 是 Map<String,Object>，多空按分隔符拼成一段文本，
+        // 教师阅卷时能逐空对照参考答案（填空本身也是人工评分）
+        const blanks = fillAnswers.value[idx] || []
+        result[String(questionId)] = blanks.map((item) => String(item ?? '').trim()).join(FILL_SEPARATOR)
       } else {
         result[String(questionId)] = answers.value[idx] ?? ''
       }
@@ -183,6 +233,22 @@ export function useStudentExamSheet() {
   }
 
   /**
+   * 把落库的填空作答还原成「每个空一段文本」。
+   *
+   * <p>单空题整体作为一个答案，不按分隔符拆（答案自身可能含分号）；
+   * 多空题按 {@link FILL_SEPARATOR}（兼容半角分号）切分，缺的空补空串以对齐输入框。</p>
+   */
+  function splitFillValue(value: unknown, count: number): string[] {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item ?? '')).slice(0, count)
+    }
+    const text = typeof value === 'string' ? value : String(value ?? '')
+    if (count <= 1) return text ? [text] : []
+    const parts = text.split(/[；;]/).map((item) => item.trim())
+    return Array.from({ length: count }, (_, i) => parts[i] ?? '')
+  }
+
+  /**
    * 把已保存作答按题目ID回填到当前题目列表。
    * <p>按题目ID匹配而非下标匹配，可容忍题目顺序变化（后端存在题目乱序）。</p>
    */
@@ -197,8 +263,14 @@ export function useStudentExamSheet() {
       const value = saved[key]
       if (q.type === 'MULTIPLE_CHOICE') {
         multiAnswers.value[idx] = Array.isArray(value) ? (value as string[]) : []
-      } else if (q.type === 'SHORT_ANSWER') {
+      } else if (q.type === 'SHORT_ANSWER' || q.type === 'ESSAY') {
         textAnswers.value[idx] = typeof value === 'string' ? value : String(value ?? '')
+      } else if (q.type === 'FILL_BLANK') {
+        // 空位数以题干为准重新推断，再按分隔符还原；单空题整体作为一个答案，避免误拆
+        fillAnswers.value[idx] = splitFillValue(
+          value,
+          countFillBlanks(q.content ?? q.questionContent),
+        )
       } else {
         answers.value[idx] = value as string | number | boolean
       }
@@ -216,6 +288,7 @@ export function useStudentExamSheet() {
     answers.value = {}
     multiAnswers.value = {}
     textAnswers.value = {}
+    fillAnswers.value = {}
   }
 
   return {
@@ -225,6 +298,7 @@ export function useStudentExamSheet() {
     answers,
     multiAnswers,
     textAnswers,
+    fillAnswers,
     currentQuestion,
     loadQuestions,
     goToQuestion,
@@ -233,6 +307,7 @@ export function useStudentExamSheet() {
     isQuestionAnswered,
     getQuestionTypeName,
     getQuestionTypeTag,
+    countFillBlanks,
     parseOptions,
     collectAnswers,
     parseSavedAnswers,

@@ -459,10 +459,10 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(text).toContain('期中测验')
     expect(text).toContain('得分')
     expect(text).toContain('满分')
-    // 得分 / 满分两列：考试得分由得分率折算到卷面分
+    // 成绩项按提交时间倒序（默认最新在前）：10-20 的考试排在 10-01 的作业之前
     const rows = wrapper.findAll('tbody tr').map((tr) => tr.findAll('td').map((td) => td.text()))
-    expect(rows[0]).toEqual(['实验一', '作业', '88', '100', '已批改', '2026-10-01 10:00'])
-    expect(rows[1]).toEqual(['期中测验', '考试', '76', '100', '已批改', '2026-10-20 09:00'])
+    expect(rows[0]).toEqual(['期中测验', '考试', '76', '100', '已批改', '2026-10-20 09:00'])
+    expect(rows[1]).toEqual(['实验一', '作业', '88', '100', '已批改', '2026-10-01 10:00'])
     expect(text).toContain('已批改')
     expect(text).toContain('待出分')
     expect(text).toContain('学情报告')
@@ -481,9 +481,9 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     expect(exportRows).toHaveLength(3)
     expect(exportRows[0]).toMatchObject({
       课程: '计算机网络',
-      成绩项: '实验一',
-      类型: '作业',
-      得分: '88',
+      成绩项: '期中测验',
+      类型: '考试',
+      得分: '76',
       满分: '100',
       状态: '已批改',
     })
@@ -494,6 +494,17 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
       得分: '90',
       满分: '100',
     })
+
+    // 排序切换：切到「最早优先」后，10-01 的作业排回第一行
+    const orderToggle = findButton(wrapper, '时间 ↓ 最新优先')
+    expect(orderToggle).toBeTruthy()
+    await orderToggle?.trigger('click')
+    const ascRows = wrapper
+      .findAll('tbody tr')
+      .map((tr) => tr.findAll('td').map((td) => td.text()))
+    expect(ascRows[0][0]).toBe('实验一')
+    expect(ascRows[1][0]).toBe('期中测验')
+    await orderToggle?.trigger('click') // 复原为倒序，不影响后续课程切换断言
 
     const dataStructureChip = wrapper
       .findAll('.course-chip')

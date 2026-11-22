@@ -27,6 +27,7 @@
               <th class="w-140">状态</th>
               <th class="w-220">截止时间</th>
               <th class="w-140">得分</th>
+              <th class="w-140">重做</th>
               <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
@@ -42,6 +43,17 @@
               <td>{{ fmtDue(row.dueDate) }}</td>
               <td>{{ scoreText(row) }}</td>
               <td>
+                <button
+                  v-if="canSubmitRow(row)"
+                  class="text-btn"
+                  :title="row.submission ? '基于上次作答重新提交' : '提交本次作业'"
+                  @click="openStudentDetail(row)"
+                >
+                  {{ row.submission ? '重新提交' : '提交作业' }}
+                </button>
+                <span v-else class="t-sub">—</span>
+              </td>
+              <td class="td-actions">
                 <button class="text-btn" @click="openStudentDetail(row)">查看详情</button>
               </td>
             </tr>
@@ -112,9 +124,10 @@
           <p v-if="studentDetailSubmission.feedback" class="detail-body">
             <span class="detail-label">教师评语：</span>{{ studentDetailSubmission.feedback }}
           </p>
+          <p v-if="attemptHint" class="detail-body detail-hint">{{ attemptHint }}</p>
         </div>
 
-        <div v-if="canSubmitDetail" class="submit-box">
+        <div v-if="canSubmitDetail" ref="submitBoxRef" class="submit-box">
           <label class="field span-2">
             <span>作答内容</span>
             <textarea
@@ -147,7 +160,7 @@
           <p v-if="studentUploading" class="detail-body">附件上传中…</p>
           <p v-if="studentFormError" class="form-error">{{ studentFormError }}</p>
         </div>
-        <p v-else class="detail-body detail-hint">该作业当前不可再提交；如需补交请联系任课教师。</p>
+        <p v-else class="detail-body detail-hint">{{ submitBlockedHint }}</p>
       </template>
       <template #footer>
         <button class="btn btn-ghost" @click="studentDetailOpen = false">关闭</button>
@@ -157,7 +170,7 @@
           :disabled="studentSubmitting || studentUploading"
           @click="submitStudent"
         >
-          {{ studentSubmitting ? '提交中…' : '提交作业' }}
+          {{ studentSubmitting ? '提交中…' : hasSubmittedDetail ? '重新提交作业' : '提交作业' }}
         </button>
       </template>
     </Modal>
@@ -212,6 +225,9 @@
               <td>{{ chapterLabel(row.chapterId) }}</td>
               <td>
                 <div class="row-actions">
+                  <button v-if="row.isPublished" class="text-btn" @click="openUnsubmitted(row)">
+                    未交名单
+                  </button>
                   <button class="text-btn" @click="togglePublish(row)">
                     {{ row.isPublished ? '取消发布' : '发布' }}
                   </button>
@@ -314,6 +330,43 @@
     </Modal>
 
     <!-- 删除确认 -->
+    <Modal v-model:open="unsubmittedOpen" title="未交名单" width="560px">
+      <p v-if="unsubmittedTask" class="modal-hint">
+        {{ unsubmittedTask.title }} · {{ unsubmittedRows.length }} 人未提交
+      </p>
+      <p v-if="unsubmittedError" class="form-error">{{ unsubmittedError }}</p>
+      <p v-if="unsubmittedLoading" class="hint">加载中…</p>
+      <div v-else-if="unsubmittedRows.length" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>账号</th>
+              <th>姓名</th>
+              <th>学号</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in unsubmittedRows" :key="row.studentId">
+              <td>{{ row.username }}</td>
+              <td>{{ row.fullName || '—' }}</td>
+              <td>{{ row.studentNo || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="hint">全部学生都已提交，无需催交。</p>
+      <template #footer>
+        <button class="btn btn-ghost" @click="unsubmittedOpen = false">关闭</button>
+        <button
+          class="btn btn-primary"
+          :disabled="reminding || unsubmittedLoading || !unsubmittedRows.length"
+          @click="remindAllUnsubmitted"
+        >
+          {{ reminding ? '发送中…' : '一键催交' }}
+        </button>
+      </template>
+    </Modal>
+
     <Modal v-model:open="confirm.open" title="删除任务" width="460px">
       <p class="modal-text">{{ confirmText }}</p>
       <p class="modal-hint">将一并移除该任务的附件、提交记录与学生成绩，且无法恢复。</p>
@@ -326,7 +379,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Modal from '../../../components/Modal.vue'
 import Icon from '../../../components/Icon.vue'
 import { useUi } from '../../../composables/ui'
@@ -355,6 +409,7 @@ const TASK_TYPES = ['视频', '测验', '作业', '文档', '讨论']
 
 const props = withDefaults(defineProps<{ courseId: number; role?: Role }>(), { role: 'teacher' })
 const { toast } = useUi()
+const router = useRouter()
 
 const isStudent = computed(() => props.role === 'student')
 
@@ -393,6 +448,8 @@ interface StudentSubmissionView {
   content: string | null
   fileUrls: string[]
   submittedAt: string | null
+  /** 第几次提交（submissions.attempt_number）；用于剩余可提交次数判断 */
+  attemptNumber: number | null
 }
 
 interface StudentAssignmentRow {
@@ -404,6 +461,8 @@ interface StudentAssignmentRow {
   attachmentUrl: string
   dueDate: string
   maxScore: number | null
+  /** 允许的最大提交次数；0 / null = 不限（与后端 SubmissionWriteComponent 同口径） */
+  maxSubmissions: number | null
   /** 后端提交校验为 Boolean.TRUE.equals(isPublished)，null 不能按已发布处理 */
   isPublished: boolean
   status: StudentStatus
@@ -441,6 +500,9 @@ const studentError = ref('')
 const studentDetailOpen = ref(false)
 const studentDetailLoading = ref(false)
 const studentDetailError = ref('')
+/** 从列表「重新提交 / 提交作业」进入时，详情加载完成后滚动到提交区并聚焦输入框 */
+const submitFocusRequested = ref(false)
+const submitBoxRef = ref<HTMLElement | null>(null)
 const studentDetail = ref<StudentAssignmentRow | null>(null)
 const studentDetailSubmission = ref<StudentSubmissionView | null>(null)
 const studentForm = reactive({ content: '', fileUrls: [] as string[] })
@@ -478,6 +540,7 @@ function toStudentSubmission(raw: Record<string, unknown> | null): StudentSubmis
     content: (raw.content as string | null) ?? null,
     fileUrls: normalizeAttachmentUrls(raw.fileUrls),
     submittedAt: (raw.submittedAt as string | null) ?? null,
+    attemptNumber: raw.attemptNumber == null ? null : Number(raw.attemptNumber),
   }
 }
 
@@ -520,6 +583,7 @@ function toStudentRow(
     attachmentUrl: String(task.attachmentUrl ?? ''),
     dueDate,
     maxScore: task.maxScore == null ? null : Number(task.maxScore),
+    maxSubmissions: task.maxSubmissions == null ? null : Number(task.maxSubmissions),
     isPublished: task.isPublished === true,
     status,
     statusLabel: STUDENT_STATUS_LABEL[status],
@@ -583,13 +647,55 @@ function scoreText(row: StudentAssignmentRow): string {
 
 /** 附件链接安全化：实现已上提到 utils/safeUrl（F-3），口径一字未改——仅放行 http(s)，非法值返回空串 */
 
+/** 已正式提交的次数：前端只拿到最新一次，用 attemptNumber 代表 */
+function usedAttempts(detail: StudentAssignmentRow): number {
+  return Number(detail.submission?.attemptNumber ?? 0) || 0
+}
+
+/** 是否已达任务配置的提交上限；maxSubmissions 为 0 / null 表示不限次数 */
+function submissionLimitReached(detail: StudentAssignmentRow): boolean {
+  const max = Number(detail.maxSubmissions ?? 0)
+  return Number.isFinite(max) && max > 0 && usedAttempts(detail) >= max
+}
+
+/** 列表行是否可提交 / 重做（与详情同一口径） */
+function canSubmitRow(row: StudentAssignmentRow): boolean {
+  if (!row.isPublished || !isSubmissionTaskType(row.taskType)) return false
+  return !submissionLimitReached(row)
+}
+
+/**
+ * 详情是否允许提交 / 重做。
+ * <p>后端 SubmissionWriteComponent 只按 maxSubmissions 限制次数（0=不限），不会因为
+ * SUBMITTED / GRADED 状态拒绝；每次提交 attempt_number 递增并保留历次记录，逾期也只是
+ * 按 late_penalty_per_day 扣分。原先这里只放行 NOT_SUBMITTED / OVERDUE / RETURNED，
+ * 导致学生提交或批改后永久无法重做（与考试重考同类问题）。</p>
+ */
 const canSubmitDetail = computed(() => {
   const detail = studentDetail.value
-  if (!detail || !detail.isPublished || !isSubmissionTaskType(detail.taskType)) return false
-  // 逾期仍可提交：后端按「允许迟交但计逾期扣分」处理（SubmissionWriteComponent）
-  return (
-    detail.status === 'NOT_SUBMITTED' || detail.status === 'OVERDUE' || detail.status === 'RETURNED'
-  )
+  return detail ? canSubmitRow(detail) : false
+})
+
+/** 详情里是否已有提交：决定按钮写「提交作业」还是「重新提交作业」 */
+const hasSubmittedDetail = computed(() => Boolean(studentDetail.value?.submission))
+
+/** 提交次数提示：配置了上限报 x / max，不限次数时只报已提交数 */
+const attemptHint = computed(() => {
+  const detail = studentDetail.value
+  if (!detail) return ''
+  const used = usedAttempts(detail)
+  const max = Number(detail.maxSubmissions ?? 0)
+  if (max > 0) return `已提交 ${used} / ${max} 次`
+  return used > 0 ? `已提交 ${used} 次，可继续重新提交` : ''
+})
+
+/** 不可提交时的原因说明 */
+const submitBlockedHint = computed(() => {
+  const detail = studentDetail.value
+  if (detail && submissionLimitReached(detail)) {
+    return `已达到最大提交次数（${detail.maxSubmissions} 次），无法再次提交。`
+  }
+  return '该作业当前不可再提交；如需补交请联系任课教师。'
 })
 
 async function fetchStudentDetail(taskId: number) {
@@ -599,29 +705,13 @@ async function fetchStudentDetail(taskId: number) {
   )
 }
 
-async function openStudentDetail(row: StudentAssignmentRow) {
-  studentDetail.value = { ...row }
-  studentDetailSubmission.value = row.submission
-  studentDetailError.value = ''
-  studentFormError.value = ''
-  studentForm.content = row.submission?.content ?? ''
-  studentForm.fileUrls = []
-  studentDetailOpen.value = true
-  studentDetailLoading.value = true
-  try {
-    const body = await fetchStudentDetail(row.taskId)
-    if (body?.assignment) {
-      // 详情接口返回任务实体 + 当前学生提交（AssignmentDetailVO）
-      const merged = toStudentRow(body.assignment, body.submission ?? null)
-      Object.assign(studentDetail.value, merged)
-      studentDetailSubmission.value = merged.submission
-    }
-  } catch (error) {
-    logger.error('加载作业详情失败', error)
-    studentDetailError.value = '作业详情加载失败；以上信息来自列表，可关闭后重试。'
-  } finally {
-    studentDetailLoading.value = false
-  }
+/**
+ * 作业详情与提交已迁移到独立全屏页（/assignment/:taskId）。
+ * 用新标签页打开，列表页保留；保留函数名以兼容既有调用点。
+ */
+function openStudentDetail(row: StudentAssignmentRow) {
+  const { href } = router.resolve(`/assignment/${row.taskId}`)
+  window.open(href, '_blank', 'noopener,noreferrer')
 }
 
 async function onStudentFileChange(event: Event) {
@@ -673,6 +763,7 @@ function applySubmittedSubmission(
       content: fallback.content,
       fileUrls: fallback.fileUrls,
       submittedAt: new Date().toISOString(),
+      attemptNumber: (studentDetail.value?.submission?.attemptNumber ?? 0) + 1,
     }
   }
   const status = submission.status as StudentStatus
@@ -738,7 +829,7 @@ async function submitStudent() {
       content,
       fileUrls,
     })
-    toast('提交成功，等待教师批改', 'ok')
+    toast(isResubmission ? '已重新提交，等待教师批改' : '提交成功，等待教师批改', 'ok')
     // 提交已成功：先按响应落定已提交态，后续刷新失败也不会留下可重复提交的表单
     applySubmittedSubmission(detail.taskId, response, { content, fileUrls, isResubmission })
     await refreshStudentAfterSubmit(detail.taskId)
@@ -779,6 +870,55 @@ const extendError = ref('')
 const extendForm = reactive({ newDueDate: '', reason: '' })
 
 const confirm = reactive({ open: false, row: null as TaskRow | null, busy: false })
+
+/* ---- 未交名单 + 一键催交 ---- */
+const unsubmittedOpen = ref(false)
+const unsubmittedLoading = ref(false)
+const unsubmittedError = ref('')
+const unsubmittedTask = ref<TaskRow | null>(null)
+const unsubmittedRows = ref<{ studentId: number; username: string; fullName: string; studentNo: string }[]>([])
+const reminding = ref(false)
+
+/** 打开某任务的未交名单（教师） */
+async function openUnsubmitted(row: TaskRow) {
+  unsubmittedTask.value = row
+  unsubmittedRows.value = []
+  unsubmittedError.value = ''
+  unsubmittedOpen.value = true
+  unsubmittedLoading.value = true
+  try {
+    const rows = unwrap<Record<string, unknown>[]>(await submissionApi.getUnsubmitted(row.id)) ?? []
+    unsubmittedRows.value = rows as typeof unsubmittedRows.value
+  } catch (error) {
+    logger.error('加载未交名单失败', error)
+    unsubmittedError.value = '未交名单加载失败，请稍后重试'
+  } finally {
+    unsubmittedLoading.value = false
+  }
+}
+
+/** 一键催交：给名单里的学生批量发送系统通知 */
+async function remindAllUnsubmitted() {
+  const task = unsubmittedTask.value
+  if (!task || reminding.value) return
+  reminding.value = true
+  unsubmittedError.value = ''
+  try {
+    const data = unwrap<Record<string, unknown>>(
+      await submissionApi.remindUnsubmitted(task.id),
+    ) ?? {}
+    const count = Number(data.count ?? unsubmittedRows.value.length)
+    toast(
+      count > 0 ? `已向 ${count} 名学生发送催交通知` : '没有需要催交的学生',
+      count > 0 ? 'ok' : 'info',
+    )
+  } catch (error) {
+    logger.error('发送催交通知失败', error)
+    unsubmittedError.value = '催交通知发送失败，请稍后重试'
+  } finally {
+    reminding.value = false
+  }
+}
 
 const total = computed(() => tasks.value.length)
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
@@ -991,6 +1131,10 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+/* 「操作」表头由全局 th.th-actions 居中，单元格也要居中才能对齐 */
+.td-actions {
+  text-align: center;
 }
 .t-title {
   display: block;

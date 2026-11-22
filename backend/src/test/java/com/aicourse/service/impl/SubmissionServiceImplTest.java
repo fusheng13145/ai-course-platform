@@ -91,7 +91,7 @@ class SubmissionServiceImplTest {
         SubmissionGradeComponent gradeComponent = new SubmissionGradeComponent(null, taskService,
                 notificationService, aiService, jsonSupport, writeComponent, evidenceComponent);
         SubmissionReadComponent readComponent =
-                new SubmissionReadComponent(null, plagiarismCheckService, aiService, jsonSupport);
+                new SubmissionReadComponent(null, plagiarismCheckService, jsonSupport);
         service = new SubmissionServiceImpl(writeComponent, gradeComponent, readComponent);
         ReflectionTestUtils.setField(service, "baseMapper", submissionMapper);
         // 同步 mapper 到内部组件（兼容构造器组装的真实组件初始持有 null mapper）
@@ -119,11 +119,8 @@ class SubmissionServiceImplTest {
 
         when(aiService.generateContent(anyString(), anyString()))
                 .thenReturn("{\"score\":85,\"feedback\":\"good\",\"highlights\":\"h\",\"suggestions\":\"s\"}");
-        when(aiService.checkPlagiarism(anyString(), anyString())).thenReturn("0");
 
-        when(plagiarismCheckService.save(any(PlagiarismCheck.class))).thenReturn(true);
         when(plagiarismCheckService.list(any(Wrapper.class))).thenReturn(new ArrayList<>());
-        when(plagiarismCheckService.updateById(any(PlagiarismCheck.class))).thenReturn(true);
         // objectMapper 用 mock 默认行为即可：readValue 返回 null -> parseData 容错返回空 Map，
         // writeValueAsString 返回 null -> submissionData 置空，均不抛受检异常。
     }
@@ -516,27 +513,38 @@ class SubmissionServiceImplTest {
     }
 
     @Test
-    @DisplayName("triggerPlagiarismCheck 无他者提交为低风险")
-    void plag_noOthers() {
+    @DisplayName("triggerPlagiarismCheck 委托本地查重：createCheck→executeCheck→getById")
+    void plag_delegatesToLocalCheck() {
         submission.setContent("解答内容");
         when(submissionMapper.selectById(anyLong())).thenReturn(submission);
-        when(submissionMapper.selectList(any())).thenReturn(new ArrayList<>());
+        PlagiarismCheck check = new PlagiarismCheck();
+        check.setId(9L);
+        check.setStatus("COMPLETED");
+        check.setSimilarityScore(new BigDecimal("0.35"));
+        when(plagiarismCheckService.createCheck(eq(1L), eq("TEXT"))).thenReturn(check);
+        when(plagiarismCheckService.getById(eq(9L))).thenReturn(check);
+
         PlagiarismCheck r = service.triggerPlagiarismCheck(1L);
-        assertEquals("LOW_RISK", r.getStatus());
-        verify(plagiarismCheckService).updateById(any(PlagiarismCheck.class));
+
+        assertEquals("COMPLETED", r.getStatus());
+        verify(plagiarismCheckService).createCheck(eq(1L), eq("TEXT"));
+        verify(plagiarismCheckService).executeCheck(eq(9L));
+        verify(plagiarismCheckService).getById(eq(9L));
     }
 
     @Test
-    @DisplayName("triggerPlagiarismCheck 高相似度为高风险")
-    void plag_highRisk() {
+    @DisplayName("triggerPlagiarismCheck 执行失败(FAILED)时抛业务异常")
+    void plag_failedThrows() {
         submission.setContent("解答内容");
         when(submissionMapper.selectById(anyLong())).thenReturn(submission);
-        Submission other = new Submission();
-        other.setId(2L); other.setContent("他人解答");
-        when(submissionMapper.selectList(any())).thenReturn(List.of(other));
-        when(aiService.checkPlagiarism(anyString(), anyString())).thenReturn("85.5");
-        PlagiarismCheck r = service.triggerPlagiarismCheck(1L);
-        assertEquals("HIGH_RISK", r.getStatus());
+        PlagiarismCheck check = new PlagiarismCheck();
+        check.setId(9L);
+        check.setStatus("FAILED");
+        check.setErrorMessage("比对异常");
+        when(plagiarismCheckService.createCheck(eq(1L), eq("TEXT"))).thenReturn(check);
+        when(plagiarismCheckService.getById(eq(9L))).thenReturn(check);
+
+        assertThrows(BusinessException.class, () -> service.triggerPlagiarismCheck(1L));
     }
 
     // ===================== getByTaskAndStudent =====================

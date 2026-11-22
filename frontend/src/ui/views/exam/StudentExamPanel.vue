@@ -52,12 +52,12 @@
           <div class="row-actions">
             <button
               class="btn btn-sm"
-              :class="row.exam.completed ? 'btn-ghost' : 'btn-primary'"
+              :class="row.joinable ? 'btn-primary' : 'btn-ghost'"
               :disabled="!row.joinable"
               :title="row.joinable ? '' : row.status"
               @click="onEnter(row.exam)"
             >
-              {{ row.exam.completed ? '已完成' : '开始作答' }}
+              {{ row.exam.completed ? '已完成' : row.retake ? '再次考试' : '开始作答' }}
             </button>
           </div>
         </li>
@@ -148,12 +148,35 @@
           </button>
         </div>
 
+        <div v-else-if="currentQuestion.type === 'FILL_BLANK'" class="q-fill">
+          <label
+            v-for="blankIndex in fillBlankSlots(currentIndex)"
+            :key="`fill-${blankIndex}`"
+            class="fill-row"
+          >
+            <span class="fill-label">第 {{ blankIndex + 1 }} 空</span>
+            <input
+              class="input"
+              type="text"
+              :value="fillAnswers[currentIndex]?.[blankIndex] ?? ''"
+              :disabled="submitting"
+              :placeholder="`请填写第 ${blankIndex + 1} 空`"
+              @input="setFillAnswer(currentIndex, blankIndex, $event)"
+            />
+          </label>
+          <p v-if="fillBlankSlots(currentIndex).length > 1" class="hint-inline">
+            本题共 {{ fillBlankSlots(currentIndex).length }} 空，请逐空填写
+          </p>
+        </div>
+
         <textarea
-          v-else-if="currentQuestion.type === 'SHORT_ANSWER'"
+          v-else-if="currentQuestion.type === 'SHORT_ANSWER' || currentQuestion.type === 'ESSAY'"
           v-model="textAnswers[currentIndex]"
           class="input q-text"
-          rows="6"
-          placeholder="请输入您的答案"
+          :rows="currentQuestion.type === 'ESSAY' ? 8 : 6"
+          :placeholder="
+            currentQuestion.type === 'ESSAY' ? '请分点作答，写清论点与理由' : '请输入您的答案'
+          "
           :disabled="submitting"
         />
 
@@ -211,6 +234,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import { useStudentExams } from '@/composables/useStudentExams'
@@ -219,6 +243,7 @@ import studentApi from '@/api/student'
 
 const props = defineProps<{ courseId?: number | null }>()
 const { toast } = useUi()
+const router = useRouter()
 
 const askState = reactive({
   open: false,
@@ -290,6 +315,8 @@ const {
   answers,
   multiAnswers,
   textAnswers,
+  fillAnswers,
+  countFillBlanks,
   defaultScore,
   remainingMinutes,
   countdownDisplay,
@@ -309,7 +336,6 @@ const {
   getResultClass,
   examJoinReason,
   isExamJoinable,
-  enterExam,
 } = exams
 
 courseIdFilter.value = props.courseId ?? null
@@ -345,6 +371,7 @@ const statusLabel = (exam: Record<string, unknown>) => {
   if (reason === 'notEnrolled') return '未选课'
   if (reason === 'beforeStart') return '未开始'
   if (reason === 'afterEnd') return '已结束'
+  if (exam.attempted) return '可重考'
   return '可参加'
 }
 const statusChip = (exam: Record<string, unknown>) =>
@@ -417,6 +444,8 @@ const examRows = computed(() =>
       status: statusLabel(exam),
       statusCls: statusChip(exam),
       joinable: isExamJoinable(exam),
+      // 已考过但次数未用尽：按钮显示「再次考试」，与后端 max_attempts 语义对齐
+      retake: Boolean(exam.attempted) && !exam.completed,
     }
   }),
 )
@@ -438,8 +467,28 @@ function toggleMulti(index: number) {
   multiAnswers.value[at] = current
 }
 
+/** 填空题各空的序号数组；空位数由题干占位符推断（学生端拿不到标准答案个数） */
+function fillBlankSlots(index: number): number[] {
+  const question = questions.value[index]
+  const count = countFillBlanks(question?.content ?? question?.questionContent)
+  return Array.from({ length: count }, (_, i) => i)
+}
+
+function setFillAnswer(index: number, blankIndex: number, event: Event) {
+  const target = event.target as HTMLInputElement | null
+  const slots = fillBlankSlots(index).length
+  // 补齐长度后再写入，避免先填第 2 空时数组只有 1 项
+  const current = Array.from({ length: slots }, (_, i) => fillAnswers.value[index]?.[i] ?? '')
+  current[blankIndex] = target?.value ?? ''
+  fillAnswers.value[index] = current
+}
+
 function onEnter(exam: Record<string, unknown>) {
-  enterExam(exam)
+  const paperId = Number(exam.id ?? exam.paperId)
+  if (!Number.isFinite(paperId) || paperId <= 0) return
+  // 在新标签页打开沉浸式答题页：列表页保留，可同时查看其它考试
+  const { href } = router.resolve(`/exam-room/${paperId}`)
+  window.open(href, '_blank', 'noopener,noreferrer')
 }
 </script>
 
@@ -545,6 +594,24 @@ function onEnter(exam: Record<string, unknown>) {
 .q-judge {
   display: flex;
   gap: 8px;
+}
+.q-fill {
+  display: grid;
+  gap: 8px;
+}
+.fill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fill-label {
+  flex: none;
+  min-width: 48px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.fill-row .input {
+  flex: 1;
 }
 .q-text {
   width: 100%;
