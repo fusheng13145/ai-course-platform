@@ -5,7 +5,6 @@ import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.integration.rag.RagContract.RagSource;
-import com.aicourse.service.RAGService;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;
 import lombok.extern.slf4j.Slf4j;
@@ -30,12 +29,14 @@ public class AiDialogueComponent {
     private static final int QUESTION_RETRIEVE_TOP_K = 5;
 
     private final AiCoreComponent core;
-    private final RAGService ragService;
     private final CourseEvidenceComponent evidence;
 
-    public AiDialogueComponent(AiCoreComponent core, RAGService ragService, CourseEvidenceComponent evidence) {
+    /**
+     * 2026-11-21 DeepGraph RAG 接入：流式问答检索改经 {@code evidence.retrieveMergedTyped}
+     * 双引擎合并（8002 + 8501），本组件不再直接依赖 {@code RAGService}。
+     */
+    public AiDialogueComponent(AiCoreComponent core, CourseEvidenceComponent evidence) {
         this.core = core;
-        this.ragService = ragService;
         this.evidence = evidence;
     }
 
@@ -201,12 +202,15 @@ public class AiDialogueComponent {
         String safeQuestion = core.neutralizeInjection(question);
 
         // 有归属课程时先召回课程资料：既做接地提示词，又把出处带回界面（两条用途同源，避免「出处是摆设」）
+        // 2026-11-21 DeepGraph RAG 接入：检索改走 evidence.retrieveMergedTyped 双引擎合并——
+        // 8002 知识点语料为主，8501 deepgraph_rag 整篇文档语料为增量第二源（不可用时静默跳过）；
+        // 两路均无 ENGINE 证据时保持原有降级语义（纯 LLM 对话、sources 为空）。
         List<QaSourceVO> sources = List.of();
         String grounding = null;
         if (courseId != null) {
             try {
                 List<QaSourceVO> retrieved = core.toQaSources(
-                        ragService.retrieveTyped(question, courseId, STREAM_RETRIEVE_TOP_K));
+                        evidence.retrieveMergedTyped(question, courseId, STREAM_RETRIEVE_TOP_K));
                 if (!retrieved.isEmpty()) {
                     sources = retrieved;
                     grounding = buildGrounding(retrieved);

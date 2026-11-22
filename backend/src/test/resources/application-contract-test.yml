@@ -142,6 +142,8 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+deepgraph-rag:
+  enabled: false
 minio:
   enabled: false
 

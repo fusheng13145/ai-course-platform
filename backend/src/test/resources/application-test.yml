@@ -48,6 +48,8 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+deepgraph-rag:
+  enabled: false
 # 测试不依赖外部 MinIO；显式关闭后回退本地实现，避免上下文启动时连 9000 端口。
 minio:
   enabled: false

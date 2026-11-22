@@ -43,9 +43,13 @@ public class AiRagComponent {
      * 答案由本端大模型生成，响应 mode 标记为 {@code ENGINE}；其余情况（引擎不可用、CI 占位、
      * 零命中、调用异常）一律降级为知识点接地问答，mode 标记为 {@code LOCAL}，绝不把
      * 模型记忆或模板文案冒充引擎答案。
+     * </p>
+     * <p>2026-11-21 DeepGraph RAG 接入：检索改走 {@link CourseEvidenceComponent#retrieveWithDocuments}
+     * 双引擎合并——8002 知识点语料为主，8501 deepgraph_rag 整篇文档语料为增量第二源
+     * （未启用/不可达时静默跳过，行为与单引擎时一致）。</p>
      */
     public QaAnswerVO ragAsk(String question, Long courseId) {
-        List<RagSource> results = evidence.retrieve(question, courseId, RETRIEVE_TOP_K);
+        List<RagSource> results = evidence.retrieveWithDocuments(question, courseId, RETRIEVE_TOP_K);
         if (!results.isEmpty()) {
             return answerFromRetrieval(question, courseId, results);
         }

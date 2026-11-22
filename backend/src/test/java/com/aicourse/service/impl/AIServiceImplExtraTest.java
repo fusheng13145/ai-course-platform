@@ -78,7 +78,7 @@ class AIServiceImplExtraTest {
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
         CourseEvidenceComponent evidenceComponent =
                 new CourseEvidenceComponent(ragService, knowledgePointService);
-        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService, evidenceComponent);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, evidenceComponent);
         AiRagComponent ragComponent = new AiRagComponent(evidenceComponent, coreComponent);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent, evidenceComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
