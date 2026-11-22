@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  gradeOrderLabel,
-  gradeTimeValue,
-  sortGradeItems,
-  toggleGradeOrder,
-} from '../gradeOrder'
+import { gradeOrderLabel, gradeTimeValue, sortGradeItems, toggleGradeOrder } from '../gradeOrder'
 
 type Row = { key: string; submittedAt: string; title?: string }
 

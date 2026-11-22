@@ -4,9 +4,7 @@
       <button class="btn btn-ghost btn-sm" @click="back">← 试卷库</button>
       <div class="head-main">
         <h1>{{ paperTitle || '考试阅卷' }}</h1>
-        <p class="head-sub">
-          共 {{ sessions.length }} 份答卷 · 客观题已自动判分，主观题需逐份补分
-        </p>
+        <p class="head-sub">共 {{ sessions.length }} 份答卷 · 客观题已自动判分，主观题需逐份补分</p>
       </div>
       <button class="btn btn-ghost btn-sm" :disabled="loading" @click="reload">刷新</button>
     </header>
@@ -74,60 +72,60 @@
               :key="item.id ?? index"
               class="card question-card"
             >
-            <header class="q-head">
-              <span class="chip chip-info">{{ typeLabel(item.type) }}</span>
-              <b>第 {{ index + 1 }} 题</b>
-              <span class="q-points">满分 {{ item.score ?? '—' }}</span>
-              <span class="foot-space"></span>
-              <span class="chip" :class="isSubjective(item) ? 'chip-warn' : 'chip-mute'">
-                {{ isSubjective(item) ? '需人工评分' : '系统判分' }}
-              </span>
-            </header>
+              <header class="q-head">
+                <span class="chip chip-info">{{ typeLabel(item.type) }}</span>
+                <b>第 {{ index + 1 }} 题</b>
+                <span class="q-points">满分 {{ item.score ?? '—' }}</span>
+                <span class="foot-space"></span>
+                <span class="chip" :class="isSubjective(item) ? 'chip-warn' : 'chip-mute'">
+                  {{ isSubjective(item) ? '需人工评分' : '系统判分' }}
+                </span>
+              </header>
 
-            <p class="q-content">{{ item.content || '（题干缺失）' }}</p>
+              <p class="q-content">{{ item.content || '（题干缺失）' }}</p>
 
-            <div class="answer-grid">
-              <div class="answer-block">
-                <span class="label">学生作答</span>
-                <p class="answer-text">{{ answerText(item) }}</p>
+              <div class="answer-grid">
+                <div class="answer-block">
+                  <span class="label">学生作答</span>
+                  <p class="answer-text">{{ answerText(item) }}</p>
+                </div>
+                <div class="answer-block">
+                  <span class="label">参考答案</span>
+                  <p class="answer-text">{{ correctText(item) }}</p>
+                </div>
               </div>
-              <div class="answer-block">
-                <span class="label">参考答案</span>
-                <p class="answer-text">{{ correctText(item) }}</p>
-              </div>
-            </div>
 
-            <footer class="q-foot">
-              <label class="score-field">
-                <span>得分</span>
-                <input
-                  v-model.number="draftScores[questionKey(item)]"
-                  class="input"
-                  type="number"
-                  min="0"
-                  :max="item.score ?? undefined"
-                  step="0.5"
+              <footer class="q-foot">
+                <label class="score-field">
+                  <span>得分</span>
+                  <input
+                    v-model.number="draftScores[questionKey(item)]"
+                    class="input"
+                    type="number"
+                    min="0"
+                    :max="item.score ?? undefined"
+                    step="0.5"
+                    :disabled="savingQuestion === questionKey(item)"
+                  />
+                </label>
+                <label class="comment-field">
+                  <span>评语（可选）</span>
+                  <input
+                    v-model="draftComments[questionKey(item)]"
+                    class="input"
+                    type="text"
+                    placeholder="给学生的本题反馈"
+                    :disabled="savingQuestion === questionKey(item)"
+                  />
+                </label>
+                <button
+                  class="btn btn-primary btn-sm"
                   :disabled="savingQuestion === questionKey(item)"
-                />
-              </label>
-              <label class="comment-field">
-                <span>评语（可选）</span>
-                <input
-                  v-model="draftComments[questionKey(item)]"
-                  class="input"
-                  type="text"
-                  placeholder="给学生的本题反馈"
-                  :disabled="savingQuestion === questionKey(item)"
-                />
-              </label>
-              <button
-                class="btn btn-primary btn-sm"
-                :disabled="savingQuestion === questionKey(item)"
-                @click="saveQuestion(item)"
-              >
-                {{ savingQuestion === questionKey(item) ? '保存中…' : '保存本题' }}
-              </button>
-            </footer>
+                  @click="saveQuestion(item)"
+                >
+                  {{ savingQuestion === questionKey(item) ? '保存中…' : '保存本题' }}
+                </button>
+              </footer>
             </article>
           </template>
         </template>
@@ -201,12 +199,12 @@ const activeStudent = computed(() => {
   if (!row) return '答卷'
   return `${row.fullName || row.username || `学生 #${row.studentId}`} · 第 ${row.attemptNumber || 1} 次`
 })
-const statusLabel = computed(() =>
-  session.value?.status === 'GRADED' ? '已阅卷' : '待阅卷',
-)
+const statusLabel = computed(() => (session.value?.status === 'GRADED' ? '已阅卷' : '待阅卷'))
 
 const answers = computed<Record<string, unknown>>(() => parseJson(session.value?.answers))
-const savedScores = computed<Record<string, unknown>>(() => parseJson(session.value?.questionScores))
+const savedScores = computed<Record<string, unknown>>(() =>
+  parseJson(session.value?.questionScores),
+)
 const savedComments = computed<Record<string, string>>(
   () => parseJson(session.value?.questionComments) as Record<string, string>,
 )
@@ -291,7 +289,8 @@ function back() {
 async function loadSessions() {
   loadingSessions.value = true
   try {
-    sessions.value = (unwrap<SessionRow[]>(await examApi.getPaperSessions(paperId)) ?? []) as SessionRow[]
+    sessions.value = (unwrap<SessionRow[]>(await examApi.getPaperSessions(paperId)) ??
+      []) as SessionRow[]
   } catch (error) {
     logger.error('加载考试会话失败', error)
     loadError.value = '考试答卷加载失败，请稍后重试'

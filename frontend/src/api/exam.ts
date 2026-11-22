@@ -156,9 +156,7 @@ export const forceSubmit = (sessionId: number | string): Promise<ApiEnvelope<Api
 export const getRemainingTime = (sessionId: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/exam-sessions/${sessionId}/time-remaining`) as Promise<ApiEnvelope<ApiData>>
 /** 试卷全部考试会话（教师阅卷台） */
-export const getPaperSessions = (
-  examPaperId: number | string,
-): Promise<ApiEnvelope<ApiData>> =>
+export const getPaperSessions = (examPaperId: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/exam-sessions/paper/${examPaperId}/sessions`) as Promise<ApiEnvelope<ApiData>>
 /** 自动批改 */
 export const autoGrade = (sessionId: number | string): Promise<ApiEnvelope<ApiData>> =>

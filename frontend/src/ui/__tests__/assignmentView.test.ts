@@ -125,7 +125,10 @@ describe('沉浸式作业页', () => {
     await flushPromises()
 
     await wrapper.find('textarea').setValue('别丢这段')
-    await wrapper.findAll('button').find((b) => b.text().includes('提交作业'))?.trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('提交作业'))
+      ?.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('提交失败')

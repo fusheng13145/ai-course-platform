@@ -108,6 +108,8 @@ spring:
         - classpath:db/migration/V31__user_soft_delete.sql
         # V32（2026-11-20，R2）：存量 session_token 全量 SHA-256 回填
         - classpath:db/migration/V32__session_token_hash_backfill.sql
+        # V33（2026-11-22）：考试/作业提交次数默认值与存量统一为 0（不限次）
+        - classpath:db/migration/V33__unlimited_attempts.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

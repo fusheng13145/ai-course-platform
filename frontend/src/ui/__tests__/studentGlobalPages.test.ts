@@ -499,9 +499,7 @@ describe('学生全局页 · 学业档案（仅成绩）', () => {
     const orderToggle = findButton(wrapper, '时间 ↓ 最新优先')
     expect(orderToggle).toBeTruthy()
     await orderToggle?.trigger('click')
-    const ascRows = wrapper
-      .findAll('tbody tr')
-      .map((tr) => tr.findAll('td').map((td) => td.text()))
+    const ascRows = wrapper.findAll('tbody tr').map((tr) => tr.findAll('td').map((td) => td.text()))
     expect(ascRows[0][0]).toBe('实验一')
     expect(ascRows[1][0]).toBe('期中测验')
     await orderToggle?.trigger('click') // 复原为倒序，不影响后续课程切换断言

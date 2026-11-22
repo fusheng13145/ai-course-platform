@@ -874,7 +874,9 @@ const unsubmittedOpen = ref(false)
 const unsubmittedLoading = ref(false)
 const unsubmittedError = ref('')
 const unsubmittedTask = ref<TaskRow | null>(null)
-const unsubmittedRows = ref<{ studentId: number; username: string; fullName: string; studentNo: string }[]>([])
+const unsubmittedRows = ref<
+  { studentId: number; username: string; fullName: string; studentNo: string }[]
+>([])
 const reminding = ref(false)
 
 /** 打开某任务的未交名单（教师） */
@@ -902,9 +904,8 @@ async function remindAllUnsubmitted() {
   reminding.value = true
   unsubmittedError.value = ''
   try {
-    const data = unwrap<Record<string, unknown>>(
-      await submissionApi.remindUnsubmitted(task.id),
-    ) ?? {}
+    const data =
+      unwrap<Record<string, unknown>>(await submissionApi.remindUnsubmitted(task.id)) ?? {}
     const count = Number(data.count ?? unsubmittedRows.value.length)
     toast(
       count > 0 ? `已向 ${count} 名学生发送催交通知` : '没有需要催交的学生',

@@ -129,7 +129,10 @@ describe('教师考试阅卷台', () => {
 
     const essayCard = wrapper.findAll('.question-card')[0]
     await essayCard.find('.score-field input').setValue('99')
-    await essayCard.findAll('button').find((b) => b.text().includes('保存本题'))?.trigger('click')
+    await essayCard
+      .findAll('button')
+      .find((b) => b.text().includes('保存本题'))
+      ?.trigger('click')
     await flushPromises()
 
     expect(api.manualGrade).not.toHaveBeenCalled()
@@ -141,7 +144,13 @@ describe('教师考试阅卷台', () => {
     api.getExamResult
       .mockResolvedValueOnce({ data: { id: 7008371, status: 'SUBMITTED', totalScore: null } })
       .mockResolvedValueOnce({
-        data: { id: 7008371, status: 'GRADED', totalScore: 10, answers: '{}', questionScores: '{}' },
+        data: {
+          id: 7008371,
+          status: 'GRADED',
+          totalScore: 10,
+          answers: '{}',
+          questionScores: '{}',
+        },
       })
 
     const wrapper = mountReview()

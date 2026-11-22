@@ -183,7 +183,9 @@ export function useStudentExamSheet() {
         // 服务端 answers 是 Map<String,Object>，多空按分隔符拼成一段文本，
         // 教师阅卷时能逐空对照参考答案（填空本身也是人工评分）
         const blanks = fillAnswers.value[idx] || []
-        result[String(questionId)] = blanks.map((item) => String(item ?? '').trim()).join(FILL_SEPARATOR)
+        result[String(questionId)] = blanks
+          .map((item) => String(item ?? '').trim())
+          .join(FILL_SEPARATOR)
       } else {
         result[String(questionId)] = answers.value[idx] ?? ''
       }

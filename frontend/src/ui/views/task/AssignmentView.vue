@@ -273,7 +273,9 @@ function toSubmission(raw: Record<string, unknown> | null): SubmissionView | nul
 }
 
 function backToCourse() {
-  router.push(detail.value?.courseId ? `/student/courses/${detail.value.courseId}/tasks` : '/student/courses')
+  router.push(
+    detail.value?.courseId ? `/student/courses/${detail.value.courseId}/tasks` : '/student/courses',
+  )
 }
 
 async function load() {
@@ -285,9 +287,10 @@ async function load() {
       // 草稿不在详情 VO 里兜底时，从「我的提交」里补：草稿不算正式提交，只用于回填内容
       submissionApi.getAllMySubmissions().catch(() => []),
     ])
-    const body = unwrap<{ assignment?: Record<string, unknown>; submission?: Record<string, unknown> }>(
-      detailRes,
-    )
+    const body = unwrap<{
+      assignment?: Record<string, unknown>
+      submission?: Record<string, unknown>
+    }>(detailRes)
     const assignment = body?.assignment
     if (!assignment) throw new Error('作业不存在或不可访问')
     detail.value = {
@@ -305,8 +308,7 @@ async function load() {
     const formal = toSubmission(body.submission ?? null)
     submission.value = formal && formal.status !== 'DRAFT' ? formal : null
     const draftRow = (mySubmissions as Record<string, unknown>[]).find(
-      (row) =>
-        Number(row.taskId) === taskId && String(row.status ?? '').toUpperCase() === 'DRAFT',
+      (row) => Number(row.taskId) === taskId && String(row.status ?? '').toUpperCase() === 'DRAFT',
     )
     const draft = toSubmission(draftRow ?? null)
     // 有正式提交时以正式提交为准；否则回填草稿内容，让学生接着写
@@ -368,7 +370,8 @@ async function saveDraftNow() {
   }
 }
 
-async function submit() {  if (!detail.value || submitting.value) return
+async function submit() {
+  if (!detail.value || submitting.value) return
   const content = form.content.trim()
   const fileUrls = [...form.fileUrls]
   if (!content && !fileUrls.length) {
