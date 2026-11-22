@@ -264,6 +264,94 @@ class DeepGraphRagControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /rag/deepgraph/health - 服务返回 null 仍安全返回 200")
+    void health_serviceReturnsNull_isSafe() throws Exception {
+        when(deepGraphRagService.healthJson()).thenReturn(null);
+
+        mockMvc.perform(get("/rag/deepgraph/health").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("GET /rag/deepgraph/health - 非 JSON 文本回退为文本节点，不抛 500")
+    void health_serviceReturnsNonJson_fallsBackToText() throws Exception {
+        when(deepGraphRagService.healthJson()).thenReturn("not-json");
+
+        mockMvc.perform(get("/rag/deepgraph/health").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("GET /rag/deepgraph/documents - 管理员不带 courseId 可列全部")
+    void listDocuments_adminWithoutCourse_listsAll() throws Exception {
+        when(deepGraphRagService.listDocuments(null))
+                .thenReturn("{\"documents\":[]}");
+
+        mockMvc.perform(get("/rag/deepgraph/documents").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.documents").isArray());
+
+        verify(deepGraphRagService).listDocuments(isNull());
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/documents/upload - 空文件返回 400")
+    void uploadDocument_emptyFile_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "教材.pdf", "application/pdf", new byte[0]);
+
+        mockMvc.perform(multipart("/rag/deepgraph/documents/upload?courseId=1")
+                        .file(file)
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/documents/upload - 不支持的扩展名返回 400")
+    void uploadDocument_unsupportedExtension_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "教材.exe", "application/octet-stream", "MZ".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(multipart("/rag/deepgraph/documents/upload?courseId=1")
+                        .file(file)
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/documents/upload - 文件名为空返回 400")
+    void uploadDocument_blankName_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "", "text/plain", "body".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(multipart("/rag/deepgraph/documents/upload?courseId=1")
+                        .file(file)
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/chapter-graph - 空白章节名返回 400")
+    void chapterGraph_blankChapterName_returns400() throws Exception {
+        mockMvc.perform(post("/rag/deepgraph/chapter-graph?courseId=1&documentName=教材&chapterName= ")
+                        .contentType(MediaType.APPLICATION_JSON).content("章节正文")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/course-graph/sync - 503 无 message 使用默认提示")
+    void syncCourseGraph_503WithoutMessage_usesDefaultMessage() throws Exception {
+        when(deepGraphRagService.syncCourseKnowledgeGraph(anyLong(), anyString()))
+                .thenReturn("{\"mode\":\"UNAVAILABLE\",\"code\":503}");
+
+        mockMvc.perform(post("/rag/deepgraph/course-graph/sync?courseId=1&documentName=教材")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value("文档图谱引擎未启用或不可达"));
+    }
+
+    @Test
     @DisplayName("POST /rag/deepgraph/learning-path - 不带 courseId 时透传 null 课程")
     void learningPath_withoutCourse_allowsNull() throws Exception {
         when(deepGraphRagService.learningPath(anyString(), isNull(), anyInt(), any(Boolean.class)))

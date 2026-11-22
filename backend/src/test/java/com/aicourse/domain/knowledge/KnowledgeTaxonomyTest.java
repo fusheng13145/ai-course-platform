@@ -57,6 +57,29 @@ class KnowledgeTaxonomyTest {
     }
 
     @Test
+    @DisplayName("未知点类型保留清洗编码，空白回退 CONCEPT，超长截断 30")
+    void unknownPointTypeKeepsCleanedCodeAndClampsLength() {
+        assertEquals("UNKNOWN_TYPE", PointType.canonicalCode("unknown type"));
+        assertEquals("CONCEPT", PointType.canonicalCode("   "));
+        assertEquals("A".repeat(30), PointType.canonicalCode("a".repeat(40)));
+    }
+
+    @Test
+    @DisplayName("关系扩展别名、空白回退与超长截断均稳定")
+    void relationExtendedAliasesAndSanitize() {
+        assertEquals("PREREQUISITE", RelationType.canonicalCode("PRE"));
+        assertEquals("PREREQUISITE", RelationType.canonicalCode("前置"));
+        assertEquals("RELATED", RelationType.canonicalCode("RELATED_TO"));
+        assertEquals("FOLLOW_UP", RelationType.canonicalCode("SUCCESSOR"));
+        assertEquals("CONTAINS_CHAPTER", RelationType.canonicalCode("CHAPTER"));
+        assertEquals("BELONGS_TO", RelationType.canonicalCode("归属"));
+        assertEquals("RELATED", RelationType.canonicalCode("   "));
+        assertEquals("A".repeat(30), RelationType.canonicalCode("a".repeat(40)));
+        assertEquals("相关", RelationType.graphLabel("   "));
+        assertEquals("自定义", RelationType.graphLabel(" 自定义 "));
+    }
+
+    @Test
     @DisplayName("快照版本随课程/节点数/边数/更新时间变化，且格式稳定")
     void snapshotVersionIsStableAndChanges() {
         LocalDateTime t1 = LocalDateTime.of(2026, 11, 22, 12, 0);

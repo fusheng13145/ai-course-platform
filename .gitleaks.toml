@@ -22,7 +22,7 @@ title = "ai-course-platform gitleaks config"
 [extend]
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 description = "已知非真实密钥占位与脱敏标记（勿添加真实密钥）"
 regexes = [
   # CI 构建/测试专用占位口令（见 ci.yml，仅用于 CI 容器与镜像构建，非真实密钥）
@@ -82,3 +82,20 @@ regexes = [
   '''09d25e094faa6ca255[0-9a-f]{8,}''',
   '''NEO4J_AUTH=neo4j/1234''',
 ]
+
+# ==========================================================================
+# 2026-11-22 阶段5：上游 DeepGraph RAG 快照的演示 compose 口令
+# --------------------------------------------------------------------------
+# `python-services/deepgraph_rag/docker-compose.yml` 为上游 25 文件字节快照之一，
+# 其中的 `NEO4J_AUTH` 是上游项目公开的本地演示默认值，不是本平台生产凭据；
+# 平台不使用 Docker 启动该服务（RAG 以 8001/8501 本机进程运行），该文件不参与
+# 任何 CI 镜像构建。为同时保持「上游字节零修改」证据与密钥门禁，这里按
+# **路径 + 完整匹配行** 双条件精确豁免这一条，不按全仓库值放行：
+# 一旦该文件被用于镜像构建或出现其他值，门禁仍会失败。
+# ==========================================================================
+[[allowlists]]
+description = "上游 DeepGraph RAG 快照 docker-compose 的本地演示口令（路径+值双限定）"
+condition = "AND"
+paths = ['''python-services/deepgraph_rag/docker-compose\.yml$''']
+regexTarget = "match"
+regexes = ['''NEO4J_AUTH=neo4j/123456Zyj''']

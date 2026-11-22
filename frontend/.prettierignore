@@ -15,3 +15,5 @@ src/ui/data/demo.json
 src/ui/data/legal.json
 src/ui/styles/record.css
 src/ui/components/Sprite.vue
+# 阶段2审计冻结文件：保持字节不变以维持 SHA-256 证据，格式由审计基线固定
+src/ui/views/course/tabs/KnowledgeGraphTab.vue
