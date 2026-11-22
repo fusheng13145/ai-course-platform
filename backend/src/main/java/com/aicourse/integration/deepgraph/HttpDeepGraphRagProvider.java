@@ -9,7 +9,12 @@ import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.client.RestClient;
 
 import java.net.SocketTimeoutException;
@@ -40,6 +45,9 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
 
     /** 服务间内部认证头：与 Python 端约定常量保持逐字一致。 */
     public static final String INTERNAL_KEY_HEADER = "X-Internal-Key";
+    /** 请求链路追踪/用户身份透传头；Python 适配器只回显/记录，不做授权判定。 */
+    public static final String TRACE_HEADER = "X-Trace-Id";
+    public static final String USER_HEADER = "X-User-Id";
 
     private final RestClient restClient;
     private final int maxRetries;
@@ -69,10 +77,28 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         this.restClient = builder.build();
     }
 
+    /**
+     * 把 Java 侧 traceId（{@code TraceIdFilter} 写入的 MDC 键）与当前登录身份透传到 8501。
+     * 仅用于日志关联/审计，Python 端不据此做课程权限判定；课程 ACL 仍在 Java 控制器完成。
+     */
+    private void applyIdentityHeaders(HttpHeaders headers) {
+        String traceId = MDC.get("traceId");
+        if (traceId != null && !traceId.isBlank()) {
+            headers.set(TRACE_HEADER, traceId);
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated()
+                && auth.getName() != null && !auth.getName().isBlank()
+                && !"anonymousUser".equals(auth.getName())) {
+            headers.set(USER_HEADER, auth.getName());
+        }
+    }
+
     @Override
     public HealthStatus healthCheck() {
         try {
-            restClient.get().uri(healthPath).retrieve().toBodilessEntity();
+            restClient.get().uri(healthPath).headers(this::applyIdentityHeaders)
+                    .retrieve().toBodilessEntity();
             return new HealthStatus(true);
         } catch (Exception e) {
             log.debug("DeepGraph RAG 服务健康检查失败: {}", e.getMessage());
@@ -90,6 +116,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
             }
             body.put(ContractPaths.F_TOP_K, request.topK());
             String raw = restClient.post().uri(ContractPaths.DEEPGRAPH_RETRIEVE)
+                    .headers(this::applyIdentityHeaders)
                     .body(body).retrieve().body(String.class);
             return parseRetrieve(raw);
         }, "DeepGraph RAG 检索", () -> unavailableRetrieve());
@@ -103,18 +130,36 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
             body.put(ContractPaths.F_DOCUMENT_NAME, documentName);
             body.put(ContractPaths.F_CONTENT, content);
             String raw = restClient.post().uri(ContractPaths.DEEPGRAPH_INGEST)
+                    .headers(this::applyIdentityHeaders)
                     .body(body).retrieve().body(String.class);
             return parseIngest(raw);
         }, "DeepGraph RAG 文档入库", () -> unavailableIngest());
     }
 
     @Override
+    public DeepGraphIngestResult ingestFile(Long courseId, String documentName,
+                                            byte[] content, String contentType) {
+        return executeWithRetry(() -> {
+            String uri = ContractPaths.DEEPGRAPH_INGEST_FILE
+                    + "?course_id={courseId}&document_name={documentName}&build_chapter=true";
+            MediaType mediaType = (contentType == null || contentType.isBlank())
+                    ? MediaType.APPLICATION_OCTET_STREAM : MediaType.parseMediaType(contentType);
+            String raw = restClient.post().uri(uri, courseId, documentName)
+                    .headers(this::applyIdentityHeaders)
+                    .contentType(mediaType)
+                    .body(content).retrieve().body(String.class);
+            return parseIngest(raw);
+        }, "DeepGraph RAG 二进制文档入库", () -> unavailableIngest());
+    }
+
+    @Override
     public DeepGraphDocumentList listDocuments(Long courseId) {
         return executeWithRetry(() -> {
             String uri = courseId != null
-                    ? ContractPaths.DEEPGRAPH_DOCUMENTS + "?course_id=" + courseId
-                    : ContractPaths.DEEPGRAPH_DOCUMENTS;
-            String raw = restClient.get().uri(uri).retrieve().body(String.class);
+                    ? ContractPaths.DEEPGRAPH_DOCUMENTS + "?course_id=" + courseId + "&page=1&page_size=200"
+                    : ContractPaths.DEEPGRAPH_DOCUMENTS + "?page=1&page_size=200";
+            String raw = restClient.get().uri(uri).headers(this::applyIdentityHeaders)
+                    .retrieve().body(String.class);
             return parseDocumentList(raw);
         }, "查询 DeepGraph 文档列表",
                 () -> new DeepGraphDocumentList(null, ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE,
@@ -124,15 +169,16 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
     @Override
     public DeepGraphDeleteResult deleteDocument(Long courseId, String documentName) {
         return executeWithRetry(() -> {
-            String uri = courseId != null
-                    ? ContractPaths.DEEPGRAPH_DOCUMENT + "?course_id=" + courseId
-                    : ContractPaths.DEEPGRAPH_DOCUMENT;
-            String raw = restClient.delete()
-                    .uri(uri, documentName)
-                    .retrieve().body(String.class);
-            JsonNode root = OM.readTree(raw);
-            boolean success = root.path(ContractPaths.R_SUCCESS).asBoolean(false);
-            return new DeepGraphDeleteResult(success, documentName, null, null);
+            String uri = ContractPaths.DEEPGRAPH_DOCUMENT
+                    + (courseId != null ? "?course_id={courseId}" : "");
+            String raw = courseId != null
+                    ? restClient.delete().uri(uri, documentName, courseId)
+                            .headers(this::applyIdentityHeaders)
+                            .retrieve().body(String.class)
+                    : restClient.delete().uri(uri, documentName)
+                            .headers(this::applyIdentityHeaders)
+                            .retrieve().body(String.class);
+            return parseDeleteResult(documentName, raw);
         }, "删除 DeepGraph 文档",
                 () -> new DeepGraphDeleteResult(null, documentName,
                         ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE));
@@ -152,6 +198,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
                 body.put("chapter_text", chapterText);
             }
             String raw = restClient.post().uri(ContractPaths.DEEPGRAPH_CHAPTER_GRAPH)
+                    .headers(this::applyIdentityHeaders)
                     .body(body).retrieve().body(String.class);
             return parseChapterGraph(raw);
         }, "DeepGraph 章节图谱构建", () -> unavailableChapterGraph());
@@ -169,6 +216,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
             body.put("max_depth", maxDepth);
             body.put("search_all_sources", searchAllSources);
             String raw = restClient.post().uri(ContractPaths.DEEPGRAPH_LEARNING_PATH)
+                    .headers(this::applyIdentityHeaders)
                     .body(body).retrieve().body(String.class);
             return parseLearningPath(raw);
         }, "DeepGraph 学习路径规划", () -> unavailableLearningPath());
@@ -182,6 +230,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
                     + "?course_id={courseId}&document_name={documentName}";
             String raw = restClient.get()
                     .uri(uri, courseId, documentName)
+                    .headers(this::applyIdentityHeaders)
                     .retrieve().body(String.class);
             return parseCourseGraph(raw);
         }, "DeepGraph 课程图谱聚合", () -> unavailableCourseGraph());
@@ -196,7 +245,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         try {
             JsonNode root = OM.readTree(raw);
             // 与 HttpRagProvider 同口径：Python 侧可能以 body{code:503, mode:UNAVAILABLE} 表达降级
-            if (ContractPaths.isUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
                 return unavailableRetrieve();
             }
             List<DeepGraphSource> sources = parseSources(root.get(ContractPaths.R_RESULTS));
@@ -216,7 +265,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
                 return unavailableIngest();
             }
             return new DeepGraphIngestResult(
@@ -241,6 +290,10 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return new DeepGraphDocumentList(null, ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE,
+                        ContractPaths.CODE_UNAVAILABLE);
+            }
             List<DeepGraphDocument> docs = new ArrayList<>();
             // 兼容裸数组与 {documents: []} 两种形态（与 8002 parseDocumentList 同款鲁棒性）
             JsonNode arr = root.isArray() ? root
@@ -270,7 +323,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
                 return unavailableChapterGraph();
             }
             List<RelationRow> relations = new ArrayList<>();
@@ -301,7 +354,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
                 return unavailableLearningPath();
             }
             return new DeepGraphLearningPathResult(
@@ -353,7 +406,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root)) {
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
                 return unavailableCourseGraph();
             }
             List<String> chapters = new ArrayList<>();
@@ -388,6 +441,35 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
             log.debug("DeepGraph 课程图谱聚合返回解析失败：{}", e.getMessage());
             return unavailableCourseGraph();
         }
+    }
+
+    /**
+     * 删除响应：只有明确成功才返回成功；空响应/503/success=false 一律降级。
+     */
+    private DeepGraphDeleteResult parseDeleteResult(String documentName, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return new DeepGraphDeleteResult(null, documentName,
+                    ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+        }
+        try {
+            JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return new DeepGraphDeleteResult(false, documentName,
+                        ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+            }
+            return new DeepGraphDeleteResult(true, documentName, null, null);
+        } catch (Exception e) {
+            log.debug("DeepGraph 删除文档返回解析失败：{}", e.getMessage());
+            return new DeepGraphDeleteResult(null, documentName,
+                    ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+        }
+    }
+
+    private static boolean isExplicitFailure(JsonNode root) {
+        return root != null
+                && root.has(ContractPaths.R_SUCCESS)
+                && root.get(ContractPaths.R_SUCCESS).isBoolean()
+                && !root.get(ContractPaths.R_SUCCESS).asBoolean();
     }
 
     private DeepGraphRetrievalResult unavailableRetrieve() {
@@ -458,7 +540,15 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
     }
 
     private static boolean isReadTimeout(Exception e) {
-        return e instanceof SocketTimeoutException || (e.getCause() instanceof SocketTimeoutException);
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof SocketTimeoutException
+                    || t instanceof java.net.http.HttpTimeoutException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     private static boolean isServiceUnavailable(Exception e) {

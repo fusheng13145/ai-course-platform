@@ -115,12 +115,12 @@ public class HttpRagProvider implements RagContract {
 
     @Override
     public RagDocument deleteDocument(Long documentId) {
-        return executeWithRetry(() -> restClient.delete()
-                        .uri(ContractPaths.RAG_DOCUMENTS + "/{documentId}", documentId)
-                        .retrieve().body(String.class) != null
-                        ? new RagDocument(documentId, null, null, null, ContractPaths.MODE_ENGINE, null, null)
-                        : unavailableDocument(),
-                "删除知识库文档", () -> unavailableDocument());
+        return executeWithRetry(() -> {
+            String raw = restClient.delete()
+                    .uri(ContractPaths.RAG_DOCUMENTS + "/{documentId}", documentId)
+                    .retrieve().body(String.class);
+            return parseDeleteResult(documentId, raw);
+        }, "删除知识库文档", () -> unavailableDocument());
     }
 
     @Override
@@ -262,12 +262,45 @@ public class HttpRagProvider implements RagContract {
         return list;
     }
 
+    /**
+     * 解析删除响应：只有明确成功才返回 ENGINE；空响应/503/success=false 一律降级。
+     */
+    private RagDocument parseDeleteResult(Long documentId, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return unavailableDocument();
+        }
+        try {
+            JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return unavailableDocument();
+            }
+            return new RagDocument(documentId, null, null, null,
+                    ContractPaths.MODE_ENGINE, null, null);
+        } catch (Exception e) {
+            log.debug("RAG 删除文档返回解析失败：{}", e.getMessage());
+            return unavailableDocument();
+        }
+    }
+
+    /** 响应体显式声明 success=false 时视为失败；缺省 success 的历史响应保持兼容。 */
+    private static boolean isExplicitFailure(JsonNode root) {
+        return root != null
+                && root.has(ContractPaths.R_SUCCESS)
+                && root.get(ContractPaths.R_SUCCESS).isBoolean()
+                && !root.get(ContractPaths.R_SUCCESS).asBoolean();
+    }
+
     private RagDocument parseDocument(String raw) {
         if (raw == null || raw.isBlank()) {
             return unavailableDocument();
         }
         try {
             JsonNode root = OM.readTree(raw);
+            // Python 侧引擎不可用可能以 HTTP 200 + {code:503, success:false} 返回；
+            // 原实现只看字段是否存在，会把“删除/新增失败”当成 ENGINE 成功。
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return unavailableDocument();
+            }
             Long id = null;
             if (root.has("id")) {
                 id = root.get("id").asLong();
@@ -301,6 +334,9 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return new RagDocumentList(null, ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+            }
             List<RagDocument> docs = new ArrayList<>();
             JsonNode arr = root.isArray() ? root : (root.has("documents") ? root.get("documents") : null);
             if (arr != null && arr.isArray()) {
@@ -321,6 +357,9 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return unavailableIndex();
+            }
             Boolean success = null;
             if (root.has(ContractPaths.R_SUCCESS)) {
                 success = root.get(ContractPaths.R_SUCCESS).asBoolean();
@@ -402,10 +441,17 @@ public class HttpRagProvider implements RagContract {
         }
     }
 
-    /** 是否为读超时：RestClient 会将底层 {@link SocketTimeoutException} 包装为 ResourceAccessException。 */
+    /** 是否为读超时：RestClient 会将底层 SocketTimeoutException 包装为 ResourceAccessException。 */
     private static boolean isReadTimeout(Exception e) {
-        return e instanceof SocketTimeoutException
-                || (e.getCause() instanceof SocketTimeoutException);
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof SocketTimeoutException
+                    || t instanceof java.net.http.HttpTimeoutException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     /**

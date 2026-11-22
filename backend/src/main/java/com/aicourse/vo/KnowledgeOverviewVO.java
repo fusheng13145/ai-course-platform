@@ -2,12 +2,15 @@ package com.aicourse.vo;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * 知识图谱概览统计 VO。
  * <p>
  * 由 {@code KnowledgeController.overview}（GET /api/knowledge/overview）产出：
  * 知识点总数、关系总数、核心知识点数、覆盖度与课程过滤维度。字段名与历史 Map 返回保持一致，
  * 前端消费无需改动（2026-08-30 由 Map 裸返回收敛为结构化出参）。
+ * snapshotVersion/generatedAt 为阶段 3 新增的数据集标识，旧前端可安全忽略。
  * </p>
  */
 @Data
@@ -28,6 +31,9 @@ public class KnowledgeOverviewVO {
     /** 课程过滤维度（可空：全平台口径） */
     private Long courseId;
 
+    private String snapshotVersion;
+    private LocalDateTime generatedAt;
+
     public KnowledgeOverviewVO() {
     }
 
@@ -38,5 +44,13 @@ public class KnowledgeOverviewVO {
         this.corePoints = corePoints;
         this.coverageRate = coverageRate;
         this.courseId = courseId;
+    }
+
+    public KnowledgeOverviewVO(Long totalPoints, Long totalRelations, Long corePoints,
+                               Double coverageRate, Long courseId,
+                               String snapshotVersion, LocalDateTime generatedAt) {
+        this(totalPoints, totalRelations, corePoints, coverageRate, courseId);
+        this.snapshotVersion = snapshotVersion;
+        this.generatedAt = generatedAt;
     }
 }

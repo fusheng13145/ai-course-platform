@@ -6,8 +6,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -19,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -55,12 +59,72 @@ class DeepGraphRagControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("POST /rag/deepgraph/course-graph/sync - 引擎降级必须 HTTP 503 且响应码一致")
+    void syncCourseGraph_engineUnavailable_returns503() throws Exception {
+        when(deepGraphRagService.syncCourseKnowledgeGraph(anyLong(), anyString()))
+                .thenReturn("{\"mode\":\"UNAVAILABLE\",\"message\":\"文档图谱引擎未启用\",\"code\":503}");
+
+        mockMvc.perform(post("/rag/deepgraph/course-graph/sync?courseId=1&documentName=教材")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.message").value("文档图谱引擎未启用"))
+                .andExpect(jsonPath("$.data.mode").value("UNAVAILABLE"));
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/documents - 引擎降级不得包装为成功")
+    void addDocument_engineUnavailable_returns503() throws Exception {
+        when(deepGraphRagService.ingest(anyLong(), anyString(), anyString()))
+                .thenReturn("{\"success\":false,\"mode\":\"UNAVAILABLE\",\"code\":503,"
+                        + "\"message\":\"文档图谱引擎未启用\"}");
+
+        mockMvc.perform(post("/rag/deepgraph/documents?courseId=1&documentName=教材")
+                        .contentType(MediaType.APPLICATION_JSON).content("TCP 正文")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.data.success").value(false));
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/documents/upload - PDF 魔数通过并原样转发字节")
+    void uploadDocument_pdf_passesBytesToService() throws Exception {
+        when(deepGraphRagService.ingestFile(anyLong(), anyString(), any(byte[].class), anyString()))
+                .thenReturn("{\"success\":true,\"mode\":\"ENGINE\",\"code\":200}");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "教材.pdf", "application/pdf", "%PDF-1.4\nbody".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(multipart("/rag/deepgraph/documents/upload?courseId=1&documentName=教材.pdf")
+                        .file(file)
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.success").value(true));
+
+        verify(deepGraphRagService).ingestFile(eq(1L), eq("教材.pdf"), any(byte[].class),
+                eq("application/pdf"));
+    }
+
+    @Test
+    @DisplayName("POST /rag/deepgraph/documents/upload - 扩展名与魔数不一致返回 400")
+    void uploadDocument_magicMismatch_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "教材.pdf", "application/pdf", "not-a-pdf".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(multipart("/rag/deepgraph/documents/upload?courseId=1")
+                        .file(file)
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("POST /rag/deepgraph/course-graph/sync - 未认证返回 401")
     void syncCourseGraph_unauthenticated_returns401() throws Exception {
         mockMvc.perform(post("/rag/deepgraph/course-graph/sync?courseId=1&documentName=教材"))
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
     @DisplayName("GET /rag/deepgraph/health - 返回引擎健康裸 JSON")
     void health_returnsEngineHealth() throws Exception {
         when(deepGraphRagService.healthJson()).thenReturn("{\"enabled\":true,\"reachable\":true}");

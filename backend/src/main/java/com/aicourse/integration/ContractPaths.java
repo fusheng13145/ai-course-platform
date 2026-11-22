@@ -89,6 +89,7 @@ public final class ContractPaths {
     public static final String DEEPGRAPH_RETRIEVE = "/api/v1/deepgraph/retrieve";
     public static final String DEEPGRAPH_QA = "/api/v1/deepgraph/qa";
     public static final String DEEPGRAPH_INGEST = "/api/v1/deepgraph/ingest";
+    public static final String DEEPGRAPH_INGEST_FILE = "/api/v1/deepgraph/ingest-file";
     public static final String DEEPGRAPH_DOCUMENTS = "/api/v1/deepgraph/documents";
     public static final String DEEPGRAPH_DOCUMENT = "/api/v1/deepgraph/documents/{documentName}";
     public static final String DEEPGRAPH_CHAPTER_GRAPH = "/api/v1/deepgraph/chapter-graph";

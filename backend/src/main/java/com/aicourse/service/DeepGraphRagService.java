@@ -31,6 +31,9 @@ public interface DeepGraphRagService {
     /** 文档入库（整篇文本走原实现 process_documents 全链路），返回 JSON。 */
     String ingest(Long courseId, String documentName, String content);
 
+    /** 二进制文档入库（PDF/DOCX/TXT 原文，raw body 转发 8501），返回 JSON。 */
+    String ingestFile(Long courseId, String documentName, byte[] content, String contentType);
+
     /** 课程文档列表 JSON（courseId 为空时由控制器层先做权限收口）。 */
     String listDocuments(Long courseId);
 

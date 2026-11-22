@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.UploadMagic;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.DeepGraphRagService;
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -22,6 +24,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Locale;
 
 /**
  * DeepGraph RAG（文档图谱检索增强）控制器。
@@ -62,7 +68,7 @@ public class DeepGraphRagController {
     /** 向指定课程入库一篇整篇文档（教师/管理员，且教师须是本课程）。 */
     @PostMapping("/documents")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> addDocument(
+    public ResponseEntity<ApiResponse<JsonNode>> addDocument(
             @RequestParam Long courseId,
             @RequestParam String documentName,
             @RequestBody String content,
@@ -71,52 +77,92 @@ public class DeepGraphRagController {
         if (content == null || content.isBlank()) {
             throw new BusinessException(ApiCode.BAD_REQUEST, "文档内容不能为空");
         }
-        return ApiResponse.success(toJson(deepGraphRagService.ingest(courseId, documentName, content)));
+        return envelope(deepGraphRagService.ingest(courseId, documentName, content));
+    }
+
+    /**
+     * 上传 PDF/DOCX/TXT 原文入库（教师/管理员，且教师须是本课程）。
+     * <p>Java 只做课程 ACL 与容器魔数校验，不把二进制文本化；字节以 raw body 转发 8501，
+     * 由复制内容 load_single_file 解析。限制：50MB（与 spring.servlet.multipart 对齐）。</p>
+     */
+    @PostMapping("/documents/upload")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<ApiResponse<JsonNode>> uploadDocument(
+            @RequestParam Long courseId,
+            @RequestParam(required = false) String documentName,
+            @RequestParam("file") MultipartFile file,
+            Authentication auth) throws IOException {
+        courseAccessControl.assertCanManageCourse(courseId, auth);
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "上传文件不能为空");
+        }
+        if (file.getSize() > 50L * 1024 * 1024) {
+            throw new BusinessException(ApiCode.PAYLOAD_TOO_LARGE, "上传文件不能超过 50MB");
+        }
+        String rawName = (documentName == null || documentName.isBlank())
+                ? file.getOriginalFilename() : documentName;
+        if (rawName == null || rawName.isBlank() || rawName.length() > 255) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "文档名不能为空且不超过 255 字符");
+        }
+        String safeName = rawName.replace('\\', '/');
+        safeName = safeName.substring(safeName.lastIndexOf('/') + 1);
+        int dot = safeName.lastIndexOf('.');
+        String ext = dot < 0 ? "" : safeName.substring(dot + 1).toLowerCase(Locale.ROOT);
+        if (!"pdf".equals(ext) && !"docx".equals(ext) && !"txt".equals(ext)) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "仅支持 PDF/DOCX/TXT 文档");
+        }
+        String magic = UploadMagic.detect(UploadMagic.readHeader(file));
+        if (!UploadMagic.matchesExtension(ext, magic)) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "文件内容与扩展名不一致");
+        }
+        byte[] content = file.getBytes();
+        String contentType = file.getContentType();
+        return envelope(deepGraphRagService.ingestFile(courseId, safeName, content, contentType));
     }
 
     /** 列出 deepgraph 引擎持有的课程文档（教师/管理员；不带 courseId 仅管理员）。 */
     @GetMapping("/documents")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> listDocuments(@RequestParam(required = false) Long courseId,
-                                               Authentication auth) {
+    public ResponseEntity<ApiResponse<JsonNode>> listDocuments(@RequestParam(required = false) Long courseId,
+                                                               Authentication auth) {
         if (courseId == null) {
             boolean admin = auth != null && auth.getAuthorities().stream()
                     .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
             if (!admin) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "列举全部课程文档仅管理员可用");
             }
-            return ApiResponse.success(toJson(deepGraphRagService.listDocuments(null)));
+            return envelope(deepGraphRagService.listDocuments(null));
         }
         courseAccessControl.assertCanManageCourse(courseId, auth);
-        return ApiResponse.success(toJson(deepGraphRagService.listDocuments(courseId)));
+        return envelope(deepGraphRagService.listDocuments(courseId));
     }
 
     /** 删除指定文档及其向量索引/图谱/章节数据（教师/管理员，且教师须是本课程）。 */
     @DeleteMapping("/documents/{documentName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> deleteDocument(
+    public ResponseEntity<ApiResponse<JsonNode>> deleteDocument(
             @PathVariable String documentName,
             @RequestParam Long courseId,
             Authentication auth) {
         courseAccessControl.assertCanManageCourse(courseId, auth);
-        return ApiResponse.success(toJson(deepGraphRagService.deleteDocument(courseId, documentName)));
+        return envelope(deepGraphRagService.deleteDocument(courseId, documentName));
     }
 
     /** 在指定课程文档语料中检索（读取范围与 /rag/retrieve 同口径：学生限本人课程）。 */
     @PostMapping("/retrieve")
-    public ApiResponse<JsonNode> retrieve(
+    public ResponseEntity<ApiResponse<JsonNode>> retrieve(
             @RequestParam String query,
             @RequestParam Long courseId,
             @RequestParam(defaultValue = "3") int topK,
             Authentication auth) {
         courseAccessControl.assertCanReadCourse(courseId, auth);
-        return ApiResponse.success(toJson(deepGraphRagService.retrieve(query, courseId, topK)));
+        return envelope(deepGraphRagService.retrieve(query, courseId, topK));
     }
 
     /** 构建指定文档某一章节的细粒度知识图谱（LLM 三元组抽取 + Neo4j 同步；教师/管理员）。 */
     @PostMapping("/chapter-graph")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> chapterGraph(
+    public ResponseEntity<ApiResponse<JsonNode>> chapterGraph(
             @RequestParam Long courseId,
             @RequestParam String documentName,
             @RequestParam(required = false) String chapterName,
@@ -126,8 +172,7 @@ public class DeepGraphRagController {
         if (chapterName == null || chapterName.isBlank()) {
             throw new BusinessException(ApiCode.BAD_REQUEST, "请指定章节名称（或直接提交章节正文）");
         }
-        return ApiResponse.success(toJson(
-                deepGraphRagService.chapterGraph(courseId, documentName, chapterName, chapterText)));
+        return envelope(deepGraphRagService.chapterGraph(courseId, documentName, chapterName, chapterText));
     }
 
     /**
@@ -137,17 +182,17 @@ public class DeepGraphRagController {
      */
     @PostMapping("/course-graph/sync")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> syncCourseGraph(
+    public ResponseEntity<ApiResponse<JsonNode>> syncCourseGraph(
             @RequestParam Long courseId,
             @RequestParam String documentName,
             Authentication auth) {
         courseAccessControl.assertCanManageCourse(courseId, auth);
-        return ApiResponse.success(toJson(deepGraphRagService.syncCourseKnowledgeGraph(courseId, documentName)));
+        return envelope(deepGraphRagService.syncCourseKnowledgeGraph(courseId, documentName));
     }
 
     /** 学习路径规划：基于图谱反向追溯目标知识点的前置知识（课程成员可用）。 */
     @PostMapping("/learning-path")
-    public ApiResponse<JsonNode> learningPath(
+    public ResponseEntity<ApiResponse<JsonNode>> learningPath(
             @RequestParam String target,
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "3") int maxDepth,
@@ -156,8 +201,22 @@ public class DeepGraphRagController {
         if (courseId != null) {
             courseAccessControl.assertCanReadCourse(courseId, auth);
         }
-        return ApiResponse.success(toJson(
-                deepGraphRagService.learningPath(target, courseId, maxDepth, searchAllSources)));
+        return envelope(deepGraphRagService.learningPath(target, courseId, maxDepth, searchAllSources));
+    }
+
+    /**
+     * 统一封装：引擎降级（契约 code=503）必须同时反映到 HTTP 状态与 ApiResponse.code，
+     * 避免“HTTP 200 + 成功信封 + 内部 503”的伪成功；其它业务码仍按成功信封透出原始 payload。
+     */
+    private ResponseEntity<ApiResponse<JsonNode>> envelope(String raw) {
+        JsonNode node = toJson(raw);
+        int contractCode = node == null ? 0 : node.path("code").asInt(0);
+        if (contractCode == ApiCode.SERVICE_UNAVAILABLE) {
+            String message = node.path("message").asText("文档图谱引擎未启用或不可达");
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error(ApiCode.SERVICE_UNAVAILABLE, message, node));
+        }
+        return ResponseEntity.ok(ApiResponse.success(node));
     }
 
     /**

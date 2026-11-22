@@ -8,12 +8,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
@@ -22,6 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -283,6 +287,63 @@ class HttpDeepGraphRagProviderBoostTest {
     }
 
     @Test
+    @DisplayName("courseGraph：success=false 但无 code 时同样降级，不得伪成功落库")
+    void courseGraph_successFalse_degrades() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"success\":false,\"error\":\"graph build failed\",\"nodes\":[],\"edges\":[],\"mode\":\"ENGINE\"}");
+
+        DeepGraphRagContract.DeepGraphCourseGraphData r = provider.getCourseGraph(1L, "doc");
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
+        assertEquals(ContractPaths.MODE_UNAVAILABLE, r.mode());
+    }
+
+    @Test
+    @DisplayName("ingest：success=false 但无 code 时降级")
+    void ingest_successFalse_degrades() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"success\":false,\"error\":\"bad document\",\"mode\":\"ENGINE\"}");
+
+        DeepGraphRagContract.DeepGraphIngestResult r = provider.ingest(1L, "doc", "content");
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
+    }
+
+    @Test
+    @DisplayName("chapterGraph：success=false 但无 code 时降级")
+    void chapterGraph_successFalse_degrades() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"success\":false,\"nodes\":0,\"edges\":0,\"mode\":\"ENGINE\"}");
+
+        DeepGraphRagContract.DeepGraphChapterGraphResult r = provider.chapterGraph(1L, "doc", "ch", "");
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
+    }
+
+    @Test
+    @DisplayName("listDocuments：body 503 时降级，不返回空列表伪成功")
+    void listDocuments_bodyDegrade() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"code\":503,\"mode\":\"UNAVAILABLE\",\"error\":\"engine down\"}");
+
+        DeepGraphRagContract.DeepGraphDocumentList r = provider.listDocuments(1L);
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
+    }
+
+    @Test
+    @DisplayName("deleteDocument：success=false 时降级")
+    void deleteDocument_successFalse_degrades() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"success\":false,\"code\":503,\"error\":\"delete failed\"}");
+
+        DeepGraphRagContract.DeepGraphDeleteResult r = provider.deleteDocument(1L, "d.txt");
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
+        assertFalse(Boolean.TRUE.equals(r.success()));
+    }
+
+    @Test
     @DisplayName("ingest 内部认证头：配置密钥时附带 X-Internal-Key")
     void internalKeyHeaderAttached() throws Exception {
         HttpDeepGraphRagProvider provider = new HttpDeepGraphRagProvider(
@@ -291,6 +352,41 @@ class HttpDeepGraphRagProviderBoostTest {
         stubOk("{\"success\":true}");
 
         provider.ingest(1L, "doc", "content");
-        verify(mockRequest, atLeastOnce()).getBody();
+        verify(mockRequest, atLeastOnce()).execute();
+    }
+
+    @Test
+    @DisplayName("身份透传：MDC traceId 与登录用户名写入 X-Trace-Id/X-User-Id")
+    void identityHeadersAttachedFromMdcAndSecurityContext() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"results\":[],\"mode\":\"ENGINE\",\"code\":200}");
+
+        MDC.put("traceId", "trace-stage4");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("teacher-1", "n/a", List.of()));
+        try {
+            provider.retrieve(new DeepGraphRagContract.DeepGraphRetrieveRequest("TCP", 1L, 3));
+            assertEquals("trace-stage4",
+                    mockRequest.getHeaders().getFirst(HttpDeepGraphRagProvider.TRACE_HEADER));
+            assertEquals("teacher-1",
+                    mockRequest.getHeaders().getFirst(HttpDeepGraphRagProvider.USER_HEADER));
+        } finally {
+            SecurityContextHolder.clearContext();
+            MDC.remove("traceId");
+        }
+    }
+
+    @Test
+    @DisplayName("retrieve：success=false 时降级，不把业务失败当成功")
+    void retrieve_successFalse_degrades() throws Exception {
+        HttpDeepGraphRagProvider provider = buildProvider(0);
+        inject(provider);
+        stubOk("{\"success\":false,\"code\":500,\"mode\":\"UNAVAILABLE\",\"error\":\"boom\"}");
+
+        DeepGraphRagContract.DeepGraphRetrievalResult r = provider.retrieve(
+                new DeepGraphRagContract.DeepGraphRetrieveRequest("TCP", 1L, 3));
+        assertFalse(r.engineReady());
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code());
     }
 }

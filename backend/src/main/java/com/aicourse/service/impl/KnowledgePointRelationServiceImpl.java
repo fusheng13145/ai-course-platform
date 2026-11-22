@@ -4,6 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.domain.knowledge.GraphSnapshotVersion;
+import com.aicourse.domain.knowledge.PointType;
+import com.aicourse.domain.knowledge.RelationType;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
@@ -21,7 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -47,11 +55,11 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     @Transactional(rollbackFor = Exception.class)
     public KnowledgePointRelation createRelation(Long sourceId, Long targetId, String relationType,
                                                   BigDecimal strength, String description) {
-                                                      log.info("创建知识点点关系");
+        log.info("创建知识点点关系");
 
-        // 修复（2026-10-30，B-13 ⑪）：relationType 统一归一化为大写。
-        // 此前按入参原样落库，同一语义可能存在 "prerequisite" / "PREREQUISITE" 两种行，
-        // 而 getPrerequisites 只按大写精确匹配 ⇒ 小写写入的边永远查不回来。
+        // 修复（2026-10-30，B-13 ⑪）：relationType 统一归一化为领域编码。
+        // 历史上同一语义可能存在 "prerequisite" / "PREREQUISITE" / "前置知识" 多种行，
+        // 现在由 RelationType 统一收口，持久化列只写领域编码。
         String normalizedType = normalizeRelationType(relationType);
 
         // 校验源知识点和目标知识点是否存在
@@ -85,11 +93,10 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     }
 
     /**
-     * 关联类型归一化：去空白 + 转大写（B-13 ⑪）。
+     * 关联类型归一化：去空白，已知别名归一到 {@link RelationType#code()}。
      *
-     * <p>调用方可能传小写，历史数据也可能已按原样落库，所以写入侧统一大写、
-     * 读取侧统一 {@code UPPER(...)} 比较，两边同口径后 {@code getPrerequisites}
-     * 才能稳定查回。</p>
+     * <p>调用方可能传小写或中文历史标签，写入侧统一为领域编码；
+     * 读取侧由迁移 V34 和 {@link RelationType#known(String)} 兼容存量。</p>
      *
      * @throws BusinessException relationType 为空时返回 400（而不是落一条空类型边）
      */
@@ -97,7 +104,7 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
         if (relationType == null || relationType.isBlank()) {
             throw new BusinessException(ApiCode.BAD_REQUEST, "关联类型不能为空");
         }
-        return relationType.trim().toUpperCase(Locale.ROOT);
+        return RelationType.canonicalCode(relationType);
     }
 
     /**
@@ -143,7 +150,7 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
                     ? point.getDifficultyLevel().toUpperCase() : null;
             nodes.add(new GraphDataNodeVO(
                     point.getId(), point.getName(),
-                    point.getPointType() != null ? point.getPointType() : "default",
+                    PointType.canonicalCode(point.getPointType()),
                     difficulty, point.getImportance()));
         }
 
@@ -153,20 +160,33 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
                 .collect(Collectors.toSet());
 
         List<GraphDataLinkVO> links = new ArrayList<>();
+        List<KnowledgePointRelation> relations = List.of();
         if (!pointIds.isEmpty()) {
             LambdaQueryWrapper<KnowledgePointRelation> relationWrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
                     .in(KnowledgePointRelation::getSourceId, pointIds)
                     .in(KnowledgePointRelation::getTargetId, pointIds);
-            List<KnowledgePointRelation> relations = list(relationWrapper);
+            relations = list(relationWrapper);
 
             for (KnowledgePointRelation rel : relations) {
                 links.add(new GraphDataLinkVO(
                         rel.getSourceId(), rel.getTargetId(),
-                        rel.getStrength(), rel.getRelationType()));
+                        rel.getStrength(), RelationType.graphLabel(rel.getRelationType())));
             }
         }
 
-        return new KnowledgeGraphDataVO(nodes, links);
+        LocalDateTime pointUpdatedAt = points.stream()
+                .map(KnowledgePoint::getUpdatedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        LocalDateTime relationUpdatedAt = relations.stream()
+                .map(KnowledgePointRelation::getCreatedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        GraphSnapshotVersion.Snapshot snapshot = GraphSnapshotVersion.of(
+                courseId, nodes.size(), links.size(), pointUpdatedAt, relationUpdatedAt);
+        return new KnowledgeGraphDataVO(nodes, links, snapshot.version(), snapshot.generatedAt());
     }
 
     /**

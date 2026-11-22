@@ -28,9 +28,9 @@ public class KnowledgeRelationDTO {
     private Long targetId;
 
     @NotBlank(message = "关联类型不能为空")
-    @Size(max = 50, message = "关联类型不能超过50个字符")
-    @Schema(description = "关联类型", example = "PREREQUISITE",
-            requiredMode = Schema.RequiredMode.REQUIRED)
+    @Size(max = 30, message = "关联类型不能超过30个字符（与 knowledge_point_relations.relation_type 对齐）")
+    @Schema(description = "关联类型；兼容历史别名，服务层会归一到 PREREQUISITE/RELATED/FOLLOW_UP/CONTAINS/CONTAINS_CHAPTER/BELONGS_TO",
+            example = "PREREQUISITE", requiredMode = Schema.RequiredMode.REQUIRED)
     private String relationType;
 
     @Schema(description = "关系强度（0.0-1.0之间）", example = "0.85")

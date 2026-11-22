@@ -126,13 +126,8 @@
 </template>
 
 <script setup lang="ts">
-// 基础样式原本在 Shell.vue 里 import；本页在 Shell 之外，必须自己引入
-import '../../styles/record.css'
-import '../../styles/shell-fix.css'
-import '../../styles/typography.css'
-import '../../styles/form.css'
-import '../../styles/consistency.css'
-import '../../styles/coursera.css'
+// 本页在 Shell 之外，直接引用已收敛的统一入口样式，避免依赖已删除的拆分文件。
+import '../../styles/app.css'
 
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.domain.knowledge.GraphSnapshotVersion;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
@@ -24,6 +25,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -248,7 +250,20 @@ public class KnowledgeController {
                         .in(KnowledgePointRelation::getSourceId, pointIds)
                         .in(KnowledgePointRelation::getTargetId, pointIds));
 
+        LocalDateTime pointUpdatedAt = pointList.stream()
+                .map(KnowledgePoint::getUpdatedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        LocalDateTime relationUpdatedAt = relationList.stream()
+                .map(KnowledgePointRelation::getCreatedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        GraphSnapshotVersion.Snapshot snapshot = GraphSnapshotVersion.of(
+                courseId, pointList.size(), relationList.size(), pointUpdatedAt, relationUpdatedAt);
         return ApiResponse.success(new KnowledgeGraphVO(
-                pointList, relationList, pointList.size(), relationList.size()));
+                pointList, relationList, pointList.size(), relationList.size(),
+                snapshot.version(), snapshot.generatedAt()));
     }
 }

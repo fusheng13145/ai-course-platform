@@ -148,6 +148,10 @@ ENGINE_EXPORTS = {
         "DG_KG_SYNC",
         # 大文档嵌入批处理垫片的批大小（api_server 运行期兼容层）
         "DG_EMBED_BATCH",
+        # 适配器身份/限流/上传（阶段4）：不导出则 .env 配置对 8501 不生效
+        "DG_INTERNAL_AUTH_MODE",
+        "DG_RATE_LIMIT_PER_MINUTE",
+        "DG_MAX_UPLOAD_BYTES",
         "CROSS_ENCODER_MODEL",
         "HF_ENDPOINT",
         "HF_HOME",

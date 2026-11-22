@@ -685,13 +685,13 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /knowledge/relations - 关联类型超长（>50）：400 拒绝")
+    @DisplayName("POST /knowledge/relations - 关联类型超长（>30）：400 拒绝")
     void createRelation_overlongType_rejected400() throws Exception {
         mockMvc.perform(post("/knowledge/relations").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"sourceId\":1,\"targetId\":2,\"relationType\":\"" + "T".repeat(60) + "\"}")
                         .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(containsString("50")));
+                .andExpect(jsonPath("$.message").value(containsString("30")));
         verify(relationService, never()).createRelation(any(), any(), any(), any(), any());
     }
 

@@ -1171,14 +1171,14 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
         KnowledgePoint root = saveCap.getAllValues().get(0);
         assertEquals(COURSE_ID, root.getCourseId());
         assertEquals(Integer.valueOf(5), root.getImportance(), "重要度留空必须补默认 5（列 NOT NULL）");
-        assertEquals("concept", root.getPointType(), "类型要归一化为库中权威小写取值");
+        assertEquals("CONCEPT", root.getPointType(), "类型要归一化为库中权威大写取值");
         assertEquals("MEDIUM", root.getDifficultyLevel(), "「中等」须归一化为前端映射表里的 MEDIUM");
         assertEquals(Integer.valueOf(20), root.getEstimatedTime());
         assertEquals(Integer.valueOf(0), root.getOrderIndex());
         KnowledgePoint child = saveCap.getAllValues().get(1);
         assertEquals(Integer.valueOf(9), child.getImportance());
         assertEquals("HARD", child.getDifficultyLevel(), "「困难」须归一化为 HARD，不能让中文原样入库");
-        assertEquals("skill", child.getPointType());
+        assertEquals("SKILL", child.getPointType());
         assertEquals(Integer.valueOf(1), child.getOrderIndex());
         assertNull(child.getEstimatedTime());
 

@@ -198,6 +198,9 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return null;
+            }
             JsonNode pathNode = root.has(ContractPaths.R_PATH) ? root.get(ContractPaths.R_PATH)
                     : (root.has("data") && root.get("data").has(ContractPaths.R_PATH)
                     ? root.get("data").get(ContractPaths.R_PATH) : null);
@@ -233,6 +236,9 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return unavailableIngest(courseId);
+            }
             String status = root.has(ContractPaths.R_STATUS) ? root.get(ContractPaths.R_STATUS).asText() : null;
             long synced = root.has("synced_nodes") ? root.get("synced_nodes").asLong()
                     : (root.has("syncedPoints") ? root.get("syncedPoints").asLong() : 0);
@@ -251,6 +257,9 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+                return unavailableSubGraph(courseId, maxHops);
+            }
             String status = root.has(ContractPaths.R_STATUS) ? root.get(ContractPaths.R_STATUS).asText() : null;
             List<Object> nodes = new ArrayList<>();
             if (root.has("nodes") && root.get("nodes").isArray()) {
@@ -272,6 +281,13 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
     }
 
+    private static boolean isExplicitFailure(JsonNode root) {
+        return root != null
+                && root.has(ContractPaths.R_SUCCESS)
+                && root.get(ContractPaths.R_SUCCESS).isBoolean()
+                && !root.get(ContractPaths.R_SUCCESS).asBoolean();
+    }
+
     private IngestResult unavailableIngest(Long courseId) {
         return new IngestResult(ContractPaths.CODE_UNAVAILABLE, null, ContractPaths.MODE_UNAVAILABLE,
                 courseId, 0, 0, ContractPaths.MSG_KG_UNAVAILABLE);
@@ -289,15 +305,15 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         T execute() throws Exception;
     }
 
-    private <T> T doExecute(HttpCall<T> call, String operation, HttpCall<T> fallback) {
+    private <T> T doExecute(HttpCall<T> call, String operation, java.util.function.Supplier<T> fallback) {
         Exception lastException = null;
         for (int i = 0; i <= maxRetries; i++) {
             try {
                 return call.execute();
             } catch (Exception e) {
                 lastException = e;
-                if (isReadTimeout(e)) {
-                    // 读超时（含经 RestClient 包装的情况）不重试：直接降级
+                if (isReadTimeout(e) || isServiceUnavailable(e)) {
+                    // 读超时 / HTTP 503：不重试，直接降级
                     break;
                 }
                 if (i < maxRetries) {
@@ -308,11 +324,7 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         log.error("{}多次失败，已达最大重试次数", operation, lastException);
         Tracer.trace(lastException);
-        try {
-            return fallback.execute();
-        } catch (Exception ex) {
-            return null;
-        }
+        return fallback.get();
     }
 
     private void sleep(int attempt) {
@@ -324,9 +336,27 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
     }
 
-    /** 是否为读超时：RestClient 会将底层 {@link SocketTimeoutException} 包装为 ResourceAccessException。 */
+    /** 是否为读超时：RestClient 会将底层 SocketTimeoutException 包装为 ResourceAccessException。 */
     private static boolean isReadTimeout(Exception e) {
-        return e instanceof SocketTimeoutException
-                || (e.getCause() instanceof SocketTimeoutException);
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof SocketTimeoutException
+                    || t instanceof java.net.http.HttpTimeoutException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isServiceUnavailable(Exception e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof org.springframework.web.client.HttpServerErrorException hse) {
+                return hse.getStatusCode().value() == ContractPaths.CODE_UNAVAILABLE;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 }

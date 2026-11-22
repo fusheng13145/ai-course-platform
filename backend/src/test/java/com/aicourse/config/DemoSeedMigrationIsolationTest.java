@@ -97,7 +97,9 @@ class DemoSeedMigrationIsolationTest {
             // V32（2026-11-20，R2）：存量 session_token 统一 SHA-256 —— 纯 DML 回填，无演示数据
             "V32__session_token_hash_backfill.sql",
             // V33（2026-11-22）：考试/作业提交次数默认值与存量统一为 0（不限次）—— 结构迁移
-            "V33__unlimited_attempts.sql");
+            "V33__unlimited_attempts.sql",
+            // V34（2026-11-22）：知识点/关系类型存量归一为领域编码 —— 结构迁移
+            "V34__normalize_knowledge_taxonomy.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

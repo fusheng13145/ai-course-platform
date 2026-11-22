@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.JsonUtils;
+import com.aicourse.domain.knowledge.PointType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -334,8 +335,10 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
 
     private static final ObjectMapper EXTRACT_OM = new ObjectMapper();
 
-    /** 抽取落库的知识点类型白名单（与 KnowledgeController 原内联口径一致）。 */
-    private static final Set<String> KP_TYPES = Set.of("CONCEPT", "PRINCIPLE", "METHOD", "FACT");
+    /** 抽取落库的知识点类型白名单：由 PointType 统一维护，未知值回落 CONCEPT。 */
+    private static final Set<String> KP_TYPES = Set.of(
+            PointType.CONCEPT.code(), PointType.PRINCIPLE.code(),
+            PointType.METHOD.code(), PointType.FACT.code());
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -373,9 +376,9 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
                         continue;
                     }
                     String content = n.has("content") ? n.get("content").asText() : "";
-                    String type = n.has("type") ? n.get("type").asText().toUpperCase() : "CONCEPT";
+                    String type = n.has("type") ? PointType.canonicalCode(n.get("type").asText()) : "CONCEPT";
                     if (!KP_TYPES.contains(type)) {
-                        type = "CONCEPT";
+                        type = PointType.CONCEPT.code();
                     }
                     KnowledgePoint kp = new KnowledgePoint();
                     kp.setCourseId(courseId);

@@ -210,10 +210,47 @@ class DeepGraphRagServiceImplTest {
         // 双端归属（2026-11-22）：1 条语义边 + 2 条归属边（TCP/三次握手 → 第1章 概述）；
         // 重复三元组已在 existingTriples 判重跳过
         assertEquals(3, relCaptor.getValue().size(), "1 语义边 + 2 归属边（双端挂靠）");
-        assertEquals("包含", relCaptor.getValue().get(0).getRelationType());
+        assertEquals("CONTAINS", relCaptor.getValue().get(0).getRelationType());
         assertEquals("TCP 三次握手同步序号", relCaptor.getValue().get(0).getDescription());
-        assertEquals("属于", relCaptor.getValue().get(1).getRelationType());
-        assertEquals("属于", relCaptor.getValue().get(2).getRelationType());
+        assertEquals("BELONGS_TO", relCaptor.getValue().get(1).getRelationType());
+        assertEquals("BELONGS_TO", relCaptor.getValue().get(2).getRelationType());
+    }
+
+    @Test
+    @DisplayName("sync：引擎原始长名引用可命中已截断节点，不产生孤立点/丢边")
+    void sync_longNameEdgeResolvesToTruncatedPoint() throws IOException {
+        String longName = "L".repeat(121);
+        startStub(200, "{}", 200,
+                "{\"chapters\": [], \"nodes\": ["
+                        + "{\"name\": \"TCP\", \"type\": \"CONCEPT\", \"evidence\": \"\"},"
+                        + "{\"name\": \"" + longName + "\", \"type\": \"CONCEPT\", \"evidence\": \"长\"}], \"edges\": ["
+                        + "{\"source\": \"" + longName + "\", \"target\": \"TCP\", \"relation\": \"相关\", \"evidence\": \"e\"}"
+                        + "], \"mode\": \"ENGINE\"}");
+        String base = "http://127.0.0.1:" + server.getAddress().getPort();
+        KnowledgePointService pointService = org.mockito.Mockito.mock(KnowledgePointService.class);
+        KnowledgePointRelationService relationService = org.mockito.Mockito.mock(KnowledgePointRelationService.class);
+        org.mockito.Mockito.when(pointService.list(org.mockito.ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KnowledgePoint>>any()))
+                .thenReturn(List.of(point(1L, "TCP")));
+        org.mockito.Mockito.when(relationService.list(org.mockito.ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KnowledgePointRelation>>any()))
+                .thenReturn(List.of());
+        org.mockito.Mockito.doAnswer(inv -> {
+            for (KnowledgePoint p : inv.<List<KnowledgePoint>>getArgument(0)) {
+                p.setId(3L);
+            }
+            return true;
+        }).when(pointService).saveBatch(org.mockito.ArgumentMatchers.anyList());
+
+        DeepGraphRagServiceImpl service = new DeepGraphRagServiceImpl(
+                true, base, 5, 60, 0, ContractPaths.DEEPGRAPH_HEALTH, "", pointService, relationService);
+        String json = service.syncCourseKnowledgeGraph(4178L, "教材");
+
+        assertTrue(json.contains("\"addedPoints\":1"), json);
+        assertTrue(json.contains("\"addedRelations\":1"), "原始长名边不能因截断而丢失: " + json);
+        ArgumentCaptor<List<KnowledgePointRelation>> relCaptor = ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(relationService).saveBatch(relCaptor.capture());
+        assertEquals(3L, relCaptor.getValue().get(0).getSourceId());
+        assertEquals(1L, relCaptor.getValue().get(0).getTargetId());
+        assertEquals("RELATED", relCaptor.getValue().get(0).getRelationType());
     }
 
     @Test
@@ -383,12 +420,12 @@ class DeepGraphRagServiceImplTest {
         org.mockito.Mockito.verify(relationService).saveBatch(relCaptor.capture());
         List<KnowledgePointRelation> rels = relCaptor.getValue();
         assertEquals(10, rels.size());
-        assertEquals("相关", rels.get(0).getRelationType(), "relation 缺省兜底为相关");
+        assertEquals("RELATED", rels.get(0).getRelationType(), "relation 缺省兜底为 RELATED");
         assertEquals("ev9", rels.get(0).getDescription());
         assertEquals("", rels.get(1).getDescription(), "evidence 缺省落空描述");
-        assertEquals("包含章节", rels.get(2).getRelationType());
-        assertEquals("s", rels.get(5).getRelationType());
-        assertEquals("属于", rels.get(6).getRelationType());
+        assertEquals("CONTAINS_CHAPTER", rels.get(2).getRelationType());
+        assertEquals("S", rels.get(5).getRelationType(), "未知关系按规范编码大写落库");
+        assertEquals("BELONGS_TO", rels.get(6).getRelationType());
         assertEquals(2L, rels.get(6).getTargetId());
         assertEquals(4L, rels.get(7).getTargetId());
         assertEquals(9L, rels.get(8).getTargetId(), "兜底落「附录A」自建章节");

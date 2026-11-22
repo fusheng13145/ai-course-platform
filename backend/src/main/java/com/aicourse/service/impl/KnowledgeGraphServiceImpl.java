@@ -1,5 +1,7 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.domain.knowledge.PointType;
+import com.aicourse.domain.knowledge.RelationType;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.integration.ContractPaths;
@@ -112,14 +114,15 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
             if (points != null) {
                 for (KnowledgePoint point : points) {
                     nodes.add(new KnowledgeGraphContract.IngestNode(point.getId(), point.getCourseId(),
-                            point.getName(), point.getDescription(), point.getPointType()));
+                            point.getName(), point.getDescription(),
+                            PointType.canonicalCode(point.getPointType())));
                 }
             }
             List<KnowledgePointRelation> edges = relationService.listByCourse(courseId);
             if (edges != null) {
                 for (KnowledgePointRelation edge : edges) {
                     relations.add(new KnowledgeGraphContract.IngestRelation(edge.getId(), edge.getSourceId(),
-                            edge.getTargetId(), edge.getRelationType()));
+                            edge.getTargetId(), RelationType.canonicalCode(edge.getRelationType())));
                 }
             }
         }

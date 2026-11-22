@@ -1,6 +1,8 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.integration.ContractPaths;
+import com.aicourse.domain.knowledge.PointType;
+import com.aicourse.domain.knowledge.RelationType;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.integration.deepgraph.DisabledDeepGraphRagProvider;
@@ -16,12 +18,24 @@ import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * DeepGraph RAG 服务实现（门面）。
@@ -93,6 +107,11 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
     }
 
     @Override
+    public String ingestFile(Long courseId, String documentName, byte[] content, String contentType) {
+        return serialize(provider.ingestFile(courseId, documentName, content, contentType));
+    }
+
+    @Override
     public String listDocuments(Long courseId) {
         return serialize(provider.listDocuments(courseId));
     }
@@ -113,63 +132,75 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public String syncCourseKnowledgeGraph(Long courseId, String documentName) {
         DeepGraphCourseGraphData data = provider.getCourseGraph(courseId, documentName);
         if (data == null || !ContractPaths.MODE_ENGINE.equals(data.mode())
                 || data.nodes() == null || data.edges() == null) {
             return serialize(data);
         }
-        // 幂等口径：实体按 (courseId, name) 查重；关系按 (sourceId, targetId, relationType) 查重
-        java.util.Map<String, Long> nameToId = new java.util.LinkedHashMap<>();
+        // 幂等口径：实体按 (courseId, normalizedName) 查重；关系按
+        // (sourceId, targetId, canonicalRelationType) 查重。
+        // 名称统一做 trim/去空白/小写归一，避免引擎长名被截断到 120 字符后
+        // 原始长名边匹配不到自己刚创建的节点。
+        Map<String, Long> nameToId = new LinkedHashMap<>();
         for (KnowledgePoint point : knowledgePointService.list(
                 new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId))) {
-            nameToId.put(point.getName(), point.getId());
+            nameToId.put(normalizeEntityName(point.getName()), point.getId());
         }
-        java.util.Set<String> existingTriples = new java.util.LinkedHashSet<>();
-        java.util.Set<Long> pointIds = nameToId.values().isEmpty()
-                ? java.util.Set.of() : new java.util.HashSet<>(nameToId.values());
+        Set<String> existingTriples = new LinkedHashSet<>();
+        Set<Long> pointIds = new HashSet<>(nameToId.values());
         if (!pointIds.isEmpty()) {
             for (KnowledgePointRelation rel : knowledgePointRelationService.list(
                     new LambdaQueryWrapper<KnowledgePointRelation>()
                             .in(KnowledgePointRelation::getSourceId, pointIds)
                             .in(KnowledgePointRelation::getTargetId, pointIds))) {
-                existingTriples.add(rel.getSourceId() + "|" + rel.getTargetId() + "|" + rel.getRelationType());
+                existingTriples.add(tripleKey(rel.getSourceId(), rel.getTargetId(), rel.getRelationType()));
             }
         }
 
-        java.util.List<KnowledgePoint> newPoints = new java.util.ArrayList<>();
+        List<KnowledgePoint> newPoints = new ArrayList<>();
+        List<String> newPointOriginalNames = new ArrayList<>();
         for (CourseGraphNode node : data.nodes()) {
             String name = node.name();
-            if (name == null || name.isBlank() || nameToId.containsKey(name)) {
+            String normalizedName = normalizeEntityName(name);
+            if (normalizedName.isBlank() || nameToId.containsKey(normalizedName)) {
                 continue;
             }
             KnowledgePoint point = new KnowledgePoint();
             point.setCourseId(courseId);
-            point.setName(name.length() > 120 ? name.substring(0, 120) : name);
+            point.setName(truncateName(name));
             point.setDescription(node.evidence() == null ? "" : node.evidence());
-            point.setPointType("CHAPTER".equals(node.type()) ? "CHAPTER" : "CONCEPT");
+            point.setPointType(PointType.canonicalCode(node.type()));
             point.setImportance(3);
             newPoints.add(point);
+            newPointOriginalNames.add(name);
         }
         if (!newPoints.isEmpty()) {
             knowledgePointService.saveBatch(newPoints);
-            for (KnowledgePoint point : newPoints) {
-                nameToId.put(point.getName(), point.getId());
+            for (int i = 0; i < newPoints.size(); i++) {
+                KnowledgePoint point = newPoints.get(i);
+                Long id = point.getId();
+                if (id == null) {
+                    continue;
+                }
+                nameToId.put(normalizeEntityName(point.getName()), id);
+                // 同时登记未截断的原始名，兼容引擎后续用原始长名引用该节点
+                nameToId.put(normalizeEntityName(newPointOriginalNames.get(i)), id);
             }
         }
 
-        java.util.List<KnowledgePointRelation> newRelations = new java.util.ArrayList<>();
+        List<KnowledgePointRelation> newRelations = new ArrayList<>();
         int skippedRelations = 0;
         for (CourseGraphEdge edge : data.edges()) {
-            Long sourceId = nameToId.get(edge.source());
-            Long targetId = nameToId.get(edge.target());
+            Long sourceId = nameToId.get(normalizeEntityName(edge.source()));
+            Long targetId = nameToId.get(normalizeEntityName(edge.target()));
             if (sourceId == null || targetId == null || sourceId.equals(targetId)) {
                 skippedRelations++;
                 continue;
             }
-            String relationType = edge.relation() == null || edge.relation().isBlank()
-                    ? "相关" : edge.relation();
-            String triple = sourceId + "|" + targetId + "|" + relationType;
+            String relationType = RelationType.canonicalCode(edge.relation());
+            String triple = tripleKey(sourceId, targetId, relationType);
             if (existingTriples.contains(triple)) {
                 skippedRelations++;
                 continue;
@@ -180,17 +211,17 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
             rel.setTargetId(targetId);
             rel.setRelationType(relationType);
             rel.setDescription(edge.evidence() == null ? "" : edge.evidence());
-            rel.setStrength(java.math.BigDecimal.ONE);
+            rel.setStrength(BigDecimal.ONE);
             newRelations.add(rel);
         }
         // 归属边：实体 → 所属章节（edge.chapter 为抽取首见章节名，归一化匹配 CHAPTER 节点，
         // 匹配不上则按章节名新建 CHAPTER 点）。层级是平台图谱页分层径向布局的依据。
-        java.util.Map<String, Long> chapterIdByName = new java.util.LinkedHashMap<>();
-        java.util.Map<String, Long> chapterIdByNormalized = new java.util.LinkedHashMap<>();
+        Map<String, Long> chapterIdByName = new LinkedHashMap<>();
+        Map<String, Long> chapterIdByNormalized = new LinkedHashMap<>();
         for (KnowledgePoint point : knowledgePointService.list(
                 new LambdaQueryWrapper<KnowledgePoint>()
                         .eq(KnowledgePoint::getCourseId, courseId)
-                        .eq(KnowledgePoint::getPointType, "CHAPTER"))) {
+                        .eq(KnowledgePoint::getPointType, PointType.CHAPTER.code()))) {
             chapterIdByName.put(point.getName(), point.getId());
             chapterIdByNormalized.put(normalizeChapterName(point.getName()), point.getId());
         }
@@ -202,7 +233,7 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
             }
             // 章节骨架边（包含章节）的 chapter 字段是树根名，不是实体归属——跳过，
             // 否则全部章节子节点会被错误挂到「文档标题」这类占位根下
-            if ("包含章节".equals(edge.relation())) {
+            if (RelationType.known(edge.relation()) == RelationType.CONTAINS_CHAPTER) {
                 continue;
             }
             // 实体自环（章节键与实体同名等噪声）不参与归属
@@ -217,13 +248,13 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
             if (chapterId == null) {
                 // 章号兜底：归档章节键（如「第1章1-10 分组交换时延…」）按章号挂到
                 // 层次大纲里的同名号章节（「第1章 概述」），避免碎片键膨胀成孤立根章节
-                java.util.regex.Matcher numbered =
-                        java.util.regex.Pattern.compile("第\\s*(\\d+)\\s*章").matcher(trimmed);
+                Matcher numbered =
+                        Pattern.compile("第\\s*(\\d+)\\s*章").matcher(trimmed);
                 if (numbered.find()) {
                     String num = numbered.group(1);
-                    for (java.util.Map.Entry<String, Long> entry : chapterIdByNormalized.entrySet()) {
-                        java.util.regex.Matcher candidate =
-                                java.util.regex.Pattern.compile("^第\\s*(\\d+)\\s*章").matcher(entry.getKey());
+                    for (Map.Entry<String, Long> entry : chapterIdByNormalized.entrySet()) {
+                        Matcher candidate =
+                                Pattern.compile("^第\\s*(\\d+)\\s*章").matcher(entry.getKey());
                         if (candidate.find() && candidate.group(1).equals(num)) {
                             chapterId = entry.getValue();
                             break;
@@ -234,15 +265,16 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
             if (chapterId == null) {
                 KnowledgePoint chapterPoint = new KnowledgePoint();
                 chapterPoint.setCourseId(courseId);
-                chapterPoint.setName(trimmed.length() > 120 ? trimmed.substring(0, 120) : trimmed);
+                chapterPoint.setName(truncateName(trimmed));
                 chapterPoint.setDescription("");
-                chapterPoint.setPointType("CHAPTER");
+                chapterPoint.setPointType(PointType.CHAPTER.code());
                 chapterPoint.setImportance(3);
                 knowledgePointService.save(chapterPoint);
                 chapterId = chapterPoint.getId();
                 chapterIdByName.put(chapterPoint.getName(), chapterId);
                 chapterIdByNormalized.put(normalizeChapterName(chapterPoint.getName()), chapterId);
-                nameToId.put(chapterPoint.getName(), chapterId);
+                nameToId.put(normalizeEntityName(chapterPoint.getName()), chapterId);
+                nameToId.put(normalizeEntityName(trimmed), chapterId);
             }
             // 双端归属：三元组的主语与宾语实体都挂到本章——只挂主语会让仅作为宾语
             // 出现的实体没有归属边，最终全部堆在全景图最外环（2026-11-22 实测）
@@ -251,11 +283,11 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
                         || entityName.equals(chapterKey.trim())) {
                     continue;
                 }
-                Long entityId = nameToId.get(entityName);
+                Long entityId = nameToId.get(normalizeEntityName(entityName));
                 if (entityId == null || entityId.equals(chapterId)) {
                     continue;
                 }
-                String triple = entityId + "|" + chapterId + "|属于";
+                String triple = tripleKey(entityId, chapterId, RelationType.BELONGS_TO.code());
                 if (existingTriples.contains(triple)) {
                     continue;
                 }
@@ -263,9 +295,9 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
                 KnowledgePointRelation rel = new KnowledgePointRelation();
                 rel.setSourceId(entityId);
                 rel.setTargetId(chapterId);
-                rel.setRelationType("属于");
+                rel.setRelationType(RelationType.BELONGS_TO.code());
                 rel.setDescription("");
-                rel.setStrength(java.math.BigDecimal.ONE);
+                rel.setStrength(BigDecimal.ONE);
                 newRelations.add(rel);
                 addedMembership++;
             }
@@ -286,8 +318,29 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
                        int addedMembership) {
     }
 
+    private static String normalizeEntityName(String name) {
+        if (name == null) {
+            return "";
+        }
+        return name.trim()
+                .replaceAll("\\s+", "")
+                .toLowerCase(Locale.ROOT);
+    }
+
     private static String normalizeChapterName(String name) {
-        return name == null ? "" : name.replaceAll("\\s+", "");
+        return normalizeEntityName(name);
+    }
+
+    private static String truncateName(String name) {
+        if (name == null) {
+            return "";
+        }
+        String trimmed = name.trim();
+        return trimmed.length() > 120 ? trimmed.substring(0, 120) : trimmed;
+    }
+
+    private static String tripleKey(Long sourceId, Long targetId, String relationType) {
+        return sourceId + "|" + targetId + "|" + RelationType.canonicalCode(relationType);
     }
 
     private String serialize(Object obj) {

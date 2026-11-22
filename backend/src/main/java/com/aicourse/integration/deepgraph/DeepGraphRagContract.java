@@ -31,6 +31,7 @@ import java.util.List;
  *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/retrieve}</td><td>query, course_id?, top_k</td><td>results[], graph_context, mode</td></tr>
  *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/qa}</td><td>question, course_id?, chat_history?</td><td>answer, llm_prompt, sources[], mode</td></tr>
  *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/ingest}</td><td>course_id, document_name, content</td><td>success, stored_as, chunk_count, graph_edges</td></tr>
+ *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/ingest-file?course_id=&document_name=}</td><td>raw pdf/docx/txt body</td><td>同上</td></tr>
  *   <tr><td>GET</td><td>{@code /api/v1/deepgraph/documents?course_id=}</td><td>-</td><td>documents[]</td></tr>
  *   <tr><td>DELETE</td><td>{@code /api/v1/deepgraph/documents/{name}?course_id=}</td><td>-</td><td>success</td></tr>
  *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/chapter-graph}</td><td>course_id, document_name, chapter_name?</td><td>success, nodes, edges, relations[]</td></tr>
@@ -51,6 +52,13 @@ public interface DeepGraphRagContract {
 
     /** 文档入库：整篇文本经原实现 process_documents 全链路处理（FAISS+BM25+图谱+章节）。 */
     DeepGraphIngestResult ingest(Long courseId, String documentName, String content);
+
+    /**
+     * 二进制文档入库（PDF/DOCX/TXT 原文，不做 Java 侧文本化）：
+     * 以 raw body POST 到 8501 的 {@code ingest-file}，解析仍由复制内容 load_single_file 完成。
+     */
+    DeepGraphIngestResult ingestFile(Long courseId, String documentName,
+                                     byte[] content, String contentType);
 
     /** 课程文档列表（course{id}_ 前缀命名空间）。 */
     DeepGraphDocumentList listDocuments(Long courseId);

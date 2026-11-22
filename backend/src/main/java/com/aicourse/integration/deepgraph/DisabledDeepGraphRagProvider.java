@@ -33,6 +33,12 @@ public class DisabledDeepGraphRagProvider implements DeepGraphRagContract {
     }
 
     @Override
+    public DeepGraphIngestResult ingestFile(Long courseId, String documentName,
+                                            byte[] content, String contentType) {
+        return new DeepGraphIngestResult(null, null, null, null, null, null, null, ContractPaths.MODE_UNAVAILABLE, MSG, CODE);
+    }
+
+    @Override
     public DeepGraphDocumentList listDocuments(Long courseId) {
         return new DeepGraphDocumentList(null, MSG, CODE);
     }

@@ -19,12 +19,20 @@ FastAPI 契约服务形式接入平台（对齐 8001/8002/8003 的既有契约�
 HTTP 503 + body{code:503, mode:"UNAVAILABLE", error}，绝不自称 ENGINE）：
   GET    /api/v1/deepgraph/health
   POST   /api/v1/deepgraph/ingest        {course_id, document_name, content, build_*?}
-  GET    /api/v1/deepgraph/documents?course_id=
-  DELETE /api/v1/deepgraph/documents/{document_name}
+  POST   /api/v1/deepgraph/ingest-file    raw body（pdf/docx/txt），query: course_id/document_name
+  GET    /api/v1/deepgraph/documents?course_id=&page=&page_size=
+  DELETE /api/v1/deepgraph/documents/{document_name}?course_id=
   POST   /api/v1/deepgraph/retrieve      {query, course_id?, top_k, 开关?}
   POST   /api/v1/deepgraph/qa            {question, course_id?, chat_history?, answer_mode?}
   POST   /api/v1/deepgraph/chapter-graph {course_id, document_name, chapter_name?, chapter_text?}
   POST   /api/v1/deepgraph/learning-path {target, course_id?, max_depth?, search_all_sources?}
+  GET    /api/v1/deepgraph/course-graph?course_id=&document_name=
+
+适配器自有环境变量（均不写入上游文件）：
+  DG_INTERNAL_AUTH_MODE=optional|required   required 且 INTERNAL_API_KEY 空时 503 fail-closed
+  DG_RATE_LIMIT_PER_MINUTE=120              0 关闭；按 X-User-Id（缺省回退客户端 IP）滑动窗口
+  DG_MAX_UPLOAD_BYTES=52428800              ingest-file 上限
+  DG_KG_SYNC=1                              Streamlit → Neo4j 桥接开关
 
 运行依赖：Ollama（nomic-embed-text 嵌入 + HyDE/实体抽取辅助）、Neo4j（图谱，
 缺失时相关增强自动跳过）、DeepSeek API 或 Ollama 生成模型（LLM_PROVIDER 切换）。
@@ -35,12 +43,18 @@ import os
 import re
 import json
 import threading
+import time
 import traceback
+import uuid
+from contextvars import ContextVar
 from typing import Dict, List, Optional
 
 import requests
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -60,6 +74,59 @@ try:
     HEAVY_IMPORT_ERRORS: List[str] = []
 except Exception as _import_exc:  # 重依赖缺失（CI/瘦环境）：契约端点按降级语义应答
     HEAVY_IMPORT_ERRORS = [f"{type(_import_exc).__name__}: {_import_exc}"]
+
+    class _MissingConfig:
+        """瘦环境下 health 仍需读配置名；真实值缺失时给空串，不伪造可用性。"""
+        MODEL = ""
+        EMBEDDINGS_MODEL = ""
+        CROSS_ENCODER_MODEL = ""
+        OLLAMA_BASE_URL = ""
+        OLLAMA_API_URL = ""
+        NEO4J_URI = ""
+
+    class _MissingPersistence:
+        GLOBAL_GRAPH_DIR = ""
+        DATA_DIR = ""
+
+        @staticmethod
+        def load_metadata():
+            return {"doc_names": []}
+
+        @staticmethod
+        def load_chapters(_name):
+            return {}
+
+        @staticmethod
+        def get_saved_document_path(_name):
+            return None
+
+        @staticmethod
+        def safe_hash_name(name):
+            return re.sub(r"[^A-Za-z0-9_.-]", "_", name or "document")[:120]
+
+    class _MissingNeo4j:
+        class _Driver:
+            @staticmethod
+            def session():
+                raise RuntimeError("neo4j driver unavailable")
+
+        driver = _Driver()
+
+        def __getattr__(self, _item):
+            raise RuntimeError("neo4j_handler unavailable")
+
+    def _missing_callable(*_args, **_kwargs):
+        raise RuntimeError("RAG 重依赖未安装（" + "；".join(HEAVY_IMPORT_ERRORS) + "）")
+
+    chatbot_backend = _MissingConfig()
+    chatbot_config = _MissingConfig()
+    neo4j_db = _MissingNeo4j()
+    persistence = _MissingPersistence()
+    process_documents = _missing_callable
+    retrieve_documents = _missing_callable
+    get_provider = _missing_callable
+    get_provider_name = _missing_callable
+    retrieve_from_graph = _missing_callable
 
 app = FastAPI(title="AI Course DeepGraph RAG Service", version="1.0.0")
 
@@ -150,7 +217,12 @@ def _kg_sync_enabled() -> bool:
 
 
 def _kg_course_state(course_id: int) -> tuple:
-    """读取课程图谱现状：返回 (name->id 映射, 已存在三元组集合)。失败返回 ({}, set())。"""
+    """读取课程图谱现状：返回 (name->id 映射, 已存在三元组集合, 是否可达)。
+
+    空图（新课程）是**可达且正常**的状态，必须与读取失败区分：阶段 5 真实链路
+    首次入库时课程图谱尚无任何节点，旧实现把空状态误判成 kg_unreachable，
+    导致桥接永远不建首个节点。失败时第三项为 False，调用方据此整体跳过。
+    """
     try:
         resp = requests.get(f"{_KG_BASE_URL}/api/v1/graph/course/{course_id}", timeout=10)
         resp.raise_for_status()
@@ -161,10 +233,10 @@ def _kg_course_state(course_id: int) -> tuple:
             for e in body.get("edges", [])
             if e.get("source_id") is not None and e.get("target_id") is not None
         }
-        return name2id, existing
+        return name2id, existing, True
     except Exception as exc:
         print(f"[deepgraph] 读取 kg_service 课程图谱失败（桥接跳过）: {exc}")
-        return {}, set()
+        return {}, set(), False
 
 
 def _kg_ensure_node(course_id: int, name: str, name2id: dict, content: str = "",
@@ -228,8 +300,8 @@ def sync_chapter_graph_to_course_kg(course_id: int, kg, source_doc: str) -> dict
     """
     if not _kg_sync_enabled() or course_id is None or kg is None or kg.number_of_edges() == 0:
         return {"added_nodes": 0, "added_relations": 0, "skipped": "disabled_or_empty"}
-    name2id, existing = _kg_course_state(course_id)
-    if not name2id and not existing:
+    name2id, existing, reachable = _kg_course_state(course_id)
+    if not reachable:
         # 课程图谱读取失败时不再盲目建点，避免半同步
         return {"added_nodes": 0, "added_relations": 0, "skipped": "kg_unreachable"}
     known_before = set(name2id.keys())
@@ -256,8 +328,8 @@ def sync_hierarchical_tree_to_course_kg(course_id: int, tree: dict, source_doc: 
     """
     if not _kg_sync_enabled() or course_id is None or not tree:
         return {"added_nodes": 0, "added_relations": 0, "skipped": "disabled_or_empty"}
-    name2id, existing = _kg_course_state(course_id)
-    if not name2id and not existing:
+    name2id, existing, reachable = _kg_course_state(course_id)
+    if not reachable:
         return {"added_nodes": 0, "added_relations": 0, "skipped": "kg_unreachable"}
 
     known_before = set(name2id.keys())
@@ -281,20 +353,150 @@ def sync_hierarchical_tree_to_course_kg(course_id: int, tree: dict, source_doc: 
     return {"added_nodes": len(set(name2id.keys()) - known_before),
             "added_relations": added_relations, "source_doc": source_doc}
 
-# ---------------- 服务间内部认证（与 rag_service 同款，2026-11-07 验收整改批约定） ----------------
+# ---------------- 服务间内部认证 / 身份与追踪透传 / 限流（2026-11-22 阶段 4） ----------------
 INTERNAL_KEY_HEADER = "X-Internal-Key"
+TRACE_HEADER = "X-Trace-Id"
+USER_HEADER = "X-User-Id"
+
+TRACE_ID: ContextVar[str] = ContextVar("deepgraph_trace_id", default="")
+USER_ID: ContextVar[str] = ContextVar("deepgraph_user_id", default="")
+
+# Streamlit 的 session_state 是进程级全局状态；复制内容读取这些键，无法按请求隔离。
+# 因此所有会读写 session_state 的检索/入库/问答路径必须串行，否则并发请求会互相污染
+# enable_hyde/enable_reranking/max_contexts/current_source。吞吐换正确性，符合本地单机服务定位。
+_SESSION_LOCK = threading.RLock()
+
+_RATE_LOCK = threading.Lock()
+_RATE_BUCKETS: Dict[str, List[float]] = {}
+
+
+def _rate_limit_per_minute() -> int:
+    try:
+        return max(0, int(os.getenv("DG_RATE_LIMIT_PER_MINUTE", "120") or "0"))
+    except ValueError:
+        return 120
+
+
+def _max_upload_bytes() -> int:
+    try:
+        return max(1, int(os.getenv("DG_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)) or "0"))
+    except ValueError:
+        return 50 * 1024 * 1024
+
+
+def _client_identity(request: Request) -> str:
+    user = (request.headers.get(USER_HEADER) or "").strip()
+    if user:
+        return f"user:{user[:64]}"
+    return f"ip:{request.client.host if request.client else 'unknown'}"
+
+
+def _rate_limited(identity: str, now: float) -> bool:
+    limit = _rate_limit_per_minute()
+    if limit <= 0:
+        return False
+    window_start = now - 60.0
+    with _RATE_LOCK:
+        bucket = [t for t in _RATE_BUCKETS.get(identity, []) if t > window_start]
+        if len(bucket) >= limit:
+            _RATE_BUCKETS[identity] = bucket
+            return True
+        bucket.append(now)
+        _RATE_BUCKETS[identity] = bucket
+        if len(_RATE_BUCKETS) > 4096:  # 防止未知 IP/用户无限堆积
+            for key in list(_RATE_BUCKETS)[:1024]:
+                _RATE_BUCKETS.pop(key, None)
+        return False
 
 
 @app.middleware("http")
-async def _internal_auth_guard(request: Request, call_next):
-    expected = (os.getenv("INTERNAL_API_KEY") or "").strip()
-    if expected and not request.url.path.endswith("/health"):
-        if request.headers.get(INTERNAL_KEY_HEADER) != expected:
-            return JSONResponse(
-                status_code=401,
-                content={"code": 401, "message": "缺少或错误的 X-Internal-Key（服务间内部认证）"},
-            )
-    return await call_next(request)
+async def _request_guard(request: Request, call_next):
+    """认证、限流、trace/user 透传与响应头回写，全部在平台适配器内完成。"""
+    trace = (request.headers.get(TRACE_HEADER) or "").strip() or uuid.uuid4().hex
+    user = (request.headers.get(USER_HEADER) or "").strip()
+    trace = re.sub(r"[^A-Za-z0-9_.:-]", "_", trace)[:64]
+    user = re.sub(r"[^A-Za-z0-9_.@:-]", "_", user)[:64]
+    trace_token = TRACE_ID.set(trace)
+    user_token = USER_ID.set(user)
+    try:
+        health = request.url.path.endswith("/health")
+        expected = (os.getenv("INTERNAL_API_KEY") or "").strip()
+        auth_mode = (os.getenv("DG_INTERNAL_AUTH_MODE", "optional") or "optional").strip().lower()
+        if not health:
+            if not expected:
+                if auth_mode == "required":
+                    return JSONResponse(
+                        status_code=503,
+                        content={
+                            "code": 503,
+                            "mode": "UNAVAILABLE",
+                            "message": "服务间认证已启用但 INTERNAL_API_KEY 未配置",
+                            "error": "INTERNAL_API_KEY is required but empty",
+                            "trace_id": TRACE_ID.get(),
+                        },
+                    )
+            elif request.headers.get(INTERNAL_KEY_HEADER) != expected:
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "code": 401,
+                        "mode": "UNAVAILABLE",
+                        "message": "缺少或错误的 X-Internal-Key（服务间内部认证）",
+                        "trace_id": TRACE_ID.get(),
+                    },
+                )
+            if _rate_limited(_client_identity(request), time.monotonic()):
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "code": 429,
+                        "mode": "UNAVAILABLE",
+                        "message": f"请求过于频繁（上限 {_rate_limit_per_minute()} 次/分钟）",
+                        "trace_id": TRACE_ID.get(),
+                    },
+                )
+        response = await call_next(request)
+        response.headers[TRACE_HEADER] = TRACE_ID.get()
+        if USER_ID.get():
+            response.headers[USER_HEADER] = USER_ID.get()
+        return response
+    finally:
+        USER_ID.reset(user_token)
+        TRACE_ID.reset(trace_token)
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": 422,
+            "mode": "UNAVAILABLE",
+            "message": "请求参数校验失败",
+            "error": "request validation failed",
+            "detail": jsonable_encoder(exc.errors()),
+            "trace_id": TRACE_ID.get(),
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def _http_error_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "code": exc.status_code,
+            "mode": "UNAVAILABLE",
+            "message": str(exc.detail),
+            "detail": str(exc.detail),
+            "trace_id": TRACE_ID.get(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def _unhandled_error_handler(request: Request, exc: Exception):
+    return _degrade(f"未处理异常：{type(exc).__name__}: {exc}")
 
 
 # ---------------- 引擎状态 ----------------
@@ -318,6 +520,12 @@ def engine_dep_errors() -> List[str]:
 
 def _doc_prefix(course_id: int) -> str:
     return f"course{course_id}_"
+
+
+def _course_id_from_doc(name: str) -> Optional[int]:
+    """从 course{courseId}_ 前缀反解课程身份；无前缀返回 None，不猜测。"""
+    match = re.match(r"^course(\d+)_", name or "")
+    return int(match.group(1)) if match else None
 
 
 def _sanitize_doc_name(name: str) -> str:
@@ -467,22 +675,42 @@ class _UploadedShim:
         return self._data
 
 
+def _source_name_for(doc, pipeline: dict) -> str:
+    """取片段真实来源文档名：优先 Document.metadata.source，最后回退课程首个文档。
+
+    上游加载器（PyPDFLoader/Docx2txtLoader/TextLoader）会把上传文件落到临时路径，
+    metadata.source 因此可能是 ``tmpXXXX.txt``；这种临时名不是课程文档身份，
+    不能透给前端，必须回退到课程持久化文档名。
+    """
+    metadata = getattr(doc, "metadata", None) or {}
+    for key in ("source", "file_name", "document_name"):
+        value = metadata.get(key) if isinstance(metadata, dict) else None
+        if value:
+            base = os.path.basename(str(value))
+            if not re.match(r"^tmp[a-z0-9_]+\.(txt|pdf|docx)$", base, re.IGNORECASE):
+                return base
+            break
+    names = pipeline.get("doc_names") or []
+    return names[0] if names else "deepgraph"
+
+
 def _sync_session_state(course_id: Optional[int], pipeline: Optional[dict]) -> None:
     """把适配器维护的管道/开关同步进原实现读取的 session_state（headless 可用，已实测）。"""
     try:
-        if pipeline is not None:
-            st.session_state["retrieval_pipeline"] = pipeline
-            st.session_state["documents_loaded"] = True
-            doc_names = pipeline.get("doc_names") or []
-            if doc_names:
-                st.session_state["doc_names"] = doc_names
-                st.session_state.setdefault("current_source", doc_names[-1])
-        # 开关默认值与已验收 app.py 的侧边栏初始值一致（HyDE 默认关、GraphRAG/重排默认开）
-        st.session_state.setdefault("enable_hyde", os.getenv("DG_ENABLE_HYDE", "0") == "1")
-        st.session_state.setdefault("enable_graph_rag", True)
-        st.session_state.setdefault("enable_reranking", True)
-        st.session_state.setdefault("max_contexts", 3)
-        st.session_state.setdefault("answer_mode", "向量检索 + 知识图谱")
+        with _SESSION_LOCK:
+            if pipeline is not None:
+                st.session_state["retrieval_pipeline"] = pipeline
+                st.session_state["documents_loaded"] = True
+                doc_names = pipeline.get("doc_names") or []
+                if doc_names:
+                    st.session_state["doc_names"] = doc_names
+                    st.session_state.setdefault("current_source", doc_names[-1])
+            # 开关默认值与已验收 app.py 的侧边栏初始值一致（HyDE 默认关、GraphRAG/重排默认开）
+            st.session_state.setdefault("enable_hyde", os.getenv("DG_ENABLE_HYDE", "0") == "1")
+            st.session_state.setdefault("enable_graph_rag", True)
+            st.session_state.setdefault("enable_reranking", True)
+            st.session_state.setdefault("max_contexts", 3)
+            st.session_state.setdefault("answer_mode", "向量检索 + 知识图谱")
     except Exception as exc:
         print(f"[deepgraph] session_state 同步告警（不影响检索）: {exc}")
 
@@ -493,18 +721,30 @@ def _apply_flags(req_flags: dict) -> None:
         "enable_graph_rag": "enable_graph_rag",
         "enable_reranking": "enable_reranking",
     }
-    for req_key, state_key in mapping.items():
-        value = req_flags.get(req_key)
-        if value is not None:
-            st.session_state[state_key] = bool(value)
-    if req_flags.get("max_contexts") is not None:
-        st.session_state["max_contexts"] = int(req_flags["max_contexts"])
+    with _SESSION_LOCK:
+        for req_key, state_key in mapping.items():
+            value = req_flags.get(req_key)
+            if value is not None:
+                st.session_state[state_key] = bool(value)
+        if req_flags.get("max_contexts") is not None:
+            st.session_state["max_contexts"] = int(req_flags["max_contexts"])
 
 
 def _degrade(error: str, status: int = 503):
+    """统一降级/错误信封：HTTP 状态与 body.code 必须一致，禁止 200 包 503 或 503 包 200。"""
     return JSONResponse(
         status_code=status,
-        content={"mode": "UNAVAILABLE", "error": error, "code": 503, "results": [], "sources": [], "answer": None},
+        content={
+            "mode": "UNAVAILABLE",
+            "error": error,
+            "message": error,
+            "code": status,
+            "results": [],
+            "sources": [],
+            "answer": None,
+            "trace_id": TRACE_ID.get(),
+            "user_id": USER_ID.get() or None,
+        },
     )
 
 
@@ -595,80 +835,156 @@ def health():
 def ingest(req: IngestRequest):
     if not engine_available():
         return _degrade(f"引擎依赖不可用（缺：{'；'.join(engine_dep_errors())}），未处理文档")
-    doc_name = _course_doc_name(req.course_id, req.document_name)
     if not req.content.strip():
         return _degrade("文档内容为空，未处理")
     try:
-        shim = _UploadedShim(doc_name, req.content.encode("utf-8"))
-        reranker = _reranker()
-        pipeline, chapters = process_documents(
-            [shim],
-            reranker,
-            chatbot_config.EMBEDDINGS_MODEL,
-            chatbot_config.OLLAMA_BASE_URL,
-            req.build_hierarchical,
-            req.build_global,
-            req.build_chapter,
-        )
-        if pipeline is None:
-            return _degrade(
-                f"文档「{req.document_name}」未能构建检索管道（请确认 Ollama 已启动且已拉取 "
-                f"{chatbot_config.EMBEDDINGS_MODEL} 嵌入模型）"
+        with _SESSION_LOCK:
+            return _ingest_document(
+                req.course_id, req.document_name, req.content.encode("utf-8"),
+                req.build_hierarchical, req.build_global, req.build_chapter,
             )
-        # 统一从磁盘重建课程级管道（FAISS 刚由真实 process_single_file 持久化；
-        # 与服务重启后的恢复路径共用同一段真实组件装配代码）
-        course_pipeline = _rebuild_pipeline_from_disk(req.course_id)
-        if course_pipeline is None:
-            course_pipeline = pipeline
-            course_pipeline["doc_names"] = [doc_name]
-            course_pipeline["reranker"] = reranker
-        with _PIPELINE_LOCK:
-            _PIPELINES[req.course_id] = course_pipeline
-        try:
-            st.session_state["current_source"] = doc_name
-        except Exception:
-            pass
-        _sync_session_state(req.course_id, course_pipeline)
-        kg = course_pipeline.get("knowledge_graph")
-        # 层次大纲桥接：build_hierarchical 产出的树（章→节）并入课程图谱（type=CHAPTER，关系=包含章节）
-        hierarchical_sync = {"skipped": "not_built"}
-        if req.build_hierarchical:
-            tree_path = os.path.join("graph_data", f"{doc_name}_hierarchical.json")
-            if os.path.exists(tree_path):
-                try:
-                    with open(tree_path, "r", encoding="utf-8") as f:
-                        tree = json.load(f)
-                    hierarchical_sync = sync_hierarchical_tree_to_course_kg(
-                        req.course_id, tree, doc_name)
-                except Exception as exc:
-                    print(f"[deepgraph] 层次树读取失败（桥接跳过）: {exc}")
-                    hierarchical_sync = {"skipped": f"tree_read_failed: {exc}"}
-        if kg and kg.number_of_edges() > 0:
-            hierarchical_sync["global_graph"] = sync_chapter_graph_to_course_kg(
-                req.course_id, kg, doc_name)
-        return {
-            "success": True,
-            "course_id": req.course_id,
-            "document_name": req.document_name,
-            "stored_as": doc_name,
-            "chapters": len(chapters),
-            "chapter_names": list(chapters.keys())[:20],
-            "chunk_count": len(course_pipeline.get("chunks") or []),
-            "has_graph": bool(kg and kg.number_of_edges() > 0),
-            "graph_edges": (kg.number_of_edges() if kg else 0),
-            "course_graph_sync": hierarchical_sync,
-            "course_documents": course_pipeline.get("doc_names") or [doc_name],
-            "mode": "ENGINE",
-            "code": 200,
-        }
     except Exception as exc:
         traceback.print_exc()
         return _degrade(f"文档处理失败：{type(exc).__name__}: {exc}")
 
 
+@app.post("/api/v1/deepgraph/ingest-file")
+async def ingest_file(
+    request: Request,
+    course_id: int = Query(..., ge=1),
+    document_name: str = Query(..., min_length=1, max_length=255),
+    build_hierarchical: bool = Query(False),
+    build_global: bool = Query(False),
+    build_chapter: bool = Query(True),
+):
+    """二进制上传入口（PDF/DOCX/TXT）：只做传输适配，解析仍由原实现 load_single_file 完成。
+
+    使用 raw body 而非 multipart，避免给上游 requirements 增加 `python-multipart`；
+    Java/脚本可用 `Content-Type: application/pdf` 等直接 POST 文件字节。
+    """
+    if not engine_available():
+        return _degrade(f"引擎依赖不可用（缺：{'；'.join(engine_dep_errors())}），未处理文档")
+    suffix = os.path.splitext(document_name)[1].lower()
+    if suffix not in {".pdf", ".docx", ".txt"}:
+        return _degrade("仅支持 PDF/DOCX/TXT（document_name 必须带受支持扩展名）", status=415)
+    max_bytes = _max_upload_bytes()
+    declared_length = (request.headers.get("content-length") or "").strip()
+    if declared_length:
+        try:
+            if int(declared_length) > max_bytes:
+                return _degrade(
+                    f"上传文件过大：Content-Length {declared_length} > {max_bytes} bytes",
+                    status=413,
+                )
+        except ValueError:
+            return _degrade("Content-Length 非法", status=400)
+    try:
+        data = await request.body()
+    except Exception as exc:
+        return _degrade(f"上传体读取失败：{type(exc).__name__}: {exc}", status=400)
+    if not data:
+        return _degrade("上传内容为空，未处理", status=400)
+    if len(data) > max_bytes:
+        return _degrade(f"上传文件过大：{len(data)} > {max_bytes} bytes", status=413)
+    try:
+        return await run_in_threadpool(
+            _ingest_document_serialized, course_id, document_name, data,
+            build_hierarchical, build_global, build_chapter,
+        )
+    except Exception as exc:
+        traceback.print_exc()
+        return _degrade(f"文档处理失败：{type(exc).__name__}: {exc}")
+
+
+def _ingest_document(course_id: int, document_name: str, content_bytes: bytes,
+                     build_hierarchical: bool, build_global: bool, build_chapter: bool) -> dict:
+    doc_name = _course_doc_name(course_id, document_name)
+    shim = _UploadedShim(doc_name, content_bytes)
+    reranker = _reranker()
+    pipeline, chapters = process_documents(
+        [shim],
+        reranker,
+        chatbot_config.EMBEDDINGS_MODEL,
+        chatbot_config.OLLAMA_BASE_URL,
+        build_hierarchical,
+        build_global,
+        build_chapter,
+    )
+    if pipeline is None:
+        return _degrade(
+            f"文档「{document_name}」未能构建检索管道（请确认 Ollama 已启动且已拉取 "
+            f"{chatbot_config.EMBEDDINGS_MODEL} 嵌入模型）"
+        )
+    # 统一从磁盘重建课程级管道（FAISS 刚由真实 process_single_file 持久化；
+    # 与服务重启后的恢复路径共用同一段真实组件装配代码）
+    course_pipeline = _rebuild_pipeline_from_disk(course_id)
+    if course_pipeline is None:
+        course_pipeline = pipeline
+        course_pipeline["doc_names"] = [doc_name]
+        course_pipeline["reranker"] = reranker
+    with _PIPELINE_LOCK:
+        _PIPELINES[course_id] = course_pipeline
+    try:
+        st.session_state["current_source"] = doc_name
+    except Exception:
+        pass
+    _sync_session_state(course_id, course_pipeline)
+    kg = course_pipeline.get("knowledge_graph")
+    # 层次大纲桥接：build_hierarchical 产出的树（章→节）并入课程图谱（type=CHAPTER，关系=包含章节）
+    hierarchical_sync = {"skipped": "not_built"}
+    if build_hierarchical:
+        tree_path = os.path.join("graph_data", f"{doc_name}_hierarchical.json")
+        if os.path.exists(tree_path):
+            try:
+                with open(tree_path, "r", encoding="utf-8") as f:
+                    tree = json.load(f)
+                hierarchical_sync = sync_hierarchical_tree_to_course_kg(
+                    course_id, tree, doc_name)
+            except Exception as exc:
+                print(f"[deepgraph] 层次树读取失败（桥接跳过）: {exc}")
+                hierarchical_sync = {"skipped": f"tree_read_failed: {exc}"}
+    if kg and kg.number_of_edges() > 0:
+        hierarchical_sync["global_graph"] = sync_chapter_graph_to_course_kg(
+            course_id, kg, doc_name)
+    # 上游 process_documents 返回的是 {file_name: chapters_dict}（多文件聚合）；
+    # 单文件入库必须取本文件对应的章节表，否则会把文件名当成“唯一章节”。
+    chapter_map = chapters.get(doc_name, {}) if isinstance(chapters, dict) else {}
+    if not isinstance(chapter_map, dict):
+        chapter_map = {}
+    return {
+        "success": True,
+        "course_id": course_id,
+        "document_name": document_name,
+        "stored_as": doc_name,
+        "chapters": len(chapter_map),
+        "chapter_names": list(chapter_map.keys())[:20],
+        "chunk_count": len(course_pipeline.get("chunks") or []),
+        "has_graph": bool(kg and kg.number_of_edges() > 0),
+        "graph_edges": (kg.number_of_edges() if kg else 0),
+        "course_graph_sync": hierarchical_sync,
+        "course_documents": course_pipeline.get("doc_names") or [doc_name],
+        "mode": "ENGINE",
+        "code": 200,
+    }
+
+
+def _ingest_document_serialized(course_id: int, document_name: str, content_bytes: bytes,
+                                build_hierarchical: bool, build_global: bool,
+                                build_chapter: bool) -> dict:
+    with _SESSION_LOCK:
+        return _ingest_document(
+            course_id, document_name, content_bytes,
+            build_hierarchical, build_global, build_chapter,
+        )
+
+
 # ---------------- 文档列表 / 删除 ----------------
 @app.get("/api/v1/deepgraph/documents")
-def list_documents(course_id: Optional[int] = Query(None)):
+def list_documents(
+    course_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+):
     if not engine_available():
         return _degrade(f"引擎依赖不可用（缺：{'；'.join(engine_dep_errors())}）")
     try:
@@ -685,13 +1001,24 @@ def list_documents(course_id: Optional[int] = Query(None)):
             )
             items.append({
                 "document_name": name,
-                "course_id": course_id,
+                "course_id": _course_id_from_doc(name) if course_id is None else course_id,
                 "chapters_count": len(chapters),
                 "chapter_names": list(chapters.keys())[:20],
                 "has_global_graph": os.path.exists(graph_path),
                 "has_faiss_index": persistence.get_saved_document_path(name) is not None,
             })
-        return {"documents": items, "mode": "ENGINE", "code": 200}
+        total = len(items)
+        start = (page - 1) * page_size
+        page_items = items[start:start + page_size]
+        return {
+            "documents": page_items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "has_more": start + page_size < total,
+            "mode": "ENGINE",
+            "code": 200,
+        }
     except Exception as exc:
         return _degrade(f"文档列表读取失败：{type(exc).__name__}: {exc}")
 
@@ -703,15 +1030,22 @@ def delete_document(document_name: str, course_id: Optional[int] = Query(None)):
     saved = persistence.get_saved_document_path(document_name)
     if saved is None:
         raise HTTPException(status_code=404, detail="document not found")
+    identity_course = course_id if course_id is not None else _course_id_from_doc(document_name)
     persistence.clear_all_data(document_name)
     try:  # 图谱数据同步清理（neo4j_handler 提供的真实清理方法；best-effort）
         neo4j_db.clear_source_data(document_name)
     except Exception as exc:
         print(f"[deepgraph] Neo4j 清理失败（继续）: {exc}")
-    if course_id is not None:
+    if identity_course is not None:
         with _PIPELINE_LOCK:
-            _PIPELINES.pop(course_id, None)  # 触发下次检索时按磁盘重建
-    return {"success": True, "document_name": document_name, "mode": "ENGINE", "code": 200}
+            _PIPELINES.pop(identity_course, None)  # 触发下次检索时按磁盘重建
+    return {
+        "success": True,
+        "document_name": document_name,
+        "course_id": identity_course,
+        "mode": "ENGINE",
+        "code": 200,
+    }
 
 
 # ---------------- 检索（真实 retrieve_documents：HyDE + BM25/FAISS + 图谱 + 重排） ----------------
@@ -725,47 +1059,55 @@ def retrieve(req: RetrieveRequest):
             f"课程 {req.course_id} 尚未构建文档检索索引，请先调用 POST /api/v1/deepgraph/ingest"
         )
     try:
-        _sync_session_state(req.course_id, pipeline)
-        _apply_flags({
-            "enable_hyde": req.enable_hyde,
-            "enable_graph_rag": req.enable_graph_rag,
-            "enable_reranking": req.enable_reranking,
-            "max_contexts": req.top_k,
-        })
-        docs = retrieve_documents(req.query, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL, "")
-        results = []
-        for i, doc in enumerate(docs):
-            page = getattr(doc, "page_content", "") or ""
-            if not page:
-                continue
-            results.append({
-                "document_id": None,
-                "document_name": (pipeline.get("doc_names") or ["deepgraph"])[0],
-                "relevance_score": round(max(0.0, 1.0 - 0.05 * i), 4),
-                "snippet": page[:800],
-                "retrieval": "VECTOR",
-            })
-        # Neo4j GraphRAG 关系上下文（原 backend.get_retrieval_context 的图谱分支，多文档聚合）
-        graph_lines: List[str] = []
-        if st.session_state.get("enable_graph_rag", True):
-            try:
-                entities = chatbot_backend.extract_entities_from_prompt(req.query)
-                if entities:
-                    for name in (pipeline.get("doc_names") or []):
-                        ctx = neo4j_db.query_graph_context(entities, name)
-                        if ctx:
-                            graph_lines.extend([ln for ln in ctx.split("\n") if ln.strip()])
-            except Exception as exc:
-                print(f"[deepgraph] 图谱上下文获取失败（跳过）: {exc}")
-        return {
-            "results": results,
-            "graph_context": "\n".join(graph_lines[:40]),
-            "mode": "ENGINE",
-            "code": 200,
-        }
+        with _SESSION_LOCK:
+            return _retrieve_impl(req, pipeline)
     except Exception as exc:
         traceback.print_exc()
         return _degrade(f"检索失败：{type(exc).__name__}: {exc}")
+
+
+def _retrieve_impl(req: RetrieveRequest, pipeline: dict) -> dict:
+    _sync_session_state(req.course_id, pipeline)
+    _apply_flags({
+        "enable_hyde": req.enable_hyde,
+        "enable_graph_rag": req.enable_graph_rag,
+        "enable_reranking": req.enable_reranking,
+        "max_contexts": req.top_k,
+    })
+    docs = retrieve_documents(req.query, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL, "")
+    results = []
+    for i, doc in enumerate(docs):
+        page = getattr(doc, "page_content", "") or ""
+        if not page:
+            continue
+        results.append({
+            "document_id": None,
+            "document_name": _source_name_for(doc, pipeline),
+            # 原实现只返回文档对象，不返回相似度；禁止用 1.0-0.05*i 伪造“相关度”。
+            # 需要排序语义时由调用方按 rank 使用，分数缺失即 null，由上层如实透出。
+            "relevance_score": None,
+            "rank": i + 1,
+            "snippet": page[:800],
+            "retrieval": "VECTOR",
+        })
+    # Neo4j GraphRAG 关系上下文（原 backend.get_retrieval_context 的图谱分支，多文档聚合）
+    graph_lines: List[str] = []
+    if st.session_state.get("enable_graph_rag", True):
+        try:
+            entities = chatbot_backend.extract_entities_from_prompt(req.query)
+            if entities:
+                for name in (pipeline.get("doc_names") or []):
+                    ctx = neo4j_db.query_graph_context(entities, name)
+                    if ctx:
+                        graph_lines.extend([ln for ln in ctx.split("\n") if ln.strip()])
+        except Exception as exc:
+            print(f"[deepgraph] 图谱上下文获取失败（跳过）: {exc}")
+    return {
+        "results": results,
+        "graph_context": "\n".join(graph_lines[:40]),
+        "mode": "ENGINE",
+        "code": 200,
+    }
 
 
 # ---------------- 问答（真实 generate_llm_response，上下文按已验收格式组装） ----------------
@@ -781,73 +1123,79 @@ def qa(req: QaRequest):
             f"课程 {req.course_id} 尚未构建文档检索索引，请先调用 POST /api/v1/deepgraph/ingest"
         )
     try:
-        _sync_session_state(req.course_id, pipeline)
-        _apply_flags({
-            "enable_hyde": req.enable_hyde,
-            "enable_graph_rag": req.enable_graph_rag,
-            "enable_reranking": req.enable_reranking,
-        })
-        source_doc = ""
-        if req.document_name:
-            source_doc = _course_doc_name(req.course_id, req.document_name)
-        else:
-            doc_names = pipeline.get("doc_names") or []
-            source_doc = doc_names[-1] if doc_names else ""
-        st.session_state["current_source"] = source_doc
-
-        vector_docs: list = []
-        graph_lines: List[str] = []
-        if req.answer_mode in ("向量检索 + 知识图谱", "仅向量检索"):
-            vector_docs = retrieve_documents(
-                req.question, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL,
-                "\n".join(str(m.get("content", "")) for m in req.chat_history[-5:]),
-            )
-        if req.answer_mode in ("向量检索 + 知识图谱", "仅知识图谱"):
-            try:
-                entities = chatbot_backend.extract_entities_from_prompt(req.question)
-                if entities:
-                    for name in (pipeline.get("doc_names") or []):
-                        ctx = neo4j_db.query_graph_context(entities, name)
-                        if ctx:
-                            graph_lines.extend([ln for ln in ctx.split("\n") if ln.strip()])
-            except Exception as exc:
-                print(f"[deepgraph] 图谱上下文获取失败（跳过）: {exc}")
-
-        vector_context = "\n".join(
-            f"> 来源 {i + 1}: {getattr(d, 'page_content', '')}" for i, d in enumerate(vector_docs)
-        )
-        parts = []
-        if vector_context:
-            parts.append(f"【向量检索上下文】\n{vector_context}")
-        if graph_lines:
-            parts.append(f"【图谱关系上下文】\n" + "\n".join(graph_lines[:40]))
-        context = "\n\n".join(parts)
-
-        answer, llm_prompt = chatbot_backend.generate_llm_response(req.question, context)
-        sources = []
-        for i, doc in enumerate(vector_docs):
-            page = getattr(doc, "page_content", "") or ""
-            if page:
-                sources.append({
-                    "document_id": None,
-                    "document_name": source_doc,
-                    "relevance_score": round(max(0.0, 1.0 - 0.05 * i), 4),
-                    "snippet": page[:800],
-                })
-        if not answer:
-            return _degrade("生成模型返回空回答（请检查 LLM_PROVIDER / DEEPSEEK_API_KEY / Ollama）")
-        return {
-            "answer": answer,
-            "llm_prompt": llm_prompt,
-            "sources": sources,
-            "source_doc": source_doc,
-            "answer_mode": req.answer_mode,
-            "mode": "ENGINE",
-            "code": 200,
-        }
+        with _SESSION_LOCK:
+            return _qa_impl(req, pipeline)
     except Exception as exc:
         traceback.print_exc()
         return _degrade(f"问答失败：{type(exc).__name__}: {exc}")
+
+
+def _qa_impl(req: QaRequest, pipeline: dict) -> dict:
+    _sync_session_state(req.course_id, pipeline)
+    _apply_flags({
+        "enable_hyde": req.enable_hyde,
+        "enable_graph_rag": req.enable_graph_rag,
+        "enable_reranking": req.enable_reranking,
+    })
+    source_doc = ""
+    if req.document_name:
+        source_doc = _course_doc_name(req.course_id, req.document_name)
+    else:
+        doc_names = pipeline.get("doc_names") or []
+        source_doc = doc_names[-1] if doc_names else ""
+    st.session_state["current_source"] = source_doc
+
+    vector_docs: list = []
+    graph_lines: List[str] = []
+    if req.answer_mode in ("向量检索 + 知识图谱", "仅向量检索"):
+        vector_docs = retrieve_documents(
+            req.question, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL,
+            "\n".join(str(m.get("content", "")) for m in req.chat_history[-5:]),
+        )
+    if req.answer_mode in ("向量检索 + 知识图谱", "仅知识图谱"):
+        try:
+            entities = chatbot_backend.extract_entities_from_prompt(req.question)
+            if entities:
+                for name in (pipeline.get("doc_names") or []):
+                    ctx = neo4j_db.query_graph_context(entities, name)
+                    if ctx:
+                        graph_lines.extend([ln for ln in ctx.split("\n") if ln.strip()])
+        except Exception as exc:
+            print(f"[deepgraph] 图谱上下文获取失败（跳过）: {exc}")
+
+    vector_context = "\n".join(
+        f"> 来源 {i + 1}: {getattr(d, 'page_content', '')}" for i, d in enumerate(vector_docs)
+    )
+    parts = []
+    if vector_context:
+        parts.append(f"【向量检索上下文】\n{vector_context}")
+    if graph_lines:
+        parts.append(f"【图谱关系上下文】\n" + "\n".join(graph_lines[:40]))
+    context = "\n\n".join(parts)
+
+    answer, llm_prompt = chatbot_backend.generate_llm_response(req.question, context)
+    sources = []
+    for i, doc in enumerate(vector_docs):
+        page = getattr(doc, "page_content", "") or ""
+        if page:
+            sources.append({
+                "document_id": None,
+                "document_name": _source_name_for(doc, pipeline) or source_doc,
+                "relevance_score": None,
+                "rank": i + 1,
+                "snippet": page[:800],
+            })
+    if not answer:
+        return _degrade("生成模型返回空回答（请检查 LLM_PROVIDER / DEEPSEEK_API_KEY / Ollama）")
+    return {
+        "answer": answer,
+        "llm_prompt": llm_prompt,
+        "sources": sources,
+        "source_doc": source_doc,
+        "answer_mode": req.answer_mode,
+        "mode": "ENGINE",
+        "code": 200,
+    }
 
 
 # ---------------- 章节知识图谱（真实 build_chapter_knowledge_graph + Neo4j 同步） ----------------

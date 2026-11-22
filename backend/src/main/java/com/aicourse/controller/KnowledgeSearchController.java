@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.domain.knowledge.GraphSnapshotVersion;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.security.CourseAccessControl;
@@ -16,9 +17,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -102,7 +105,21 @@ public class KnowledgeSearchController {
         }
         double coverageRate = points.isEmpty() ? 0d : (double) coveredIds.size() / points.size();
 
+        LocalDateTime pointUpdatedAt = points.stream()
+                .map(KnowledgePoint::getUpdatedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        LocalDateTime relationUpdatedAt = relations.stream()
+                .map(KnowledgePointRelation::getCreatedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        GraphSnapshotVersion.Snapshot snapshot = GraphSnapshotVersion.of(
+                courseId, points.size(), relations.size(), pointUpdatedAt, relationUpdatedAt);
+
         return ApiResponse.success(new KnowledgeOverviewVO(
-                (long) points.size(), (long) relations.size(), corePoints, coverageRate, courseId));
+                (long) points.size(), (long) relations.size(), corePoints, coverageRate, courseId,
+                snapshot.version(), snapshot.generatedAt()));
     }
 }
