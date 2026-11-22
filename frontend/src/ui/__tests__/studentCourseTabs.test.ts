@@ -3,6 +3,13 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+/** 作业页在新标签打开，列表只负责 resolve + window.open */
+const routerResolve = vi.hoisted(() => vi.fn((path: string) => ({ href: path })))
+const openMock = vi.hoisted(() => vi.fn())
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ resolve: routerResolve }),
+}))
+
 const taskApi = vi.hoisted(() => ({
   getAllTasks: vi.fn(),
   listByCourse: vi.fn(),
@@ -12,6 +19,8 @@ const chapterApi = vi.hoisted(() => ({ getChapters: vi.fn() }))
 const submissionApi = vi.hoisted(() => ({
   submitTask: vi.fn(),
   getAllMySubmissions: vi.fn(),
+  getUnsubmitted: vi.fn(),
+  remindUnsubmitted: vi.fn(),
 }))
 const studentApi = vi.hoisted(() => ({
   getGrades: vi.fn(),
@@ -77,6 +86,7 @@ const findButton = (wrapper: ReturnType<typeof mount>, label: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('open', openMock)
   toast.mockReset()
   taskApi.getAllTasks.mockResolvedValue([])
   chapterApi.getChapters.mockResolvedValue({ data: [] })
@@ -146,112 +156,63 @@ describe('学生课程 · 作业页签', () => {
     failed.unmount()
   })
 
-  it('提交作业走真实接口：POST /submissions 的 { content, fileUrls } 白名单字段', async () => {
+  it('列表只负责跳转：重做列与查看详情都进独立作业页', async () => {
     taskApi.getAllTasks.mockResolvedValue([
       {
         id: 9001,
-        title: '实验一报告',
-        description: '提交实验报告',
+        title: '已批改作业',
+        dueDate: '2099-01-01T00:00:00',
+        maxScore: 100,
+        isPublished: true,
+      },
+      {
+        id: 9002,
+        title: '未提交作业',
         dueDate: '2099-01-01T00:00:00',
         maxScore: 100,
         isPublished: true,
       },
     ])
-    studentApi.getAssignmentDetail.mockResolvedValue({
-      data: {
-        assignment: {
-          id: 9001,
-          title: '实验一报告',
-          description: '提交实验报告',
-          dueDate: '2099-01-01T00:00:00',
-          maxScore: 100,
-          isPublished: true,
-        },
-        submission: null,
-      },
-    })
-
-    const wrapper = mountTasks()
-    await flushPromises()
-    await findButton(wrapper, '查看详情')?.trigger('click')
-    await flushPromises()
-
-    expect(studentApi.getAssignmentDetail).toHaveBeenCalledWith(9001)
-    expect(wrapper.find('.modal-stub').text()).toContain('提交实验报告')
-
-    await wrapper.find('.modal-stub textarea').setValue('我的实验结果')
-    const buttons = wrapper.findAll('.modal-stub button')
-    await buttons[buttons.length - 1].trigger('click')
-    await flushPromises()
-
-    expect(submissionApi.submitTask).toHaveBeenCalledTimes(1)
-    expect(submissionApi.submitTask).toHaveBeenCalledWith(9001, {
-      content: '我的实验结果',
-      fileUrls: [],
-    })
-    expect(toast).toHaveBeenCalledWith('提交成功，等待教师批改', 'ok')
-    // 提交成功后按响应收口：表单消失，不依赖刷新结果
-    expect(wrapper.find('.modal-stub textarea').exists()).toBe(false)
-    expect(wrapper.text()).toContain('该作业当前不可再提交')
-    wrapper.unmount()
-  })
-
-  it('提交成功后刷新失败也不会回退成可重复提交的表单', async () => {
-    taskApi.getAllTasks.mockResolvedValue([
-      {
-        id: 9001,
-        title: '实验一报告',
-        dueDate: '2099-01-01T00:00:00',
-        isPublished: true,
-      },
+    submissionApi.getAllMySubmissions.mockResolvedValue([
+      { id: 5700, taskId: 9001, status: 'GRADED', score: 88, attemptNumber: 1, content: '旧作答' },
     ])
 
     const wrapper = mountTasks()
     await flushPromises()
-    await findButton(wrapper, '查看详情')?.trigger('click')
-    await flushPromises()
-    await wrapper.find('.modal-stub textarea').setValue('刷新失败也要算已提交')
 
-    // 提交动作本身成功，但随后的列表刷新失败
-    taskApi.getAllTasks.mockRejectedValueOnce(new Error('502'))
-    const buttons = wrapper.findAll('.modal-stub button')
-    await buttons[buttons.length - 1].trigger('click')
-    await flushPromises()
-
-    expect(submissionApi.submitTask).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('.modal-stub textarea').exists()).toBe(false)
-    expect(wrapper.text()).toContain('该作业当前不可再提交')
-    // 刷新失败明确暴露为失败态，而不是「暂无作业」
-    expect(wrapper.find('.callout.danger').text()).toContain('作业列表加载失败')
-    expect(wrapper.text()).not.toContain('本课程暂无已发布作业')
-    wrapper.unmount()
-  })
-
-  it('提交失败保留表单并允许重试', async () => {
-    taskApi.getAllTasks.mockResolvedValue([
-      {
-        id: 9001,
-        title: '实验一报告',
-        dueDate: '2099-01-01T00:00:00',
-        isPublished: true,
-      },
+    // 表头独立列出「重做」列
+    expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual([
+      '作业',
+      '状态',
+      '截止时间',
+      '得分',
+      '重做',
+      '操作',
     ])
-    submissionApi.submitTask.mockRejectedValueOnce(new Error('502'))
 
-    const wrapper = mountTasks()
-    await flushPromises()
-    await findButton(wrapper, '查看详情')?.trigger('click')
-    await flushPromises()
-    await wrapper.find('.modal-stub textarea').setValue('保留这段作答')
-    const buttons = wrapper.findAll('.modal-stub button')
-    await buttons[buttons.length - 1].trigger('click')
-    await flushPromises()
+    const rows = wrapper.findAll('tbody tr')
+    const rowOf = (title: string) => {
+      const matched = rows.find((tr) => tr.text().includes(title))
+      expect(matched).toBeTruthy()
+      return matched as (typeof rows)[number]
+    }
 
-    expect(wrapper.find('.form-error').text()).toContain('提交失败')
-    const textarea = wrapper.find('.modal-stub textarea').element as HTMLTextAreaElement
-    expect(textarea.value).toBe('保留这段作答')
-    // 提交按钮仍在，可直接重试
-    expect(findButton(wrapper, '提交作业')).toBeTruthy()
+    // 已批改 → 重新提交；未提交 → 提交作业
+    expect(rowOf('已批改作业').findAll('td')[4].text()).toBe('重新提交')
+    expect(rowOf('未提交作业').findAll('td')[4].text()).toBe('提交作业')
+
+    // 点「重新提交」在新标签打开沉浸式作业页，列表保留
+    await rowOf('已批改作业').findAll('td')[4].find('button').trigger('click')
+    await flushPromises()
+    expect(openMock).toHaveBeenCalledWith('/assignment/9001', '_blank', 'noopener,noreferrer')
+    expect(wrapper.find('.modal-stub').exists()).toBe(false)
+
+    // 「查看详情」同样开新标签
+    openMock.mockClear()
+    await rowOf('未提交作业').findAll('td')[5].find('button').trigger('click')
+    await flushPromises()
+    expect(openMock).toHaveBeenCalledWith('/assignment/9002', '_blank', 'noopener,noreferrer')
+
     wrapper.unmount()
   })
 })
@@ -282,6 +243,39 @@ describe('课程 · 教师任务页签（回归守卫）', () => {
     expect(findButton(wrapper, '新建任务')).toBeTruthy()
     // 教师视图不触发学生侧数据聚合
     expect(submissionApi.getAllMySubmissions).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('教师可查看未交名单并一键催交', async () => {
+    taskApi.getAllTasks.mockResolvedValue([
+      {
+        id: 9100,
+        title: '期中项目',
+        taskType: '作业',
+        dueDate: '2099-01-01T00:00:00',
+        isPublished: true,
+      },
+    ])
+    submissionApi.getUnsubmitted.mockResolvedValue({
+      data: [{ studentId: 2016, username: 'st016', fullName: '林宇', studentNo: '202503008' }],
+    })
+    submissionApi.remindUnsubmitted.mockResolvedValue({ data: { count: 1 } })
+
+    const wrapper = mountTasks('teacher')
+    await flushPromises()
+
+    await findButton(wrapper, '未交名单')?.trigger('click')
+    await flushPromises()
+
+    expect(submissionApi.getUnsubmitted).toHaveBeenCalledWith(9100)
+    expect(wrapper.text()).toContain('st016')
+    expect(wrapper.text()).toContain('林宇')
+    expect(wrapper.text()).toContain('202503008')
+
+    await findButton(wrapper, '一键催交')?.trigger('click')
+    await flushPromises()
+    expect(submissionApi.remindUnsubmitted).toHaveBeenCalledWith(9100)
+    expect(toast).toHaveBeenCalledWith('已向 1 名学生发送催交通知', 'ok')
     wrapper.unmount()
   })
 })
@@ -335,18 +329,10 @@ describe('学生课程 · 成绩页签', () => {
     // 表头：得分与满分两列（考试得分由得分率折算到卷面分）
     const th = wrapper.findAll('thead th').map((node) => node.text())
     expect(th).toEqual(['成绩项', '类型', '得分', '满分', '状态', '提交时间', '教师评语'])
-    // 作业行：得分 88 / 满分 100；考试行：76% × 100 = 得分 76 / 满分 100
+    // 默认按提交时间倒序：10-20 的考试在前，10-01 的作业在后
+    // 考试行：76% × 100 = 得分 76 / 满分 100；作业行：得分 88 / 满分 100
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0].findAll('td').map((td) => td.text())).toEqual([
-      '实验一',
-      '作业',
-      '88',
-      '100',
-      '已批改',
-      '2026-10-01 10:00',
-      '报告完整',
-    ])
-    expect(rows[1].findAll('td').map((td) => td.text())).toEqual([
       '期中测验',
       '考试',
       '76',
@@ -355,7 +341,26 @@ describe('学生课程 · 成绩页签', () => {
       '2026-10-20 09:00',
       '—',
     ])
+    expect(rows[1].findAll('td').map((td) => td.text())).toEqual([
+      '实验一',
+      '作业',
+      '88',
+      '100',
+      '已批改',
+      '2026-10-01 10:00',
+      '报告完整',
+    ])
     expect(wrapper.text()).toContain('报告完整')
+
+    // 切换为最早优先：10-01 的作业回到第一行
+    const orderToggle = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('时间 ↓ 最新优先'))
+    expect(orderToggle).toBeTruthy()
+    await orderToggle?.trigger('click')
+    const ascRows = wrapper.findAll('tbody tr')
+    expect(ascRows[0].findAll('td')[0].text()).toBe('实验一')
+    expect(ascRows[1].findAll('td')[0].text()).toBe('期中测验')
     // 只看本课程：其它课程的数据不得混入
     expect(wrapper.text()).not.toContain('数据结构')
     wrapper.unmount()

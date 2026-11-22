@@ -33,6 +33,21 @@ class SubmissionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.PlagiarismCheckService plagiarismCheckService;
 
+    @MockitoBean
+    private com.aicourse.service.TaskService taskService;
+
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService enrollmentService;
+
+    @MockitoBean
+    private com.aicourse.service.UserService userService;
+
+    @MockitoBean
+    private com.aicourse.service.NotificationService notificationService;
+
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+
     private Page<Submission> submissionPageWith(Long id) {
         Submission s = new Submission();
         s.setId(id);
@@ -310,12 +325,21 @@ class SubmissionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /submissions/1/check-plagiarism - 教师触发查重返回200，数据透传")
     void checkPlagiarism_authorized_passes_security() throws Exception {
-        when(submissionService.triggerPlagiarismCheck(eq(1L))).thenReturn(new com.aicourse.entity.PlagiarismCheck());
+        com.aicourse.entity.PlagiarismCheck check = new com.aicourse.entity.PlagiarismCheck();
+        check.setId(1L);
+        when(submissionService.triggerPlagiarismCheck(eq(1L))).thenReturn(check);
+        when(plagiarismCheckService.getCheckResult(eq(1L))).thenReturn(
+                new com.aicourse.vo.PlagiarismCheckResultVO(
+                        check, new java.math.BigDecimal("0.5"), 1,
+                        "本次查重共与18份其他提交进行了比对", "COMPLETED",
+                        List.of(), null, "Jaccard-CJKBigram-v2.0"));
         mockMvc.perform(post("/submissions/1/check-plagiarism").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").exists());
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.highSimilarityCount").value(1));
         verify(submissionService).triggerPlagiarismCheck(eq(1L));
+        verify(plagiarismCheckService).getCheckResult(eq(1L));
     }
 
     @Test

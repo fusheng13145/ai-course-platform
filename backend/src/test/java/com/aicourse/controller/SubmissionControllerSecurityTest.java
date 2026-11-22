@@ -44,6 +44,14 @@ class SubmissionControllerSecurityTest extends ControllerTestBase {
     private com.aicourse.service.PlagiarismCheckService plagiarismCheckService;
     @MockitoBean
     private com.aicourse.security.CourseAccessControl courseAccessControl;
+    @MockitoBean
+    private com.aicourse.service.TaskService taskService;
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService enrollmentService;
+    @MockitoBean
+    private com.aicourse.service.UserService userService;
+    @MockitoBean
+    private com.aicourse.service.NotificationService notificationService;
 
     private Submission submission(Long id, Long studentId, Long taskId) {
         Submission s = new Submission();

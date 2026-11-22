@@ -573,7 +573,8 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         examPaper.setShuffleOptions(dto.getShuffleOptions() != null ? dto.getShuffleOptions() : true);
         examPaper.setShowScore(dto.getShowScore() != null ? dto.getShowScore() : true);
         examPaper.setShowCorrectAnswer(dto.getShowCorrectAnswer() != null ? dto.getShowCorrectAnswer() : false);
-        examPaper.setMaxAttempts(dto.getMaxAttempts() != null ? dto.getMaxAttempts() : 1);
+        // 0 = 不限次数（ExamSessionLifecycleComponent 只在 maxAttempts > 0 时限制）
+        examPaper.setMaxAttempts(dto.getMaxAttempts() != null ? dto.getMaxAttempts() : 0);
         examPaper.setTimeLimit(dto.getTimeLimit() != null ? dto.getTimeLimit() : dto.getDuration());
         examPaper.setAllowReview(dto.getAllowReview() != null ? dto.getAllowReview() : true);
         examPaper.setIsActive(true);

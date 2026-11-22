@@ -4,15 +4,11 @@ import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.Submission;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.SubmissionMapper;
-import com.aicourse.service.AIService;
 import com.aicourse.service.PlagiarismCheckService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,16 +23,13 @@ public class SubmissionReadComponent {
 
     private final SubmissionMapper submissionMapper;
     private final PlagiarismCheckService plagiarismCheckService;
-    private final AIService aiService;
     private final SubmissionJsonComponent jsonSupport;
 
     public SubmissionReadComponent(SubmissionMapper submissionMapper,
                                    PlagiarismCheckService plagiarismCheckService,
-                                   AIService aiService,
                                    SubmissionJsonComponent jsonSupport) {
         this.submissionMapper = submissionMapper;
         this.plagiarismCheckService = plagiarismCheckService;
-        this.aiService = aiService;
         this.jsonSupport = jsonSupport;
     }
 
@@ -56,6 +49,10 @@ public class SubmissionReadComponent {
 
     /**
      * 触发查重检测
+     *
+     * <p>走本地 Jaccard（CJK bigram）逐对比对，实现在 {@link PlagiarismCheckService#executeCheck}。
+     * 旧实现给同任务每份提交都调用一次 LLM：19 份提交要 3~5 分钟，前端 30s 请求必超时，
+     * 且相似度靠正则从自然语言里抠数字，结果不可复现。本地算法毫秒级给出可解释分值。</p>
      */
     public PlagiarismCheck triggerPlagiarismCheck(Long submissionId) {
         Submission submission = submissionMapper.selectById(submissionId);
@@ -66,57 +63,17 @@ public class SubmissionReadComponent {
             throw new BusinessException("提交内容为空，无法进行查重检测");
         }
 
-        // 创建查重记录
-        PlagiarismCheck check = new PlagiarismCheck();
-        check.setSubmissionId(submissionId);
-        check.setStatus("PENDING");
-        check.setCheckedAt(LocalDateTime.now());
-        plagiarismCheckService.save(check);
-
-        // 简单的查重逻辑：与同任务的其他提交进行对比
-        try {
-            List<Submission> otherSubmissions = submissionMapper.selectList(
-                    new LambdaQueryWrapper<Submission>()
-                            .eq(Submission::getTaskId, submission.getTaskId())
-                            .ne(Submission::getId, submissionId)
-                            .isNotNull(Submission::getContent)
-            );
-
-            double maxSimilarity = 0.0;
-            for (Submission other : otherSubmissions) {
-                if (other.getContent() != null && !other.getContent().isEmpty()) {
-                    // 使用AI服务进行相似度检测
-                    String result = aiService.checkPlagiarism(submission.getContent(), other.getContent());
-                    // 解析结果获取相似度（简单处理）
-                    try {
-                        double similarity = Double.parseDouble(result.replaceAll("[^0-9.]", ""));
-                        if (similarity > maxSimilarity) {
-                            maxSimilarity = similarity;
-                        }
-                    } catch (NumberFormatException ignored) {
-                        log.warn("查重相似度解析失败: submissionId={}, result={}", submissionId, result, ignored);
-                    }
-                }
-            }
-
-            check.setSimilarityScore(new BigDecimal(maxSimilarity).setScale(2, RoundingMode.HALF_UP));
-            if (maxSimilarity >= 80.0) {
-                check.setStatus("HIGH_RISK");
-            } else if (maxSimilarity >= 50.0) {
-                check.setStatus("MEDIUM_RISK");
-            } else {
-                check.setStatus("LOW_RISK");
-            }
-
-        } catch (RuntimeException e) {
-            log.error("提交相关操作失败: {}", e.getMessage(), e);
-
-            check.setStatus("ERROR");
-            check.setErrorMessage(e.getMessage());
+        PlagiarismCheck check = plagiarismCheckService.createCheck(submissionId, "TEXT");
+        plagiarismCheckService.executeCheck(check.getId());
+        PlagiarismCheck completed = plagiarismCheckService.getById(check.getId());
+        if (completed == null) {
+            throw new BusinessException("查重检测失败：未生成检测记录");
         }
-
-        plagiarismCheckService.updateById(check);
-        return check;
+        // 执行异常会被 executeCheck 落成 FAILED；如实抛出，不让前端收到「检测完成」却无结果
+        if ("FAILED".equals(completed.getStatus())) {
+            throw new BusinessException("查重检测失败：" + completed.getErrorMessage());
+        }
+        return completed;
     }
 
     /**

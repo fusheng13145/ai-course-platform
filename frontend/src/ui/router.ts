@@ -12,6 +12,10 @@ const RegisterView = () => import('./views/auth/RegisterView.vue')
 const ForgotPasswordView = () => import('./views/auth/ForgotPasswordView.vue')
 const LegalView = () => import('./views/legal/LegalView.vue')
 const ErrorView = () => import('./views/error/ErrorView.vue')
+/** 沉浸式答题 / 作业页：挂在 Shell 之外，全屏无侧边栏 */
+const ExamRoomView = () => import('./views/exam/ExamRoomView.vue')
+const AssignmentView = () => import('./views/task/AssignmentView.vue')
+const ExamReviewView = () => import('./views/teacher/ExamReviewView.vue')
 
 function homeFor(roleValue: unknown): string {
   const role = String(roleValue || '')
@@ -90,6 +94,18 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false, errorCode: '503', title: '服务连接失败' },
   },
   {
+    // 沉浸式考试：独立全屏路由，不进 Shell（无侧边栏），答题过程不被打断
+    path: '/exam-room/:paperId',
+    component: ExamRoomView,
+    meta: { requiresAuth: true, role: 'STUDENT', title: '在线考试' },
+  },
+  {
+    // 沉浸式作业：独立全屏路由，详情 + 作答 + 提交都在这一页完成
+    path: '/assignment/:taskId',
+    component: AssignmentView,
+    meta: { requiresAuth: true, role: 'STUDENT', title: '作业提交' },
+  },
+  {
     path: '/',
     component: Shell,
     meta: { requiresAuth: true, title: '新版工作台' },
@@ -158,6 +174,12 @@ export const routes: RouteRecordRaw[] = [
         path: 'teacher/exams',
         redirect: '/teacher/courses',
         meta: { role: 'TEACHER', pageKey: 'exams', title: '试卷库' },
+      },
+      {
+        // 考试阅卷台：主观题人工评分 + 逐份答卷查看
+        path: 'teacher/exams/:paperId/review',
+        component: ExamReviewView,
+        meta: { role: 'TEACHER', pageKey: 'exams', title: '考试阅卷' },
       },
       {
         path: 'teacher/grades',

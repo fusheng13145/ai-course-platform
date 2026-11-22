@@ -97,6 +97,7 @@
                 <td>
                   <div class="row-actions">
                     <button class="text-btn" @click="openQuestions(row)">题目</button>
+                    <button class="text-btn" @click="openReview(row)">阅卷</button>
                     <button class="text-btn" @click="openStats(row)">统计</button>
                     <button class="text-btn" :disabled="copyingId === row.id" @click="copyRow(row)">
                       {{ copyingId === row.id ? '复制中…' : '复制' }}
@@ -242,6 +243,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   archiveExamPaper,
   copyExam,
@@ -297,6 +299,12 @@ interface CourseRow {
 
 const props = defineProps<{ courseId?: number; initialTab?: 'papers' | 'proctor' }>()
 const { toast } = useUi()
+const router = useRouter()
+
+/** 进入阅卷台：主观题人工评分 + 逐份答卷查看 */
+function openReview(row: ExamRow) {
+  router.push(`/teacher/exams/${row.id}/review`)
+}
 
 const examTab = ref<'papers' | 'proctor'>(props.initialTab || 'papers')
 
