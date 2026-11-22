@@ -1,13 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
 
 const aiApi = vi.hoisted(() => ({
   weakPointsAnalysis: vi.fn(),
   learningAdvice: vi.fn(),
   qaAsk: vi.fn(),
   qaContinue: vi.fn(),
+  qaStream: vi.fn(),
   getSessions: vi.fn(),
+  getSessionDetail: vi.fn(),
   essayCorrect: vi.fn(),
   essayPolish: vi.fn(),
   generateLearningPath: vi.fn(),
@@ -23,18 +24,65 @@ const knowledgeApi = vi.hoisted(() => ({
   ingestKnowledgeGraph: vi.fn(),
 }))
 const toast = vi.hoisted(() => vi.fn())
+const ragApi = vi.hoisted(() => ({
+  ragListDocuments: vi.fn(),
+  ragAddDocument: vi.fn(),
+  ragBuildIndex: vi.fn(),
+  ragClearIndex: vi.fn(),
+  ragDeleteDocument: vi.fn(),
+  ragUpdateDocument: vi.fn(),
+}))
 
 vi.mock('@/api/ai', () => ({ default: aiApi }))
 vi.mock('@/api/course', () => ({ default: courseApi }))
 vi.mock('@/api/knowledge', () => ({ default: knowledgeApi }))
+vi.mock('@/api/rag', () => ragApi)
 vi.mock('../composables/ui', () => ({ useUi: () => ({ toast }) }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ userId: 42 }) }))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ userId: 42, userName: '李昂', userAvatar: '/uploads/avatars/42.png' }),
+}))
 
 import AiCenterTab from '../views/course/tabs/AiCenterTab.vue'
 import KnowledgeGraphTab from '../views/course/tabs/KnowledgeGraphTab.vue'
 
 const COURSE_ID = 4007
 let courseId = COURSE_ID
+
+/** 每次 qaStream 调用的入参与回调，测试用它按真实 SSE 顺序推事件 */
+const streamCalls: {
+  params: Record<string, unknown>
+  handlers: {
+    onToken?: (token: string) => void
+    onSources?: (sources: unknown[]) => void
+    onDone?: () => void
+    onError?: (error: Error) => void
+    onSession?: (sessionId: string) => void
+  }
+}[] = []
+
+function latestStream() {
+  return streamCalls[streamCalls.length - 1]
+}
+
+/** 模拟后端一帧一帧推：sessionId → token*n → sources → DONE */
+async function finishStream(options: {
+  sessionId?: string
+  tokens?: string[]
+  sources?: unknown[]
+  error?: Error
+}) {
+  const call = latestStream()
+  if (!call) throw new Error('qaStream 没有被调用')
+  if (options.error) {
+    call.handlers.onError?.(options.error)
+  } else {
+    if (options.sessionId) call.handlers.onSession?.(String(options.sessionId))
+    for (const token of options.tokens ?? []) call.handlers.onToken?.(token)
+    call.handlers.onSources?.(options.sources ?? [])
+    call.handlers.onDone?.()
+  }
+  await flushPromises()
+}
 
 const findButton = (wrapper: ReturnType<typeof mount>, label: string) =>
   wrapper.findAll('button').find((node) => node.text().includes(label))
@@ -44,10 +92,16 @@ const tabLabels = (wrapper: ReturnType<typeof mount>) =>
 
 beforeEach(() => {
   vi.resetAllMocks()
+  streamCalls.length = 0
+  aiApi.qaStream.mockImplementation((params, handlers) => {
+    streamCalls.push({ params, handlers })
+    return { abort: vi.fn() } as unknown as AbortController
+  })
   courseId += 1
   aiApi.weakPointsAnalysis.mockResolvedValue({ data: [] })
   aiApi.learningAdvice.mockResolvedValue({ data: {} })
   aiApi.getSessions.mockResolvedValue({ data: [] })
+  ragApi.ragListDocuments.mockResolvedValue({ data: { data: [] } })
   // 组件会读课程名做顶栏副标题：拦掉，免得住测试里真发一次 /courses/:id
   courseApi.getCourseById.mockResolvedValue({ data: { id: COURSE_ID, name: '计算机网络' } })
   knowledgeApi.getRelationGraphData.mockResolvedValue({
@@ -83,15 +137,25 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     expect(teacher.text()).toContain('AI 助教')
   })
 
-  it('学生端不预拉薄弱点/建议（面板已移除），教师端仍按原口径拉取', async () => {
+  it('两端都不在挂载时预拉洞察；教师进入页签才发对应请求', async () => {
     mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
     expect(aiApi.weakPointsAnalysis).not.toHaveBeenCalled()
     expect(aiApi.learningAdvice).not.toHaveBeenCalled()
 
-    mount(AiCenterTab, { props: { courseId: courseId + 1, mode: 'teacher' } })
+    const teacher = mount(AiCenterTab, { props: { courseId: courseId + 1, mode: 'teacher' } })
+    await flushPromises()
+    // 挂载不预拉：避免两次真实 LLM 调用占满本地单并发队列
+    expect(aiApi.weakPointsAnalysis).not.toHaveBeenCalled()
+    expect(aiApi.learningAdvice).not.toHaveBeenCalled()
+
+    await findButton(teacher, '薄弱点分析')!.trigger('click')
     await flushPromises()
     expect(aiApi.weakPointsAnalysis).toHaveBeenCalledWith({ courseId: courseId + 1 })
+    expect(aiApi.learningAdvice).not.toHaveBeenCalled()
+
+    await findButton(teacher, '学习建议')!.trigger('click')
+    await flushPromises()
     expect(aiApi.learningAdvice).toHaveBeenCalledWith({ courseId: courseId + 1 })
   })
 
@@ -146,28 +210,148 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     expect(wrapper.findAll('.side-item')).toHaveLength(0)
   })
 
-  it('点建议即按真实提问发送：先落用户消息，回答只用接口返回值', async () => {
-    aiApi.qaAsk.mockResolvedValue({
-      data: {
-        data: { sessionId: 901, answer: '先讲分层。', sources: [{ documentName: '第 1 章' }] },
-      },
-    })
+  it('点建议即走真实流式：首帧建会话，token 逐段拼成回答与出处', async () => {
     const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
 
     await wrapper.findAll('.suggest-item')[1].trigger('click')
     await flushPromises()
 
-    expect(aiApi.qaAsk).toHaveBeenCalledWith({ courseId, question: '这个概念可以举例说明吗？' })
+    expect(aiApi.qaStream).toHaveBeenCalledWith(
+      { courseId, question: '这个概念可以举例说明吗？', sessionId: undefined },
+      expect.any(Object),
+    )
+    await finishStream({
+      sessionId: '901',
+      tokens: ['**先讲**', '分层。'],
+      sources: [{ documentName: '第 1 章' }],
+    })
+
     expect(wrapper.findAll('.turn-user')).toHaveLength(1)
-    expect(wrapper.text()).toContain('先讲分层。')
+    // 模型返回的 **加粗** 标记不直接暴露给用户
+    expect(wrapper.find('.turn-ai .turn-text').text()).toBe('先讲分层。')
+    expect(wrapper.find('.turn-ai .turn-text').text()).not.toContain('**')
     // 资料出处按 sources 展开，不存在的出处不渲染
     expect(wrapper.text()).toContain('参考了 1 份资料')
   })
 
-  it('同一会话继续追问走 qaContinue，并把会话挂进侧栏', async () => {
-    aiApi.qaAsk.mockResolvedValue({ data: { data: { sessionId: 902, answer: '第一条回答。' } } })
-    aiApi.qaContinue.mockResolvedValue({ data: { data: { answer: '第二条回答。' } } })
+  it('用户头像取登录信息，AI 头像固定用大肥鱼助教', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+    await wrapper.find('textarea').setValue('分层是什么')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+    await finishStream({ sessionId: '906', tokens: ['回答。'] })
+
+    // /uploads/** 必须经 /api 静态映射访问，否则浏览器拿不到图片
+    expect(wrapper.find('.turn-user .user-avatar img').attributes('src')).toBe(
+      '/api/uploads/avatars/42.png',
+    )
+    expect(wrapper.find('.turn-ai .ai-avatar img').exists()).toBe(true)
+  })
+
+  it('重新进入页面：按课程拉到历史会话，点开后回放服务端消息正文', async () => {
+    aiApi.getSessions.mockResolvedValue({
+      data: {
+        data: [
+          {
+            sessionId: '777',
+            title: '上次问的分层',
+            courseId,
+            updatedAt: '2026-11-20T10:00:00',
+            lastMessage: '上次的回答',
+          },
+          // 他课会话不能混进本课程历史
+          { sessionId: '888', title: '别的课', courseId: courseId + 99 },
+        ],
+      },
+    })
+    aiApi.getSessionDetail.mockResolvedValue({
+      data: {
+        data: {
+          sessionId: '777',
+          title: '上次问的分层',
+          messages: [
+            { role: 'user', content: '上次我问了什么？' },
+            { role: 'assistant', content: '上次你问的是协议分层。' },
+          ],
+        },
+      },
+    })
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.side-item')).toHaveLength(1)
+    // 重进页面不应停在欢迎态：最近一条本课程会话自动回放
+    expect(aiApi.getSessionDetail).toHaveBeenCalledWith('777')
+    expect(wrapper.text()).toContain('上次你问的是协议分层。')
+    await wrapper.find('.side-item').trigger('click')
+    await flushPromises()
+
+    expect(aiApi.getSessionDetail).toHaveBeenCalledWith('777')
+    expect(wrapper.text()).toContain('上次你问的是协议分层。')
+    expect(wrapper.findAll('.turn-user')).toHaveLength(1)
+  })
+
+  it('打开旧会话不改侧栏顺序，只有发送新消息才把它提到最前', async () => {
+    const now = Date.now()
+    aiApi.getSessions.mockResolvedValue({
+      data: {
+        data: [
+          {
+            sessionId: 'older',
+            title: '较早的会话',
+            courseId,
+            updatedAt: new Date(now - 3_600_000).toISOString(),
+            lastMessage: '旧回答',
+          },
+          {
+            sessionId: 'newer',
+            title: '较新的会话',
+            courseId,
+            updatedAt: new Date(now - 60_000).toISOString(),
+            lastMessage: '新回答',
+          },
+        ],
+      },
+    })
+    aiApi.getSessionDetail.mockImplementation((sessionId: string) =>
+      Promise.resolve({
+        data: {
+          data: {
+            sessionId,
+            title: sessionId === 'older' ? '较早的会话' : '较新的会话',
+            messages: [
+              { role: 'user', content: sessionId === 'older' ? '旧问题' : '新问题' },
+              { role: 'assistant', content: sessionId === 'older' ? '旧回答' : '新回答' },
+            ],
+          },
+        },
+      }),
+    )
+
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+    const titles = () => wrapper.findAll('.side-item-title').map((node) => node.text())
+    expect(titles()).toEqual(['较新的会话', '较早的会话'])
+
+    // 点开较早的会话只回填正文，排序位置必须保持不动
+    await wrapper.findAll('.side-item')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('旧回答')
+    expect(titles()).toEqual(['较新的会话', '较早的会话'])
+
+    // 在这个旧会话里真正发出提问，才刷新最后对话时间并置顶
+    await wrapper.find('textarea').setValue('继续问旧会话')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+    expect(titles()).toEqual(['较早的会话', '较新的会话'])
+    expect(latestStream().params.sessionId).toBe('older')
+
+    await finishStream({ sessionId: 'older', tokens: ['继续回答。'] })
+  })
+
+  it('同一会话继续追问沿用 sessionId，并把会话挂进侧栏', async () => {
     const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
 
@@ -175,36 +359,62 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     await input.setValue('什么是分层？')
     await input.trigger('keydown', { key: 'Enter' })
     await flushPromises()
+    await finishStream({ sessionId: '902', tokens: ['第一条回答。'] })
 
     await input.setValue('那协议呢？')
     await wrapper.find('.composer-send').trigger('click')
     await flushPromises()
+    expect(latestStream().params.sessionId).toBe('902')
 
-    expect(aiApi.qaAsk).toHaveBeenCalledTimes(1)
-    expect(aiApi.qaContinue).toHaveBeenCalledWith({ sessionId: '902', message: '那协议呢？' })
+    await finishStream({ sessionId: '902', tokens: ['第二条回答。'] })
+
     expect(wrapper.findAll('.turn-ai')).toHaveLength(2)
     expect(wrapper.findAll('.side-item')).toHaveLength(1)
     expect(wrapper.find('.side-item-title').text()).toBe('什么是分层？')
   })
 
   it('「新对话」清空消息与会话，回到欢迎态', async () => {
-    aiApi.qaAsk.mockResolvedValue({ data: { data: { sessionId: 903, answer: '回答。' } } })
     const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
     await wrapper.findAll('.suggest-item')[0].trigger('click')
     await flushPromises()
+    await finishStream({ sessionId: '903', tokens: ['回答。'] })
     expect(wrapper.findAll('.turn')).toHaveLength(2)
 
-    await wrapper.find('.top-new').trigger('click')
+    await wrapper.find('.side-new').trigger('click')
     await flushPromises()
 
     expect(wrapper.findAll('.turn')).toHaveLength(0)
     expect(wrapper.text()).toContain('你好，我是你的 AI 学习助手')
   })
 
+  it('侧栏展开时只有侧栏「新对话」，收起后才由顶栏补位', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    expect(wrapper.find('.side-new').exists()).toBe(true)
+    expect(wrapper.find('.top-new').exists()).toBe(false)
+
+    await wrapper.find('.top-icon').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.top-new').exists()).toBe(true)
+  })
+
+  it('失败提示优先后端原因（例如配额超限），不再一律说检查网络', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+
+    await wrapper.find('textarea').setValue('配额用完了吗')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+
+    await finishStream({
+      error: new Error('SSE 请求失败: HTTP 429 - 今日 AI 使用次数已达上限（100 次/日）'),
+    })
+    expect(wrapper.text()).toContain('今日 AI 使用次数已达上限')
+    expect(wrapper.text()).not.toContain('请检查网络')
+  })
+
   it('请求失败保留用户消息，只给错误与重试，不伪造 AI 回答', async () => {
-    aiApi.qaAsk.mockRejectedValueOnce(new Error('boom'))
-    aiApi.qaAsk.mockResolvedValueOnce({ data: { data: { sessionId: 904, answer: '重试成功。' } } })
     const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
 
@@ -213,37 +423,31 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     await wrapper.find('.composer-send').trigger('click')
     await flushPromises()
 
+    await finishStream({ error: new Error('boom') })
     expect(wrapper.findAll('.turn-user')).toHaveLength(1)
-    expect(wrapper.text()).toContain('回答失败，请检查网络后重试。')
+    expect(wrapper.text()).toContain('回答失败，请稍后重试。')
     // 失败只留占位与重试入口，绝不伪造一条 AI 正文
     expect(wrapper.findAll('.turn-ai .turn-text')).toHaveLength(0)
 
     await wrapper.find('.mini-btn').trigger('click')
     await flushPromises()
+    await finishStream({ sessionId: '904', tokens: ['重试成功。'] })
     expect(wrapper.text()).toContain('重试成功。')
     // 重试不重复插入用户消息
     expect(wrapper.findAll('.turn-user')).toHaveLength(1)
   })
 
   it('请求进行中禁用发送，避免重复提交', async () => {
-    let resolveAsk: (value: unknown) => void = () => {}
-    aiApi.qaAsk.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveAsk = resolve
-        }),
-    )
     const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
     await flushPromises()
 
     await wrapper.find('textarea').setValue('慢问题')
     await wrapper.find('.composer-send').trigger('click')
-    await nextTick()
+    await flushPromises()
     expect(wrapper.text()).toContain('正在思考…')
     expect(wrapper.find('.composer-send').attributes('disabled')).toBeDefined()
 
-    resolveAsk({ data: { data: { sessionId: 905, answer: '慢回答。' } } })
-    await flushPromises()
+    await finishStream({ sessionId: '905', tokens: ['慢回答。'] })
     expect(wrapper.text()).toContain('慢回答。')
   })
 
@@ -299,6 +503,102 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     const chip = wrapper.findAll('.chip').find((node) => node.text().includes('我的掌握度'))
     expect(chip?.attributes('title')).toContain('该知识点暂无作答记录')
     expect(wrapper.text()).not.toContain('暂无数据')
+  })
+})
+
+describe('教师端 AI 助教：与学生端同一工作区骨架', () => {
+  it('两端共用 ai-shell / 历史侧栏 / 顶栏 / 输入区，教师端多出能力页签', async () => {
+    const student = mount(AiCenterTab, { props: { courseId, mode: 'student' } })
+    await flushPromises()
+    const teacher = mount(AiCenterTab, { props: { courseId: courseId + 1, mode: 'teacher' } })
+    await flushPromises()
+
+    for (const wrapper of [student, teacher]) {
+      expect(wrapper.find('.ai-shell').exists()).toBe(true)
+      expect(wrapper.find('.ai-side').exists()).toBe(true)
+      expect(wrapper.find('.ai-top').exists()).toBe(true)
+      expect(wrapper.find('.composer-box').exists()).toBe(true)
+      expect(wrapper.find('.side-label').text()).toBe('历史对话')
+    }
+    expect(student.find('.ai-tabs').exists()).toBe(false)
+    expect(teacher.find('.ai-tabs').exists()).toBe(true)
+    expect(teacher.find('.ai-top-title b').text()).toBe('AI 助教')
+    expect(student.find('.ai-top-title b').text()).toBe('AI 学习助手')
+  })
+
+  it('教师端欢迎态给教师向提问建议，六项页签与顺序不变', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('你好，我是你的 AI 助教')
+    expect(wrapper.findAll('.suggest-item')).toHaveLength(4)
+    expect(tabLabels(wrapper)).toEqual([
+      '智能答疑',
+      '薄弱点分析',
+      '学习建议',
+      '作文批改',
+      '学习路径',
+      '课程语料',
+    ])
+  })
+
+  it('切到每个能力页签都保留原动作；输入区只在智能答疑出现', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    const go = async (label: string) => {
+      const tab = wrapper.findAll('[role="tab"]').find((node) => node.text() === label)
+      await tab!.trigger('click')
+      await flushPromises()
+    }
+
+    await go('薄弱点分析')
+    expect(wrapper.find('.panel-head').text()).toContain('薄弱点分析')
+    expect(findButton(wrapper, '重新分析')).toBeTruthy()
+    expect(wrapper.find('.composer-box').exists()).toBe(false)
+
+    await go('学习建议')
+    expect(findButton(wrapper, '重新生成')).toBeTruthy()
+
+    await go('作文批改')
+    expect(findButton(wrapper, '批改')).toBeTruthy()
+    expect(findButton(wrapper, '润色并回填')).toBeTruthy()
+
+    await go('学习路径')
+    expect(findButton(wrapper, '生成路径')).toBeTruthy()
+
+    await go('智能答疑')
+    expect(wrapper.find('.composer-box').exists()).toBe(true)
+  })
+
+  it('课程语料在同一工作区内保留刷新/新增/重建/清空四个动作', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+    const tab = wrapper.findAll('[role="tab"]').find((node) => node.text() === '课程语料')
+    await tab!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.corpus-head h2').text()).toContain('知识库文档')
+    for (const label of ['刷新', '重建索引', '清空索引', '新增文档']) {
+      expect(findButton(wrapper, label), label).toBeTruthy()
+    }
+    expect(wrapper.text()).toContain('本课程还没有语料文档')
+  })
+
+  it('教师端答疑与学生端共用同一流式链路，回答与会话都落在侧栏', async () => {
+    const wrapper = mount(AiCenterTab, { props: { courseId, mode: 'teacher' } })
+    await flushPromises()
+
+    await wrapper.find('textarea.composer-input').setValue('本章难点是什么？')
+    await wrapper.find('.composer-send').trigger('click')
+    await flushPromises()
+
+    expect(aiApi.qaStream).toHaveBeenCalledWith(
+      { courseId, question: '本章难点是什么？', sessionId: undefined },
+      expect.any(Object),
+    )
+    await finishStream({ sessionId: '911', tokens: ['教师回答。'] })
+    expect(wrapper.findAll('.turn-ai')).toHaveLength(1)
+    expect(wrapper.findAll('.side-item')).toHaveLength(1)
+    expect(wrapper.find('.side-item-title').text()).toBe('本章难点是什么？')
   })
 })
 

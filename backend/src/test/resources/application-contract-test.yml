@@ -110,6 +110,8 @@ spring:
         - classpath:db/migration/V32__session_token_hash_backfill.sql
         # V33（2026-11-22）：考试/作业提交次数默认值与存量统一为 0（不限次）
         - classpath:db/migration/V33__unlimited_attempts.sql
+        # V34（2026-11-22）：知识点/关系类型存量归一为领域编码
+        - classpath:db/migration/V34__normalize_knowledge_taxonomy.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
@@ -144,9 +146,15 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+deepgraph-rag:
+  enabled: false
 minio:
   enabled: false
 
+# 病毒扫描在契约测试里显式关闭（CI 无 Defender/clamd）；真实链路由 FileVirusScanServiceImplTest 覆盖
+file:
+  scan:
+    enabled: false
 # 限流依赖 Redis（本机已运行），保持开启
 
 # 测试环境 HTTP 访问：关闭 HTTPS 强制 / Secure Cookie / CSRF

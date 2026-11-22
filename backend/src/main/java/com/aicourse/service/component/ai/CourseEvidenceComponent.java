@@ -1,12 +1,17 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.entity.KnowledgePoint;
+import com.aicourse.integration.ContractPaths;
+import com.aicourse.integration.deepgraph.DeepGraphRagContract.DeepGraphRetrievalResult;
+import com.aicourse.integration.deepgraph.DeepGraphRagContract.DeepGraphSource;
 import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
 import com.aicourse.integration.rag.RagContract.RagSource;
+import com.aicourse.service.DeepGraphRagService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.RAGService;
 import com.aicourse.vo.QaSourceVO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -22,6 +27,10 @@ import java.util.Set;
  * <p>证据口径与 {@code AiRagComponent} 原有实现逐字一致：只有 {@code mode=ENGINE} 的检索结果才算
  * 真实引擎证据；知识点匹配要求名称至少 2 字且整体出现在归一化后的问题中；描述压缩后截断
  * {@value #MAX_DESCRIPTION_LEN} 字。所有外部查询失败一律降级为空证据，绝不阻断上层主流程。</p>
+ * <p><b>双引擎合并（2026-11-21 DeepGraph RAG 接入）</b>：8002 知识点语料检索为主引擎，
+ * 8501 deepgraph_rag（已验收 DeepSeek-RAG-Chatbot 契约适配）为整篇文档语料的<b>增量</b>第二检索源；
+ * {@link #retrieveWithDocuments} / {@link #retrieveMergedTyped} 把两路 ENGINE 证据去重合并。
+ * 第二引擎未启用/不可达/异常时静默跳过，只回落到 8002 单引擎——与未集成前行为完全一致。</p>
  */
 @Slf4j
 @Component
@@ -38,13 +47,25 @@ public class CourseEvidenceComponent {
     private static final int MAX_PREREQUISITES = 3;
     /** 注入 prompt 的知识点描述最大字符数。 */
     private static final int MAX_DESCRIPTION_LEN = 200;
+    /** 第二引擎（deepgraph_rag）单次合并进证据的条数上限，防止喧宾夺主。 */
+    private static final int MAX_DEEPGRAPH_SOURCES = 5;
 
     private final RAGService ragService;
     private final KnowledgePointService knowledgePointService;
+    private final DeepGraphRagService deepGraphRagService;
 
-    public CourseEvidenceComponent(RAGService ragService, KnowledgePointService knowledgePointService) {
+    /** Spring 注入口（含第二检索源）。 */
+    @Autowired
+    public CourseEvidenceComponent(RAGService ragService, KnowledgePointService knowledgePointService,
+                                   DeepGraphRagService deepGraphRagService) {
         this.ragService = ragService;
         this.knowledgePointService = knowledgePointService;
+        this.deepGraphRagService = deepGraphRagService;
+    }
+
+    /** 兼容旧签名（既有单测直构）：无第二检索源，行为与未集成 DeepGraph 前一致。 */
+    public CourseEvidenceComponent(RAGService ragService, KnowledgePointService knowledgePointService) {
+        this(ragService, knowledgePointService, null);
     }
 
     /**
@@ -64,6 +85,95 @@ public class CourseEvidenceComponent {
             return results == null ? List.of() : results;
         } catch (Exception e) {
             log.warn("RAG 检索失败，降级为知识点接地问答: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 双引擎合并检索（问答主链入口）：8002 知识点语料 + 8501 整篇文档语料（deepgraph_rag）。
+     * <p>两路各自的 {@code mode=ENGINE} 结果按片段归一化去重后拼接（8002 在前，deepgraph 补充其后，
+     * 条数上限 {@value #MAX_DEEPGRAPH_SOURCES}）。deepgraph 未启用/不可达/异常时静默跳过。</p>
+     */
+    public List<RagSource> retrieveWithDocuments(String query, Long courseId, int topK) {
+        List<RagSource> primary = retrieve(query, courseId, topK);
+        List<RagSource> deepgraph = deepgraphSources(query, courseId, topK, primary);
+        if (deepgraph.isEmpty()) {
+            return primary;
+        }
+        List<RagSource> merged = new ArrayList<>(primary.size() + deepgraph.size());
+        merged.addAll(primary);
+        merged.addAll(deepgraph);
+        return merged;
+    }
+
+    /**
+     * 双引擎合并检索的类型化结果（流式问答用）：供 {@code AiCoreComponent.toQaSources} 判定
+     * {@code engineReady()}。两路均无 ENGINE 证据时原样透传主引擎应答（保持既有
+     * UNAVAILABLE/PLACEHOLDER 降级语义不被掩盖）；任一路有证据则返回 {@code mode=ENGINE} 的合并结果。
+     */
+    public RagRetrievalResult retrieveMergedTyped(String query, Long courseId, int topK) {
+        RagRetrievalResult primary;
+        try {
+            primary = courseId == null || query == null || query.isBlank()
+                    ? null : ragService.retrieveTyped(query, courseId, topK);
+        } catch (Exception e) {
+            log.warn("RAG 检索失败（流式主引擎），继续尝试 DeepGraph 检索: {}", e.getMessage());
+            primary = null;
+        }
+        List<RagSource> primaryResults = primary != null && primary.engineReady() && primary.results() != null
+                ? primary.results() : List.of();
+        List<RagSource> deepgraph = deepgraphSources(query, courseId, topK, primaryResults);
+        if (primaryResults.isEmpty() && deepgraph.isEmpty()) {
+            // 主引擎应答原样透传（可能为 null/UNAVAILABLE/ENGINE 空命中），不得伪造 ENGINE
+            return primary != null ? primary : new RagRetrievalResult(null,
+                    ContractPaths.MODE_UNAVAILABLE, ContractPaths.MSG_RAG_UNAVAILABLE,
+                    ContractPaths.CODE_UNAVAILABLE);
+        }
+        List<RagSource> merged = new ArrayList<>(primaryResults.size() + deepgraph.size());
+        merged.addAll(primaryResults);
+        merged.addAll(deepgraph);
+        return new RagRetrievalResult(merged, ContractPaths.MODE_ENGINE, null, null);
+    }
+
+    /** 调 8501 deepgraph_rag 检索并转成 {@link RagSource}（含去重与上限），异常/未启用一律空列表。 */
+    private List<RagSource> deepgraphSources(String query, Long courseId, int topK,
+                                             List<RagSource> existing) {
+        if (deepGraphRagService == null || courseId == null
+                || query == null || query.isBlank() || topK <= 0) {
+            return List.of();
+        }
+        try {
+            DeepGraphRetrievalResult result = deepGraphRagService.retrieveTyped(query, courseId, topK);
+            if (result == null || !result.engineReady() || result.results() == null) {
+                return List.of();
+            }
+            Set<String> seen = new LinkedHashSet<>();
+            if (existing != null) {
+                for (RagSource source : existing) {
+                    if (source != null && source.snippet() != null) {
+                        seen.add(normalize(source.snippet()));
+                    }
+                }
+            }
+            List<RagSource> converted = new ArrayList<>();
+            for (DeepGraphSource source : result.results()) {
+                if (source == null || source.snippet() == null || source.snippet().isBlank()) {
+                    continue;
+                }
+                String key = normalize(source.snippet());
+                if (seen.contains(key)) {
+                    continue;
+                }
+                seen.add(key);
+                converted.add(new RagSource(source.documentId(), source.documentName(),
+                        source.relevanceScore(), source.snippet()));
+                if (converted.size() >= Math.min(topK, MAX_DEEPGRAPH_SOURCES)) {
+                    break;
+                }
+            }
+            return converted;
+        } catch (Exception e) {
+            log.warn("DeepGraph RAG 检索失败，忽略第二检索源: {}", e.getMessage());
             return List.of();
         }
     }

@@ -4,7 +4,7 @@ import * as knowledgeApi from '@/api/knowledge'
 /**
  * 知识点 API 契约测试（2026-10-04）
  * <p>本模块此前 0% 覆盖。注意两处易错点：
- * ① `getKnowledgePoints` / `getKnowledgeGraph` 把 courseId 放在 **query**，
+ * ① `getKnowledgePoints` 把 courseId 放在 **query**，
  *    而 `getTree` / `getRootPoints` / `getRelationGraphData` 放在 **path**，
  *    混用会 404；② `getSubsequent` 的后端路径是 `successors`（复数语义），
  *    与请求函数名不同字面，最易在重构时被"顺手改名"改坏。</p>
@@ -36,7 +36,6 @@ const CONTRACT: Array<[string, 'get' | 'post' | 'put' | 'delete', string, unknow
   ['createKnowledgePoint', 'post', '/knowledge/points', [POINT_BODY], [POINT_BODY]],
   ['updateKnowledgePoint', 'put', '/knowledge/points/4', [4, POINT_BODY], [POINT_BODY]],
   ['deleteKnowledgePoint', 'delete', '/knowledge/points/4', [4], []],
-  ['getKnowledgeGraph', 'get', '/knowledge/points/graph', [3], [{ params: { courseId: 3 } }]],
   [
     'addRelation',
     'post',

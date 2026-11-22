@@ -2,6 +2,7 @@ package com.aicourse.vo;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -9,13 +10,15 @@ import java.util.List;
  * 字段名与历史 Map 键一致（nodes / links）。
  * nodes / links 原为 {@code List<Map<String,Object>>} 嵌套，一并结构化为
  * {@link GraphDataNodeVO} / {@link GraphDataLinkVO} 列表，JSON 键保持不变。
- * 原实现无条件 put 此两键（恒含），故默认 INCLUDE.ALWAYS（不标 NON_NULL），精确复刻。
+ * snapshotVersion/generatedAt 为阶段 3 新增的数据集标识，旧前端可安全忽略。
  */
 @Data
 public class KnowledgeGraphDataVO {
 
     private List<GraphDataNodeVO> nodes;
     private List<GraphDataLinkVO> links;
+    private String snapshotVersion;
+    private LocalDateTime generatedAt;
 
     public KnowledgeGraphDataVO() {
     }
@@ -23,5 +26,13 @@ public class KnowledgeGraphDataVO {
     public KnowledgeGraphDataVO(List<GraphDataNodeVO> nodes, List<GraphDataLinkVO> links) {
         this.nodes = nodes;
         this.links = links;
+    }
+
+    public KnowledgeGraphDataVO(List<GraphDataNodeVO> nodes, List<GraphDataLinkVO> links,
+                                String snapshotVersion, LocalDateTime generatedAt) {
+        this.nodes = nodes;
+        this.links = links;
+        this.snapshotVersion = snapshotVersion;
+        this.generatedAt = generatedAt;
     }
 }

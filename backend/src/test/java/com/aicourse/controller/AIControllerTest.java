@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 import com.aicourse.controller.AIController;
+import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.integration.ContractPaths;
@@ -12,6 +13,7 @@ import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecordService;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import com.aicourse.exception.LLMUnavailableException;
@@ -20,14 +22,18 @@ import com.aicourse.common.ApiCode;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
+import reactor.core.publisher.Flux;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 /**
@@ -305,6 +311,7 @@ class AIControllerTest extends ControllerTestBase {
         session.setSessionId("s1");
         session.setTitle("标题");
         session.setMessageCount(3);
+        session.setCourseId(2L);
         when(aiChatSessionService.listSessions(anyLong())).thenReturn(List.of(session));
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
 
@@ -314,7 +321,9 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].sessionId").value("s1"));
+                .andExpect(jsonPath("$.data[0].sessionId").value("s1"))
+                // 前端只展示本课程历史：列表必须带课程归属，缺失会被整批筛掉
+                .andExpect(jsonPath("$.data[0].courseId").value(2));
 
         verify(aiChatSessionService).listSessions(eq(1L));
     }
@@ -325,6 +334,90 @@ class AIControllerTest extends ControllerTestBase {
     void getSessions_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/ai/qa/sessions"))
                 .andExpect(status().isUnauthorized());
+    }
+
+
+    @Test
+    @DisplayName("GET /ai/qa/sessions/{id} - 本人可读，返回持久化消息正文供前端回放")
+    void getSessionDetail_owner_returns_messages() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setUserId(1L);
+        session.setSessionId("s1");
+        session.setTitle("上次问的分层");
+        session.setCourseId(2L);
+        AiChatMessage user = new AiChatMessage();
+        user.setRole("user");
+        user.setContent("上次我问了什么？");
+        AiChatMessage assistant = new AiChatMessage();
+        assistant.setRole("assistant");
+        assistant.setContent("上次你问的是协议分层。");
+        when(aiChatSessionService.getBySessionId("s1")).thenReturn(session);
+        when(aiChatSessionService.getMessages("s1")).thenReturn(List.of(user, assistant));
+
+        MvcResult mvc = mockMvc.perform(get("/ai/qa/sessions/s1").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("上次问的分层"))
+                .andExpect(jsonPath("$.data.messages[0].role").value("user"))
+                .andExpect(jsonPath("$.data.messages[0].content").value("上次我问了什么？"))
+                .andExpect(jsonPath("$.data.messages[1].role").value("assistant"))
+                .andExpect(jsonPath("$.data.messages[1].content").value("上次你问的是协议分层。"));
+
+        verify(aiChatSessionService).getMessages("s1");
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/sessions/{id} - 他人会话 403，且不读消息")
+    void getSessionDetail_otherUser_forbidden() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setUserId(2L);
+        session.setSessionId("s1");
+        when(aiChatSessionService.getBySessionId("s1")).thenReturn(session);
+
+        MvcResult mvc = mockMvc.perform(get("/ai/qa/sessions/s1").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(aiChatSessionService, never()).getMessages(anyString());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 续接会话：首帧下发 sessionId，历史进模型，问答双向落库")
+    void streamChat_existingSession_persistsAndPassesHistory() {
+        AiChatSession session = new AiChatSession();
+        session.setUserId(1L);
+        session.setSessionId("s1");
+        session.setCourseId(2L);
+        AiChatMessage previousUser = new AiChatMessage();
+        previousUser.setRole("user");
+        previousUser.setContent("上一问");
+        AiChatMessage previousAssistant = new AiChatMessage();
+        previousAssistant.setRole("assistant");
+        previousAssistant.setContent("上一答");
+        when(aiChatSessionService.getBySessionId("s1")).thenReturn(session);
+        when(aiChatSessionService.getMessages("s1")).thenReturn(List.of(previousUser, previousAssistant));
+        when(aiService.streamChat(eq("新问题"), eq(2L), anyList()))
+                .thenReturn(new QaStreamVO(Flux.just("新", "回答"), List.of()));
+
+        AIController controller = new AIController(aiService, aiChatSessionService,
+                new com.aicourse.security.AIAccessSupport(courseAccessControl));
+        Authentication auth = new UsernamePasswordAuthenticationToken(1L, null, List.of());
+
+        List<String> frames = controller.streamChat("新问题", 2L, "s1", auth).collectList().block();
+
+        assertNotNull(frames);
+        assertTrue(frames.get(0).contains("\"sessionId\":\"s1\""));
+        // 历史只带 user/assistant 两条，本轮问题由模型侧单独追加，不能重复进上下文
+        verify(aiService).streamChat(eq("新问题"), eq(2L), argThat(history ->
+                history.size() == 2
+                        && "user".equals(history.get(0).get("role"))
+                        && "上一问".equals(history.get(0).get("content"))
+                        && "assistant".equals(history.get(1).get("role"))));
+        verify(aiChatSessionService).appendMessage("s1", "user", "新问题");
+        verify(aiChatSessionService).appendMessage("s1", "assistant", "新回答");
     }
 
 

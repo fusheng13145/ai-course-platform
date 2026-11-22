@@ -9,4 +9,15 @@
   "minRequestAmount" : 5,
   "slowRatioThreshold" : 0.5,
   "statIntervalMs" : 10000
+}, {
+  "id" : null,
+  "resource" : "deepgraph:http",
+  "limitApp" : "default",
+  "regex" : false,
+  "grade" : 0,
+  "count" : 10000.0,
+  "timeWindow" : 10,
+  "minRequestAmount" : 5,
+  "slowRatioThreshold" : 0.5,
+  "statIntervalMs" : 10000
 } ]

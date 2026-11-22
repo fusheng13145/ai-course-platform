@@ -48,9 +48,18 @@ rag:
   enabled: false
 fine-tune:
   enabled: false
+deepgraph-rag:
+  enabled: false
 # 测试不依赖外部 MinIO；显式关闭后回退本地实现，避免上下文启动时连 9000 端口。
 minio:
   enabled: false
+
+# 上传病毒扫描：单测/CI 既无 Defender 也无 clamd，显式关闭以避免每个样例文件都走 503；
+# 真实链路（Defender 进程、clamd INSTREAM、超时/不可达）由 FileVirusScanServiceImplTest 的
+# 假 clamd 与可替换进程执行覆盖，本机 e2e 与 compose(clamav profile) 覆盖端到端。
+file:
+  scan:
+    enabled: false
 
 # 限流依赖 Redis（已由容器提供），保持开启即可；如需可在此关闭
 ratelimit:

@@ -44,6 +44,18 @@ public final class ContractPaths {
     /** FT：基址默认值。 */
     public static final String FT_DEFAULT_BASE_URL = "http://localhost:8003";
 
+    /**
+     * DeepGraph RAG：是否启用文档图谱 RAG 微服务（deepgraph_rag，端口 8501，默认 false → 不参与问答链）。
+     * <p>该服务由已验收的 DeepSeek-RAG-Chatbot（原样复制于 {@code python-services/deepgraph_rag/}）
+     * 经 {@code api_server.py} 契约适配器接入，作为 8002 知识点语料检索之外的<b>第二检索源</b>
+     * （整篇课程文档的 FAISS+BM25 混合召回 + Neo4j GraphRAG 关系上下文 + HyDE/重排）。</p>
+     */
+    public static final String DEEPGRAPH_ENABLED = "deepgraph-rag.enabled";
+    /** DeepGraph RAG：微服务基址。 */
+    public static final String DEEPGRAPH_BASE_URL = "deepgraph-rag.base-url";
+    /** DeepGraph RAG：基址默认值。 */
+    public static final String DEEPGRAPH_DEFAULT_BASE_URL = "http://localhost:8501";
+
     // ===================== KG（8001）端点：HTTP 方法 + 路径 =====================
 
     public static final String KG_HEALTH = "/api/v1/graph/health";
@@ -70,6 +82,20 @@ public final class ContractPaths {
     public static final String FT_INFER = "/api/v1/fine-tune/infer/{taskId}";
     public static final String FT_TASK_EXPORT = "/api/v1/fine-tune/tasks/{taskId}/export";
     public static final String FT_TASK = "/api/v1/fine-tune/tasks/{taskId}";
+
+    // ===================== DeepGraph RAG（8501）端点：HTTP 方法 + 路径 =====================
+
+    public static final String DEEPGRAPH_HEALTH = "/api/v1/deepgraph/health";
+    public static final String DEEPGRAPH_RETRIEVE = "/api/v1/deepgraph/retrieve";
+    public static final String DEEPGRAPH_QA = "/api/v1/deepgraph/qa";
+    public static final String DEEPGRAPH_INGEST = "/api/v1/deepgraph/ingest";
+    public static final String DEEPGRAPH_INGEST_FILE = "/api/v1/deepgraph/ingest-file";
+    public static final String DEEPGRAPH_DOCUMENTS = "/api/v1/deepgraph/documents";
+    public static final String DEEPGRAPH_DOCUMENT = "/api/v1/deepgraph/documents/{documentName}";
+    public static final String DEEPGRAPH_CHAPTER_GRAPH = "/api/v1/deepgraph/chapter-graph";
+    public static final String DEEPGRAPH_LEARNING_PATH = "/api/v1/deepgraph/learning-path";
+    /** 课程图谱聚合（全部章节图谱 + 层次树，供同步进 MySQL knowledge_points/relations）。 */
+    public static final String DEEPGRAPH_COURSE_GRAPH = "/api/v1/deepgraph/course-graph";
 
     // ===================== 请求 JSON 字段名（Java ↔ Python 对齐） =====================
 
@@ -99,6 +125,24 @@ public final class ContractPaths {
     public static final String R_ERROR = "error";
     public static final String R_CODE = "code";
 
+    // DeepGraph RAG 响应扩展字段（8501 契约）
+    /** 检索响应：Neo4j GraphRAG 关系上下文（“- 实体 (关系) 实体”行集合）。 */
+    public static final String R_GRAPH_CONTEXT = "graph_context";
+    /** 问答响应：发给大模型的完整 Prompt（可解释/排查用）。 */
+    public static final String R_LLM_PROMPT = "llm_prompt";
+    /** 文档入库响应：服务端落盘名称（course{id}_ 前缀命名空间）。 */
+    public static final String R_STORED_AS = "stored_as";
+    /** 文档入库响应：向量库分块数。 */
+    public static final String R_CHUNK_COUNT = "chunk_count";
+    /** 文档入库响应：是否构建了知识图谱。 */
+    public static final String R_HAS_GRAPH = "has_graph";
+    /** 文档入库响应：图谱关系边数。 */
+    public static final String R_GRAPH_EDGES = "graph_edges";
+    /** 学习路径响应：结构化路径文本（Markdown）。 */
+    public static final String R_PATH_TEXT = "path_text";
+    /** 检索来源：召回通道（VECTOR / GRAPH 等，透传展示用）。 */
+    public static final String R_RETRIEVAL = "retrieval";
+
     // ===================== 状态与模式语义 =====================
 
     /** 引擎未接入/不可用时的 HTTP 状态码。 */
@@ -115,6 +159,8 @@ public final class ContractPaths {
             "知识图谱引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用";
     public static final String MSG_RAG_UNAVAILABLE =
             "RAG 引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用";
+    public static final String MSG_DEEPGRAPH_UNAVAILABLE =
+            "文档图谱 RAG 引擎（deepgraph_rag）未接入或不可用";
 
     // ===================== 契约判定（唯一来源，provider 不得各写一份） =====================
 

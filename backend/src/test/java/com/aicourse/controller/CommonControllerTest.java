@@ -28,6 +28,8 @@ class CommonControllerTest extends ControllerTestBase {
     @MockitoBean
     private FileStorageService fileStorageService;
     @MockitoBean
+    private com.aicourse.service.FileVirusScanService fileVirusScanService;
+    @MockitoBean
     private com.aicourse.util.ClientInfoResolver clientInfoResolver;
 
     /** 10A 当前学期端点（/common/semester/active）注入的学期服务 */

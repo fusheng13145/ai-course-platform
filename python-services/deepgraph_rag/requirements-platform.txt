@@ -1,0 +1,12 @@
+# 平台自有适配层依赖（不属于 RAG 上游，禁止合并进 requirements.txt）
+#
+# 上游 requirements.txt 是 Streamlit 单机应用的依赖清单，按 UPSTREAM_MANIFEST.json
+# 保持 byte-identical，不得追加。api_server.py 是本平台新增的 FastAPI 适配层：
+#   pip install -r requirements.txt -r requirements-platform.txt
+#
+# fastapi：适配层 HTTP 框架
+# uvicorn[standard]：ASGI 服务器（启动 api_server:app）
+# httpx：starlette TestClient 依赖，仅测试期实际使用；固定版本满足 fastapi 0.115+
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+httpx>=0.27,<1

@@ -24,7 +24,7 @@
 ## 文档地图（权威主干 8 份 + 运行待办 3 份）
 
 > **新接手者入口**：先读 [`AGENTS.md`](AGENTS.md)（5 分钟速览 + 工程纪律 + 验证命令），再看 [`docs/README.md`](docs/README.md)（唯一索引与分层说明）。
-> **当前 docs 口径**：`docs/` 共 **22 个 Markdown + 1 个 `assets/` 目录**；2026-11-15 的“46 份压缩到 14 份／10 份”为历史整理记录，不再是现行约束。
+> **当前 docs 口径**：`docs/` 共 **24 个根级 Markdown + 1 个 `alignment/` 子目录 + 1 个 `assets/` 目录**（2026-11-20 实测）；2026-11-15 的“46 份压缩到 14 份／10 份”为历史整理记录，不再是现行约束。
 > **脚本入口**：看 [`scripts/README.md`](scripts/README.md)（日常入口、运维、审计、E2E 与历史脚本分层）。
 
 | 文档 | 定位 | 什么时候看它 |
@@ -80,7 +80,7 @@
 
 文件面口径：运行期根 `data/aicourse-platform/`（`storage/` + `minio-data/`），冷备 `data/backups/`；新上传写 MinIO bucket `aicourse-uploads`，对外 URL 仍为 `/uploads/<key>`。仓库根 `uploads/`、`backup/` 已移除；旧 `backend/uploads` 仅作只读兼容。
 
-### Python 侧三服务
+### Python 侧四服务
 
 Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务对接（`ContractPaths` 是调用约定的唯一事实来源）：
 
@@ -88,11 +88,12 @@ Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务
 | --- | --- | --- | --- |
 | 知识图谱 | `python-services/kg_service/` | 8001 | 11 个契约端点；`kg_store.py` 支持 Neo4j 与内存双后端（不可达时自动回落内存图）；多跳路径规划在图库侧完成，Java 侧只做本地 BFS 兜底；CI 护栏 `test_kg_contract.py` |
 | RAG 检索 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 真实混合检索（BM25 + 向量 + RRF + **HyDE + Cross-Encoder 重排**，`ENGINE_VERSION=1.1`）。⚠️ 语料落在 gitignore 的 `data/`，换机或重建环境时用 `python scripts/seed-rag-corpus.py <courseId>` 从 `scripts/rag_corpus.json` 重放并重建索引（当前有效语料：课程 1 七篇 + 样例课 **4178《计算机网络》十篇**，共 49 chunks） |
+| 文档图谱 RAG | `python-services/deepgraph_rag/` | 8501 | **已验收 DeepSeek-RAG-Chatbot 原样复制**（`app.py`/`backend.py`/`utils/*`/`neo4j_handler.py` 一字未改，2026-11-21 接入）+ 新增 `api_server.py` 契约适配器：整篇课程文档（PDF/DOCX/TXT）的 FAISS+BM25 混合召回、Neo4j GraphRAG 关系上下文、HyDE、Cross-Encoder 重排、章节图谱与学习路径；问答主链（`/ai/qa/*`）在 `DG_RAG_ENABLED`（8501 监听时自动置位）下自动合并其召回，引擎缺失时静默跳过；契约护栏 `test_deepgraph_contract.py` |
 | LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理；`FT_ENABLED=true` 时由 `start-all.py` 编排。 |
 
 - `max_hops` 自 2026-10-05 起**只用于"是否采纳"判定，不参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义见 `docs/系统架构设计.md`）。
 - **AI 面失败不伪装成功**：大模型调用失败一律返回 HTTP 503 + `code=503`，`message` 指认病因（凭据被拒／额度／未配置／空响应）。没有有效凭据时 AI 端点就是不可用——这比"200 带一句客套话"更该先知道（DR-74）。
-- 早期 RAG 成员的 Streamlit 原型（原 `python-services/deepgraph_rag/`，8501）不参与正式功能：先归档至仓库根 `archive/deepgraph_rag/`（`7c6ced0`），随后该冷备份目录整体退跟踪并移出工作区（`91d3970`）——现仅存于历史提交。
+- 早期 RAG 成员的 Streamlit 原型（原 `python-services/deepgraph_rag/`，8501）当年归档的原因是「`utils/` 模块从未提交导致无法启动」（`7c6ced0`）。2026-11-21 该缺口已由**已通过验收**的 `DeepSeek-RAG-Chatbot-main`（完整 utils + neo4j_handler + 中文实体抽取）补齐：按"复制内容一字不改 + 新增 `api_server.py` 契约适配器"方式真实接入并恢复 8501 端口，Java 消费侧见 `com.aicourse.integration.deepgraph`，证据与验收见 `docs/DeepGraphRAG接入-2026-11-21.md`。
 
 ---
 

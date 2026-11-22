@@ -1,5 +1,6 @@
 package com.aicourse.util;
 
+import com.aicourse.domain.knowledge.PointType;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.User;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -485,28 +486,14 @@ public final class ExcelUtil {
     }
 
     /**
-     * 归一化知识点类型到建表注释的权威取值（<b>小写</b>）：{@code concept / skill / principle}。
+     * 归一化知识点类型到领域编码（大写）：{@code CONCEPT / SKILL / PRINCIPLE / METHOD / FACT}。
      *
-     * <p>背景（P2-12）：库中同时存在 {@code CONCEPT} 与 {@code concept} 两种写法。
-     * 兼容中文；无法识别返回 null。</p>
+     * <p>历史实现返回建表注释里的小写，导致导入路径与图谱同步路径产生两套值。
+     * 兼容中文；无法识别返回 null，由调用方决定是否跳过。</p>
      */
     private static String normalizePointType(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        switch (raw.trim().toUpperCase()) {
-            case "CONCEPT":
-            case "概念":
-                return "concept";
-            case "SKILL":
-            case "技能":
-                return "skill";
-            case "PRINCIPLE":
-            case "原理":
-                return "principle";
-            default:
-                return null;
-        }
+        PointType known = PointType.known(raw);
+        return known == null ? null : known.code();
     }
 
     /**

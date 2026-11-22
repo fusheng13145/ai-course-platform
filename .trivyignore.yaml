@@ -32,3 +32,8 @@ misconfigurations:
   - id: DS-0002
     paths:
       - 'archive/**/Dockerfile'
+      # 2026-11-22 阶段5：上游 DeepGraph RAG 快照自带的 Streamlit Dockerfile（python:3.11-buster）
+      # 是 25 文件字节快照的一部分，只用于审计对照；平台 RAG 以本机 8001/8501 进程运行，
+      # 该 Dockerfile 不参与 compose、不进入任何 CI 镜像构建，也未部署。为其改 USER 会破坏
+      # 上游字节零修改证据，且无法通过真实构建验证，故按路径精确豁免；一旦被接入构建立即真修。
+      - 'python-services/deepgraph_rag/Dockerfile'

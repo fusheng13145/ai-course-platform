@@ -184,7 +184,7 @@ def test_todo_and_adopt_splits_by_status_and_want():
     want = dict.fromkeys(sa.SERVICES, True)
     todo, adopted = sa.todo_and_adopt(status, want)
     assert adopted == ["neo4j"]
-    assert todo == ["ollama", "minio", "kg", "rag", "ft", "api", "web"]
+    assert todo == ["ollama", "minio", "kg", "rag", "deepgraph", "ft", "api", "web"]
 
 
 def test_todo_and_adopt_negative_disabled_service_in_neither_list():
@@ -309,11 +309,11 @@ def test_engine_flags_are_probed_live_not_from_the_opening_snapshot():
     开场的 status 在冷启动时必然全是 False，照它注入就等于把 §18.5 的"要重启后端才切 ENGINE"
     固化进了一键脚本。"""
     flags = sa.engine_flags(lambda p: p == 8001)
-    assert flags == {"kg": True, "rag": False}
+    assert flags == {"kg": True, "rag": False, "deepgraph": False}
 
 
 def test_engine_flags_negative_control_all_down():
-    assert sa.engine_flags(lambda p: False) == {"kg": False, "rag": False}
+    assert sa.engine_flags(lambda p: False) == {"kg": False, "rag": False, "deepgraph": False}
 
 
 def test_main_probes_engine_flags_right_before_starting_api():
@@ -567,7 +567,7 @@ def test_parse_args_negative_control_for_a_typo_in_a_known_mode():
 def test_wanted_services_scopes_every_service_by_subcommand():
     assert sa.wanted_services(sa.MODE_ALL) == {
         "ollama": True, "minio": True, "neo4j": True, "kg": True,
-        "rag": True, "ft": True, "api": True, "web": True,
+        "rag": True, "deepgraph": True, "ft": True, "api": True, "web": True,
     }
     backend = sa.wanted_services(sa.MODE_BACKEND)
     assert backend["api"] is True and backend["web"] is False
@@ -577,6 +577,7 @@ def test_wanted_services_scopes_every_service_by_subcommand():
     frontend = sa.wanted_services(sa.MODE_FRONTEND)
     assert frontend["web"] is True and frontend["api"] is False
     assert frontend["neo4j"] is False and frontend["kg"] is False and frontend["rag"] is False
+    assert frontend["deepgraph"] is False
     assert frontend["ft"] is False and frontend["minio"] is False and frontend["ollama"] is False
 
 

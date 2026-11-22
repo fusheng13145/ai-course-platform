@@ -215,4 +215,18 @@ class HttpRagProviderContractTest {
         assertEquals(ContractPaths.MODE_ENGINE, r.mode());
         assertNull(r.code());
     }
+
+    @Test
+    void delete_engineUnavailableBody200_degrades() throws Exception {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(ContractPaths.RAG_HEALTH, ex -> respond(ex, 200, "{}"));
+        server.createContext(ContractPaths.RAG_DOCUMENTS + "/5", ex -> respond(ex, 200,
+                "{\"success\":false,\"code\":503,\"mode\":\"UNAVAILABLE\",\"error\":\"engine down\"}"));
+        server.start();
+
+        RagContract.RagDocument r = newProvider().deleteDocument(5L);
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code(),
+                "删除接口原实现只要响应体非空就返回 ENGINE，必须识别 503/success=false");
+        assertEquals(ContractPaths.MSG_RAG_UNAVAILABLE, r.error());
+    }
 }

@@ -1,6 +1,6 @@
 <template>
-  <!-- 学生端：沉浸式对话工作区（历史侧栏 + 主对话区） -->
-  <section v-if="isStudent" ref="shellRef" class="ai-shell" :style="shellStyle">
+  <!-- 教师端与学生端共用同一工作区骨架：历史侧栏 + 顶栏 + 内容区 + 输入区 -->
+  <section ref="shellRef" class="ai-shell" :style="shellStyle">
     <div class="ai-workspace">
       <aside
         v-if="!isNarrow || sideOpen"
@@ -64,26 +64,55 @@
               <b>{{ activeTitle }}</b>
               <small v-if="courseName">{{ courseName }}</small>
             </div>
-            <button v-if="active === 'qa'" class="top-new" @click="newChat">
+            <!-- 侧栏展开时已有「新对话」，顶栏只在侧栏收起或窄屏时补位，避免出现两个入口 -->
+            <button v-if="active === 'qa' && !sideOpen" class="top-new" @click="newChat">
               <Icon name="plus" />
               <span>新对话</span>
             </button>
           </div>
+
+          <!-- 教师端的能力页签；学生端的学习工具是提问模板，不占页签 -->
+          <div v-if="showTabs" class="ai-tabs" role="tablist" aria-label="AI 能力">
+            <button
+              v-for="tab in visibleTabs"
+              :key="tab.key"
+              class="ai-tab"
+              :class="{ 'is-active': active === tab.key }"
+              role="tab"
+              :aria-selected="active === tab.key"
+              @click="active = tab.key"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
         </header>
 
-        <!-- 智能答疑：学生端的薄弱点/建议/路径已改为输入框上方的提问模板 -->
-        <div ref="scrollRef" class="ai-stream" @scroll="onChatScroll">
+        <!-- 智能答疑：两种角色共用同一对话流 -->
+        <div v-if="active === 'qa'" ref="scrollRef" class="ai-stream" @scroll="onChatScroll">
           <p v-if="blockedNotice" class="stream-notice">
-            这条对话已存在于云端，但当前接口不返回历史消息，无法在这里回放。继续提问会接着这条会话。
+            对话历史加载失败，请稍后重试；继续提问仍会接着这条会话。
           </p>
 
-          <div v-if="!messages.length && !qaSending" class="welcome">
-            <div class="welcome-mark"><Icon name="sparkle" /></div>
-            <h2>你好，我是你的 AI 学习助手</h2>
-            <p>可以问我本课程的概念、作业思路或复习方法。</p>
+          <div v-if="sessionLoading" class="stream-loading">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span>正在加载对话…</span>
+          </div>
+
+          <div v-if="!messages.length && !qaSending && !sessionLoading" class="welcome">
+            <div class="welcome-mark"><img :src="aiAvatar" alt="" /></div>
+            <h2>{{ isStudent ? '你好，我是你的 AI 学习助手' : '你好，我是你的 AI 助教' }}</h2>
+            <p>
+              {{
+                isStudent
+                  ? '可以问我本课程的概念、作业思路或复习方法。'
+                  : '可以问我本课程的备课、命题与答疑要点。'
+              }}
+            </p>
             <div class="suggest">
               <button
-                v-for="suggestion in SUGGESTIONS"
+                v-for="suggestion in suggestions"
                 :key="suggestion"
                 class="suggest-item"
                 @click="send(suggestion)"
@@ -99,11 +128,21 @@
               :key="index"
               :class="['turn', `turn-${msg.role}`]"
             >
-              <div v-if="msg.role === 'ai'" class="turn-avatar"><Icon name="sparkle" /></div>
+              <div v-if="msg.role === 'ai'" class="turn-avatar ai-avatar">
+                <img :src="aiAvatar" alt="" />
+              </div>
               <div class="turn-body">
-                <p v-if="msg.content" class="turn-text">{{ msg.content }}</p>
+                <p v-if="msg.content" class="turn-text">
+                  {{ displayContent(msg) }}<span v-if="msg.streaming" class="stream-caret"></span>
+                </p>
+                <div v-if="msg.streaming && !msg.content" class="thinking-inline">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="thinking-text">正在思考…</span>
+                </div>
                 <div v-if="msg.failed" class="turn-fail">
-                  <span>回答失败，请检查网络后重试。</span>
+                  <span>{{ msg.failure || '回答失败，请稍后重试。' }}</span>
                   <button class="mini-btn" @click="retry(index)">重试</button>
                 </div>
                 <details v-if="msg.sources?.length" class="src">
@@ -116,19 +155,155 @@
                   </ul>
                 </details>
               </div>
+              <div v-if="msg.role === 'user'" class="turn-avatar user-avatar">
+                <img
+                  v-if="userAvatarSrc"
+                  :src="userAvatarSrc"
+                  alt=""
+                  @error="userAvatarFailed = true"
+                />
+                <span v-else>{{ userInitial }}</span>
+              </div>
             </article>
-            <p v-if="qaSending" class="thinking">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="thinking-text">正在思考…</span>
-            </p>
           </div>
         </div>
 
-        <div class="composer">
-          <!-- 学习工具改成提问模板：点一下把模板问题填进输入框，仍由同一个会话回答 -->
-          <div class="quick-prompts">
+        <!-- 教师端其它能力：同一工作区内按页签切换，动作与接口保持原样 -->
+        <div v-else ref="panelRef" class="ai-panel">
+          <div class="panel-inner">
+            <!-- 薄弱点分析 -->
+            <template v-if="active === 'weak'">
+              <header class="panel-head">
+                <h2>
+                  薄弱点分析 <span class="chip chip-mute">{{ weakPoints.length }} 项</span>
+                </h2>
+                <button class="btn btn-ghost" :disabled="weakLoading" @click="loadWeak">
+                  {{ weakLoading ? '分析中…' : '重新分析' }}
+                </button>
+              </header>
+              <p v-if="weakError" class="form-error">{{ weakError }}</p>
+              <p v-if="weakSummary" class="panel-summary">{{ weakSummary }}</p>
+              <ul v-if="weakPoints.length" class="item-list">
+                <li v-for="(item, index) in weakPoints" :key="index">
+                  <span class="nb-name">{{ itemText(item) }}</span>
+                  <span class="chip" :class="levelChip(itemLevel(item))">{{
+                    levelText(itemLevel(item))
+                  }}</span>
+                </li>
+              </ul>
+              <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
+                <b>没有可报告的薄弱点</b>
+                <p>学习数据积累后重试。</p>
+              </div>
+              <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
+            </template>
+
+            <!-- 学习建议 -->
+            <template v-else-if="active === 'advice'">
+              <header class="panel-head">
+                <h2>
+                  学习建议 <span class="chip chip-mute">{{ adviceItems.length }} 条</span>
+                </h2>
+                <button class="btn btn-ghost" :disabled="adviceLoading" @click="loadAdvice">
+                  {{ adviceLoading ? '生成中…' : '重新生成' }}
+                </button>
+              </header>
+              <p v-if="adviceError" class="form-error">{{ adviceError }}</p>
+              <p v-if="adviceSummary" class="panel-summary">{{ adviceSummary }}</p>
+              <ol v-if="adviceItems.length" class="advice-list">
+                <li v-for="(item, index) in adviceItems" :key="index">
+                  <div class="advice-head">
+                    <b>{{ item.title || `建议 ${index + 1}` }}</b>
+                    <span class="chip" :class="levelChip(item.level)">{{
+                      levelText(item.level)
+                    }}</span>
+                  </div>
+                  <p v-if="item.detail">{{ item.detail }}</p>
+                </li>
+              </ol>
+              <div v-else-if="!adviceLoading && !adviceError" class="empty-state compact">
+                <b>暂无建议</b>
+              </div>
+              <div v-else-if="adviceLoading" class="empty-state compact"><b>正在生成建议…</b></div>
+            </template>
+
+            <!-- 作文批改 -->
+            <template v-else-if="active === 'essay'">
+              <header class="panel-head">
+                <h2>作文批改</h2>
+              </header>
+              <textarea
+                v-model="essayText"
+                class="textarea"
+                rows="8"
+                placeholder="粘贴需要批改的文本"
+              ></textarea>
+              <div class="panel-actions">
+                <button
+                  class="btn btn-primary"
+                  :disabled="essayLoading || !essayText.trim()"
+                  @click="correctEssay"
+                >
+                  {{ essayLoading ? '批改中…' : '批改' }}
+                </button>
+                <button
+                  class="btn btn-ghost"
+                  :disabled="polishLoading || !essayText.trim()"
+                  @click="polishEssay"
+                >
+                  {{ polishLoading ? '润色中…' : '润色并回填' }}
+                </button>
+              </div>
+              <p v-if="essayError" class="form-error">{{ essayError }}</p>
+              <div v-if="essayResult" class="callout">
+                <span>RESULT</span>
+                <p class="pre-wrap">{{ essayResult }}</p>
+              </div>
+            </template>
+
+            <!-- 学习路径 -->
+            <template v-else-if="active === 'path'">
+              <header class="panel-head">
+                <h2>学习路径生成</h2>
+              </header>
+              <div class="form-grid">
+                <label class="field span-2">
+                  <span>学习目标 *</span>
+                  <input
+                    v-model="pathGoal"
+                    class="input"
+                    placeholder="例如：两周内补齐网络层丢包与拥塞控制"
+                  />
+                </label>
+              </div>
+              <div class="panel-actions">
+                <button
+                  class="btn btn-primary"
+                  :disabled="pathLoading || !pathGoal.trim()"
+                  @click="runPath"
+                >
+                  {{ pathLoading ? '生成中…' : '生成路径' }}
+                </button>
+              </div>
+              <p v-if="pathError" class="form-error">{{ pathError }}</p>
+              <div v-if="pathResult" class="callout">
+                <span>{{ pathResult.status || 'RESULT' }}</span>
+                <p>{{ pathResult.message || '（无摘要）' }}</p>
+              </div>
+              <details v-if="pathRaw" class="raw">
+                <summary>查看模型返回原文</summary>
+                <pre>{{ pathRaw }}</pre>
+              </details>
+            </template>
+
+            <!-- 课程语料（教师专属） -->
+            <AiCorpusTab v-else-if="active === 'corpus'" :course-id="courseId" />
+          </div>
+        </div>
+
+        <div v-if="active === 'qa'" class="composer">
+          <!-- 学生端的学习工具改成提问模板：点一下把模板问题填进输入框，仍由同一个会话回答 -->
+          <div v-if="isStudent" class="quick-prompts">
             <button
               v-for="prompt in QUICK_PROMPTS"
               :key="prompt.key"
@@ -162,203 +337,6 @@
       </div>
     </div>
   </section>
-
-  <!-- 教师端：保留原有卡片布局与教师专属能力 -->
-  <section v-else class="ai-center">
-    <div class="course-tab-bar">
-      <div>
-        <h2>AI 助教</h2>
-      </div>
-    </div>
-
-    <div class="tabs" role="tablist" aria-label="AI 能力">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab.key"
-        :class="{ 'is-active': active === tab.key }"
-        role="tab"
-        :aria-selected="active === tab.key"
-        @click="active = tab.key"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
-
-    <!-- 智能答疑 -->
-    <section v-show="active === 'qa'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>
-            智能答疑 <span class="chip chip-mute">{{ messages.length }} 条</span>
-          </h2>
-        </div>
-        <div class="course-tab-actions">
-          <button class="btn btn-ghost" :disabled="!sessionId" @click="newChat">新会话</button>
-        </div>
-      </header>
-      <div v-if="messages.length" class="msg-list">
-        <article v-for="(msg, index) in messages" :key="index" :class="['msg', `msg-${msg.role}`]">
-          <p class="msg-body">{{ msg.content }}</p>
-          <ul v-if="msg.sources?.length" class="src-list">
-            <li v-for="(source, sIndex) in msg.sources" :key="sIndex">
-              <b>{{ source.documentName || `资料 #${sIndex + 1}` }}</b>
-              <span>{{ source.snippet || '' }}</span>
-            </li>
-          </ul>
-        </article>
-      </div>
-      <div v-else class="empty-state compact">
-        <b>还没有提问</b>
-        <p>就本课程的学习内容提问，回答会带上检索到的资料出处。</p>
-      </div>
-      <footer class="qa-foot">
-        <textarea
-          v-model="qaInput"
-          class="textarea"
-          rows="2"
-          :disabled="qaSending"
-          placeholder="例如：子网划分时主机位数怎么算？"
-        ></textarea>
-        <button class="btn btn-primary" :disabled="qaSending || !qaInput.trim()" @click="send()">
-          {{ qaSending ? '思考中…' : '提问' }}
-        </button>
-      </footer>
-    </section>
-
-    <!-- 薄弱点分析 -->
-    <section v-show="active === 'weak'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>
-            薄弱点分析 <span class="chip chip-mute">{{ weakPoints.length }} 项</span>
-          </h2>
-        </div>
-        <button class="btn btn-ghost" :disabled="weakLoading" @click="loadWeak">
-          {{ weakLoading ? '分析中…' : '重新分析' }}
-        </button>
-      </header>
-      <p v-if="weakError" class="form-error">{{ weakError }}</p>
-      <p v-if="weakSummary" class="ai-summary">{{ weakSummary }}</p>
-      <ul v-if="weakPoints.length" class="item-list">
-        <li v-for="(item, index) in weakPoints" :key="index">
-          <span class="nb-name">{{ itemText(item) }}</span>
-          <span class="chip" :class="levelChip(itemLevel(item))">{{
-            levelText(itemLevel(item))
-          }}</span>
-        </li>
-      </ul>
-      <div v-else-if="!weakLoading && !weakError" class="empty-state compact">
-        <b>没有可报告的薄弱点</b>
-        <p>学习数据积累后重试。</p>
-      </div>
-      <div v-else-if="weakLoading" class="empty-state compact"><b>正在分析…</b></div>
-    </section>
-
-    <!-- 学习建议 -->
-    <section v-show="active === 'advice'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>
-            学习建议 <span class="chip chip-mute">{{ adviceItems.length }} 条</span>
-          </h2>
-        </div>
-        <button class="btn btn-ghost" :disabled="adviceLoading" @click="loadAdvice">
-          {{ adviceLoading ? '生成中…' : '重新生成' }}
-        </button>
-      </header>
-      <p v-if="adviceError" class="form-error">{{ adviceError }}</p>
-      <p v-if="adviceSummary" class="ai-summary">{{ adviceSummary }}</p>
-      <ol v-if="adviceItems.length" class="advice-list">
-        <li v-for="(item, index) in adviceItems" :key="index">
-          <div class="advice-head">
-            <b>{{ item.title || `建议 ${index + 1}` }}</b>
-            <span class="chip" :class="levelChip(item.level)">{{ levelText(item.level) }}</span>
-          </div>
-          <p v-if="item.detail">{{ item.detail }}</p>
-        </li>
-      </ol>
-      <div v-else-if="!adviceLoading && !adviceError" class="empty-state compact">
-        <b>暂无建议</b>
-      </div>
-      <div v-else-if="adviceLoading" class="empty-state compact"><b>正在生成建议…</b></div>
-    </section>
-
-    <!-- 作文批改 -->
-    <section v-show="active === 'essay'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>作文批改</h2>
-        </div>
-      </header>
-      <textarea
-        v-model="essayText"
-        class="textarea"
-        rows="6"
-        placeholder="粘贴需要批改的文本"
-      ></textarea>
-      <div class="course-tab-actions essay-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="essayLoading || !essayText.trim()"
-          @click="correctEssay"
-        >
-          {{ essayLoading ? '批改中…' : '批改' }}
-        </button>
-        <button
-          class="btn btn-ghost"
-          :disabled="polishLoading || !essayText.trim()"
-          @click="polishEssay"
-        >
-          {{ polishLoading ? '润色中…' : '润色并回填' }}
-        </button>
-      </div>
-      <p v-if="essayError" class="form-error">{{ essayError }}</p>
-      <div v-if="essayResult" class="callout">
-        <span>RESULT</span>
-        <p class="pre-wrap">{{ essayResult }}</p>
-      </div>
-    </section>
-
-    <!-- 学习路径 -->
-    <section v-show="active === 'path'" class="card">
-      <header class="card-head">
-        <div>
-          <h2>学习路径生成</h2>
-        </div>
-      </header>
-      <div class="form-grid">
-        <label class="field span-2">
-          <span>学习目标 *</span>
-          <input
-            v-model="pathGoal"
-            class="input"
-            placeholder="例如：两周内补齐网络层丢包与拥塞控制"
-          />
-        </label>
-      </div>
-      <div class="course-tab-actions essay-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="pathLoading || !pathGoal.trim()"
-          @click="runPath"
-        >
-          {{ pathLoading ? '生成中…' : '生成路径' }}
-        </button>
-      </div>
-      <p v-if="pathError" class="form-error">{{ pathError }}</p>
-      <div v-if="pathResult" class="callout">
-        <span>{{ pathResult.status || 'RESULT' }}</span>
-        <p>{{ pathResult.message || '（无摘要）' }}</p>
-      </div>
-      <details v-if="pathRaw" class="raw">
-        <summary>查看模型返回原文</summary>
-        <pre>{{ pathRaw }}</pre>
-      </details>
-    </section>
-
-    <!-- 课程语料（教师专属） -->
-    <AiCorpusTab v-if="active === 'corpus' && !isStudent" :course-id="courseId" />
-  </section>
 </template>
 
 <script setup lang="ts">
@@ -368,8 +346,10 @@ import AiCorpusTab from './AiCorpusTab.vue'
 import { useUi } from '../../../composables/ui'
 import aiApi from '@/api/ai'
 import courseApi from '@/api/course'
+import { useAuthStore } from '@/stores/auth'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
+import aiAvatar from '@/assets/ai-assistant.png'
 
 interface Source {
   documentName?: string
@@ -381,9 +361,13 @@ interface Message {
   role: 'user' | 'ai'
   content: string
   sources?: Source[]
+  /** 正在流式接收：内容可能为空（此时显示思考动效） */
+  streaming?: boolean
   /** 请求失败时占位：只渲染错误条与重试，不伪造一条成功回答 */
   failed?: boolean
   retryText?: string
+  /** 失败原因：优先后端 message（如配额超限），否则回退通用文案 */
+  failure?: string
 }
 
 interface ChatSession {
@@ -393,8 +377,10 @@ interface ChatSession {
   updatedAt: number
   lastText: string
   courseId: number
-  /** 来自 GET /ai/qa/sessions 的记录：只有标题与时间，读不到消息正文 */
+  /** 来自 GET /ai/qa/sessions 的记录；打开时按需拉取消息正文 */
   remote?: boolean
+  /** 正文是否已加载（远端历史首次打开为 false） */
+  loaded?: boolean
 }
 
 type TabKey = 'qa' | 'weak' | 'advice' | 'essay' | 'path' | 'corpus'
@@ -408,11 +394,18 @@ const AI_TABS = [
   { key: 'corpus', label: '课程语料', teacherOnly: true },
 ] as const
 
-const SUGGESTIONS = [
+const STUDENT_SUGGESTIONS = [
   '帮我梳理本课程的核心知识点',
   '这个概念可以举例说明吗？',
   '给我出 3 道练习题',
   '帮我制定本周复习计划',
+]
+
+const TEACHER_SUGGESTIONS = [
+  '帮我梳理本课程的知识点结构',
+  '为这一章设计 3 个课堂提问',
+  '根据薄弱点给我一份讲评思路',
+  '帮我写一段本章小结',
 ]
 
 /**
@@ -439,7 +432,27 @@ const isStudent = computed(() => props.mode === 'student')
 const visibleTabs = computed(() =>
   AI_TABS.filter((tab) => !('teacherOnly' in tab && tab.teacherOnly && isStudent.value)),
 )
+// 教师端六个能力共用同一工作区，页签由顶栏承载；学生端的学习工具是提问模板，不占页签
+const showTabs = computed(() => !isStudent.value && visibleTabs.value.length > 1)
+const suggestions = computed(() => (isStudent.value ? STUDENT_SUGGESTIONS : TEACHER_SUGGESTIONS))
 const { toast } = useUi()
+const auth = useAuthStore()
+// 用户头像来自登录信息；落库形态是 /uploads/xxx，静态映射挂在 /api/uploads/**
+// 下，直接当 src 用会被 Vite 兜底成 index.html，图片解码失败后退化成姓名首字。
+const userAvatar = computed(() => {
+  const raw = (auth.userAvatar || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('/uploads/')) return `/api${raw}`
+  if (raw.startsWith('uploads/')) return `/api/${raw}`
+  return raw
+})
+const userInitial = computed(() => (auth.userName || '我').trim().slice(0, 1) || '我')
+// 头像 URL 可能指向已删除文件：加载失败就退回姓名首字，避免一个破图占着气泡边缘
+const userAvatarFailed = ref(false)
+const userAvatarSrc = computed(() => (userAvatarFailed.value ? '' : userAvatar.value))
+watch(userAvatar, () => {
+  userAvatarFailed.value = false
+})
 
 const active = ref<TabKey>('qa')
 
@@ -447,16 +460,23 @@ const messages = ref<Message[]>([])
 const qaInput = ref('')
 const qaSending = ref(false)
 const sessionId = ref('')
+const sessionLoading = ref(false)
+/** 会话详情请求序号：快速切换会话时只认最后一次响应 */
+let sessionLoadSeq = 0
+/** 当前 SSE 流：切换会话/新建对话时中止，避免 token 继续写进旧消息 */
+let streamController: AbortController | null = null
 
 const weakPoints = ref<Record<string, unknown>[]>([])
 const weakSummary = ref('')
 const weakLoading = ref(false)
 const weakError = ref('')
+const weakLoaded = ref(false)
 
 const adviceItems = ref<{ title?: string; detail?: string; level?: string }[]>([])
 const adviceSummary = ref('')
 const adviceLoading = ref(false)
 const adviceError = ref('')
+const adviceLoaded = ref(false)
 
 const essayText = ref('')
 const essayResult = ref('')
@@ -474,7 +494,8 @@ const pathRaw = ref('')
 
 /**
  * 会话缓存只活在本次页面会话的内存里（模块级 Map，按课程分桶）。
- * 不写 localStorage、不冒充云端历史：刷新后侧栏为空是诚实的，而不是"看起来有记录点开是空的"。
+ * 不写 localStorage：历史真相在云端，由 /qa/sessions 与 /qa/sessions/{id} 提供；
+ * 这里的缓存只用于同一页面内避免重复拉取列表与正文。
  */
 const sessionStore = new Map<number, ChatSession[]>()
 const sessions = ref<ChatSession[]>([])
@@ -503,12 +524,10 @@ const sessionGroups = computed(() => {
 })
 
 const activeTitle = computed(() => {
-  if (!isStudent.value) return 'AI 教学助手'
-  if (active.value !== 'qa') {
-    return AI_TABS.find((tab) => tab.key === active.value)?.label || 'AI 学习助手'
-  }
+  const fallback = isStudent.value ? 'AI 学习助手' : 'AI 助教'
+  if (active.value !== 'qa') return fallback
   const current = sessions.value.find((item) => item.id === activeId.value)
-  return current?.title || 'AI 学习助手'
+  return current?.title || fallback
 })
 
 function titleFrom(list: Message[]): string {
@@ -555,9 +574,18 @@ function syncActiveSession() {
   const current = sessions.value.find((item) => item.id === activeId.value)
   if (!current) return
   current.messages = messages.value.map((item) => ({ ...item }))
-  current.updatedAt = Date.now()
   current.lastText = lastTextFrom(messages.value)
   if (!current.title || current.title === '新对话') current.title = titleFrom(messages.value)
+}
+
+/**
+ * 只有真正发起一轮问答才刷新排序时间。
+ * 打开/回填历史会话也是 messages 变化，但那不是“继续对话”，不能顶到侧栏第一条。
+ */
+function touchActiveSession() {
+  if (!activeId.value) return
+  const current = sessions.value.find((item) => item.id === activeId.value)
+  if (current) current.updatedAt = Date.now()
 }
 
 /** 首次提问拿到后端 sessionId 后才落一条侧栏记录——没有真实会话就不凭空造条目 */
@@ -573,6 +601,7 @@ function ensureSession() {
       updatedAt: Date.now(),
       lastText: '',
       courseId: props.courseId,
+      loaded: true,
     }
     sessions.value.unshift(current)
   }
@@ -581,8 +610,8 @@ function ensureSession() {
 }
 
 /**
- * 只认明确标了本课程的云端会话。
- * 当前 /ai/qa/sessions 不返回 courseId，因此这里通常为空——宁可不显示，也不把全量列表冒充成本课程历史。
+ * 云端会话列表现在带 courseId，只展示本课程的历史；
+ * 正文不随列表下发，点开时再调 /qa/sessions/{id} 拉取，避免一次拉全量长文本。
  */
 async function loadRemoteSessions() {
   try {
@@ -606,31 +635,86 @@ async function loadRemoteSessions() {
         lastText: String(raw?.lastMessage ?? ''),
         courseId: props.courseId,
         remote: true,
+        loaded: false,
       })
+    }
+    // 重进页面默认恢复最近一条本课程会话，而不是停在欢迎态等人再点一次
+    if (!activeId.value && !messages.value.length && !qaInput.value.trim() && !qaSending.value) {
+      const latest = sessions.value.reduce<ChatSession | null>(
+        (best, item) => (!best || item.updatedAt > best.updatedAt ? item : best),
+        null,
+      )
+      if (latest) await openSession(latest)
     }
   } catch {
     // 列表接口不可用不该影响对话本身；侧栏退化为只显示本页产生的会话
   }
 }
 
-function openSession(item: ChatSession) {
-  if (item.id === activeId.value) {
+function abortStream() {
+  streamController?.abort()
+  streamController = null
+  qaSending.value = false
+}
+
+async function openSession(item: ChatSession) {
+  if (item.id === activeId.value && !blockedNotice.value) {
     if (isNarrow.value) closeSide()
     return
   }
+  abortStream()
+  active.value = 'qa'
   activeId.value = item.id
   sessionId.value = item.id
-  messages.value = item.messages.map((msg) => ({ ...msg }))
-  blockedNotice.value = Boolean(item.remote) && messages.value.length === 0
+  blockedNotice.value = false
   if (isNarrow.value) closeSide()
+
+  if (item.remote && !item.loaded) {
+    const seq = ++sessionLoadSeq
+    sessionLoading.value = true
+    messages.value = []
+    try {
+      const data = await callTwice<{
+        title?: string
+        messages?: { role?: string; content?: string }[]
+      }>(aiApi.getSessionDetail(item.id))
+      if (seq !== sessionLoadSeq) return
+      const restored: Message[] = (data.messages ?? [])
+        .map((msg) => ({
+          role: msg.role === 'assistant' ? ('ai' as const) : ('user' as const),
+          content: String(msg.content ?? ''),
+        }))
+        .filter((msg) => msg.content.trim())
+      item.messages = restored
+      item.loaded = true
+      if (data.title) item.title = data.title
+      messages.value = restored.map((msg) => ({ ...msg }))
+    } catch (error) {
+      if (seq !== sessionLoadSeq) return
+      logger.error('加载会话历史失败', error)
+      // 读不到正文时明确提示，而不是把空对话框伪装成“新会话”
+      blockedNotice.value = true
+      messages.value = []
+    } finally {
+      if (seq === sessionLoadSeq) sessionLoading.value = false
+    }
+  } else {
+    sessionLoadSeq += 1
+    sessionLoading.value = false
+    messages.value = item.messages.map((msg) => ({ ...msg }))
+  }
   void scrollToEnd(true)
 }
 
 function newChat() {
+  abortStream()
+  sessionLoadSeq += 1
+  active.value = 'qa'
   messages.value = []
   sessionId.value = ''
   activeId.value = ''
   blockedNotice.value = false
+  sessionLoading.value = false
   qaInput.value = ''
   atBottom.value = true
   void nextTick(() => {
@@ -708,11 +792,26 @@ function onDocumentKeydown(event: KeyboardEvent) {
 /* -------------------------------- 对话交互 -------------------------------- */
 
 const scrollRef = ref<HTMLElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
 const taRef = ref<HTMLTextAreaElement | null>(null)
 const atBottom = ref(true)
 const composing = ref(false)
 
-const canSend = computed(() => Boolean(qaInput.value.trim()) && !qaSending.value)
+// 切回某个能力页签时从顶部开始，避免沿用上一个面板的滚动位置
+/**
+ * 页签切换：滚动复位，并按需加载该面板数据。
+ * 不在挂载时预拉薄弱点/学习建议——两次真实 LLM 调用会把本地 Ollama 的单并发队列占满，
+ * 用户紧接着提问只能排队到超时；改为进入对应页签时才请求。
+ */
+watch(active, (tab) => {
+  if (panelRef.value) panelRef.value.scrollTop = 0
+  if (tab === 'weak' && !weakLoaded.value) void loadWeak()
+  if (tab === 'advice' && !adviceLoaded.value) void loadAdvice()
+})
+
+const canSend = computed(
+  () => Boolean(qaInput.value.trim()) && !qaSending.value && !sessionLoading.value,
+)
 
 function scrollToEnd(force = false) {
   return nextTick().then(() => {
@@ -763,7 +862,7 @@ function onComposerKey(event: KeyboardEvent) {
 
 async function send(preset?: string) {
   const text = (preset ?? qaInput.value).trim()
-  if (!text || qaSending.value) return
+  if (!text || qaSending.value || sessionLoading.value) return
   blockedNotice.value = false
   messages.value.push({ role: 'user', content: text })
   qaInput.value = ''
@@ -773,34 +872,66 @@ async function send(preset?: string) {
   await requestAnswer(text)
 }
 
-/** 只补发 AI 侧，用于失败重试——不再重复插入一条用户消息 */
+/**
+ * 真实流式回答：先插入一条空气泡（显示思考动效），token 到达后逐个追加。
+ * 会话ID 来自服务端首帧；用户问题与最终回答由后端按会话落库，刷新/重开课程都能恢复。
+ */
 async function requestAnswer(text: string) {
+  // 发送新提问才代表这轮对话“继续”了；仅打开历史不刷新排序
+  touchActiveSession()
   qaSending.value = true
-  try {
-    const data = await callTwice<{
-      sessionId?: string
-      answer?: string
-      sources?: Source[]
-    }>(
-      sessionId.value
-        ? aiApi.qaContinue({ sessionId: sessionId.value, message: text })
-        : aiApi.qaAsk({ courseId: props.courseId, question: text }),
-    )
-    if (data.sessionId) sessionId.value = String(data.sessionId)
-    messages.value.push({
-      role: 'ai',
-      content: data.answer || '（暂无回答）',
-      sources: Array.isArray(data.sources) ? data.sources : [],
-    })
-    ensureSession()
-  } catch (error) {
-    logger.error('智能答疑失败', error)
-    // 保留用户消息与失败占位，不伪造成功回答
-    messages.value.push({ role: 'ai', content: '', failed: true, retryText: text })
-  } finally {
-    qaSending.value = false
-    await scrollToEnd()
-  }
+  messages.value.push({
+    role: 'ai',
+    content: '',
+    streaming: true,
+    retryText: text,
+  })
+  // 取数组里的响应式代理再改字段；直接改 push 前的原始对象不会触发视图更新
+  const reply = messages.value[messages.value.length - 1]
+  await scrollToEnd(true)
+
+  // qaStream 立即返回 AbortController，结果通过回调推进；不能 await 它，否则会误判成流已结束
+  streamController = aiApi.qaStream(
+    {
+      question: text,
+      courseId: props.courseId,
+      sessionId: sessionId.value || undefined,
+    },
+    {
+      onSession: (id) => {
+        sessionId.value = String(id)
+        ensureSession()
+      },
+      onToken: (token) => {
+        reply.content += token
+        void scrollToEnd()
+      },
+      onSources: (sources) => {
+        reply.sources = sources as Source[]
+      },
+      onDone: () => {
+        reply.streaming = false
+        if (!reply.content.trim()) {
+          reply.failed = true
+          reply.failure = '回答失败，请稍后重试。'
+        } else {
+          ensureSession()
+        }
+        qaSending.value = false
+        streamController = null
+        void scrollToEnd()
+      },
+      onError: (error) => {
+        logger.error('智能答疑失败', error)
+        reply.streaming = false
+        reply.failed = true
+        reply.failure = failureText(error)
+        qaSending.value = false
+        streamController = null
+        void scrollToEnd()
+      },
+    },
+  )
 }
 
 function retry(index: number) {
@@ -808,6 +939,30 @@ function retry(index: number) {
   if (!target?.retryText || qaSending.value) return
   messages.value.splice(index, 1)
   void requestAnswer(target.retryText)
+}
+
+/** 模型习惯输出 **加粗**；本项目没有 Markdown 渲染位点（P-12 只保留三处 v-html），去掉标记比露出星号干净。 */
+function cleanAiText(content: string): string {
+  return content.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*\*/g, '')
+}
+function displayContent(message: Message): string {
+  return message.role === 'ai' ? cleanAiText(message.content) : message.content
+}
+
+/** 失败原因：SSE 错误体/业务 message 优先，比“检查网络”更能指向真实问题 */
+function failureText(error: unknown): string {
+  const responseMessage = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message
+  if (typeof responseMessage === 'string' && responseMessage.trim()) {
+    return responseMessage.trim()
+  }
+  // qaStream 把 HTTP 错误体拼进 Error.message；剥掉传输前缀只留后端话术
+  const message = (error as { message?: unknown })?.message
+  if (typeof message === 'string') {
+    const match = message.match(/^SSE 请求失败:\s*HTTP \d+\s*-\s*(.+)$/)
+    if (match?.[1]?.trim()) return match[1].trim()
+  }
+  return '回答失败，请稍后重试。'
 }
 
 watch(messages, syncActiveSession, { deep: true })
@@ -859,7 +1014,7 @@ async function callTwice<T>(request: Promise<unknown>): Promise<T> {
 }
 
 async function loadWeak() {
-  if (!props.courseId) return
+  if (!props.courseId || weakLoading.value) return
   weakLoading.value = true
   weakError.value = ''
   try {
@@ -877,11 +1032,13 @@ async function loadWeak() {
     weakError.value = '薄弱点分析加载失败，已保留上一次结果，请稍后重试'
   } finally {
     weakLoading.value = false
+    // 自动加载只做一次：失败后由面板上的「重新分析」显式重试，避免切页签反复烧配额
+    weakLoaded.value = true
   }
 }
 
 async function loadAdvice() {
-  if (!props.courseId) return
+  if (!props.courseId || adviceLoading.value) return
   adviceLoading.value = true
   adviceError.value = ''
   try {
@@ -898,6 +1055,7 @@ async function loadAdvice() {
     adviceError.value = '学习建议加载失败，已保留上一次结果，请稍后重试'
   } finally {
     adviceLoading.value = false
+    adviceLoaded.value = true
   }
 }
 
@@ -982,17 +1140,15 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(() => measureShell())
     resizeObserver.observe(courseHead)
   }
-  // 学生端已没有薄弱点/建议面板，不预拉这两个接口（AI 不可用时会平白弹错误提示）
-  if (!isStudent.value) {
-    void loadAdvice()
-    void loadWeak()
-  }
+  // 教师端的薄弱点/学习建议改为进入页签时按需加载：
+  // 挂载即预拉会连续占用两次真实 LLM 调用，把本地单并发模型队列排满，直接提问要等到超时
   void loadCourseName().then(measureShell)
   void loadRemoteSessions()
   void nextTick(autosize)
 })
 
 onBeforeUnmount(() => {
+  abortStream()
   narrowMedia?.removeEventListener('change', syncNarrow)
   document.removeEventListener('keydown', onDocumentKeydown)
   window.removeEventListener('resize', measureShell)
@@ -1008,10 +1164,15 @@ watch(
     pathResult.value = null
     pathRaw.value = ''
     courseName.value = ''
-    if (!isStudent.value) {
-      void loadAdvice()
-      void loadWeak()
-    }
+    // 课程切换：清空上一门课的洞察读数，等用户进入对应页签再拉
+    weakLoaded.value = false
+    adviceLoaded.value = false
+    weakPoints.value = []
+    weakSummary.value = ''
+    weakError.value = ''
+    adviceItems.value = []
+    adviceSummary.value = ''
+    adviceError.value = ''
     void loadCourseName()
     void loadRemoteSessions()
     void nextTick(measureShell)
@@ -1267,6 +1428,41 @@ watch(
   width: 12px;
   height: 12px;
 }
+/* 能力页签：顶栏内的细线页签，不另起大标题 */
+.ai-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ai-tabs::-webkit-scrollbar {
+  display: none;
+}
+.ai-tab {
+  flex: none;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.16s var(--ease),
+    border-color 0.16s var(--ease);
+}
+.ai-tab:hover {
+  color: var(--ink);
+}
+.ai-tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
 /* 对话流 */
 .ai-stream {
   flex: 1;
@@ -1303,14 +1499,21 @@ watch(
   text-align: center;
 }
 .welcome-mark {
-  width: 42px;
-  height: 42px;
+  width: 56px;
+  height: 56px;
   margin: 0 auto 14px;
   display: grid;
   place-items: center;
+  border: 1px solid var(--line);
   border-radius: var(--r-circle);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--surface);
+  overflow: hidden;
+}
+.welcome-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .welcome-mark .icon {
   width: 20px;
@@ -1366,18 +1569,33 @@ watch(
 }
 .turn-avatar {
   flex: none;
-  width: 26px;
-  height: 26px;
-  margin-top: 2px;
+  width: 32px;
+  height: 32px;
+  margin-top: 1px;
   display: grid;
   place-items: center;
+  border: 1px solid var(--line);
   border-radius: var(--r-circle);
-  background: var(--accent-soft);
+  background: var(--surface);
   color: var(--accent);
+  overflow: hidden;
+}
+.turn-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .turn-avatar .icon {
   width: 14px;
   height: 14px;
+}
+.user-avatar {
+  background: var(--accent-soft);
+  border-color: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 .turn-body {
   min-width: 0;
@@ -1402,6 +1620,21 @@ watch(
   border-radius: var(--r-bubble) var(--r-bubble) var(--r-ctl) var(--r-bubble);
   background: var(--accent-soft);
   color: var(--ink);
+}
+/* 流式回答的光标：只在 token 还在到达时出现，和气泡同色系 */
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--accent);
+  animation: streamCaret 0.9s step-end infinite;
+}
+@keyframes streamCaret {
+  50% {
+    opacity: 0;
+  }
 }
 .turn-fail {
   display: flex;
@@ -1479,31 +1712,46 @@ watch(
   overflow-wrap: anywhere;
 }
 
-/* 思考中 */
-.thinking {
+/* 思考中：气泡内三点，等首个 token 期间占位 */
+.thinking-inline {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: 0;
-  padding-left: 35px;
+  min-height: 24px;
   font-size: 12px;
   color: var(--ink-3);
 }
-.thinking .dot {
+.thinking-inline .dot,
+.stream-loading .dot {
   width: 4px;
   height: 4px;
   border-radius: var(--r-circle);
   background: var(--ink-3);
   animation: aiDot 1.1s infinite ease-in-out;
 }
-.thinking .dot:nth-child(2) {
+.thinking-inline .dot:nth-child(2),
+.stream-loading .dot:nth-child(2) {
   animation-delay: 0.16s;
 }
-.thinking .dot:nth-child(3) {
+.thinking-inline .dot:nth-child(3),
+.stream-loading .dot:nth-child(3) {
   animation-delay: 0.32s;
 }
 .thinking-text {
   margin-left: 4px;
+}
+.stream-loading {
+  max-width: 800px;
+  margin: 6vh auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.stream-loading span:last-child {
+  margin-left: 6px;
 }
 @keyframes aiDot {
   0%,
@@ -1706,6 +1954,12 @@ watch(
   .ai-stream {
     padding: 16px 14px 8px;
   }
+  .ai-panel {
+    padding: 16px 14px 20px;
+  }
+  .panel-head {
+    flex-wrap: wrap;
+  }
   .composer {
     padding: 8px 14px 10px;
   }
@@ -1725,71 +1979,61 @@ watch(
   .side-item,
   .suggest-item,
   .composer-box,
-  .composer-send {
+  .composer-send,
+  .ai-tab {
     transition: none;
   }
-  .thinking .dot {
+  .thinking-inline .dot,
+  .stream-loading .dot {
+    animation: none;
+  }
+  .stream-caret {
     animation: none;
   }
 }
 
-/* 教师端沿用原有卡片风格 */
-.ai-center {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.head-hint {
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
-.msg-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.msg {
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-}
-.msg-user {
-  background: var(--accent-soft);
-  border-color: transparent;
-}
-.msg-body {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.8;
-  white-space: pre-wrap;
-}
-.src-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  font-size: 12px;
-  color: var(--ink-3);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.qa-foot {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-.qa-foot .textarea {
+/* 能力面板：与对话流共用同一内容区宽高与留白 */
+.ai-panel {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px 24px;
+  scrollbar-width: thin;
 }
-.ai-summary {
-  margin: 0 0 12px;
-  font-size: 14px;
-  line-height: 1.8;
+.panel-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.panel-head h2 .chip {
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+.panel-summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
   color: var(--ink-2);
 }
-.essay-actions {
-  margin: 10px 0;
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .pre-wrap {
   white-space: pre-wrap;

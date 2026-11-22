@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.FileUploadSessionMapper;
+import com.aicourse.service.FileVirusScanService;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.io.Serializable;
@@ -45,7 +47,7 @@ class FileUploadSessionServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), FileUploadSession.class);
         LocalFileStorageServiceImpl storage = new LocalFileStorageServiceImpl();
-        service = new FileUploadSessionServiceImpl(storage);
+        service = new FileUploadSessionServiceImpl(storage, (file, name) -> { });
         ReflectionTestUtils.setField(service, "baseMapper", fileUploadSessionMapper);
         uploadRoot = tempRoot.resolve("uploads");
         chunkRoot = tempRoot.resolve("upload-chunks");
@@ -365,6 +367,85 @@ class FileUploadSessionServiceImplTest {
         Path dir = chunkRoot.resolve(String.valueOf(sessionId));
         Files.createDirectories(dir);
         Files.writeString(dir.resolve(index + ".part"), content, StandardCharsets.UTF_8);
+    }
+
+    /** 测试夹具：字节级分片（魔数/病毒扫描用例需要真实文件头） */
+    private void seedChunkBytes(Long sessionId, int index, byte[] content) throws Exception {
+        Path dir = chunkRoot.resolve(String.valueOf(sessionId));
+        Files.createDirectories(dir);
+        Files.write(dir.resolve(index + ".part"), content);
+    }
+
+    // ===== mergeChunks 安全检查：魔数 + 病毒扫描 =====
+    @Test
+    @DisplayName("mergeChunks 拒绝扩展名与真实文件头不符的产物（.pdf 实为无头字节），且置 FAILED")
+    void merge_magicMismatch_rejectsAndMarksFailed() throws Exception {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 1, 1);
+        s.setFilename("fake.pdf");
+        s.setUploadPath("2026/10/fake_a.pdf");
+        s.setFileSize(2L);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        when(fileUploadSessionMapper.updateById(any(FileUploadSession.class))).thenReturn(1);
+        seedChunk(1L, 0, "AA");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.mergeChunks(1L, 99L));
+
+        assertEquals(400, ex.getCode());
+        assertTrue(ex.getMessage().contains("扩展名不符"), "实际=" + ex.getMessage());
+        assertFalse(Files.exists(uploadRoot.resolve("2026/10/fake_a.pdf")), "魔数不符不得落盘");
+        assertEquals("FAILED", s.getStatus());
+    }
+
+    @Test
+    @DisplayName("mergeChunks 魔数通过后仍被病毒扫描拒绝时删除产物并置 FAILED")
+    void merge_virusHit_rejectsAndMarksFailed() throws Exception {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 1, 1);
+        s.setFilename("clean.pdf");
+        s.setUploadPath("2026/10/clean_a.pdf");
+        s.setFileSize(8L);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        when(fileUploadSessionMapper.updateById(any(FileUploadSession.class))).thenReturn(1);
+        seedChunkBytes(1L, 0, "%PDF-1.4".getBytes(StandardCharsets.US_ASCII));
+
+        FileVirusScanService infected = (file, name) -> {
+            throw new BusinessException(400, "文件未通过病毒扫描");
+        };
+        service = new FileUploadSessionServiceImpl(new LocalFileStorageServiceImpl(), infected);
+        ReflectionTestUtils.setField(service, "baseMapper", fileUploadSessionMapper);
+        ReflectionTestUtils.setField(service, "uploadDir", uploadRoot.toString());
+        ReflectionTestUtils.setField(service, "chunkDir", chunkRoot.toString());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.mergeChunks(1L, 99L));
+
+        assertEquals(400, ex.getCode());
+        assertFalse(Files.exists(uploadRoot.resolve("2026/10/clean_a.pdf")), "病毒命中不得落盘");
+        assertEquals("FAILED", s.getStatus());
+    }
+
+    @Test
+    @DisplayName("mergeChunks 病毒扫描器不可用时 fail-closed：拒绝上传并置 FAILED（503）")
+    void merge_virusScannerUnavailable_failClosed() throws Exception {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 1, 1);
+        s.setFilename("clean.pdf");
+        s.setUploadPath("2026/10/clean_b.pdf");
+        s.setFileSize(8L);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        when(fileUploadSessionMapper.updateById(any(FileUploadSession.class))).thenReturn(1);
+        seedChunkBytes(1L, 0, "%PDF-1.4".getBytes(StandardCharsets.US_ASCII));
+
+        FileVirusScanService unavailable = (file, name) -> {
+            throw new BusinessException(503, "病毒扫描服务不可用");
+        };
+        service = new FileUploadSessionServiceImpl(new LocalFileStorageServiceImpl(), unavailable);
+        ReflectionTestUtils.setField(service, "baseMapper", fileUploadSessionMapper);
+        ReflectionTestUtils.setField(service, "uploadDir", uploadRoot.toString());
+        ReflectionTestUtils.setField(service, "chunkDir", chunkRoot.toString());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.mergeChunks(1L, 99L));
+
+        assertEquals(503, ex.getCode());
+        assertFalse(Files.exists(uploadRoot.resolve("2026/10/clean_b.pdf")), "扫描不可用不得落盘");
+        assertEquals("FAILED", s.getStatus());
     }
 
     // ===== mergeChunks =====
@@ -696,5 +777,18 @@ class FileUploadSessionServiceImplTest {
     void sweep_absentRootIsQuiet() {
         ReflectionTestUtils.setField(service, "chunkDir", tempRoot.resolve("never-created").toString());
         assertEquals(0, service.sweepOrphanChunkDirs());
+    }
+
+    @Test
+    @DisplayName("mergeChunks 的拒绝路径不随事务回滚吞掉 FAILED 状态")
+    void merge_businessExceptionDoesNotRollbackFailedStatus() throws Exception {
+        Transactional tx = FileUploadSessionServiceImpl.class
+                .getMethod("mergeChunks", Long.class, Long.class)
+                .getAnnotation(Transactional.class);
+        assertNotNull(tx, "mergeChunks 必须声明事务");
+        assertTrue(Arrays.asList(tx.noRollbackFor()).contains(BusinessException.class),
+                "BusinessException 必须在 noRollbackFor 中，否则会话 FAILED 状态会被回滚（真实 E2E 已复现）");
+        assertTrue(Arrays.asList(tx.rollbackFor()).contains(Exception.class),
+                "其它异常仍需回滚");
     }
 }

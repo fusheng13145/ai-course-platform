@@ -62,10 +62,14 @@ describe('API 模块 - ai.js (接口)', () => {
     mockRequest.post.mockResolvedValue({ data: { answer: 'RAG答案', sessionId: 's1' } })
 
     const result = await aiApi.qaAsk({ question: '什么是TCP', courseId: 1 })
-    expect(mockRequest.post).toHaveBeenCalledWith('/ai/qa/ask', {
-      question: '什么是TCP',
-      courseId: 1,
-    })
+    expect(mockRequest.post).toHaveBeenCalledWith(
+      '/ai/qa/ask',
+      {
+        question: '什么是TCP',
+        courseId: 1,
+      },
+      { timeout: 120_000 },
+    )
     expect(result.data.answer).toBe('RAG答案')
   })
 
@@ -74,10 +78,14 @@ describe('API 模块 - ai.js (接口)', () => {
     mockRequest.post.mockResolvedValue({ data: { answer: '继续回答' } })
 
     await aiApi.qaContinue({ message: '继续', sessionId: 's1' })
-    expect(mockRequest.post).toHaveBeenCalledWith('/ai/qa/continue', {
-      message: '继续',
-      sessionId: 's1',
-    })
+    expect(mockRequest.post).toHaveBeenCalledWith(
+      '/ai/qa/continue',
+      {
+        message: '继续',
+        sessionId: 's1',
+      },
+      { timeout: 120_000 },
+    )
   })
 
   it('getSessions 调用 GET /ai/qa/sessions', async () => {
@@ -94,7 +102,9 @@ describe('API 模块 - ai.js (接口)', () => {
     mockRequest.get.mockResolvedValue({ data: { recommendation: '推荐内容' } })
 
     const result = await aiApi.learningRecommendations()
-    expect(mockRequest.get).toHaveBeenCalledWith('/ai/recommendations/learning')
+    expect(mockRequest.get).toHaveBeenCalledWith('/ai/recommendations/learning', {
+      timeout: 120_000,
+    })
     expect(result.data.recommendation).toBe('推荐内容')
   })
 })

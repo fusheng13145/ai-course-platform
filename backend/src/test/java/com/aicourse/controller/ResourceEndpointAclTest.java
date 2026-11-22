@@ -56,6 +56,9 @@ class ResourceEndpointAclTest extends ControllerTestBase {
     private com.aicourse.security.CourseAccessControl courseAccessControl;
     @MockitoBean
     private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
+    // 病毒扫描：/resources/upload 落盘前 fail-closed 检查，@WebMvcTest 需显式 mock（默认放行）
+    @MockitoBean
+    private com.aicourse.service.FileVirusScanService fileVirusScanService;
 
     private static final Long COURSE_ID = 1L;
     private static final Long TEACHER_ID = 10L;

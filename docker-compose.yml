@@ -218,6 +218,34 @@ services:
       retries: 20
       start_period: 10s
 
+  # ---------------- 上传病毒扫描（ClamAV daemon，INSTREAM 3310） ----------------
+  # backend 以 TCP INSTREAM 调用，不依赖后端容器内安装 clamdscan；
+  # 首次启动需下载病毒库，未就绪期间上传会 fail-closed（503），不会跳过扫描。
+  clamav:
+    image: clamav/clamav:1.5
+    container_name: aicourse-clamav
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    labels:
+      <<: *labels-infra
+      aicourse.role: antivirus
+    restart: unless-stopped
+    profiles: ["full"]
+    healthcheck:
+      # 用镜像自带的 clamdcheck.sh 探 clamd 是否真的在应答（只看端口开放会误判“仍在下载病毒库”）。
+      # 首启下载 100MB+ 主库，start_period 给足 3 分钟；超时/失败由 restart 策略重拉。
+      # 刻意不让 backend depends_on service_healthy：冷启动若病毒库下载失败，
+      # 不应连带 backend 永不起；期间上传按 fail-closed 返回 503。
+      test: ["CMD-SHELL", "clamdcheck.sh || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    volumes:
+      - clamav-data:/var/lib/clamav
+
   backend:
     build:
       context: ./backend
@@ -306,6 +334,12 @@ services:
       # 分片上传的中间态目录：application.yaml 读 FILE_CHUNK_DIR。
       # 分片仍在本地暂存，合并完成后由 FileStorageService 写入 MinIO。
       FILE_CHUNK_DIR: ${FILE_CHUNK_DIR:-/app/chunks}
+      # 上传病毒扫描：容器内固定走 ClamAV 守护进程；不可达时上传 fail-closed（503）。
+      FILE_SCAN_ENABLED: ${FILE_SCAN_ENABLED:-true}
+      FILE_SCAN_PROVIDER: ${FILE_SCAN_PROVIDER:-clamav}
+      FILE_SCAN_CLAMAV_HOST: ${FILE_SCAN_CLAMAV_HOST:-clamav}
+      FILE_SCAN_CLAMAV_PORT: ${FILE_SCAN_CLAMAV_PORT:-3310}
+      FILE_SCAN_TIMEOUT_SECONDS: ${FILE_SCAN_TIMEOUT_SECONDS:-60}
       # MinIO 对象存储：默认启用；容器内 endpoint 必须走服务名，不能沿用 localhost。
       MINIO_ENABLED: ${MINIO_ENABLED:-true}
       # 容器内必须走 Compose 服务名；不要沿用 .env 里给本机 start.bat 用的 localhost。
@@ -913,6 +947,8 @@ volumes:
   mysql-backups:
   # 应用内手动备份卷（SystemServiceImpl backups/ 目录）
   backups-data:
+  # ClamAV 病毒库持久卷（首次启动下载，重建容器不重复下载）
+  clamav-data:
   # 监控数据卷
   prometheus-data:
   grafana-data:

@@ -23,42 +23,45 @@ vi.mock('@/api/request', () => ({
   },
 }))
 
+/** AI 生成类端点的统一超时（与 ai.ts 的 AI_TIMEOUT 对齐） */
+const LONG = { timeout: 120_000 }
+
 /** 契约表：[导出名, HTTP 方法, 期望 URL, 调用实参, 期望传给 request 的完整实参] */
 const CONTRACT: Array<[keyof typeof aiApi, 'get' | 'post', string, unknown[], unknown[]]> = [
-  ['qaAsk', 'post', '/ai/qa/ask', [{ q: '什么是栈' }], [{ q: '什么是栈' }]],
-  ['qaAskGlobal', 'post', '/ai/qa/global/ask', [{ q: '什么是栈' }], [{ q: '什么是栈' }]],
-  ['qaContinue', 'post', '/ai/qa/continue', [{ sessionId: 1 }], [{ sessionId: 1 }]],
+  ['qaAsk', 'post', '/ai/qa/ask', [{ q: '什么是栈' }], [{ q: '什么是栈' }, LONG]],
+  ['qaAskGlobal', 'post', '/ai/qa/global/ask', [{ q: '什么是栈' }], [{ q: '什么是栈' }, LONG]],
+  ['qaContinue', 'post', '/ai/qa/continue', [{ sessionId: 1 }], [{ sessionId: 1 }, LONG]],
   ['getSessions', 'get', '/ai/qa/sessions', [], []],
-  ['essayCorrect', 'post', '/ai/essay/correct', [{ text: '作文' }], [{ text: '作文' }]],
-  ['essayPolish', 'post', '/ai/essay/polish', [{ text: '作文' }], [{ text: '作文' }]],
-  ['learningRecommendations', 'get', '/ai/recommendations/learning', [], []],
+  ['essayCorrect', 'post', '/ai/essay/correct', [{ text: '作文' }], [{ text: '作文' }, LONG]],
+  ['essayPolish', 'post', '/ai/essay/polish', [{ text: '作文' }], [{ text: '作文' }, LONG]],
+  ['learningRecommendations', 'get', '/ai/recommendations/learning', [], [LONG]],
   [
     'questionRecommendations',
     'get',
     '/ai/recommendations/questions',
     [{ courseId: 3 }],
-    [{ params: { courseId: 3 } }],
+    [{ params: { courseId: 3 }, ...LONG }],
   ],
   [
     'weakPointsAnalysis',
     'get',
     '/ai/analysis/weak-points',
     [{ courseId: 3 }],
-    [{ params: { courseId: 3 } }],
+    [{ params: { courseId: 3 }, ...LONG }],
   ],
   [
     'learningAdvice',
     'get',
     '/ai/advice/learning',
     [{ scope: 'week' }],
-    [{ params: { scope: 'week' } }],
+    [{ params: { scope: 'week' }, ...LONG }],
   ],
   [
     'generateLearningPath',
     'post',
     '/ai/learning-path/generate',
     [{ courseId: 3 }],
-    [{ courseId: 3 }],
+    [{ courseId: 3 }, LONG],
   ],
 ]
 
@@ -84,10 +87,13 @@ describe('ai REST 契约（方法 / URL / 参数）', () => {
 
   it('推荐/分析类接口未传参时以空 params 发起', async () => {
     await aiApi.questionRecommendations()
-    expect(mocks.get).toHaveBeenCalledWith('/ai/recommendations/questions', { params: {} })
+    expect(mocks.get).toHaveBeenCalledWith('/ai/recommendations/questions', {
+      params: {},
+      ...LONG,
+    })
 
     await aiApi.learningAdvice()
-    expect(mocks.get).toHaveBeenCalledWith('/ai/advice/learning', { params: {} })
+    expect(mocks.get).toHaveBeenCalledWith('/ai/advice/learning', { params: {}, ...LONG })
   })
 })
 

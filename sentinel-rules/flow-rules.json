@@ -26,4 +26,18 @@
   "maxQueueingTimeMs" : 500,
   "clusterMode" : false,
   "clusterConfig" : null
+}, {
+  "id" : null,
+  "resource" : "deepgraph:http",
+  "limitApp" : "default",
+  "regex" : false,
+  "grade" : 1,
+  "count" : 10.0,
+  "strategy" : 0,
+  "refResource" : null,
+  "controlBehavior" : 0,
+  "warmUpPeriodSec" : 10,
+  "maxQueueingTimeMs" : 500,
+  "clusterMode" : false,
+  "clusterConfig" : null
 } ]

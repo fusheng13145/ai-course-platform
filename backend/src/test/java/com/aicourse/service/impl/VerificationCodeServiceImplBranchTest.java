@@ -25,7 +25,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class VerificationCodeServiceImplTest2 {
+class VerificationCodeServiceImplBranchTest {
 
     @Mock
     private VerificationCodeMapper baseMapper;

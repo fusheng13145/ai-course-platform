@@ -178,7 +178,7 @@ class ExcelUtilCoverageTest {
         );
         List<ExcelUtil.KnowledgeRow> list = ExcelUtil.readKnowledgePoints(workbook("知识点", rows));
         assertEquals(9, list.size());
-        assertEquals(List.of("concept", "concept", "skill", "skill", "principle", "principle"),
+        assertEquals(List.of("CONCEPT", "CONCEPT", "SKILL", "SKILL", "PRINCIPLE", "PRINCIPLE"),
                 list.subList(0, 6).stream().map(ExcelUtil.KnowledgeRow::pointType).toList());
         assertNull(list.get(6).pointType());
         assertNull(list.get(7).pointType());
@@ -320,7 +320,7 @@ class ExcelUtilCoverageTest {
         assertEquals("EASY", list.get(0).difficultyLevel());
         assertEquals(8, list.get(0).importance());
         assertEquals(15, list.get(0).estimatedTime());
-        assertEquals("concept", list.get(0).pointType());
+        assertEquals("CONCEPT", list.get(0).pointType());
         assertEquals("描述", list.get(0).description());
 
         assertNull(list.get(1).difficultyLevel());

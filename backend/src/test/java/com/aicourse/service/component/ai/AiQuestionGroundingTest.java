@@ -58,7 +58,7 @@ class AiQuestionGroundingTest {
         AiCoreComponent core =
                 new AiCoreComponent(llmProvider, promptGuard, new SimpleMeterRegistry(), aiCallLogService);
         CourseEvidenceComponent evidence = new CourseEvidenceComponent(ragService, knowledgePointService);
-        dialogue = new AiDialogueComponent(core, ragService, evidence);
+        dialogue = new AiDialogueComponent(core, evidence);
         structured = new AiStructuredComponent(core, evidence);
         lenient().when(llmProvider.isConfigured()).thenReturn(true);
         lenient().when(promptGuard.neutralizeInjection(anyString())).thenAnswer(i -> i.getArgument(0));

@@ -20,12 +20,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import './styles/record.css'
-import './styles/shell-fix.css'
-import './styles/typography.css'
-import './styles/form.css'
-import './styles/consistency.css'
-import './styles/coursera.css'
+import './styles/app.css'
 import Sprite from './components/Sprite.vue'
 import Topbar from './components/Topbar.vue'
 import Sidebar from './components/Sidebar.vue'

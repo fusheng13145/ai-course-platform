@@ -149,6 +149,10 @@ class KnowledgePointRelationServiceImplTest {
         assertEquals(1, nodes.size());
         assertEquals(1, links.size());
         assertEquals("函数", nodes.get(0).getName());
+        assertEquals("CONCEPT", nodes.get(0).getCategory(), "节点类型必须收敛为领域编码");
+        assertEquals("前置知识", links.get(0).getRelationType(), "图谱出参保留历史中文标签");
+        assertNotNull(g.getSnapshotVersion(), "图数据必须带可校验的快照标识");
+        assertNotNull(g.getGeneratedAt());
     }
 
     @Test
@@ -160,6 +164,7 @@ class KnowledgePointRelationServiceImplTest {
         List<GraphDataLinkVO> links = g.getLinks();
         assertTrue(nodes.isEmpty());
         assertTrue(links.isEmpty());
+        assertNotNull(g.getSnapshotVersion(), "空图也必须有稳定快照标识，避免前端把 null 当可用版本");
     }
 
     // ===================== getRelationList =====================

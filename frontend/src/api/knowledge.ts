@@ -30,11 +30,6 @@ export const updateKnowledgePoint = (
 export const deleteKnowledgePoint = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.delete(`/knowledge/points/${id}`) as Promise<ApiEnvelope<ApiData>>
 /**
- * 导出函数 getKnowledgeGraph：获取/查询数据
- */
-export const getKnowledgeGraph = (courseId: number | string): Promise<ApiEnvelope<ApiData>> =>
-  request.get('/knowledge/points/graph', { params: { courseId } }) as Promise<ApiEnvelope<ApiData>>
-/**
  * 导出函数 addRelation：创建/新增数据
  */
 export const addRelation = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
@@ -166,7 +161,6 @@ export default {
   createKnowledgePoint,
   updateKnowledgePoint,
   deleteKnowledgePoint,
-  getKnowledgeGraph,
   addRelation,
   getTree,
   getChildren,
