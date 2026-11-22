@@ -5,6 +5,24 @@ import studentApi from '@/api/student'
 import { pickList, unwrap } from '@/utils/response'
 
 /**
+ * 计入尝试次数的会话状态：与后端 {@code ExamSessionLifecycleComponent#startExam}
+ * 的次数校验口径保持一致（STARTED 也占一次，避免退出未交卷时被无限续考）。
+ */
+const ATTEMPT_COUNTED_STATUSES = new Set(['STARTED', 'SUBMITTED', 'GRADED', 'TIMEOUT'])
+
+/** 按试卷汇总学生已用考试次数 */
+function countAttemptsByPaper(sessions: Record<string, unknown>[]): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const s of sessions) {
+    if (!ATTEMPT_COUNTED_STATUSES.has(String(s?.status ?? ''))) continue
+    const paperId = Number(s?.examPaperId)
+    if (!Number.isFinite(paperId)) continue
+    counts.set(paperId, (counts.get(paperId) ?? 0) + 1)
+  }
+  return counts
+}
+
+/**
  * 学生考试·列表域（useStudentExams 内部拆分，FE-06）。
  *
  * <p>承载考试列表页的状态与操作：搜索/状态筛选/课程上下文过滤、列表加载
@@ -96,17 +114,24 @@ export function useStudentExamList() {
         }
       }
 
-      // 标记已完成状态（检查是否有提交记录）
+      // 回填尝试次数，并据此判定「已完成」（= 次数用尽），而不是「有过一次提交」。
+      // 后端 startExam 按 exam_papers.max_attempts 限制次数并让 attempt_number 递增，
+      // 前端若只按「有 SUBMITTED/GRADED 记录」置 completed，会把 max_attempts>1 的试卷
+      // 也永久锁死，与「允许重考」的产品能力背离。
       try {
         const sessionRes = await examApi.getMyExamSessions()
         const sessions = sessionRes.data || sessionRes || []
-        const submittedIds = new Set(
-          (Array.isArray(sessions) ? sessions : [])
-            .filter((s) => s.status === 'SUBMITTED' || s.status === 'GRADED')
-            .map((s) => s.examPaperId),
-        )
+        const usedByPaper = countAttemptsByPaper(Array.isArray(sessions) ? sessions : [])
         examList.value.forEach((e) => {
-          if (submittedIds.has(e.id)) e.completed = true
+          const used = usedByPaper.get(Number(e.id)) ?? 0
+          // 0 / null = 不限次数（后端 ExamSessionLifecycleComponent 只在 maxAttempts > 0 时限制）；
+          // 只有配置了上限且已用满，才可能出现「已完成」锁定态
+          const max = Number(e.maxAttempts ?? 0)
+          const limited = Number.isFinite(max) && max > 0
+          e.maxAttempts = max
+          e.attemptsUsed = used
+          e.attempted = used > 0
+          e.completed = limited && used >= max
         })
       } catch {
         /* 忽略 */
@@ -129,6 +154,7 @@ export function useStudentExamList() {
   function getExamStatusLabel(exam: Record<string, unknown>) {
     if (exam.completed) return '已完成'
     if (exam.status === 'EXPIRED') return '已过期'
+    if (exam.attempted) return '可重考'
     return '进行中'
   }
 

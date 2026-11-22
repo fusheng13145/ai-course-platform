@@ -80,6 +80,21 @@ export const checkPlagiarism = (id: number | string): Promise<ApiEnvelope<ApiDat
 export const recordView = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.post(`/submissions/${id}/view`) as Promise<ApiEnvelope<ApiData>>
 
+/** 保存作业草稿：草稿不计入成绩与提交次数，正式提交时服务端复用同一行转正 */
+export const saveDraft = (
+  taskId: number | string,
+  data: { content?: string; fileUrls?: string[] },
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/submissions/draft', { ...data, taskId }) as Promise<ApiEnvelope<ApiData>>
+
+/** 任务未提交学生名单（教师 / 管理员） */
+export const getUnsubmitted = (taskId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/submissions/task/${taskId}/unsubmitted`) as Promise<ApiEnvelope<ApiData>>
+
+/** 一键催交：给未提交学生批量投递系统通知 */
+export const remindUnsubmitted = (taskId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/submissions/task/${taskId}/remind`) as Promise<ApiEnvelope<ApiData>>
+
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
@@ -96,4 +111,7 @@ export default {
   getPlagiarismResult,
   checkPlagiarism,
   recordView,
+  saveDraft,
+  getUnsubmitted,
+  remindUnsubmitted,
 }

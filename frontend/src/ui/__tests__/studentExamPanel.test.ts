@@ -1,6 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
+/** 答题页在新标签打开，列表只负责 resolve + window.open */
+const routerResolve = vi.hoisted(() => vi.fn((path: string) => ({ href: path })))
+const openMock = vi.hoisted(() => vi.fn())
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ resolve: routerResolve }),
+}))
+
 const api = vi.hoisted(() => ({
   getAllExamPapersByCourse: vi.fn(),
   getAllExamPapers: vi.fn(),
@@ -47,6 +54,7 @@ function mountPanel(courseId: number | null = 4007) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('open', openMock)
   api.getMyExamSessions.mockResolvedValue({ data: [] })
   api.getMyExamSession.mockResolvedValue({ data: null })
   api.getRemainingTime.mockResolvedValue({ data: 1800 })
@@ -70,109 +78,22 @@ describe('学生考试面板', () => {
     empty.unmount()
   })
 
-  it('开考后按题目 ID 组装载荷：多选题是字母数组，交卷体是 Map 不是数组', async () => {
+  it('点击开始作答跳转到沉浸式答题页（作答逻辑在 /exam-room/:paperId）', async () => {
     api.getAllExamPapersByCourse.mockResolvedValue({
       data: [{ id: 7100, title: '期中测验', courseId: 4007, duration: 30, status: 'PUBLISHED' }],
     })
-    api.startExam.mockResolvedValue({ data: { id: 999, status: 'STARTED' } })
-    api.getExamQuestions.mockResolvedValue({
-      data: [
-        {
-          id: 7001,
-          type: 'SINGLE_CHOICE',
-          content: '网络层协议?',
-          options: '["HTTP","IP","TCP","ARP"]',
-          score: 5,
-        },
-        {
-          id: 7002,
-          type: 'MULTIPLE_CHOICE',
-          content: '属于路由协议?',
-          options: '["RIP","OSPF","BGP","SMTP"]',
-        },
-      ],
-    })
-    api.submitExam.mockResolvedValue({ data: { totalScore: 85 } })
-    api.getExamResult.mockResolvedValue({ data: { totalScore: 85, percentage: 85 } })
 
     const wrapper = mountPanel()
     await flushPromises()
     expect(wrapper.text()).toContain('期中测验')
 
-    await wrapper.findAll('.row-actions button')[0].trigger('click') // 开始作答
-    await flushPromises()
-    expect(wrapper.find('.modal-stub').exists()).toBe(true) // 确认弹层，未确认前不开会话
-    expect(api.startExam).not.toHaveBeenCalled()
-    const buttons = wrapper.findAll('.modal-stub button')
-    await buttons[buttons.length - 1].trigger('click')
-    await flushPromises()
-    expect(api.startExam).toHaveBeenCalledWith(7100)
-
-    // 单选选 B，下一题多选勾 B、C
-    await wrapper.findAll('.q-options input')[1].setValue(true)
-    await wrapper.findAll('.qnav-btn')[1].trigger('click')
-    await wrapper.findAll('.q-options input')[1].setValue(true)
-    await wrapper.findAll('.q-options input')[2].setValue(true)
-    expect(wrapper.text()).toContain('已作答 2 / 2')
-
-    await wrapper.findAll('.sheet-foot button').at(-1)?.trigger('click') // 交卷
-    await flushPromises()
-    const confirm = wrapper.findAll('.modal-stub button')
-    await confirm[confirm.length - 1].trigger('click')
-    await flushPromises()
-
-    expect(api.submitExam).toHaveBeenCalledTimes(1)
-    const [sid, body] = api.submitExam.mock.calls[0]
-    expect(sid).toBe(999)
-    expect(body.answers).toEqual({ '7001': 'B', '7002': ['B', 'C'] })
-    expect(Array.isArray(body.answers)).toBe(false)
-  })
-
-  it('已有 STARTED 会话时恢复作答，不新建会话', async () => {
-    api.getAllExamPapersByCourse.mockResolvedValue({
-      data: [{ id: 7100, title: '期中测验', courseId: 4007, duration: 30 }],
-    })
-    api.getMyExamSession.mockResolvedValue({
-      data: { id: 555, status: 'STARTED', answers: '{"7001":"C"}' },
-    })
-    api.getExamQuestions.mockResolvedValue({
-      data: [{ id: 7001, type: 'SINGLE_CHOICE', content: '题干', options: '["A项","B项","C项"]' }],
-    })
-
-    const wrapper = mountPanel()
-    await flushPromises()
     await wrapper.findAll('.row-actions button')[0].trigger('click')
     await flushPromises()
-    const buttons = wrapper.findAll('.modal-stub button')
-    await buttons[buttons.length - 1].trigger('click')
-    await flushPromises()
 
+    expect(openMock).toHaveBeenCalledWith('/exam-room/7100', '_blank', 'noopener,noreferrer')
+    // 列表不再内嵌答题：这里既不建会话，也不弹确认层
     expect(api.startExam).not.toHaveBeenCalled()
-    // 提示走 的 toast 宿主（不是 Element Plus），恢复事实要可见
-    expect(toast).toHaveBeenCalledWith('已恢复上次未完成的作答，请继续答题', 'ok')
-    const checked = wrapper.findAll('.q-options input')[2].element as HTMLInputElement
-    expect(checked.checked).toBe(true)
-  })
-
-  it('未识别题型不静默：给出明示且不渲染作答控件', async () => {
-    api.getAllExamPapersByCourse.mockResolvedValue({
-      data: [{ id: 7100, title: '测验', courseId: 4007, duration: 10 }],
-    })
-    api.startExam.mockResolvedValue({ data: { id: 1, status: 'STARTED' } })
-    api.getExamQuestions.mockResolvedValue({
-      data: [{ id: 8001, type: 'UNKNOWN_TYPE', content: '异常题', options: '[]' }],
-    })
-
-    const wrapper = mountPanel()
-    await flushPromises()
-    await wrapper.findAll('.row-actions button')[0].trigger('click')
-    await flushPromises()
-    const buttons = wrapper.findAll('.modal-stub button')
-    await buttons[buttons.length - 1].trigger('click')
-    await flushPromises()
-
-    expect(wrapper.find('.callout.warn').text()).toContain('未识别的题型')
-    expect(wrapper.findAll('.q-options input').length).toBe(0)
+    expect(wrapper.find('.modal-stub').exists()).toBe(false)
   })
 })
 
@@ -229,13 +150,11 @@ describe('M-02b 全局考试列表「可参加」行内预禁用', () => {
     expect(rows[3].find('.row-actions button').attributes('disabled')).toBeUndefined()
   })
 
-  it('后端真实拒绝仍是兜底：前端漏判时 startExam 报错仍提示', async () => {
+  it('可参加的行点击后跳转答题页（后端拒绝由答题页兜底提示）', async () => {
     api.getAllExamPapers.mockResolvedValue({
       data: [{ id: 7105, title: '兜底考', courseId: 4007, duration: 30, status: 'PUBLISHED' }],
     })
     studentApi.getAllMyCourses.mockResolvedValue([{ id: 4007 }])
-    api.getMyExamSession.mockResolvedValue({ data: null })
-    api.startExam.mockRejectedValue(new Error('尚未加入该课程，无权查看试卷内容'))
 
     const wrapper = mount(StudentExamPanel, { props: { courseId: null }, global: { stubs } })
     await flushPromises()
@@ -243,10 +162,94 @@ describe('M-02b 全局考试列表「可参加」行内预禁用', () => {
     expect(btn.attributes('disabled')).toBeUndefined() // 已选且在窗内，按钮可点
     await btn.trigger('click')
     await flushPromises()
-    const modalBtns = wrapper.findAll('.modal-stub button')
-    await modalBtns[modalBtns.length - 1].trigger('click')
+
+    expect(openMock).toHaveBeenCalledWith('/exam-room/7105', '_blank', 'noopener,noreferrer')
+  })
+})
+
+describe('考试次数（max_attempts）语义', () => {
+  it('已考过但次数未用尽时，状态为可重考且按钮跳转答题页', async () => {
+    api.getAllExamPapersByCourse.mockResolvedValue({
+      data: [
+        {
+          id: 7200,
+          title: '可重考卷',
+          courseId: 4007,
+          duration: 30,
+          status: 'PUBLISHED',
+          maxAttempts: 2,
+        },
+      ],
+    })
+    api.getMyExamSessions.mockResolvedValue({ data: [{ examPaperId: 7200, status: 'GRADED' }] })
+    api.getMyExamSession.mockResolvedValue({ data: null })
+    api.startExam.mockResolvedValue({ data: { id: 321, status: 'STARTED' } })
+    api.getExamQuestions.mockResolvedValue({
+      data: [{ id: 7301, type: 'SINGLE_CHOICE', content: '题干', options: '["A","B"]' }],
+    })
+
+    const wrapper = mountPanel()
     await flushPromises()
-    expect(api.startExam).toHaveBeenCalledWith(7105)
-    expect(toast).toHaveBeenCalled() // 后端拒绝经 enterExam 转到 notify.error（保留真实失败提示）
+
+    const row = wrapper.find('.exam-row')
+    expect(row.find('.exam-status').text()).toBe('可重考')
+    const btn = row.find('.row-actions button')
+    expect(btn.text()).toBe('再次考试')
+    expect(btn.attributes('disabled')).toBeUndefined()
+
+    await btn.trigger('click')
+    await flushPromises()
+    expect(openMock).toHaveBeenCalledWith('/exam-room/7200', '_blank', 'noopener,noreferrer')
+  })
+
+  it('次数用尽后才显示已完成并禁用，避免无限重考', async () => {
+    api.getAllExamPapersByCourse.mockResolvedValue({
+      data: [
+        {
+          id: 7201,
+          title: '已满卷',
+          courseId: 4007,
+          duration: 30,
+          status: 'PUBLISHED',
+          maxAttempts: 1,
+        },
+      ],
+    })
+    api.getMyExamSessions.mockResolvedValue({ data: [{ examPaperId: 7201, status: 'GRADED' }] })
+
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const row = wrapper.find('.exam-row')
+    expect(row.find('.exam-status').text()).toBe('已完成')
+    const btn = row.find('.row-actions button')
+    expect(btn.text()).toBe('已完成')
+    expect(btn.attributes('disabled')).toBeDefined()
+  })
+
+  it('不限次数（maxAttempts=0）时，考过仍可重考且不会锁定', async () => {
+    api.getAllExamPapersByCourse.mockResolvedValue({
+      data: [
+        {
+          id: 7300,
+          title: '不限次卷',
+          courseId: 4007,
+          duration: 30,
+          status: 'PUBLISHED',
+          maxAttempts: 0,
+        },
+      ],
+    })
+    api.getMyExamSessions.mockResolvedValue({ data: [{ examPaperId: 7300, status: 'GRADED' }] })
+
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const row = wrapper.find('.exam-row')
+    expect(row.find('.exam-status').text()).toBe('可重考')
+    const btn = row.find('.row-actions button')
+    expect(btn.text()).toBe('再次考试')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
   })
 })

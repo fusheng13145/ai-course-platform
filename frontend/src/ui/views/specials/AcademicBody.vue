@@ -21,6 +21,13 @@
         <div class="toolbar-actions">
           <button
             class="btn btn-ghost btn-sm"
+            :aria-label="`成绩项排序：${gradeOrderLabel(timeOrder)}，点击切换`"
+            @click="timeOrder = toggleGradeOrder(timeOrder)"
+          >
+            {{ gradeOrderLabel(timeOrder) }}
+          </button>
+          <button
+            class="btn btn-ghost btn-sm"
             :disabled="exporting || loading || !hasData"
             @click="exportGrades"
           >
@@ -95,7 +102,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="item in activeCourse.items" :key="item.key">
+                  <tr v-for="item in sortedCourseItems" :key="item.key">
                     <td>
                       <b class="t-title">{{ item.title }}</b>
                     </td>
@@ -124,7 +131,7 @@
             <div>
               <h2>成绩明细</h2>
             </div>
-            <span class="chip chip-mute">{{ flatRows.length }} 项</span>
+            <span class="chip chip-mute">{{ sortedFlatRows.length }} 项</span>
           </header>
           <div class="table-wrap">
             <table>
@@ -140,7 +147,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="row in flatRows" :key="row.key">
+                <tr v-for="row in sortedFlatRows" :key="row.key">
                   <td class="t-course">{{ row.courseName }}</td>
                   <td>
                     <b class="t-title">{{ row.title }}</b>
@@ -190,6 +197,12 @@ import type { Metric } from '../../nav'
 import studentApi from '@/api/student'
 import { unwrap } from '@/utils/response'
 import { formatDate } from '@/utils/datetime'
+import {
+  gradeOrderLabel,
+  sortGradeItems,
+  toggleGradeOrder,
+  type GradeTimeOrder,
+} from '@/utils/gradeOrder'
 import logger from '@/utils/logger'
 
 type RawRow = Record<string, unknown>
@@ -229,6 +242,8 @@ const error = ref('')
 const courses = ref<CourseGrades[]>([])
 const flatRows = ref<FlatGradeRow[]>([])
 const activeKey = ref('')
+/** 成绩项按提交时间排序的方向：默认最新在前，用户可切换 */
+const timeOrder = ref<GradeTimeOrder>('desc')
 
 const STATUS_LABEL: Record<string, string> = {
   SUBMITTED: '已提交',
@@ -249,6 +264,12 @@ const hasData = computed(() => courses.value.length > 0 || flatRows.value.length
 const activeCourse = computed(
   () => courses.value.find((course) => course.key === activeKey.value) || courses.value[0] || null,
 )
+/** 当前课程的成绩项（按提交时间排序，正/倒序由 timeOrder 控制） */
+const sortedCourseItems = computed(() =>
+  sortGradeItems(activeCourse.value?.items ?? [], timeOrder.value),
+)
+/** 后端只给扁平行时的排序结果 */
+const sortedFlatRows = computed(() => sortGradeItems(flatRows.value, timeOrder.value))
 const courseCount = computed(() => {
   if (courses.value.length) return courses.value.length
   return new Set(flatRows.value.map((row) => row.courseName)).size
@@ -430,9 +451,10 @@ async function load() {
 }
 
 function gradeExportRows(): Record<string, unknown>[] {
+  // 导出顺序与页面一致（同样按提交时间 + 当前正/倒序）
   const rows = courses.value.length
     ? courses.value.flatMap((course) =>
-        course.items.map((item) => ({
+        sortGradeItems(course.items, timeOrder.value).map((item) => ({
           课程: course.courseName,
           成绩项: item.title,
           类型: item.kind,
@@ -442,7 +464,7 @@ function gradeExportRows(): Record<string, unknown>[] {
           提交时间: item.submittedAt,
         })),
       )
-    : flatRows.value.map((row) => ({
+    : sortedFlatRows.value.map((row) => ({
         课程: row.courseName,
         成绩项: row.title,
         类型: row.kind,

@@ -95,7 +95,9 @@ class DemoSeedMigrationIsolationTest {
             // V31（2026-11-20，R2）：users.deleted 逻辑删除列 —— 结构迁移
             "V31__user_soft_delete.sql",
             // V32（2026-11-20，R2）：存量 session_token 统一 SHA-256 —— 纯 DML 回填，无演示数据
-            "V32__session_token_hash_backfill.sql");
+            "V32__session_token_hash_backfill.sql",
+            // V33（2026-11-22）：考试/作业提交次数默认值与存量统一为 0（不限次）—— 结构迁移
+            "V33__unlimited_attempts.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

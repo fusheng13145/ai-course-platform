@@ -8,6 +8,13 @@
         </h2>
       </div>
       <div class="course-tab-actions">
+        <button
+          class="btn btn-ghost"
+          :aria-label="`成绩项排序：${gradeOrderLabel(timeOrder)}，点击切换`"
+          @click="timeOrder = toggleGradeOrder(timeOrder)"
+        >
+          {{ gradeOrderLabel(timeOrder) }}
+        </button>
         <button class="btn btn-ghost" :disabled="loading" @click="loadStudentGrades">刷新</button>
       </div>
     </div>
@@ -79,7 +86,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in gradeItems" :key="item.key">
+              <tr v-for="item in sortedGradeItems" :key="item.key">
                 <td>
                   <b class="t-title">{{ item.title }}</b>
                 </td>
@@ -117,6 +124,12 @@ import type { Role } from '../../../nav'
 import studentApi from '@/api/student'
 import submissionApi from '@/api/submission'
 import { unwrap } from '@/utils/response'
+import {
+  gradeOrderLabel,
+  sortGradeItems,
+  toggleGradeOrder,
+  type GradeTimeOrder,
+} from '@/utils/gradeOrder'
 import logger from '@/utils/logger'
 
 const props = withDefaults(defineProps<{ role: Role; courseId?: number }>(), { courseId: 0 })
@@ -230,6 +243,9 @@ const finalScoreText = computed(() => {
 })
 const hasFinalScore = computed(() => gradeCourse.value?.finalScore != null)
 
+/** 成绩项按提交时间排序的方向：默认最新在前，用户可切换 */
+const timeOrder = ref<GradeTimeOrder>('desc')
+
 const gradeItems = computed<GradeItem[]>(() => {
   const course = gradeCourse.value
   if (!course) return []
@@ -270,6 +286,9 @@ const gradeItems = computed<GradeItem[]>(() => {
   }
   return items
 })
+
+/** 按提交时间排序后的成绩项（正/倒序由 timeOrder 控制） */
+const sortedGradeItems = computed(() => sortGradeItems(gradeItems.value, timeOrder.value))
 
 function fmtTime(value?: string): string {
   if (!value) return '—'
