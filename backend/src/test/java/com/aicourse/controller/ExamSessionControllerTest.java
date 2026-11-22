@@ -39,11 +39,21 @@ class ExamSessionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.security.CourseAccessControl courseAccessControl;
 
+    @MockitoBean
+    private com.aicourse.util.TrustedClientIpResolver clientIpResolver;
+
+    @MockitoBean
+    private com.aicourse.service.ExamPaperService examPaperService;
+
+    @MockitoBean
+    private com.aicourse.service.UserService userService;
+
     @Test
     @DisplayName("POST /exam-sessions/start - 学生开始考试返回200，会话ID透传")
     void start_authorized_passes_security() throws Exception {
         ExamSession session = new ExamSession();
         session.setId(1L);
+        when(clientIpResolver.resolve(any())).thenReturn("1.1.1.1");
         when(examSessionService.startExam(eq(1L), eq(1L), anyString(), anyString())).thenReturn(session);
         mockMvc.perform(post("/exam-sessions/start").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"examPaperId\":1}").header("User-Agent", "JUnit")

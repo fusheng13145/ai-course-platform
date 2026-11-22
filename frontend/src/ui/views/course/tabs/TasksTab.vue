@@ -379,7 +379,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from '../../../components/Modal.vue'
 import Icon from '../../../components/Icon.vue'
@@ -500,8 +500,6 @@ const studentError = ref('')
 const studentDetailOpen = ref(false)
 const studentDetailLoading = ref(false)
 const studentDetailError = ref('')
-/** 从列表「重新提交 / 提交作业」进入时，详情加载完成后滚动到提交区并聚焦输入框 */
-const submitFocusRequested = ref(false)
 const submitBoxRef = ref<HTMLElement | null>(null)
 const studentDetail = ref<StudentAssignmentRow | null>(null)
 const studentDetailSubmission = ref<StudentSubmissionView | null>(null)
