@@ -409,27 +409,31 @@ test.describe.serial('教师写链路（真栈）', () => {
     test.skip(!task.id, '前置任务未发布，写链路后续步骤无从继续')
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const page = await context.newPage()
-    const calls = watchApi(page)
     await page.goto(`/student/courses/${course.id}/tasks`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.tasks')).toBeVisible()
 
     const row = page.locator('tbody tr', { hasText: task.title })
     await expect(row, '学生作业列表里没有教师刚发布的那条任务').toBeVisible()
-    await row.getByRole('button', { name: '查看详情' }).click()
-    const panel = page.locator('.modal-panel')
-    await expect(panel.locator('.submit-box'), '作业详情里没有提交表单').toBeVisible()
+    const [detail] = await Promise.all([
+      context.waitForEvent('page'),
+      row.getByRole('button', { name: '查看详情' }).click(),
+    ])
+    await detail.waitForLoadState('domcontentloaded')
+    await expect(detail.locator('.task-room'), '作业详情页没有打开').toBeVisible()
+    await expect(detail.locator('.submit-block'), '作业详情里没有提交表单').toBeVisible()
+    const detailCalls = watchApi(detail)
 
     const created = await clickWrite(
-      page,
-      calls,
+      detail,
+      detailCalls,
       'POST',
       /\/api\/submissions$/,
       '学生提交作业',
       async () => {
-        await panel
-          .locator('.submit-box textarea')
+        await detail
+          .locator('.submit-block textarea')
           .fill(`${PREFIX}学生作答-${STAMP}：本条按接口读数复核。`)
-        await panel.getByRole('button', { name: '提交作业' }).click()
+        await detail.getByRole('button', { name: '提交作业' }).click()
       },
     )
     submission.id = Number(created.id)
@@ -498,25 +502,29 @@ test.describe.serial('教师写链路（真栈）', () => {
     // 学生重交走 UI（后端按新增一次尝试处理，不是原地覆盖）
     const stu = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const sPage = await stu.newPage()
-    const sCalls = watchApi(sPage)
     await sPage.goto(`/student/courses/${course.id}/tasks`, { waitUntil: 'domcontentloaded' })
     const sRow = sPage.locator('tbody tr', { hasText: task.title })
     await expect(
       sRow.locator('.chip', { hasText: '已退回待重交' }),
       '学生端未读到退回态',
     ).toBeVisible()
-    await sRow.getByRole('button', { name: '查看详情' }).click()
-    const sPanel = sPage.locator('.modal-panel')
-    await expect(sPanel.locator('.submit-box'), '退回后未重新开放提交表单').toBeVisible()
+    const [sDetail] = await Promise.all([
+      stu.waitForEvent('page'),
+      sRow.getByRole('button', { name: '查看详情' }).click(),
+    ])
+    await sDetail.waitForLoadState('domcontentloaded')
+    await expect(sDetail.locator('.task-room'), '退回后作业详情页没有打开').toBeVisible()
+    await expect(sDetail.locator('.submit-block'), '退回后未重新开放提交表单').toBeVisible()
+    const sDetailCalls = watchApi(sDetail)
     const attempt = await clickWrite(
-      sPage,
-      sCalls,
+      sDetail,
+      sDetailCalls,
       'POST',
       /\/api\/submissions$/,
       '学生重交',
       async () => {
-        await sPanel.locator('.submit-box textarea').fill(`${PREFIX}重交作答-${STAMP}`)
-        await sPanel.getByRole('button', { name: '提交作业' }).click()
+        await sDetail.locator('.submit-block textarea').fill(`${PREFIX}重交作答-${STAMP}`)
+        await sDetail.getByRole('button', { name: '提交作业' }).click()
       },
     )
     const attemptId = Number(attempt.id)
