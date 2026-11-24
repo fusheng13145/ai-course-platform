@@ -450,3 +450,16 @@ def test_effective_api_key_rejects_non_ascii_value():
     """
     assert eng.effective_api_key("sk-abcdef已移除清露") is None
     assert eng.effective_api_key("sk-0123456789abcdef") == "sk-0123456789abcdef"
+
+
+def test_plan_respects_layout_order_hub_layout_never_pulls_legacy_engines():
+    """回归守卫（2026-11-24 真跑踩中）：`plan()` 曾写死全局 ORDER，
+    于是 hub 布局下 want 只有 {neo4j, hub}，其余名字落到 `want.get(name, True)` 的 True 分支，
+    `--only hub` 实际拉起了 8001/8501/8003 三套旧引擎 —— 用户看到"单口启动却开了三个端口"。
+    钉住：plan 的顺序必须由调用方按布局传入。"""
+    status = {"neo4j": False, "hub": False, "kg": False, "deepgraph": False, "ft": False}
+    want = {"neo4j": True, "hub": True}
+    assert eng.plan(status, want, eng.ORDER_HUB) == ["neo4j", "hub"]
+    # 阴性对照：不传 order 时按全局 ORDER 走，会多出旧引擎名（这就是本用例存在的理由）
+    legacy = eng.plan(status, want)
+    assert set(legacy) - {"neo4j"} == {"kg", "deepgraph", "ft"}, "旧行为已变则对照失效"

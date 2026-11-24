@@ -1064,7 +1064,7 @@ def main(argv=None) -> int:
         usage(sink)
         sink.close()
         return 2
-    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（ollama/minio/neo4j/kg/deepgraph(含知识库)/ft/api/web）")
+    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（ollama/minio/neo4j/hub(8600 含 KG+DeepGraph+知识库+LoRA)/api/web）")
     sink.info("=" * 62)
 
     if mode == MODE_STATUS:

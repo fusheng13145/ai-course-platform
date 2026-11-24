@@ -278,9 +278,15 @@ def should_start(enabled_flag) -> bool:
     return str(enabled_flag).strip().lower() not in ("false", "0", "no", "off")
 
 
-def plan(status: dict, want: dict) -> list:
-    """按依赖顺序返回"该起但还没在跑"的服务；已在跑的绝不重启。"""
-    return [name for name in ORDER if want.get(name, True) and not status.get(name)]
+def plan(status: dict, want: dict, order: tuple = None) -> list:
+    """按依赖顺序返回"该起但还没在跑"的服务；已在跑的绝不重启。
+
+    `order` 必须由调用方按布局传入：hub 布局是 (neo4j, hub)，separate 才是四段。
+    写死全局 ORDER 会让 hub 布局把 kg/deepgraph/ft 一起拉起来（want 里没有的名字
+    会落到 `want.get(name, True)` 的 True 分支），表现为"单口启动却开了三个旧端口"。
+    """
+    order = ORDER if order is None else order
+    return [name for name in order if want.get(name, True) and not status.get(name)]
 
 
 def engine_env(base: dict, *, service: str, neo4j_uri=None, api_key=None, offline=None, dotenv=None) -> dict:
@@ -644,7 +650,7 @@ def main(argv=None) -> int:
             "ft": should_start(env.get("FT_ENABLED")),
         }
     want = {name: want.get(name, False) and name in only for name in order}
-    todo = plan(status, want)
+    todo = plan(status, want, order)
 
     api_key = effective_api_key(env.get("DEEPSEEK_API_KEY"))
     offline = offline_flags(env)
