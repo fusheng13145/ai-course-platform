@@ -73,7 +73,7 @@
 | 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥77%（阻断）／0 bug（阻断）／8 条架构守护 |
 | 实时通信 | Spring WebSocket | 通知与监考 |
 | 限流熔断 | Sentinel | 下游流控 + 慢调用熔断 |
-| AI 引擎 | Python FastAPI | KG 8001 / DeepGraph + 知识库 8501（原 RAG 8002 已并入）/ LoRA 8003 |
+| AI 引擎 | Python FastAPI | **Engine Hub 8600**（单进程承载 KG / DeepGraph + 知识库 / LoRA 微调；旧分离布局 8001·8501·8003 由 `ENGINE_LAYOUT=separate` 回滚启用） |
 | 图数据库（可选） | Neo4j | 5.26，本机独立实例；缺失时 KG 自动回落内存图 |
 
 数据面口径：当前库表 **61** 张（2026-11-19 `audit-stats.py`）；`index.sql` 与迁移链由结构守卫对齐；以脚本输出为准，不在本 README 维护第二套计数。
@@ -83,6 +83,12 @@
 ### Python 侧四服务
 
 Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务对接（`ContractPaths` 是调用约定的唯一事实来源）：
+
+> **端口统一（2026-11-24）**：KG / DeepGraph+知识库 / LoRA 三套引擎默认由 `python-services/engine_hub/`
+> 合成**一个进程、一个端口 `:8600`**（`ENGINE_LAYOUT=hub`）。hub 按原始 path 前缀（`/api/v1/graph`、
+> `/api/v1/deepgraph`、`/api/v1/rag`、`/api/v1/fine-tune`）原样分发、**不剥前缀**，因此四个
+> `*_BASE_URL` 指同一个地址即可，Java 契约与前端零改动；`/health` 汇总四能力 ready，
+> 未知前缀返回 404 并列出可用前缀。下表"端口"列是**分离布局**下的原始端口，也是回滚口的端口。
 
 | 服务 | 目录 | 端口 | 说明 |
 | --- | --- | --- | --- |
@@ -102,7 +108,7 @@ Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务
 ### 依赖纪律（先看这条）
 
 - **必要**：JDK 21、Node 20.19+、本机在跑的 MySQL 8.4（3306）与 Redis（6379）。两份 `.bat` 启动时自检，缺失即报错退出。
-- **可选**：Neo4j（7687／7474）、KG 8001、DeepGraph + 知识库 8501、LoRA 8003——缺失只降级不阻塞（`KG_ENABLED`／`RAG_ENABLED` 关闭时走 Java 本地 Provider 与 BFS 兜底）。
+- **可选**：Neo4j（7687／7474）、Engine Hub 8600（内嵌 KG / DeepGraph + 知识库 / LoRA；分离布局下分别是 8001／8501／8003）——缺失只降级不阻塞（`KG_ENABLED`／`RAG_ENABLED` 关闭时走 Java 本地 Provider 与 BFS 兜底）。
 - 本机缺**必要**依赖时：**上报项目主**，不要自行 `docker pull`、也不要安装替代物。启动器（`start.bat` → `scripts/start-all.py`）已不含任何 docker 分支（原"探测 3307 则切数据源"的路径已删除）。
 
 ### 三步起栈

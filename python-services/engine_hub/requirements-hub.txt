@@ -1,0 +1,20 @@
+# Engine Hub 依赖并集（三套引擎的 requirements 原样引用，不复制版本号 —— 一处改处处生效）
+#
+# 为什么用 -r 引用而不是抄一份 pin 清单：
+#   三套服务的依赖版本各自演进（kg 用 fastapi/pydantic 精确 pin，deepgraph 平台覆层用范围，
+#   ft 的 engine 只 pin torch/transformers/peft）。抄一份就会出现「镜像里一套版本、
+#   单起服务另一套」，正是本轮要消灭的分叉。引用则只有一处事实源。
+#
+# 已知的兼容事实（2026-11-24 本机 venv 实测：三套依赖同装、三 app 同进程导入成功）：
+#   · fastapi==0.136.1 / pydantic==2.13.2 满足 deepgraph 的 `>=0.115,<1` / 上游范围
+#   · neo4j==6.3.1 满足 deepgraph 的 `>=5.26,<7`
+#   · torch==2.11.0（ft 与 deepgraph 共用一份 CPU wheel）
+#
+# 注意：torch 的 CPU 源必须先装（见 Dockerfile 的 TORCH_CPU_INDEX 段），
+# 否则 pip 会拉 CUDA 系依赖（>2GB）。
+
+-r ../kg_service/requirements.txt
+-r ../deepgraph_rag/requirements.txt
+-r ../deepgraph_rag/requirements-platform.txt
+-r ../fine_tune_service/requirements.txt
+-r ../fine_tune_service/requirements-engine.txt

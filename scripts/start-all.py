@@ -76,11 +76,17 @@ LOG_DIR = ROOT / "logs"
 
 # 依赖序即启动序：Ollama（AI/FT 本地生成）→ MinIO（对象存储）→ Neo4j →
 # KG → DeepGraph(8501，内嵌原 8002 知识库) → LoRA 微调 → Java → 前端（代理要能打到 API）
-ENGINE_SERVICES = ("neo4j", "kg", "deepgraph", "ft")
+ENGINE_SERVICES = ("neo4j", "kg", "deepgraph", "ft", "hub")
 SERVICES = ("ollama", "minio", *ENGINE_SERVICES, "api", "web")
 # deepgraph(8501)：已验收 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配器（2026-11-21 接入）；
 # 2026-11-24（批次 3B-2）起同一进程同时承载知识库 9 端点（原 8002 已退役，不再有独立端口）。
-PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "deepgraph": 8501, "ft": 8003, "api": 8080}
+PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "deepgraph": 8501, "ft": 8003,
+         "hub": 8600, "api": 8080}
+
+# 【2026-11-24 端口统一】默认布局是 hub（:8600 单口承载 kg/deepgraph/知识库/ft）；
+# 布局口径由 start-engines.py 的 engine_layout() 决定（ENGINE_LAYOUT=separate 才拆回三进程）。
+HUB_PORT = PORTS["hub"]
+HUB_EMBEDDED = ("kg", "deepgraph", "ft")
 WEB_PORTS = (5173, 5174, 5175)
 DB_PORT, CACHE_PORT = 3306, 6379
 
@@ -153,7 +159,7 @@ def color_enabled(flags: list, vt_available: bool) -> bool:
 
 def usage(sink: "Sink") -> None:
     sink.info("用法：start.bat [all|backend|frontend|status] [--no-color]")
-    sink.info("      all       起缺的、接管在跑的：Ollama/MinIO/Neo4j/KG/DeepGraph(含知识库)/LoRA/API/Web")
+    sink.info("      all       起缺的、接管在跑的：Ollama/MinIO/Neo4j/EngineHub(:8600 含 KG+DeepGraph+知识库+LoRA)/API/Web")
     sink.info("      backend   起 Ollama/MinIO/引擎/LoRA/API，不起 Vite")
     sink.info("      frontend  只起 Vite（5173/5174/5175 择口）")
     sink.info("      status    只报全量服务状态，不起任何进程")
@@ -431,14 +437,23 @@ def engine_flags(in_use, ports=PORTS) -> dict:
 
     8002 退役后知识库与 deepgraph 是同一个端口，"知识库可用"= 8501 在听。
     """
+    hub_up = bool(in_use(ports["hub"]))
+    capability_ready = {}
+    if hub_up:
+        body = eng.http_json(eng.probe_url("hub"))
+        if isinstance(body, dict):
+            for item in body.get("services") or []:
+                capability_ready[item.get("capability")] = bool(item.get("ready"))
     return {
-        "kg": bool(in_use(ports["kg"])),
-        "deepgraph": bool(in_use(ports["deepgraph"])),
+        "kg": bool(in_use(ports["kg"])) or (hub_up and capability_ready.get("kg", False)),
+        "deepgraph": bool(in_use(ports["deepgraph"])) or (hub_up and capability_ready.get("deepgraph", False)),
+        "rag": bool(in_use(ports["deepgraph"])) or (hub_up and capability_ready.get("rag", False)),
+        "hub": hub_up,
     }
 
 
 def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_up: bool,
-                deepgraph_up: bool = False) -> dict:
+                deepgraph_up: bool = False, hub_up: bool = False) -> dict:
     """复刻 start-backend.bat 第 1/5 步的注入口径，让"一键"与"分步"两份姿态行为一致。
 
     刻意与 .bat 同口径：整份 `.env` 都进进程环境（非只读那两把钥匙），否则同一台机器
@@ -497,6 +512,21 @@ def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_
         env["RAG_ENABLED"] = "true"
     if deepgraph_up and "DG_RAG_ENABLED" not in dotenv:
         env["DG_RAG_ENABLED"] = "true"
+    if hub_up:
+        # 单口形态：所有引擎地址指向 hub，路径前缀不变（Java 契约零改动）。
+        # 显式注入而非依赖配置默认值：一旦某处漏了，就是「开关 true、地址打空」的静默降级。
+        hub_base = f"http://127.0.0.1:{HUB_PORT}"
+        env["KG_BASE_URL"] = hub_base
+        env["RAG_BASE_URL"] = hub_base
+        env["DG_RAG_BASE_URL"] = hub_base
+        env["FT_BASE_URL"] = hub_base
+    elif eng.engine_layout(env) == "separate":
+        # 回滚布局：application.yaml 默认已改成 8600（新形态优先），所以这里必须把旧端口写回去，
+        # 否则 separate 起完三进程、后端却打 8600。
+        env["KG_BASE_URL"] = f"http://127.0.0.1:{PORTS['kg']}"
+        env["RAG_BASE_URL"] = f"http://127.0.0.1:{PORTS['deepgraph']}"
+        env["DG_RAG_BASE_URL"] = f"http://127.0.0.1:{PORTS['deepgraph']}"
+        env["FT_BASE_URL"] = f"http://127.0.0.1:{PORTS['ft']}"
     return env
 
 
@@ -824,14 +854,23 @@ def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
     """
     scope = wanted_services(mode)
     neo4j_home = eng.discover_neo4j_home(env)
+    layout = eng.engine_layout(env)
+    hub_caps = (
+        eng.should_start(env.get("KG_ENABLED")),
+        eng.should_start(env.get("DG_RAG_ENABLED")),
+        eng.should_start(env.get("FT_ENABLED")),
+    )
     want = {
         "ollama": scope["ollama"] and ollama_needed(env) and eng.should_start(env.get("OLLAMA_AUTOSTART")),
         "minio": scope["minio"] and minio_enabled(env),
         "neo4j": scope["neo4j"] and bool(neo4j_home) and eng.should_start(env.get("NEO4J_ENABLED")),
-        "kg": scope["kg"] and eng.should_start(env.get("KG_ENABLED")),
+        # hub 布局：三套引擎由 hub 一个进程承载；显式 false 的能力由 ENGINE_HUB_SKIP 下发（进程内不 import）
+        "hub": scope["kg"] and layout == "hub" and any(hub_caps),
+        # separate 布局（回滚口）：原三进程各自起，端口与原来一致
+        "kg": scope["kg"] and layout == "separate" and eng.should_start(env.get("KG_ENABLED")),
         # 8002 退役：知识库随 deepgraph 进程起，不再有独立开关
-        "deepgraph": scope["deepgraph"] and eng.should_start(env.get("DG_RAG_ENABLED")),
-        "ft": scope["ft"] and eng.should_start(env.get("FT_ENABLED")),
+        "deepgraph": scope["deepgraph"] and layout == "separate" and eng.should_start(env.get("DG_RAG_ENABLED")),
+        "ft": scope["ft"] and layout == "separate" and eng.should_start(env.get("FT_ENABLED")),
         "api": scope["api"],
         "web": scope["web"],
     }
@@ -851,6 +890,8 @@ def snapshot(api_port_value: int = DEFAULT_API_PORT, app_title: str = "") -> dic
         "minio": port_in_use(PORTS["minio"]),
         "neo4j": port_in_use(PORTS["neo4j"]),
         "kg": port_in_use(PORTS["kg"]),
+        # hub（:8600）：单口承载 kg/deepgraph/知识库/ft；它是否就位决定后端 base-url 注入哪一套
+        "hub": port_in_use(PORTS["hub"]),
         # 知识库（原 8002）与 deepgraph 同口：一个 bool 就是两者的存活
         "deepgraph": port_in_use(PORTS["deepgraph"]),
         "ft": port_in_use(PORTS["ft"]),
@@ -865,11 +906,17 @@ def print_status(sink: Sink, status: dict, env: dict, app_title: str, api_port_v
     sink.info("-" * 62)
     for dep, port in (("mysql", DB_PORT), ("redis", CACHE_PORT)):
         sink.info(f"{dep:6s} :{port}  {'UP' if port_in_use(port) else 'DOWN'}")
-    for name in ("ollama", "minio", "neo4j", "kg", "deepgraph", "ft"):
+    for name in ("ollama", "minio", "neo4j", "hub", "kg", "deepgraph", "ft"):
         if not status.get(name):
+            # hub 在听时，三套引擎端口本来就不在听（合并的必然结果），不能报 DOWN 制造假故障
+            if name in HUB_EMBEDDED and status.get("hub"):
+                sink.info(f"{name:6s} :{PORTS[name]}  合并在 hub :{HUB_PORT} 内（该端口不再单独监听）")
+                continue
             sink.info(f"{name:6s} :{PORTS[name]}  DOWN")
             continue
-        if name in ("kg", "ft"):
+        if name == "hub":
+            detail = eng.describe("hub", status["hub"])
+        elif name in ("kg", "ft"):
             detail = eng.describe(name, status[name])
         elif name == "deepgraph":
             detail = eng.describe(name, status[name]) + "｜" + eng.describe("rag", status[name])
@@ -1080,6 +1127,7 @@ def main(argv=None) -> int:
                 kg_up=status["kg"],
                 rag_up=status["deepgraph"],
                 deepgraph_up=status["deepgraph"],
+                hub_up=status["hub"],
             )
         except MissingCredential as exc:
             sink.info(f"[ERROR] {exc}")
@@ -1127,8 +1175,9 @@ def main(argv=None) -> int:
                 env,
                 redis_open=not redis_needs_auth(),
                 kg_up=engine_live["kg"],
-                rag_up=engine_live["deepgraph"],
+                rag_up=engine_live["rag"],
                 deepgraph_up=engine_live["deepgraph"],
+                hub_up=engine_live["hub"],
             )
             children["api"] = start_api(run_env, java_home, sink, api_port_value)
             ok = wait_for_api(sink, children["api"], api_port_value)
@@ -1161,13 +1210,17 @@ def main(argv=None) -> int:
     print_status(sink, final, env, app_title, api_port_value)
 
     engines_just_up = any(children[name] is not None for name in ENGINE_SERVICES)
+    layout = eng.engine_layout(env)
     if scope["api"] and engines_just_up and children["api"] is None and final["api"]:
         sink.info("[WARN] 后端是本次之前就在跑的，而引擎刚起：Java 只在启动那一刻探测引擎端口，"
                   "需重启本启动器（start.bat backend）才会切到 mode=ENGINE。")
-    if final["kg"] and not final["neo4j"]:
+    if (final["kg"] or (final["hub"] and layout == "hub")) and not final["neo4j"]:
         sink.info("[INFO] Neo4j 未起 -> KG 只能走内存图，图谱重启即丢。")
     if want.get("ft") and not final["ft"]:
         sink.info("[WARN] LoRA 微调 :8003 未就绪；检查 logs/ft.log 与 python-services/fine_tune_service/.venv。")
+    if want.get("hub") and not final["hub"]:
+        sink.info("[WARN] 引擎集线器 :8600 未就绪；KG/DeepGraph/知识库/FT 全部不可用。"
+                  "检查 logs/hub.log 与 python-services/engine_hub/。")
     if want.get("minio") and not final["minio"]:
         sink.info("[WARN] MinIO :9000 未就绪；上传会不可用。检查 logs/minio.log 与 MINIO_BIN/MINIO_DATA_DIR。")
     if want.get("ollama") and not final["ollama"]:

@@ -56,6 +56,33 @@ ORDER = ("neo4j", "kg", "deepgraph", "ft")
 RETIRED_SERVICES = {"rag": "deepgraph"}
 PORTS = {"neo4j": 7687, "kg": 8001, "deepgraph": 8501, "ft": 8003}
 
+# 【2026-11-24 端口统一】三套引擎可合并为一个进程（engine-hub :8600）：
+#   ENGINE_LAYOUT=hub（默认）= 只起 hub：一个窗口、一个端口承载 KG / DeepGraph+知识库 / LoRA；
+#   ENGINE_LAYOUT=separate   = 起原来的 kg/deepgraph/ft 三个进程（回滚口，端口不变）。
+# 合并发生在「进程与端口」这一层：hub 按原始 path 前缀原样转发，契约路径一字不变，
+# Java 侧只需把 base-url 指到 8600（由 start-all.py 按 hub 在听与否自动注入）。
+HUB_PORT = 8600
+HUB_SERVICE = "hub"
+ORDER_HUB = ("neo4j", HUB_SERVICE)
+# hub 需要三套重依赖同装：按此顺序找现成 venv（engine_hub 一般没有，落 deepgraph_rag / rag_service）
+HUB_VENV_CANDIDATES = ("engine_hub", "deepgraph_rag", "rag_service", "kg_service", "fine_tune_service")
+PORTS[HUB_SERVICE] = HUB_PORT
+
+
+def engine_layout(env: dict) -> str:
+    """`ENGINE_LAYOUT` 的生效口径：只有显式 separate/split/legacy/multi 才拆回三进程。
+
+    默认 hub：合并的意义就是「少记端口」，默认值必须体现该决定；拆回是少数回滚场景，
+    用显式开关表达，且拆回时端口与导出名单都保持原样。
+    """
+    value = (env.get("ENGINE_LAYOUT") or "").strip().lower()
+    return "separate" if value in ("separate", "split", "legacy", "multi") else "hub"
+
+
+def order_for(layout: str) -> tuple:
+    """按布局给出启动顺序：hub 布局只有 neo4j + hub；separate 布局保持原四段。"""
+    return ORDER_HUB if layout == "hub" else ORDER
+
 # Neo4j 是仓库外的本机单机安装（§18.5）。首选 .env 的 NEO4J_HOME，其次本机已知路径；
 # 都不存在则只上报，不猜路径、不装东西。
 # 候选按平台排列：Windows 是本机 zip 单机版；Linux 只列常见安装位。
@@ -69,10 +96,12 @@ DEFAULT_NEO4J_HOMES = (
 )
 
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
-SERVICE_DIRS = {"kg": "kg_service", "deepgraph": "deepgraph_rag", "ft": "fine_tune_service"}
+SERVICE_DIRS = {"kg": "kg_service", "deepgraph": "deepgraph_rag", "ft": "fine_tune_service",
+                HUB_SERVICE: "engine_hub"}
 # deepgraph 的入口是契约适配器 api_server.py（复制的 app.py 是 Streamlit UI，不进 uvicorn）；
 # 该进程同时挂载 deepgraph 与知识库（原 8002）两套路由。
-APP_MODULES = {"kg": "kg_service:app", "deepgraph": "api_server:app", "ft": "lora_service:app"}
+APP_MODULES = {"kg": "kg_service:app", "deepgraph": "api_server:app", "ft": "lora_service:app",
+               HUB_SERVICE: "hub:app"}
 
 # DR-63：引擎进程没有 dotenv，只调 os.getenv（kg_store.py:36/312-323、rag_engine.py:101-634）。
 # 因此「写在 .env 里」不等于「会生效」——只有在下面这份名单里的键才会被导出到子进程。
@@ -155,6 +184,13 @@ ENGINE_EXPORTS = {
         "INTERNAL_API_KEY",
     ),
 }
+
+# hub 是三个引擎同进程：导出名单必须是**三家并集**。少导出一个键，该能力就会静默回落到
+# 引擎默认值（例：INTERNAL_API_KEY 漏了 = 内部认证形同关闭；HF_HUB_OFFLINE 漏了 = 无外网挂死），
+# 与批次 3B-2「8002 并入 8501 时 15 个 RAG_* 键必须并入导出名单」同一条教训。
+ENGINE_EXPORTS[HUB_SERVICE] = tuple(dict.fromkeys(
+    [key for service in ("kg", "deepgraph", "ft") for key in ENGINE_EXPORTS.get(service, ())]
+))
 
 NEO4J_START_TIMEOUT = 120.0
 ENGINE_START_TIMEOUT = 60.0
@@ -272,6 +308,26 @@ def engine_env(base: dict, *, service: str, neo4j_uri=None, api_key=None, offlin
         env.update(offline or {})
     elif service == "kg" and neo4j_uri:
         env["NEO4J_URI"] = neo4j_uri
+    if service == HUB_SERVICE:
+        # hub 一个进程同时读三家的键：密钥/离线位/kg 图库地址都要给到（否则只有一部分能力正常）
+        if api_key:
+            env["DEEPSEEK_API_KEY"] = api_key
+        env.update(offline or {})
+        if neo4j_uri:
+            env["NEO4J_URI"] = neo4j_uri
+        # 能力开关下发：显式 false 的引擎在 hub 内不 import（省 torch 与模型内存），
+        # 并在 /health 里标 skipped=true——「跳过」可见，不伪装成健康。
+        skip = [
+            capability
+            for capability, flag in (
+                ("kg", "KG_ENABLED"),
+                ("deepgraph", "DG_RAG_ENABLED"),
+                ("ft", "FT_ENABLED"),
+            )
+            if not should_start(source.get(flag))
+        ]
+        if skip:
+            env["ENGINE_HUB_SKIP"] = ",".join(skip)
     return env
 
 
@@ -286,6 +342,14 @@ def venv_python(service: str, *, root: Path = ROOT, exists=default_file_exists) 
     """
     parts = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
     service = RETIRED_SERVICES.get(service, service)
+    if service == HUB_SERVICE:
+        # hub 没有自己的 venv 时，必须落到「三套重依赖都装齐的那个」：
+        # 用系统解释器起 hub 会让 torch/faiss/jieba 全部 import 失败 -> 三能力齐降级且不报错。
+        for candidate_dir in HUB_VENV_CANDIDATES:
+            candidate = root / "python-services" / candidate_dir / ".venv" / parts[0] / parts[1]
+            if exists(str(candidate)):
+                return str(candidate)
+        return None
     candidate = root / "python-services" / SERVICE_DIRS[service] / ".venv" / parts[0] / parts[1]
     return str(candidate) if exists(str(candidate)) else None
 
@@ -329,6 +393,9 @@ def probe_url(service: str) -> str:
         return "http://127.0.0.1:8501/api/v1/deepgraph/health"
     if service == "ft":
         return "http://127.0.0.1:8003/api/v1/fine-tune/health"
+    if service == HUB_SERVICE:
+        # 聚合健康端点：三能力状态都在 body.services[] 里，一次探针判全部
+        return f"http://127.0.0.1:{HUB_PORT}/health"
     return "http://127.0.0.1:7474"
 
 
@@ -472,6 +539,18 @@ def describe(service: str, up: bool) -> str:
         tail = f"，缺 {','.join(map(str, missing))}" if missing else ""
         device = body.get("device") or "?"
         return f"UP (engine_available={ready}，device={device}{tail})"
+    if service == HUB_SERVICE:
+        body = probe(HUB_SERVICE)
+        if not isinstance(body, dict):
+            return "UP (端口在监听，/health 未响应)"
+        parts = []
+        for item in body.get("services") or []:
+            capability = item.get("capability")
+            if item.get("skipped"):
+                parts.append(f"{capability}:跳过")
+            else:
+                parts.append(f"{capability}:{'ok' if item.get('ready') else '降级'}")
+        return f"UP ({'，'.join(parts)})"
     if service == "deepgraph":
         body = probe("deepgraph")
         if not isinstance(body, dict):
@@ -495,7 +574,8 @@ def run_reseed(courses: list) -> None:
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    only = list(ORDER)
+    # None = 未显式指定 --only，稍后按布局补齐；显式才收窄
+    only = None
     courses: list[str] = []
     reseed = False
     status_only = False
@@ -519,29 +599,51 @@ def main(argv=None) -> int:
         idx += 1
 
     env = merged_env()
+    # 布局：默认 hub（单端口 8600）；ENGINE_LAYOUT=separate 拆回三进程
+    layout = engine_layout(env)
+    order = order_for(layout)
     status = status_snapshot()
     # 退役别名解析：`--only rag` 与 `--only deepgraph` 等价（同一个进程）
-    only = [RETIRED_SERVICES.get(name, name) for name in only]
+    only = [RETIRED_SERVICES.get(name, name) for name in (only or order)]
+    only = [name for name in only if name in order] or list(order)
 
     if status_only:
-        for name in ORDER:
+        print(f"[布局] {layout}（ENGINE_LAYOUT 决定；separate = 三个进程三个端口）")
+        for name in order:
             print(f"{name:6s} port {PORTS[name]}: {describe(name, status[name])}")
-        # 知识库（原 8002）不再是独立端口：它的存活就是 8501 在听
-        print(f"{'rag':6s} port {PORTS['deepgraph']}（内嵌 deepgraph，8002 已退役）: "
-              f"{describe('rag', status['deepgraph'])}")
+        if layout == "hub":
+            # hub 内知识库与 deepgraph 同前缀，能力视图由 /health 的 services[] 给出
+            print(f"{'rag':6s} port {PORTS[HUB_SERVICE]}（hub 内嵌，8002 已退役）: "
+                  f"{describe(HUB_SERVICE, status[HUB_SERVICE])}")
+        else:
+            # 知识库（原 8002）不再是独立端口：它的存活就是 8501 在听
+            print(f"{'rag':6s} port {PORTS['deepgraph']}（内嵌 deepgraph，8002 已退役）: "
+                  f"{describe('rag', status['deepgraph'])}")
         return 0
 
     neo4j_home = discover_neo4j_home(env)
-    want = {
-        "neo4j": should_start(env.get("NEO4J_ENABLED")) and bool(neo4j_home),
-        "kg": should_start(env.get("KG_ENABLED")),
-        # 8002 退役后知识库随 deepgraph 进程一起起，没有独立开关；
-        # `.env` 的 RAG_ENABLED 只剩「点不点这个能力」的历史语义，不再决定进程
-        "deepgraph": should_start(env.get("DG_RAG_ENABLED")),
-        # 默认也起（四引擎全编排）；不想要 LoRA 就在 .env 写 FT_ENABLED=false
-        "ft": should_start(env.get("FT_ENABLED")),
-    }
-    want = {name: want[name] and name in only for name in ORDER}
+    if layout == "hub":
+        # hub 只需一个进程：三能力任一开启即拉起（具体加载哪些由 ENGINE_HUB_SKIP 下发）
+        capabilities = (
+            should_start(env.get("KG_ENABLED")),
+            should_start(env.get("DG_RAG_ENABLED")),
+            should_start(env.get("FT_ENABLED")),
+        )
+        want = {
+            "neo4j": should_start(env.get("NEO4J_ENABLED")) and bool(neo4j_home),
+            HUB_SERVICE: any(capabilities),
+        }
+    else:
+        want = {
+            "neo4j": should_start(env.get("NEO4J_ENABLED")) and bool(neo4j_home),
+            "kg": should_start(env.get("KG_ENABLED")),
+            # 8002 退役后知识库随 deepgraph 进程一起起，没有独立开关；
+            # `.env` 的 RAG_ENABLED 只剩「点不点这个能力」的历史语义，不再决定进程
+            "deepgraph": should_start(env.get("DG_RAG_ENABLED")),
+            # 默认也起（四引擎全编排）；不想要 LoRA 就在 .env 写 FT_ENABLED=false
+            "ft": should_start(env.get("FT_ENABLED")),
+        }
+    want = {name: want.get(name, False) and name in only for name in order}
     todo = plan(status, want)
 
     api_key = effective_api_key(env.get("DEEPSEEK_API_KEY"))
@@ -549,10 +651,13 @@ def main(argv=None) -> int:
     uri = (env.get("KG_NEO4J_URI") or env.get("NEO4J_URI") or "bolt://127.0.0.1:7687").strip()
 
     print("=" * 60)
-    print(" AI Course Platform - engines (Neo4j / KG / DeepGraph+知识库 / LoRA)")
+    print(" AI Course Platform - engines "
+          + ("(Neo4j / Engine Hub :8600 承载 KG+DeepGraph+知识库+LoRA)" if layout == "hub"
+             else "(Neo4j / KG / DeepGraph+知识库 / LoRA · separate 回滚布局)"))
     print("=" * 60)
     if not todo:
-        print("[OK] 四个引擎端口都已在监听，本次不重复拉起任何进程。")
+        print("[OK] 引擎端口都已在监听，本次不重复拉起任何进程。"
+              + ("（hub :8600 单口）" if layout == "hub" else ""))
     for name in todo:
         if name == "neo4j":
             print(f"[..] 启动 Neo4j：{neo4j_home}")
@@ -566,12 +671,13 @@ def main(argv=None) -> int:
                 offline=offline,
                 dotenv=env,
             )
-            print(f"[..] 启动 {name.upper()} 引擎（:{PORTS[name]}，新窗口，日志在窗口内）")
+            label = "ENGINE HUB" if name == HUB_SERVICE else name.upper()
+            print(f"[..] 启动 {label} 引擎（:{PORTS[name]}，新窗口，日志在窗口内）")
             ok = start_engine(name, exported)
         print(f"[{'OK' if ok else 'FAIL'}] {name} {'已监听' if ok else '未在预期时间内监听'}")
 
     final = status_snapshot()
-    if want["neo4j"] and not neo4j_home and "kg" in only:
+    if want["neo4j"] and not neo4j_home and ({"kg", HUB_SERVICE} & set(only)):
         print(
             "[WARN] 找不到 Neo4j 安装目录（.env 的 NEO4J_HOME 或已知位："
             f"{' / '.join(DEFAULT_NEO4J_HOMES)}）。KG 会回落内存图，重启即丢。"
@@ -589,10 +695,14 @@ def main(argv=None) -> int:
         print("[INFO] 嵌入模型未缓存 -> 不设离线位，首次检索会尝试下载模型（需外网）。")
 
     print("-" * 60)
-    for name in ORDER:
+    for name in order:
         print(f"{name:6s} :{PORTS[name]}  {describe(name, final[name])}")
-    # 知识库（原 8002，已退役）：能力视图挂在 8501 上，与 deepgraph 同生同死
-    print(f"{'rag':6s} :{PORTS['deepgraph']}  {describe('rag', final['deepgraph'])}")
+    if layout == "hub":
+        # 知识库（原 8002，已退役）：能力视图挂在 hub 内，与 deepgraph 同生同死
+        print(f"{'rag':6s} :{PORTS[HUB_SERVICE]}  {describe(HUB_SERVICE, final[HUB_SERVICE])}")
+    else:
+        # 知识库（原 8002，已退役）：能力视图挂在 8501 上，与 deepgraph 同生同死
+        print(f"{'rag':6s} :{PORTS['deepgraph']}  {describe('rag', final['deepgraph'])}")
     print("-" * 60)
 
     if is_port_listening(8080) and todo:
@@ -600,21 +710,22 @@ def main(argv=None) -> int:
             "[WARN] 后端已在跑而引擎刚起：Java 只在启动那一刻探测引擎，"
             "需重启 start.bat backend 才会切到 mode=ENGINE。"
         )
-    if final["kg"] and not final["neo4j"]:
+    if layout == "separate" and final["kg"] and not final["neo4j"]:
         print("[INFO] Neo4j 端口未起 -> KG 只能是内存图或尚未初始化，见上一行 backend 判定")
-    kg_backend = graph_backend(probe("kg")) if final["kg"] else "down"
+    kg_probe = "kg" if layout == "separate" else HUB_SERVICE
+    kg_backend = graph_backend(probe(kg_probe)) if final[kg_probe] else "down"
     if kg_backend == "memory":
         hint = "（Neo4j 本次刚起，KG 是更早起的进程，需关掉它的窗口重跑 start-engines.py 才会接上图库）" if "neo4j" in todo else ""
         print(f"[WARN] KG 走的是内存图{hint} -> 图谱重启即丢，接上后重跑 python scripts\\sync-kg-to-python.py 1 4007")
     if reseed:
         run_reseed(courses or ["1", "4007"])
-    elif final["deepgraph"]:
+    elif final.get("deepgraph") or final.get(HUB_SERVICE):
         docs = probe("rag")
         items = docs.get("documents") if isinstance(docs, dict) else docs
         if isinstance(items, list) and not items:
             print("[INFO] RAG 语料为空 -> 问答会返「AI 服务暂时不可用」。重放：python scripts\\seed-rag-corpus.py")
 
-    wanted = [name for name in ("kg", "deepgraph", "ft") if want.get(name)]
+    wanted = [name for name in order if name != "neo4j" and want.get(name)]
     missing = [name for name in wanted if not final.get(name)]
     return 1 if missing else 0
 
