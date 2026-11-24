@@ -459,6 +459,8 @@ def test_retrieve_does_not_fabricate_relevance_score(monkeypatch):
     monkeypatch.setattr(api_server, "_PIPELINES", {1: pipeline})
     monkeypatch.setattr(api_server, "_sync_session_state", lambda a, b: None)
     monkeypatch.setattr(api_server, "_apply_flags", lambda flags: None)
+    # 显式模拟重排模型未加载：无论本机是否安装 sentence-transformers，结果都必须是 null。
+    monkeypatch.setattr(api_server, "_reranker", lambda: None)
 
     class FakeDoc:
         page_content = "TCP 三次握手"
@@ -472,3 +474,67 @@ def test_retrieve_does_not_fabricate_relevance_score(monkeypatch):
     assert body["results"][0]["relevance_score"] is None
     assert body["results"][0]["rank"] == 1
     assert body["results"][0]["document_name"] == "course1_x.txt"
+
+
+def test_retrieve_returns_real_rerank_scores(monkeypatch):
+    """重排可用时必须透出模型真实输出，与文档一一对应，而非序号公式。"""
+    monkeypatch.setattr(api_server, "engine_available", lambda: True)
+    pipeline = {"ensemble": object(), "knowledge_graph": None, "reranker": object(),
+                "doc_names": ["course1_x.txt"], "chunks": []}
+    monkeypatch.setattr(api_server, "_PIPELINES", {1: pipeline})
+    monkeypatch.setattr(api_server, "_sync_session_state", lambda a, b: None)
+    monkeypatch.setattr(api_server, "_apply_flags", lambda flags: None)
+
+    class FakeDoc:
+        def __init__(self, text):
+            self.page_content = text
+            self.metadata = {"source": "course1_x.txt"}
+
+    docs = [FakeDoc("TCP 三次握手"), FakeDoc("UDP 无连接传输")]
+
+    class FakeReranker:
+        def predict(self, pairs):
+            # 入参必须是 (query, 原文) 真实配对，不允许用 rank 等序号替代。
+            assert pairs == [["TCP", "TCP 三次握手"], ["TCP", "UDP 无连接传输"]]
+            return [0.875, -1.25]  # CrossEncoder 输出为未归一化 logit，可为负
+
+    monkeypatch.setattr(api_server, "_reranker", lambda: FakeReranker())
+    monkeypatch.setattr(api_server, "retrieve_documents", lambda *a, **k: docs)
+    body = client.post(
+        "/api/v1/deepgraph/retrieve", json={"query": "TCP", "course_id": 1}
+    ).json()
+    assert body["mode"] == "ENGINE"
+    assert [r["relevance_score"] for r in body["results"]] == [0.875, -1.25]
+    assert [r["rank"] for r in body["results"]] == [1, 2]
+
+
+def test_rerank_scores_none_when_disabled_or_unavailable(monkeypatch):
+    """开关关闭、模型未加载、无文档三种情况都不得产出分数。"""
+    class FakeDoc:
+        page_content = "TCP 三次握手"
+
+    def _must_not_load():
+        pytest.fail("开关关闭时不应加载重排模型")
+
+    monkeypatch.setattr(api_server.st, "session_state", {"enable_reranking": False})
+    monkeypatch.setattr(api_server, "_reranker", _must_not_load)
+    assert api_server._rerank_scores("TCP", [FakeDoc()]) is None
+
+    monkeypatch.setattr(api_server.st, "session_state", {"enable_reranking": True})
+    monkeypatch.setattr(api_server, "_reranker", lambda: None)
+    assert api_server._rerank_scores("TCP", [FakeDoc()]) is None
+    assert api_server._rerank_scores("TCP", []) is None
+
+
+def test_rerank_scores_surfaces_model_failure_as_none(monkeypatch):
+    """模型 predict 抛错时按缺失透出，不能把异常伪装成分数。"""
+    class FakeDoc:
+        page_content = "TCP 三次握手"
+
+    class BrokenReranker:
+        def predict(self, pairs):
+            raise RuntimeError("model exploded")
+
+    monkeypatch.setattr(api_server.st, "session_state", {"enable_reranking": True})
+    monkeypatch.setattr(api_server, "_reranker", lambda: BrokenReranker())
+    assert api_server._rerank_scores("TCP", [FakeDoc()]) is None
