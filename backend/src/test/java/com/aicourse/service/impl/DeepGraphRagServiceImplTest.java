@@ -217,6 +217,59 @@ class DeepGraphRagServiceImplTest {
     }
 
     @Test
+    @DisplayName("sync：真关系映射留痕、错位谓语打隔离标（不洗白为 RELATED）")
+    void sync_predicateMappingAndQuarantine() throws IOException {
+        startStub(200, "{}", 200,
+                "{\"chapters\": [], \"nodes\": ["
+                        + "{\"name\": \"A\", \"type\": \"CONCEPT\", \"evidence\": \"\"},"
+                        + "{\"name\": \"B\", \"type\": \"CONCEPT\", \"evidence\": \"\"},"
+                        + "{\"name\": \"C\", \"type\": \"CONCEPT\", \"evidence\": \"\"}],"
+                        + "\"edges\": ["
+                        + "{\"source\": \"A\", \"target\": \"B\", \"relation\": \"依赖\", \"evidence\": \"A 依赖 B\"},"
+                        + "{\"source\": \"B\", \"target\": \"C\", \"relation\": \"数据链路层\", \"evidence\": \"错位\"},"
+                        + "{\"source\": \"A\", \"target\": \"C\", \"relation\": \"功能\", \"evidence\": \"A 的功能是 C\"}],"
+                        + "\"mode\": \"ENGINE\"}");
+        String base = "http://127.0.0.1:" + server.getAddress().getPort();
+        KnowledgePointService pointService = org.mockito.Mockito.mock(KnowledgePointService.class);
+        KnowledgePointRelationService relationService = org.mockito.Mockito.mock(KnowledgePointRelationService.class);
+        org.mockito.Mockito.when(pointService.list(org.mockito.ArgumentMatchers
+                .<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KnowledgePoint>>any()))
+                .thenReturn(List.of());
+        org.mockito.Mockito.when(relationService.list(org.mockito.ArgumentMatchers
+                .<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KnowledgePointRelation>>any()))
+                .thenReturn(List.of());
+        java.util.concurrent.atomic.AtomicLong seq = new java.util.concurrent.atomic.AtomicLong(100L);
+        org.mockito.Mockito.doAnswer(inv -> {
+            for (KnowledgePoint p : inv.<List<KnowledgePoint>>getArgument(0)) {
+                p.setId(seq.getAndIncrement());
+            }
+            return true;
+        }).when(pointService).saveBatch(org.mockito.ArgumentMatchers.anyList());
+
+        DeepGraphRagServiceImpl service = new DeepGraphRagServiceImpl(
+                true, base, 5, 60, 0, ContractPaths.DEEPGRAPH_HEALTH, "", pointService, relationService);
+        String json = service.syncCourseKnowledgeGraph(4178L, "教材");
+        assertTrue(json.contains("\"addedRelations\":3"), json);
+
+        ArgumentCaptor<List<KnowledgePointRelation>> relCaptor = ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(relationService).saveBatch(relCaptor.capture());
+        List<KnowledgePointRelation> rels = relCaptor.getValue();
+        assertEquals(3, rels.size(), "3 条语义边，无章节归属边");
+
+        assertEquals("PREREQUISITE", rels.get(0).getRelationType(), "依赖 → 前置知识");
+        assertEquals("依赖", rels.get(0).getRawRelationType(), "映射必须留原始谓语");
+        assertFalse(rels.get(0).getIsQuarantined());
+
+        assertEquals("数据链路层", rels.get(1).getRelationType(), "错位谓语保留原值，不洗白");
+        assertEquals("数据链路层", rels.get(1).getRawRelationType());
+        assertTrue(rels.get(1).getIsQuarantined(), "错位边必须打隔离标");
+
+        assertEquals("RELATED", rels.get(2).getRelationType(), "功能弱化为相关");
+        assertEquals("功能", rels.get(2).getRawRelationType());
+        assertFalse(rels.get(2).getIsQuarantined());
+    }
+
+    @Test
     @DisplayName("sync：引擎原始长名引用可命中已截断节点，不产生孤立点/丢边")
     void sync_longNameEdgeResolvesToTruncatedPoint() throws IOException {
         String longName = "L".repeat(121);

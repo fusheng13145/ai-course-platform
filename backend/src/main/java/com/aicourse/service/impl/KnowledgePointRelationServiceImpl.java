@@ -113,8 +113,9 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     @Override
     public List<KnowledgePointRelation> getRelationsByPoint(Long pointId) {
         LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
-                .eq(KnowledgePointRelation::getSourceId, pointId)
-                .or(w -> w.eq(KnowledgePointRelation::getTargetId, pointId));
+                .eq(KnowledgePointRelation::getIsQuarantined, false)
+                .and(w -> w.eq(KnowledgePointRelation::getSourceId, pointId)
+                        .or().eq(KnowledgePointRelation::getTargetId, pointId));
         return list(wrapper);
     }
 
@@ -163,6 +164,7 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
         List<KnowledgePointRelation> relations = List.of();
         if (!pointIds.isEmpty()) {
             LambdaQueryWrapper<KnowledgePointRelation> relationWrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
+                    .eq(KnowledgePointRelation::getIsQuarantined, false)
                     .in(KnowledgePointRelation::getSourceId, pointIds)
                     .in(KnowledgePointRelation::getTargetId, pointIds);
             relations = list(relationWrapper);
@@ -246,6 +248,7 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     public List<KnowledgePointRelation> getSourceRelations(Long sourceId) {
         return this.list(new LambdaQueryWrapper<KnowledgePointRelation>()
                 .eq(KnowledgePointRelation::getSourceId, sourceId)
+                .eq(KnowledgePointRelation::getIsQuarantined, false)
                 .orderByDesc(KnowledgePointRelation::getCreatedAt));
     }
 
@@ -256,6 +259,7 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     public List<KnowledgePointRelation> getTargetRelations(Long targetId) {
         return this.list(new LambdaQueryWrapper<KnowledgePointRelation>()
                 .eq(KnowledgePointRelation::getTargetId, targetId)
+                .eq(KnowledgePointRelation::getIsQuarantined, false)
                 .orderByDesc(KnowledgePointRelation::getCreatedAt));
     }
 
@@ -275,8 +279,8 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
         Set<Long> coursePointIds = coursePoints.stream()
                 .map(KnowledgePoint::getId).collect(Collectors.toSet());
         return this.list(new LambdaQueryWrapper<KnowledgePointRelation>()
-                .in(KnowledgePointRelation::getSourceId, coursePointIds)
-                .or()
-                .in(KnowledgePointRelation::getTargetId, coursePointIds));
+                .eq(KnowledgePointRelation::getIsQuarantined, false)
+                .and(w -> w.in(KnowledgePointRelation::getSourceId, coursePointIds)
+                        .or().in(KnowledgePointRelation::getTargetId, coursePointIds)));
     }
 }

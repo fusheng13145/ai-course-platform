@@ -112,6 +112,8 @@ spring:
         - classpath:db/migration/V33__unlimited_attempts.sql
         # V34（2026-11-22）：知识点/关系类型存量归一为领域编码
         - classpath:db/migration/V34__normalize_knowledge_taxonomy.sql
+        # V35（2026-11-24）：谓语全量归一 + 错位边隔离 + 原始谓语留痕
+        - classpath:db/migration/V35__normalize_predicate_and_quarantine.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

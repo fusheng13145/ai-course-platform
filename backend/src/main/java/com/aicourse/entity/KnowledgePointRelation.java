@@ -41,6 +41,16 @@ public class KnowledgePointRelation {
     private String relationType;
 
     /**
+     * 原始谓语留痕：归一前为非六值时的取值，用于映射回溯与后续细粒度重建
+     */
+    private String rawRelationType;
+
+    /**
+     * 是否上游抽取错位隔离边：true 时默认图谱可视化与 Neo4j 同步排除，行保留供审计
+     */
+    private Boolean isQuarantined;
+
+    /**
      * 关联强度（数值越大关联度越高）
      */
     private BigDecimal strength;

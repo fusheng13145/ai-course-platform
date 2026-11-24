@@ -94,4 +94,55 @@ class KnowledgeTaxonomyTest {
         assertTrue(a.version().startsWith("v1:"));
         assertNotNull(a.generatedAt());
     }
+
+    @Test
+    @DisplayName("入库归一：六值别名不打隔离标，也不重复留痕")
+    void ingestCanonicalAliases() {
+        RelationType.IngestRelation r = RelationType.resolveIngest("前置知识");
+        assertEquals("PREREQUISITE", r.code());
+        assertNull(r.rawCode());
+        assertFalse(r.quarantined());
+    }
+
+    @Test
+    @DisplayName("入库归一：真关系谓语按显式映射表归一并留痕")
+    void ingestMappedPredicates() {
+        RelationType.IngestRelation dep = RelationType.resolveIngest("依赖");
+        assertEquals("PREREQUISITE", dep.code());
+        assertEquals("依赖", dep.rawCode());
+        assertFalse(dep.quarantined());
+
+        assertEquals("PREREQUISITE", RelationType.resolveIngest("需要").code());
+        assertEquals("CONTAINS", RelationType.resolveIngest("包含协议").code());
+        assertEquals("CONTAINS", RelationType.resolveIngest("具有/包含").code());
+        assertEquals("BELONGS_TO", RelationType.resolveIngest("具有/属于").code());
+
+        RelationType.IngestRelation fn = RelationType.resolveIngest("功能");
+        assertEquals("RELATED", fn.code());
+        assertEquals("功能", fn.rawCode());
+        assertFalse(fn.quarantined());
+        assertEquals("RELATED", RelationType.resolveIngest("same").code(), "英文映射需大小写不敏感");
+        assertEquals("RELATED", RelationType.resolveIngest("面临").code());
+    }
+
+    @Test
+    @DisplayName("入库归一：错位谓语保留原值并打隔离标，不洗白为 RELATED")
+    void ingestQuarantinedPredicates() {
+        for (String dirty : new String[]{"数据链路层", "最大地址", "路由表", "序号字段长度", "到2020年5月"}) {
+            RelationType.IngestRelation r = RelationType.resolveIngest(dirty);
+            assertEquals(dirty, r.code(), "隔离边必须保留原谓语，不做语义洗白");
+            assertEquals(dirty, r.rawCode());
+            assertTrue(r.quarantined());
+            assertTrue(RelationType.isQuarantined(dirty));
+        }
+    }
+
+    @Test
+    @DisplayName("入库归一：未登记谓语默认隔离，等待人工登记而非进入默认图谱")
+    void ingestUnknownPredicateDefaultsToQuarantine() {
+        RelationType.IngestRelation r = RelationType.resolveIngest("某种全新谓语");
+        assertTrue(r.quarantined());
+        assertEquals("某种全新谓语", r.rawCode());
+        assertNotEquals("RELATED", r.code());
+    }
 }
