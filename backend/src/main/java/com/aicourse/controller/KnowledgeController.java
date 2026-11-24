@@ -151,9 +151,9 @@ public class KnowledgeController {
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
 
         LambdaQueryWrapper<KnowledgePointRelation> qw = new LambdaQueryWrapper<KnowledgePointRelation>()
-                .eq(KnowledgePointRelation::getSourceId, id)
-                .or()
-                .eq(KnowledgePointRelation::getTargetId, id);
+                .eq(KnowledgePointRelation::getIsQuarantined, false)
+                .and(w -> w.eq(KnowledgePointRelation::getSourceId, id)
+                        .or().eq(KnowledgePointRelation::getTargetId, id));
         List<KnowledgePointRelation> relations = relationService.list(qw);
 
         Set<Long> pointIdSet = new HashSet<>();
@@ -247,6 +247,7 @@ public class KnowledgeController {
         List<KnowledgePointRelation> relationList = pointIds.isEmpty()
                 ? Collections.emptyList()
                 : relationService.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                        .eq(KnowledgePointRelation::getIsQuarantined, false)
                         .in(KnowledgePointRelation::getSourceId, pointIds)
                         .in(KnowledgePointRelation::getTargetId, pointIds));
 

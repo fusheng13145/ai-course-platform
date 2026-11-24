@@ -199,7 +199,8 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
                 skippedRelations++;
                 continue;
             }
-            String relationType = RelationType.canonicalCode(edge.relation());
+            RelationType.IngestRelation ingest = RelationType.resolveIngest(edge.relation());
+            String relationType = ingest.code();
             String triple = tripleKey(sourceId, targetId, relationType);
             if (existingTriples.contains(triple)) {
                 skippedRelations++;
@@ -210,6 +211,8 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
             rel.setSourceId(sourceId);
             rel.setTargetId(targetId);
             rel.setRelationType(relationType);
+            rel.setRawRelationType(ingest.rawCode());
+            rel.setIsQuarantined(ingest.quarantined());
             rel.setDescription(edge.evidence() == null ? "" : edge.evidence());
             rel.setStrength(BigDecimal.ONE);
             newRelations.add(rel);
@@ -296,6 +299,7 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
                 rel.setSourceId(entityId);
                 rel.setTargetId(chapterId);
                 rel.setRelationType(RelationType.BELONGS_TO.code());
+                rel.setIsQuarantined(false);
                 rel.setDescription("");
                 rel.setStrength(BigDecimal.ONE);
                 newRelations.add(rel);

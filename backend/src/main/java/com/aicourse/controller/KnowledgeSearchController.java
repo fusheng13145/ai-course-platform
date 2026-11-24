@@ -89,6 +89,7 @@ public class KnowledgeSearchController {
         List<KnowledgePointRelation> relations = pointIds.isEmpty()
                 ? Collections.emptyList()
                 : relationService.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                        .eq(KnowledgePointRelation::getIsQuarantined, false)
                         .in(KnowledgePointRelation::getSourceId, pointIds)
                         .in(KnowledgePointRelation::getTargetId, pointIds));
 

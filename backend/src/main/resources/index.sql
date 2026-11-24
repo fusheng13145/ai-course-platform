@@ -818,6 +818,8 @@ CREATE TABLE knowledge_point_relations (
   source_id BIGINT NOT NULL COMMENT '源知识点ID，关联knowledge_points表',
   target_id BIGINT NOT NULL COMMENT '目标知识点ID，关联knowledge_points表',
   relation_type VARCHAR(30) NOT NULL COMMENT '关系类型：PREREQUISITE-前置知识，RELATED-相关知识，FOLLOW_UP-后续知识，CONTAINS-包含，CONTAINS_CHAPTER-包含章节，BELONGS_TO-属于',
+  raw_relation_type VARCHAR(30) NULL COMMENT '原始谓语留痕（归一前为非六值时的取值，V35）',
+  is_quarantined TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1=上游抽取错位隔离边，默认图谱查询与Neo4j同步排除（V35）',
   strength DECIMAL(3,2) NOT NULL DEFAULT 1.00 COMMENT '关系强度（0-1）',
   description VARCHAR(500) NULL COMMENT '关系描述',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

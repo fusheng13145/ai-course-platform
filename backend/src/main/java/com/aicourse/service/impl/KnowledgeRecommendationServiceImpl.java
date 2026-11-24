@@ -225,6 +225,7 @@ public class KnowledgeRecommendationServiceImpl implements KnowledgeRecommendati
         if (ids.isEmpty()) return Collections.emptyList();
         return relationMapper.selectList(
                 new LambdaQueryWrapper<KnowledgePointRelation>()
+                        .eq(KnowledgePointRelation::getIsQuarantined, false)
                         .and(w -> w.in(KnowledgePointRelation::getSourceId, ids)
                                 .or().in(KnowledgePointRelation::getTargetId, ids)));
     }
