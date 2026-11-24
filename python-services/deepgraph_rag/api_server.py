@@ -546,7 +546,7 @@ def _reranker():
     """惰性加载 CrossEncoder（与 app.py load_cross_encoder_with_retry 同款镜像回退）。
 
     加载失败返回 None——retriever_pipeline 对 reranker=None 自动跳过重排（原实现内的宽恕路径）。
-    可用 DG_CROSS_ENCODER_MODEL 覆盖默认模型（config.py 已预留该环境变量）。
+    可用 CROSS_ENCODER_MODEL 环境变量覆盖默认模型（config.py 读取该变量）。
     """
     global _RERANKER
     if _RERANKER is not None:
@@ -565,6 +565,27 @@ def _reranker():
             print(f"[deepgraph] CrossEncoder 加载失败（重排将自动跳过）: {exc}")
             _RERANKER = None
     return _RERANKER
+
+
+def _rerank_scores(query: str, docs: list) -> Optional[List[float]]:
+    """返回与 docs 对齐的真实 CrossEncoder 重排分数；不可用时返回 None。
+
+    上游 utils/retriever_pipeline.py 只用分数排序且被 UPSTREAM_MANIFEST 字节冻结，
+    无法回传分数；此处由适配层用同一模型对返回结果补算，保证透出真实模型输出。
+    重排未启用、模型未加载或计算失败时返回 None，由上层按 null 如实透出，禁止伪造。
+    """
+    if not docs or not st.session_state.get("enable_reranking", True):
+        return None
+    model = _reranker()
+    if model is None:
+        return None
+    try:
+        pairs = [[query, getattr(d, "page_content", "") or ""] for d in docs]
+        scores = model.predict(pairs)
+        return [float(s) for s in scores]
+    except Exception as exc:
+        print(f"[deepgraph] 重排分数计算失败，按缺失透出: {type(exc).__name__}: {exc}")
+        return None
 
 
 def _pipeline_for(course_id: Optional[int]) -> Optional[dict]:
@@ -1075,6 +1096,7 @@ def _retrieve_impl(req: RetrieveRequest, pipeline: dict) -> dict:
         "max_contexts": req.top_k,
     })
     docs = retrieve_documents(req.query, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL, "")
+    scores = _rerank_scores(req.query, docs)
     results = []
     for i, doc in enumerate(docs):
         page = getattr(doc, "page_content", "") or ""
@@ -1083,9 +1105,9 @@ def _retrieve_impl(req: RetrieveRequest, pipeline: dict) -> dict:
         results.append({
             "document_id": None,
             "document_name": _source_name_for(doc, pipeline),
-            # 原实现只返回文档对象，不返回相似度；禁止用 1.0-0.05*i 伪造“相关度”。
-            # 需要排序语义时由调用方按 rank 使用，分数缺失即 null，由上层如实透出。
-            "relevance_score": None,
+            # 重排可用时透出真实 CrossEncoder 分数；未启用或模型未加载时为 null。
+            # 禁止用 1.0-0.05*i 之类的序号公式伪造“相关度”，分数缺失即如实透出 null。
+            "relevance_score": scores[i] if scores is not None else None,
             "rank": i + 1,
             "snippet": page[:800],
             "retrieval": "VECTOR",
@@ -1175,13 +1197,15 @@ def _qa_impl(req: QaRequest, pipeline: dict) -> dict:
 
     answer, llm_prompt = chatbot_backend.generate_llm_response(req.question, context)
     sources = []
+    scores = _rerank_scores(req.question, vector_docs)
     for i, doc in enumerate(vector_docs):
         page = getattr(doc, "page_content", "") or ""
         if page:
             sources.append({
                 "document_id": None,
                 "document_name": _source_name_for(doc, pipeline) or source_doc,
-                "relevance_score": None,
+                # 与 retrieve 一致：重排可用时透出真实分数，否则为 null，不伪造。
+                "relevance_score": scores[i] if scores is not None else None,
                 "rank": i + 1,
                 "snippet": page[:800],
             })
