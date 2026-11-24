@@ -39,16 +39,16 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
 
     public PythonServicesHealthIndicator(
             @Value("${knowledge-graph.enabled:true}") boolean kgEnabled,
-            @Value("${knowledge-graph.base-url:http://localhost:8001}") String kgBaseUrl,
+            @Value("${knowledge-graph.base-url:" + ContractPaths.KG_DEFAULT_BASE_URL + "}") String kgBaseUrl,
             @Value("${knowledge-graph.health-path:/api/v1/graph/health}") String kgHealthPath,
             @Value("${rag.enabled:true}") boolean ragEnabled,
-            @Value("${rag.base-url:http://localhost:8501}") String ragBaseUrl,
+            @Value("${rag.base-url:" + ContractPaths.RAG_DEFAULT_BASE_URL + "}") String ragBaseUrl,
             @Value("${rag.health-path:/api/v1/rag/health}") String ragHealthPath,
             @Value("${fine-tune.enabled:false}") boolean ftEnabled,
-            @Value("${fine-tune.base-url:http://localhost:8003}") String ftBaseUrl,
+            @Value("${fine-tune.base-url:" + ContractPaths.FT_DEFAULT_BASE_URL + "}") String ftBaseUrl,
             @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String ftHealthPath,
             @Value("${deepgraph-rag.enabled:false}") boolean deepgraphEnabled,
-            @Value("${deepgraph-rag.base-url:http://localhost:8501}") String deepgraphBaseUrl,
+            @Value("${deepgraph-rag.base-url:" + ContractPaths.DEEPGRAPH_DEFAULT_BASE_URL + "}") String deepgraphBaseUrl,
             @Value("${deepgraph-rag.health-path:" + ContractPaths.DEEPGRAPH_HEALTH + "}") String deepgraphHealthPath) {
         this.kgEnabled = kgEnabled;
         this.kgBaseUrl = kgBaseUrl;

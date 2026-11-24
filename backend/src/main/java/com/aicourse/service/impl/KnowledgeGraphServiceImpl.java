@@ -68,7 +68,7 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
     @Autowired
     public KnowledgeGraphServiceImpl(
             @Value("${knowledge-graph.enabled:false}") boolean enabled,
-            @Value("${knowledge-graph.base-url:http://localhost:8001}") String baseUrl,
+            @Value("${knowledge-graph.base-url:" + ContractPaths.KG_DEFAULT_BASE_URL + "}") String baseUrl,
             @Value("${knowledge-graph.connect-timeout:5}") int connectTimeout,
             @Value("${knowledge-graph.read-timeout:30}") int readTimeout,
             @Value("${knowledge-graph.max-retries:2}") int maxRetries,
