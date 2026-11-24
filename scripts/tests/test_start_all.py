@@ -184,17 +184,17 @@ def test_todo_and_adopt_splits_by_status_and_want():
     want = dict.fromkeys(sa.SERVICES, True)
     todo, adopted = sa.todo_and_adopt(status, want)
     assert adopted == ["neo4j"]
-    assert todo == ["ollama", "minio", "kg", "rag", "deepgraph", "ft", "api", "web"]
+    assert todo == ["ollama", "minio", "kg", "deepgraph", "ft", "api", "web"]
 
 
 def test_todo_and_adopt_negative_disabled_service_in_neither_list():
     """阴性对照：.env 显式关掉的服务既不起也不接管（否则会把用户主动关上的东西当"已就绪"报出来）。"""
     status = dict.fromkeys(sa.SERVICES, False)
-    status.update({"kg": True, "rag": True, "api": True, "web": True})
+    status.update({"kg": True, "deepgraph": True, "api": True, "web": True})
     want = dict.fromkeys(sa.SERVICES, False)
     want.update({"neo4j": True, "kg": True, "api": True, "web": True})
     todo, adopted = sa.todo_and_adopt(status, want)
-    assert "rag" not in todo and "rag" not in adopted
+    assert "deepgraph" not in todo and "deepgraph" not in adopted
     assert todo == ["neo4j"]
 
 
@@ -309,11 +309,11 @@ def test_engine_flags_are_probed_live_not_from_the_opening_snapshot():
     开场的 status 在冷启动时必然全是 False，照它注入就等于把 §18.5 的"要重启后端才切 ENGINE"
     固化进了一键脚本。"""
     flags = sa.engine_flags(lambda p: p == 8001)
-    assert flags == {"kg": True, "rag": False, "deepgraph": False}
+    assert flags == {"kg": True, "deepgraph": False}
 
 
 def test_engine_flags_negative_control_all_down():
-    assert sa.engine_flags(lambda p: False) == {"kg": False, "rag": False, "deepgraph": False}
+    assert sa.engine_flags(lambda p: False) == {"kg": False, "deepgraph": False}
 
 
 def test_main_probes_engine_flags_right_before_starting_api():
@@ -567,16 +567,17 @@ def test_parse_args_negative_control_for_a_typo_in_a_known_mode():
 def test_wanted_services_scopes_every_service_by_subcommand():
     assert sa.wanted_services(sa.MODE_ALL) == {
         "ollama": True, "minio": True, "neo4j": True, "kg": True,
-        "rag": True, "deepgraph": True, "ft": True, "api": True, "web": True,
+        "deepgraph": True, "ft": True, "api": True, "web": True,
     }
     backend = sa.wanted_services(sa.MODE_BACKEND)
     assert backend["api"] is True and backend["web"] is False
     # 引擎/存储/AI/微调跟着后端走：backend 模式仍要拉全量，这是旧 start-backend.bat 第 5 步的语义
-    assert backend["kg"] is True and backend["rag"] is True
+    assert backend["kg"] is True and backend["deepgraph"] is True
     assert backend["ft"] is True and backend["minio"] is True and backend["ollama"] is True
     frontend = sa.wanted_services(sa.MODE_FRONTEND)
     assert frontend["web"] is True and frontend["api"] is False
-    assert frontend["neo4j"] is False and frontend["kg"] is False and frontend["rag"] is False
+    assert frontend["neo4j"] is False and frontend["kg"] is False
+    # 8002 退役后知识库与 deepgraph 同口：这一格 False 同时代表「知识库不会偷起来」
     assert frontend["deepgraph"] is False
     assert frontend["ft"] is False and frontend["minio"] is False and frontend["ollama"] is False
 
@@ -604,7 +605,7 @@ def test_build_want_cuts_the_backend_and_engines_out_of_frontend_mode():
     """子命令说不要的服务，`.env` 里写了开关也不准偷偷起来。"""
     want = sa.build_want({"KG_ENABLED": "true", "RAG_ENABLED": "true"}, _SinkStub(), sa.MODE_FRONTEND)
     assert want["api"] is False
-    assert want["kg"] is False and want["rag"] is False and want["neo4j"] is False
+    assert want["kg"] is False and want["deepgraph"] is False and want["neo4j"] is False
     assert want["ft"] is False and want["minio"] is False and want["ollama"] is False
     assert want["web"] is True
 

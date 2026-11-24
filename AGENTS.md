@@ -13,7 +13,7 @@
 | **项目** | 校级大学生创新训练项目：**基于知识图谱 + LLM 的 AI 助教系统**，以《计算机网络》为样例课程 |
 | **交付** | 系统一套 + 研究报告一份 + 数据集 + 技术文档 + 测试报告 + 软著 + 论文 |
 | **时间** | 2026.4–2027.4（**结题 2027.4**，答辩 2026.4，答辩人李昂） |
-| **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 四服务**（8001 KG / 8002 RAG / 8501 DeepGraph 文档图谱 / 8003 LoRA） |
+| **形态** | Spring Boot 3.5（Java 21）+ Vue 3.5 + **Python 三进程**（8001 KG / 8501 DeepGraph + 知识库 RAG(原 8002) / 8003 LoRA） |
 | **规模（实测）** | **622 main Java / 293 test Java；71 Controller / 519 方法级 HTTP 映射；61 张表；95 `.vue` / 106 `.test.ts` / 14 Playwright spec（13 功能 + 1 视觉）** |
 | **当前阶段** | 阶段 1–3 已交付；阶段 4 已执行 P0-A1/A2/A3/B/C 等多批收口，V-SCAN（上传病毒扫描）已本地提交；当前主线为结题材料（K-01–K-04）与前端 P1 尾量；本地 `main` 已对齐 `origin/main`（`812531f7`，PR #127 已合并），当前无 open PR |
 | **最高约束** | **短期大创结题 > 一切**；泛化平台 / 多课程 / 软著扩展**必须结题后** |
@@ -87,7 +87,7 @@ python scripts/audit-stats.py
 | **5173** | 前端 Vite | **必须用 `localhost`**，`127.0.0.1` 连不上（只绑 `[::1]`） |
 | 5174 / 5175 | e2e / 视觉 | **5176+ 会被 CORS 白名单拒登录** |
 | **8001** | Python KG 服务 | |
-| **8002** | Python RAG 服务 | **本项目核心中的核心** |
+| **8501** | DeepGraph 文档图谱 + 知识库 RAG（原 8002，2026-11-24 批次 3B-2 并入） | **本项目核心中的核心** |
 | 8003 | LoRA 微调 | `start-all.py` 在 `FT_ENABLED=true` 时自动编排；compose `ft` profile 另备 |
 | **8501** | DeepGraph 文档图谱 RAG（已验收 DeepSeek-RAG-Chatbot 契约适配接入，复制内容不改） | `DG_RAG_ENABLED=false` 可整体关闭；依赖本机 Ollama（嵌入）与 Neo4j（图谱），缺失自动降级 |
 | 9000 / 9001 | 本机 MinIO | `start-all.py` 在 `MINIO_ENABLED=true` 时启动原生进程；非 Docker |
@@ -178,9 +178,9 @@ python scripts/audit-stats.py
 ### 5.3 双引擎的真实含义（**M-13，别搞错**）
 
 - **Java 侧没有任何 RAG 引擎实现**：`integration/rag` 只有 `HttpRagProvider` / `DisabledRagProvider` / `RagContract`，全仓无 BM25 实现类。
-- 因此"双引擎" = **Python RAG（8002）** ↔ **纯 LLM（无检索）**，不是"Java 也有一套检索"。
+- 因此"双引擎" = **Python 知识库 RAG（8501，原 8002）** ↔ **纯 LLM（无检索）**，不是"Java 也有一套检索"。
 - 切换键：
-  - `RAG_PROVIDER=python`（默认）→ 调 Python 8002，不可达自动降级为纯 LLM
+  - `RAG_PROVIDER=python`（默认）→ 调 Python 8501 的 `/api/v1/rag/*`，不可达自动降级为纯 LLM
   - `RAG_PROVIDER=java` → 不调 Python，直接纯 LLM（**唯一回退手段，无需改代码**）
   - `RAG_ENABLED` 仅在 `rag.provider` 未配置时生效（老配置兼容）
 
@@ -220,7 +220,7 @@ python scripts/audit-stats.py
 | 重排模型报 `Unrecognized processing class` | 未设 `HF_ENDPOINT`，AutoProcessor 去官方站取 model info 超时 | 设 `HF_ENDPOINT=https://hf-mirror.com`（引擎已 `setdefault`） |
 | 问答只出 `EXTRACTIVE`、HyDE 恒 `QUERY` | **DeepSeek 账户欠费（402 Payment Required）** | 看日志里的 `402`；这不是代码问题 |
 | `/retrieve` 返回里没有 `retrieval` / `rerank_score` | Pydantic 响应模型未声明字段，引擎写好也被静默裁掉 | 检查 `rag_service.py:RagSource`（2026-11-15 B5 已修并加契约断言） |
-| HyDE 一直不生效（`hyde.llm_ready=false`） | `provider=ollama` 时需显式放行 `RAG_HYDE_ALLOW_OLLAMA=true`（默认 false 是性能权衡：本地 8B 单次 5–15s） | 本地演示要 HyDE 时在 `.env` 打开并重启 8002 |
+| HyDE 一直不生效（`hyde.llm_ready=false`） | `provider=ollama` 时需显式放行 `RAG_HYDE_ALLOW_OLLAMA=true`（默认 false 是性能权衡：本地 8B 单次 5–15s） | 本地演示要 HyDE 时在 `.env` 打开并重启 8501（知识库随该进程） |
 | Ollama 抽取“0 条候选”或术语名全是“术语/名称/概念” | ① deepseek-r1 思考过程吃光 `num_predict`（给 800 时最终 JSON 永远出不来）；② 模型复读 prompt 里的格式示例 | 必须 `format:"json"` + `num_predict≥2500`；`think:false` 在 Ollama **0.40.14 不生效**（`ipa.py` 文档串记录） |
 | IREM 五类几乎全判 SIBLING，理由写“同一章节相邻” | 候选对的 evidence 只有位置信息，模型把“相邻”直接当“并列”，甚至自述“证据不足但必须五类选一” | 已修 `_CLASS_PROMPT`：明确“相邻不是语义证据、不足时必须判 OTHER”；8B 判关系能力仍弱 → **必须人工抽检，不得当作已具备 IREM 能力** |
 | `curl` 取 ClamAV 病毒库恒 403 | `database.clamav.net` 对普通 curl UA/协议拒绝 | 用 `freshclam` 取库（自带 UA/协议，本机实测成功）；库为 `main.cvd`/`daily.cvd`/`bytecode.cvd` |

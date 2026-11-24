@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,7 +164,7 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
         }
         if (studentId == null || wrongQuestion.getStudentId() == null
                 || !wrongQuestion.getStudentId().equals(studentId)) {
-            throw new BusinessException(403, "无权操作该错题记录");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该错题记录");
         }
         return wrongQuestion;
     }

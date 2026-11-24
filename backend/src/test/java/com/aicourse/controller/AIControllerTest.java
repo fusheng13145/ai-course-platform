@@ -46,8 +46,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * （学生可用 AI 助教与自助学习路径）；其余 POST/PUT/DELETE /ai/** 需 TEACHER/ADMIN；GET /ai/** 任意已认证角色。
  */
 @WebMvcTest({AIController.class, AIInsightController.class, AILearningPathController.class})
-@Import(com.aicourse.security.AIAccessSupport.class)
+@Import({com.aicourse.security.AIAccessSupport.class,
+        com.aicourse.application.enrollment.CourseEnrollmentApplicationService.class})
 class AIControllerTest extends ControllerTestBase {
+
+    @MockitoBean
+    private com.aicourse.service.UserService userService;
+
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
+
+    @MockitoBean
+    private com.aicourse.security.TeachingClassAccessControl teachingClassAccessControl;
 
     @MockitoBean
     private com.aicourse.service.AIService aiService;

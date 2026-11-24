@@ -182,6 +182,7 @@ public class OllamaProvider implements LLMProvider {
                     try {
                         Thread.sleep(500L * attempt);
                     } catch (InterruptedException ie) {
+                        log.debug("[ollama] 重试等待被中断，放弃剩余重试: {}", ie.getMessage());
                         Thread.currentThread().interrupt();
                         last = ie;
                         break;

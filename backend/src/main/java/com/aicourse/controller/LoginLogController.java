@@ -11,6 +11,7 @@ import com.aicourse.service.LoginLogService;
 import com.aicourse.vo.AbnormalLoginVO;
 import com.aicourse.vo.DailyLoginTrendVO;
 import com.aicourse.vo.LoginGlobalStatsVO;
+import com.aicourse.vo.LoginLogVO;
 import com.aicourse.vo.LoginStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -51,14 +52,22 @@ public class LoginLogController {
      */
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
-    public ApiResponse<PagedResponse<LoginLog>> getUserLoginHistory(
+    public ApiResponse<PagedResponse<LoginLogVO>> getUserLoginHistory(
             @PathVariable Long userId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         // 8A（WP9）：登录历史是审计面——本人仍可查自己；管理员侧仅校级（院系 403）
-        assertSelfOrSchoolAdmin(userId);
+        adminScopeGuard.assertSelfOrSchoolOnly(userId);
         Page<LoginLog> result = loginLogService.getUserLoginHistory(userId, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(toPagedVO(result));
+    }
+
+    /**
+     * 分页结果转出参模型（阶段 3 · Q-05：不再直返实体）。
+     */
+    private static PagedResponse<LoginLogVO> toPagedVO(Page<LoginLog> result) {
+        return PagedResponse.of(result.getRecords().stream().map(LoginLogVO::from).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     /**
@@ -69,7 +78,7 @@ public class LoginLogController {
     @GetMapping("/user/{userId}/stats")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<LoginStatsVO> getLoginStats(@PathVariable Long userId) {
-        assertSelfOrSchoolAdmin(userId);
+        adminScopeGuard.assertSelfOrSchoolOnly(userId);
         LoginStatsVO stats = loginLogService.getLoginStats(userId);
         return ApiResponse.success(stats);
     }
@@ -81,10 +90,10 @@ public class LoginLogController {
      */
     @GetMapping("/suspicious/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
-    public ApiResponse<List<LoginLog>> getSuspiciousLogins(@PathVariable Long userId) {
-        assertSelfOrSchoolAdmin(userId);
+    public ApiResponse<List<LoginLogVO>> getSuspiciousLogins(@PathVariable Long userId) {
+        adminScopeGuard.assertSelfOrSchoolOnly(userId);
         List<LoginLog> suspiciousLogs = loginLogService.detectSuspiciousLogins(userId);
-        return ApiResponse.success(suspiciousLogs);
+        return ApiResponse.success(suspiciousLogs.stream().map(LoginLogVO::from).toList());
     }
 
     /**
@@ -97,7 +106,7 @@ public class LoginLogController {
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<PagedResponse<LoginLog>> getList(
+    public ApiResponse<PagedResponse<LoginLogVO>> getList(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status,
@@ -105,7 +114,7 @@ public class LoginLogController {
         // 8A（WP9）：审计列表对院系管理员 403，校级原口径（院系分支随之移除）
         adminScopeGuard.assertSchoolOnly();
         Page<LoginLog> result = loginLogService.getLoginLogList(page, size, status, userId);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(toPagedVO(result));
     }
 
     /**
@@ -131,10 +140,11 @@ public class LoginLogController {
      */
     @GetMapping("/recent")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<List<LoginLog>> getRecentLogs(
+    public ApiResponse<List<LoginLogVO>> getRecentLogs(
             @RequestParam(defaultValue = "10") int limit) {
         adminScopeGuard.assertSchoolOnly();
-        return ApiResponse.success(loginLogService.getRecentLogs(limit));
+        return ApiResponse.success(loginLogService.getRecentLogs(limit)
+                .stream().map(LoginLogVO::from).toList());
     }
 
     /**
@@ -146,13 +156,13 @@ public class LoginLogController {
      */
     @GetMapping("/failures")
     @PreAuthorize("hasAnyRole('ADMIN') or hasRole('TEACHER')")
-    public ApiResponse<PagedResponse<LoginLog>> getFailureLogs(
+    public ApiResponse<PagedResponse<LoginLogVO>> getFailureLogs(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long userId) {
         adminScopeGuard.assertSchoolOnly();
         Page<LoginLog> result = loginLogService.getFailureLogs(page, size, userId);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(toPagedVO(result));
     }
 
     /**
@@ -163,7 +173,7 @@ public class LoginLogController {
     @GetMapping("/abnormal/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<AbnormalLoginVO> getAbnormalLogin(@PathVariable Long userId) {
-        assertSelfOrSchoolAdmin(userId);
+        adminScopeGuard.assertSelfOrSchoolOnly(userId);
         AbnormalLoginVO result = loginLogService.detectAbnormalLogin(userId);
         return ApiResponse.success(result);
     }
@@ -195,16 +205,4 @@ public class LoginLogController {
         return ApiResponse.success(loginLogService.getLoginTrends(start, end));
     }
 
-    /**
-     * 审计自助口径（8A/WP9）：本人可查自己的登录面；管理员侧仅校级（院系 403）。
-     * <p>取代原先 {@code assertUserAccessById} 的「院系管理员可查本院他人」语义——
-     * 那会让院系管理员读到本院全部用户的登录轨迹，与 8A「先 403」冲突。</p>
-     */
-    private void assertSelfOrSchoolAdmin(Long userId) {
-        Long currentUserId = adminScopeGuard.currentUserId();
-        if (userId.equals(currentUserId)) {
-            return;
-        }
-        adminScopeGuard.assertSchoolOnly();
     }
-}

@@ -269,7 +269,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public List<User> getTeacherStudents(Long teacherId) {
         if (teacherId == null) {
-            throw new BusinessException(400, "教师ID不能为空");
+            throw new BusinessException(ApiCode.BAD_REQUEST, "教师ID不能为空");
         }
 
         // 1) 该教师所授全部课程

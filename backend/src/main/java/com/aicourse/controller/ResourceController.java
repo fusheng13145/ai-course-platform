@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.vo.ResourceVOs;
 import com.aicourse.entity.Resource;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.ResourceAccessSupport;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.InputStream;
 import java.util.List;
+import com.aicourse.common.PagedResponse;
 
 /**
  * 课程资源查询控制器
@@ -57,7 +59,7 @@ public class ResourceController {
      * 根据课程ID查询关联资源列表
      */
     @GetMapping("/course/{courseId}")
-    public ResponseEntity<ApiResponse<List<Resource>>> listByCourse(@PathVariable Long courseId, Authentication auth) {
+    public ResponseEntity<ApiResponse<List<ResourceVOs.ResourceVO>>> listByCourse(@PathVariable Long courseId, Authentication auth) {
         if (!resourceAccessSupport.canAccessCourse(courseId, auth)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
@@ -66,14 +68,14 @@ public class ResourceController {
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Resource>()
                         .eq(Resource::getCourseId, courseId)
         );
-        return ResponseEntity.ok(ApiResponse.success(resourceList));
+        return ResponseEntity.ok(ApiResponse.success(ResourceVOs.ResourceVO.from(resourceList)));
     }
 
     /**
      * 根据资源ID查询详情
      */
     @GetMapping("/{id}")
-    public ApiResponse<Resource> getResourceById(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<ResourceVOs.ResourceVO> getResourceById(@PathVariable Long id, Authentication auth) {
         Resource resource = resourceService.getById(id);
         if (resource == null) {
             return ApiResponse.error(ApiCode.NOT_FOUND, "资源不存在");
@@ -81,7 +83,7 @@ public class ResourceController {
         if (!resourceAccessSupport.canAccessResource(resource, auth)) {
             return ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该资源");
         }
-        return ApiResponse.success(resource);
+        return ApiResponse.success(ResourceVOs.ResourceVO.from(resource));
     }
 
     /**
@@ -109,7 +111,7 @@ public class ResourceController {
      * @return 分页搜索结果
      */
     @GetMapping("/search")
-    public ResponseEntity<ApiResponse<Page<Resource>>> searchResources(
+    public ResponseEntity<ApiResponse<PagedResponse<ResourceVOs.ResourceVO>>> searchResources(
             @RequestParam String keyword,
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "1") int page,
@@ -125,14 +127,14 @@ public class ResourceController {
             List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
             Page<Resource> result = resourceService.searchResourcesInCourses(
                     keyword, readableCourseIds, page, size);
-            return ResponseEntity.ok(ApiResponse.success(result));
+            return ResponseEntity.ok(ApiResponse.success(toPagedResourceVO(result)));
         }
         if (!resourceAccessSupport.canAccessCourse(courseId, auth)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
         }
         Page<Resource> result = resourceService.searchResources(keyword, courseId, page, size);
-        return ResponseEntity.ok(ApiResponse.success(result));
+        return ResponseEntity.ok(ApiResponse.success(toPagedResourceVO(result)));
     }
 
     /**
@@ -157,14 +159,14 @@ public class ResourceController {
      * @return 章节下的资源列表
      */
     @GetMapping("/chapter/{chapterId}")
-    public ResponseEntity<ApiResponse<List<Resource>>> getResourcesByChapter(
+    public ResponseEntity<ApiResponse<List<ResourceVOs.ResourceVO>>> getResourcesByChapter(
             @RequestParam Long courseId, @PathVariable Long chapterId, Authentication auth) {
         if (!resourceAccessSupport.canAccessCourse(courseId, auth)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
         }
         List<Resource> resources = resourceService.getResourcesByChapter(courseId, chapterId);
-        return ResponseEntity.ok(ApiResponse.success(resources));
+        return ResponseEntity.ok(ApiResponse.success(ResourceVOs.ResourceVO.from(resources)));
     }
 
     /**
@@ -211,4 +213,11 @@ public class ResourceController {
         }
         return value.replaceAll("[\\r\\n\"]", "_");
     }
+
+    /** 资源分页转出参模型（阶段 3 · Q-05 收口）。 */
+    private static PagedResponse<ResourceVOs.ResourceVO> toPagedResourceVO(Page<Resource> page) {
+        return PagedResponse.of(page.getRecords().stream().map(ResourceVOs.ResourceVO::from).toList(),
+                page.getTotal(), page.getCurrent(), page.getSize());
+    }
 }
+

@@ -18,7 +18,6 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -49,6 +48,7 @@ public class ActivityVisibilityGuard {
     private final ExamTeachingClassMapper examTeachingClassMapper;
     private final AdminScopeGuard adminScopeGuard;
     private final CourseAccessControl courseAccessControl;
+    private final TeachingClassAccessControl teachingClassAccessControl;
 
     public ActivityVisibilityGuard(CourseService courseService,
                                    CourseEnrollmentService enrollmentService,
@@ -56,7 +56,8 @@ public class ActivityVisibilityGuard {
                                    TaskTeachingClassMapper taskTeachingClassMapper,
                                    ExamTeachingClassMapper examTeachingClassMapper,
                                    AdminScopeGuard adminScopeGuard,
-                                   CourseAccessControl courseAccessControl) {
+                                   CourseAccessControl courseAccessControl,
+                                   TeachingClassAccessControl teachingClassAccessControl) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
         this.teachingClassMapper = teachingClassMapper;
@@ -64,6 +65,7 @@ public class ActivityVisibilityGuard {
         this.examTeachingClassMapper = examTeachingClassMapper;
         this.adminScopeGuard = adminScopeGuard;
         this.courseAccessControl = courseAccessControl;
+        this.teachingClassAccessControl = teachingClassAccessControl;
     }
 
     /**
@@ -85,7 +87,7 @@ public class ActivityVisibilityGuard {
             throw new BusinessException(ApiCode.NOT_FOUND, "任务不存在");
         }
         if (isAdmin(auth)) {
-            adminScopeGuard.assertCourseAccess(requireCourse(task.getCourseId()));
+            adminScopeGuard.assertCourseAccess(teachingClassAccessControl.requireCourse(task.getCourseId()));
             return;
         }
         Long userId = principalId(auth);
@@ -105,7 +107,7 @@ public class ActivityVisibilityGuard {
             }
             return;
         }
-        Course course = requireCourse(task.getCourseId());
+        Course course = teachingClassAccessControl.requireCourse(task.getCourseId());
         if (Objects.equals(userId, course.getTeacherId())) {
             return;
         }
@@ -128,7 +130,7 @@ public class ActivityVisibilityGuard {
             throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
         }
         if (isAdmin(auth)) {
-            adminScopeGuard.assertCourseAccess(requireCourse(paper.getCourseId()));
+            adminScopeGuard.assertCourseAccess(teachingClassAccessControl.requireCourse(paper.getCourseId()));
             return;
         }
         Long userId = principalId(auth);
@@ -143,7 +145,7 @@ public class ActivityVisibilityGuard {
             }
             return;
         }
-        Course course = requireCourse(paper.getCourseId());
+        Course course = teachingClassAccessControl.requireCourse(paper.getCourseId());
         if (Objects.equals(userId, course.getTeacherId())) {
             return;
         }
@@ -170,7 +172,7 @@ public class ActivityVisibilityGuard {
         }
         Long userId = principalId(auth);
         if (teachingClassId != null) {
-            TeachingClass teachingClass = requireClass(teachingClassId);
+            TeachingClass teachingClass = teachingClassAccessControl.requireTeachingClass(teachingClassId);
             assertClassViewer(userId, isStudent(auth), teachingClass);
             wrapper.eq(Task::getCourseId, teachingClass.getCourseId());
             addTaskClassVisibility(wrapper, List.of(teachingClass.getId()));
@@ -214,7 +216,7 @@ public class ActivityVisibilityGuard {
         }
         Long userId = principalId(auth);
         if (teachingClassId != null) {
-            TeachingClass teachingClass = requireClass(teachingClassId);
+            TeachingClass teachingClass = teachingClassAccessControl.requireTeachingClass(teachingClassId);
             assertClassViewer(userId, isStudent(auth), teachingClass);
             wrapper.eq(ExamPaper::getCourseId, teachingClass.getCourseId());
             addExamClassVisibility(wrapper, List.of(teachingClass.getId()));
@@ -254,8 +256,8 @@ public class ActivityVisibilityGuard {
     private void applyAdminTaskScope(LambdaQueryWrapper<Task> wrapper, Authentication auth,
                                      Long teachingClassId) {
         if (teachingClassId != null) {
-            TeachingClass teachingClass = requireClass(teachingClassId);
-            adminScopeGuard.assertCourseAccess(requireCourse(teachingClass.getCourseId()));
+            TeachingClass teachingClass = teachingClassAccessControl.requireTeachingClass(teachingClassId);
+            adminScopeGuard.assertCourseAccess(teachingClassAccessControl.requireCourse(teachingClass.getCourseId()));
             wrapper.eq(Task::getCourseId, teachingClass.getCourseId());
             addTaskClassVisibility(wrapper, List.of(teachingClass.getId()));
             return;
@@ -266,8 +268,8 @@ public class ActivityVisibilityGuard {
     private void applyAdminExamPaperScope(LambdaQueryWrapper<ExamPaper> wrapper, Authentication auth,
                                           Long teachingClassId) {
         if (teachingClassId != null) {
-            TeachingClass teachingClass = requireClass(teachingClassId);
-            adminScopeGuard.assertCourseAccess(requireCourse(teachingClass.getCourseId()));
+            TeachingClass teachingClass = teachingClassAccessControl.requireTeachingClass(teachingClassId);
+            adminScopeGuard.assertCourseAccess(teachingClassAccessControl.requireCourse(teachingClass.getCourseId()));
             wrapper.eq(ExamPaper::getCourseId, teachingClass.getCourseId());
             addExamClassVisibility(wrapper, List.of(teachingClass.getId()));
             return;
@@ -365,7 +367,7 @@ public class ActivityVisibilityGuard {
             }
             return;
         }
-        Course course = requireCourse(teachingClass.getCourseId());
+        Course course = teachingClassAccessControl.requireCourse(teachingClass.getCourseId());
         if (Objects.equals(userId, course.getTeacherId())
                 || Objects.equals(userId, teachingClass.getLeadTeacherId())) {
             return;
@@ -480,44 +482,23 @@ public class ActivityVisibilityGuard {
                 .toList();
     }
 
-    private TeachingClass requireClass(Long teachingClassId) {
-        TeachingClass teachingClass = teachingClassId == null ? null : teachingClassMapper.selectById(teachingClassId);
-        if (teachingClass == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "教学班不存在：" + teachingClassId);
-        }
-        return teachingClass;
-    }
-
-    private Course requireCourse(Long courseId) {
-        Course course = courseId == null ? null : courseService.getById(courseId);
-        if (course == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在：" + courseId);
-        }
-        return course;
-    }
-
     private static boolean isClassesScope(String visibility) {
         return ActivityVisibility.CLASSES.equals(visibility);
     }
 
     private boolean isAdmin(Authentication auth) {
-        return hasRole(auth, RoleConstants.ADMIN);
+        return AccessSupport.isAdmin(auth);
     }
 
     private boolean isStudent(Authentication auth) {
-        return hasRole(auth, RoleConstants.STUDENT);
+        return AccessSupport.hasRole(auth, RoleConstants.STUDENT);
     }
 
     private boolean hasRole(Authentication auth, String role) {
-        if (auth == null || auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + role)::equals);
+        return AccessSupport.hasRole(auth, role);
     }
 
     private Long principalId(Authentication auth) {
-        return (Long) auth.getPrincipal();
+        return AccessSupport.requirePrincipalId(auth);
     }
 }

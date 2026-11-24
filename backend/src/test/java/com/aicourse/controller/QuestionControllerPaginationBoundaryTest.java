@@ -29,8 +29,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link CourseControllerPaginationBoundaryTest} 类注释。</p>
  */
 @WebMvcTest({QuestionController.class, QuestionCommandController.class, QuestionAiController.class})
-@Import(com.aicourse.security.QuestionAccessSupport.class)
+// 3E-03C：引入真实用例层，让既有 service/ACL 打桩与 wrapper 断言继续作用于真实编排
+@Import({com.aicourse.security.QuestionAccessSupport.class,
+        com.aicourse.application.question.QuestionBankApplicationService.class,
+        com.aicourse.application.knowledge.KnowledgePointApplicationService.class})
 class QuestionControllerPaginationBoundaryTest extends ControllerTestBase {
+
+    @MockitoBean
+    private com.aicourse.service.KnowledgePointRelationService knowledgePointRelationService;
+
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService courseEnrollmentService;
+
+    @MockitoBean
+    private com.aicourse.security.KnowledgeAccessSupport knowledgeAccessSupport;
 
     @MockitoBean
     private QuestionService questionService;

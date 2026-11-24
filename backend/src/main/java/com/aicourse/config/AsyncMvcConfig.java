@@ -64,6 +64,34 @@ public class AsyncMvcConfig implements WebMvcConfigurer {
     }
 
     /**
+     * AI 批改专用线程池（DEF-06）。
+     *
+     * <p>与 {@link #mvcAsyncExecutor()} 分开的理由：作业提交后的 AI 预批改是「后台任务」，
+     * 一次批改要多次调用大模型 + 落库，单次可跑数十秒。若与 AI 接口共用 {@code mvc-async-*} 池，
+     * 下课时段集中交作业会把批改任务堆在同一个队列里，挤占正在答题的学生发起 AI 问答所需的线程，
+     * 表现为「批改跑得慢、问答也开始超时」。
+     *
+     * <p>策略：{@code CallerRunsPolicy}——批改宁可慢，也不能丢。丢弃会让教师批阅页没有 AI 建议，
+     * 且学生已提交、无重试入口，属于不可恢复的降级；队列满时回到提交线程执行，
+     * 代价是那一次提交响应变慢，但数据完整。
+     */
+    @Bean(name = "aiGradingExecutor")
+    public ThreadPoolTaskExecutor aiGradingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("ai-grade-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        log.info("[AsyncMvcConfig] AI 批改线程池初始化完成（core={}, max={}, queue={}）",
+                executor.getCorePoolSize(), executor.getMaxPoolSize(), executor.getQueueCapacity());
+        return executor;
+    }
+
+    /**
      * 绑定异步执行线程池与整体超时（默认 120s），超时则客户端收到 503。
      */
     @Override

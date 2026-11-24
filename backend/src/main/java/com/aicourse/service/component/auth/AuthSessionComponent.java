@@ -1,5 +1,6 @@
 package com.aicourse.service.component.auth;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.LoginLog;
@@ -134,7 +135,7 @@ public class AuthSessionComponent {
             boolean throttled = recordLoginFailure(clientInfo, account);
             saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, clientInfo, "密码错误");
             if (throttled) {
-                throw new BusinessException(429, "登录尝试过于频繁，请" + LOCK_MINUTES + "分钟后再试");
+                throw new BusinessException(ApiCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请" + LOCK_MINUTES + "分钟后再试");
             }
             throw new BusinessException("用户名或密码错误");
         }
@@ -412,7 +413,7 @@ public class AuthSessionComponent {
         try {
             String value = redisTemplate.opsForValue().get(loginFailKey(clientInfo, account));
             if (value != null && Long.parseLong(value) >= MAX_FAILED_ATTEMPTS) {
-                throw new BusinessException(429, "登录尝试过于频繁，请" + LOCK_MINUTES + "分钟后再试");
+                throw new BusinessException(ApiCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请" + LOCK_MINUTES + "分钟后再试");
             }
         } catch (BusinessException e) {
             throw e;

@@ -449,13 +449,14 @@ knowledge-graph:
 # 本端不内置引擎实现，仅保留 RAGService 标准化接口 + HTTP 代理；默认调用 Python 端 /api/v1/rag/*
 # 契约（权威单一事实来源见 docs/系统架构设计.md 的集成契约章节），不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
 rag:
-  # 引擎选择：python（默认，Python 8002 优先）| java（不调 Python，问答走纯 LLM 兜底）
+  # 引擎选择：python（默认，Python 知识库优先）| java（不调 Python，问答走纯 LLM 兜底）
   # 临时回退无需改代码：RAG_PROVIDER=java；或 provider 置空 + RAG_ENABLED=false
   provider: ${RAG_PROVIDER:python}
   # 兼容开关：仅当 provider 未显式配置时生效（默认 true）
   enabled: ${RAG_ENABLED:true}
-  # Python RAG服务地址（独立端口，与知识图谱服务隔离）
-  base-url: ${RAG_BASE_URL:http://localhost:8002}
+  # 知识库服务地址。8002 已于批次 3B-2 退役，/api/v1/rag/* 端点现由 8501（deepgraph 进程）承载，
+  # 因此默认与 deepgraph-rag.base-url 同址；回滚期可用 RAG_BASE_URL=http://localhost:8002（legacy-rag profile）
+  base-url: ${RAG_BASE_URL:http://localhost:8501}
   # HTTP 连接超时（秒）
   connect-timeout: ${RAG_CONNECT_TIMEOUT:5}
   # HTTP 读取超时（秒）

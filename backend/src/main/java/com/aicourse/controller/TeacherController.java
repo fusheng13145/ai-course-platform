@@ -2,6 +2,10 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.vo.CourseChapterVO;
+import com.aicourse.vo.CourseVOs;
+import com.aicourse.dto.CourseChapterSaveDTO;
+import com.aicourse.dto.CourseSaveDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.exception.BusinessException;
@@ -41,17 +45,20 @@ public class TeacherController {
     private final CourseChapterService chapterService;
     private final TeacherCourseService teachingService;
     private final TeacherAccessGuard teacherAccessGuard;
+    private final com.aicourse.application.course.CourseApplicationService courseApplicationService;
 
     public TeacherController(CourseService courseService,
                              CourseApprovalService courseApprovalService,
                              CourseChapterService chapterService,
                              TeacherCourseService teachingService,
-                             TeacherAccessGuard teacherAccessGuard) {
+                             TeacherAccessGuard teacherAccessGuard,
+                             com.aicourse.application.course.CourseApplicationService courseApplicationService) {
         this.courseService = courseService;
         this.courseApprovalService = courseApprovalService;
         this.chapterService = chapterService;
         this.teachingService = teachingService;
         this.teacherAccessGuard = teacherAccessGuard;
+        this.courseApplicationService = courseApplicationService;
     }
 
     // ==================== 课程管理（已加归属校验） ====================
@@ -59,48 +66,54 @@ public class TeacherController {
     /** 创建课程并绑定当前教师 */
     @PostMapping("/courses")
     @Operation(summary = "创建课程")
-    public ApiResponse<Course> createCourse(@Valid @RequestBody Course course, Authentication auth) {
+    public ApiResponse<CourseVOs.CourseVO> createCourse(@Valid @RequestBody CourseSaveDTO dto, Authentication auth) {
+        Course course = dto.toEntity();
         Long teacherId = (Long) auth.getPrincipal();
         courseApprovalService.applyOwnerCollege(course, teacherId);
         Course saved = courseService.createCourse(course, teacherId);
         courseApprovalService.recordSubmission(saved.getId(), teacherId);
-        return ApiResponse.success("创建成功", saved);
+        return ApiResponse.success("创建成功", CourseVOs.CourseVO.from(saved));
+    }
+
+    /** 课程分页转出参模型（阶段 3 · Q-05）。 */
+    private static PagedResponse<CourseVOs.CourseVO> toPagedCourseVO(Page<Course> page) {
+        return PagedResponse.of(page.getRecords().stream().map(CourseVOs.CourseVO::from).toList(),
+                page.getTotal(), page.getCurrent(), page.getSize());
     }
 
     /** 分页获取当前教师拥有的课程列表 */
     @GetMapping("/courses")
     @Operation(summary = "获取我的课程列表")
-    public ApiResponse<PagedResponse<Course>> getCourses(
+    public ApiResponse<PagedResponse<CourseVOs.CourseVO>> getCourses(
             Authentication auth,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
         Long userId = (Long) auth.getPrincipal();
-        Page<Course> coursePage = courseService.page(Page.of(page, size),
-                new LambdaQueryWrapper<Course>().eq(Course::getTeacherId, userId));
-        return ApiResponse.success(PagedResponse.of(coursePage));
+        return ApiResponse.success(courseApplicationService.teacherCourses(page, size, userId));
     }
 
     /** 获取课程详情（需课程归属校验） */
     @GetMapping("/courses/{courseId}")
     @Operation(summary = "获取课程详情")
-    public ApiResponse<Course> getCourseDetail(@PathVariable Long courseId, Authentication auth) {
+    public ApiResponse<CourseVOs.CourseVO> getCourseDetail(@PathVariable Long courseId, Authentication auth) {
         teacherAccessGuard.assertCourseOwner(courseId, auth);
         Course course = courseService.getById(courseId);
         if (course == null) {
             throw new BusinessException("课程不存在");
         }
-        return ApiResponse.success(course);
+        return ApiResponse.success(CourseVOs.CourseVO.from(course));
     }
 
     /** 更新课程信息（需课程归属校验） */
     @PutMapping("/courses/{courseId}")
     @Operation(summary = "更新课程")
-    public ApiResponse<Course> updateCourse(@PathVariable Long courseId,
-                                            @Valid @RequestBody Course course,
+    public ApiResponse<CourseVOs.CourseVO> updateCourse(@PathVariable Long courseId,
+                                            @Valid @RequestBody CourseSaveDTO dto,
                                             Authentication auth) {
         teacherAccessGuard.assertCourseOwner(courseId, auth);
-        Course updated = courseService.updateCourseById(courseId, course);
-        return ApiResponse.success("更新成功", updated);
+        // 入参收 DTO：审批/归档字段与学期名快照不接受客户端传入（课程库稳定信息仍走课程库端点）
+        Course updated = courseService.updateCourseById(courseId, dto.toEntity());
+        return ApiResponse.success("更新成功", CourseVOs.CourseVO.from(updated));
     }
 
     /** 删除课程（需课程归属校验） */
@@ -115,28 +128,31 @@ public class TeacherController {
     /** 为指定课程新增章节（需课程归属校验） */
     @PostMapping("/courses/{courseId}/chapters")
     @Operation(summary = "添加课程章节")
-    public ApiResponse<CourseChapter> addChapter(@PathVariable Long courseId,
-                                                  @Valid @RequestBody CourseChapter chapter,
+    public ApiResponse<CourseChapterVO> addChapter(@PathVariable Long courseId,
+                                                  @Valid @RequestBody CourseChapterSaveDTO dto,
                                                   Authentication auth) {
         teacherAccessGuard.assertCourseOwner(courseId, auth);
+        // 入参收 DTO：id/时间戳不接受客户端传入，归属课程以路径参数为准
+        CourseChapter chapter = dto.toEntity();
         chapter.setCourseId(courseId);
         chapterService.save(chapter);
-        return ApiResponse.success("章节添加成功", chapter);
+        return ApiResponse.success("章节添加成功", CourseChapterVO.from(chapter));
     }
 
     /** 更新课程章节（需课程归属校验） */
     @PutMapping("/courses/{courseId}/chapters/{chapterId}")
     @Operation(summary = "更新课程章节")
-    public ApiResponse<CourseChapter> updateChapter(@PathVariable Long courseId,
+    public ApiResponse<CourseChapterVO> updateChapter(@PathVariable Long courseId,
                                                      @PathVariable Long chapterId,
-                                                     @Valid @RequestBody CourseChapter chapter,
+                                                     @Valid @RequestBody CourseChapterSaveDTO dto,
                                                      Authentication auth) {
         teacherAccessGuard.assertCourseOwner(courseId, auth);
         teacherAccessGuard.assertChapterBelongsToCourse(courseId, chapterId);
+        CourseChapter chapter = dto.toEntity();
         chapter.setId(chapterId);
         chapter.setCourseId(courseId);
         chapterService.updateById(chapter);
-        return ApiResponse.success("章节更新成功", chapterService.getById(chapterId));
+        return ApiResponse.success("章节更新成功", CourseChapterVO.from(chapterService.getById(chapterId)));
     }
 
     /** 删除课程章节（需课程归属校验） */
@@ -233,3 +249,4 @@ public class TeacherController {
         return ApiResponse.success(teachingService.getCourseClasses(courseId));
     }
 }
+

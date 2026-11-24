@@ -1,24 +1,12 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.aicourse.common.ApiCode;
+import com.aicourse.application.course.CourseApplicationService;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.entity.Course;
-import com.aicourse.entity.CourseApprovalRecord;
-import com.aicourse.entity.CourseEnrollment;
-import com.aicourse.entity.CourseDefinition;
-import com.aicourse.exception.BusinessException;
-import com.aicourse.security.AdminScopeGuard;
-import com.aicourse.service.CourseApprovalService;
-import com.aicourse.service.CourseDefinitionService;
-import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.CourseService;
+import com.aicourse.dto.CourseRejectDTO;
+import com.aicourse.dto.CourseSaveDTO;
 import com.aicourse.vo.CourseStatsVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.aicourse.vo.CourseVOs;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,34 +16,25 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 课程管理接口控制器
- * 提供课程的增删改查、审批、选课管理等RESTful API
+ * 提供课程的增删改查、审批、选课管理等 RESTful API。
+ *
+ * <p>3E-04B：5 处 {@code assertCourseOwner} + 1 处 {@code assertCollegeScope}、
+ * 学院范围过滤、4 处 wrapper、3 处分页转 VO，以及「管理员代建必须显式 teacherId」
+ * 「课程库稳定信息由服务层置空」两条口径，全部下移到 {@link CourseApplicationService}。
+ * 本类只剩路由、{@code @PreAuthorize} 与响应封装。</p>
  */
 @RestController
 @RequestMapping("/courses")
 @Tag(name = "课程管理", description = "提供课程的新增、查询、修改、删除、审批、选课统计等功能")
 public class CourseController {
 
-    private static final Logger log = LoggerFactory.getLogger(CourseController.class);
+    private final CourseApplicationService courseApplicationService;
 
-    private final CourseService courseService;
-    private final CourseEnrollmentService enrollmentService;
-    private final CourseApprovalService courseApprovalService;
-    private final CourseDefinitionService definitionService;
-    private final AdminScopeGuard adminScopeGuard;
-
-    public CourseController(CourseService courseService, CourseEnrollmentService enrollmentService,
-                            CourseApprovalService courseApprovalService,
-                            CourseDefinitionService definitionService,
-                            AdminScopeGuard adminScopeGuard) {
-        this.courseService = courseService;
-        this.enrollmentService = enrollmentService;
-        this.courseApprovalService = courseApprovalService;
-        this.definitionService = definitionService;
-        this.adminScopeGuard = adminScopeGuard;
+    public CourseController(CourseApplicationService courseApplicationService) {
+        this.courseApplicationService = courseApplicationService;
     }
 
     /**
@@ -63,7 +42,7 @@ public class CourseController {
      */
     @GetMapping
     @Operation(summary = "分页查询课程列表", description = "支持按关键词搜索和状态筛选的分页查询")
-    public ApiResponse<PagedResponse<Course>> list(
+    public ApiResponse<PagedResponse<CourseVOs.CourseVO>> list(
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
             @Parameter(description = "搜索关键词（匹配课程名称）") @RequestParam(required = false) String keyword,
@@ -72,16 +51,8 @@ public class CourseController {
             @Parameter(description = "学院ID筛选（院系管理员只能查本院）") @RequestParam(required = false) Long collegeId,
             @Parameter(description = "课程库定义ID筛选") @RequestParam(required = false) Long definitionId,
             @Parameter(description = "学期ID筛选") @RequestParam(required = false) Long semesterId) {
-        LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
-                .eq(status != null, Course::getStatus, status)
-                .eq(approvalStatus != null, Course::getApprovalStatus, approvalStatus)
-                .eq(definitionId != null, Course::getDefinitionId, definitionId)
-                .eq(semesterId != null, Course::getSemesterId, semesterId)
-                .like(keyword != null, Course::getName, keyword)
-                .orderByDesc(Course::getCreatedAt);
-        applyCollegeFilter(queryWrapper, collegeId);
-        Page<Course> coursePage = courseService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(coursePage));
+        return ApiResponse.success(courseApplicationService.list(
+                page, size, keyword, status, approvalStatus, collegeId, definitionId, semesterId));
     }
 
     /**
@@ -89,10 +60,8 @@ public class CourseController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取课程详情", description = "根据课程ID返回完整课程信息")
-    public ApiResponse<Course> getById(@Parameter(description = "课程ID") @PathVariable Long id) {
-        Course course = courseService.getById(id);
-        adminScopeGuard.assertCourseAccess(course);
-        return ApiResponse.success(course);
+    public ApiResponse<CourseVOs.CourseVO> getById(@Parameter(description = "课程ID") @PathVariable Long id) {
+        return ApiResponse.success(courseApplicationService.detail(id));
     }
 
     /**
@@ -103,30 +72,10 @@ public class CourseController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "创建开课任务",
             description = "引用课程库定义，指定学期、授课教师与计划教学班数；提交后进入审批")
-    public ApiResponse<Course> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
+    public ApiResponse<CourseVOs.CourseVO> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "开课任务信息；至少包含 definitionId、semesterId、teacherId（管理员）"
-    ) @Valid @RequestBody Course course, Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        boolean admin = auth.getAuthorities().stream()
-                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
-        Long teacherId = admin ? course.getTeacherId() : userId;
-        if (teacherId == null) {
-            throw new BusinessException(ApiCode.BAD_REQUEST, "管理员代建时必须指定授课教师");
-        }
-        if (admin && course.getDefinitionId() != null) {
-            // 院系管理员只能在自己学院的课程库下代建；服务层会再次校验教师学院。
-            var definition = definitionService.getById(course.getDefinitionId());
-            if (definition != null) {
-                adminScopeGuard.assertCollegeAccess(definition.getCollegeId());
-            }
-        }
-        // 旧入口（无 definitionId）仍由服务层生成兼容课程定义。
-        if (!admin) {
-            courseApprovalService.applyOwnerCollege(course, userId);
-        }
-        Course saved = courseService.createCourse(course, teacherId);
-        courseApprovalService.recordSubmission(saved.getId(), userId);
-        return ApiResponse.success("创建成功", saved);
+    ) @Valid @RequestBody CourseSaveDTO dto, Authentication auth) {
+        return ApiResponse.success("创建成功", courseApplicationService.create(dto, auth));
     }
 
     /**
@@ -135,22 +84,12 @@ public class CourseController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('TEACHER')")
     @Operation(summary = "更新课程信息", description = "课程创建者可修改课程信息")
-    public ApiResponse<Course> update(@Parameter(description = "课程ID") @PathVariable Long id,
+    public ApiResponse<CourseVOs.CourseVO> update(@Parameter(description = "课程ID") @PathVariable Long id,
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "待更新的课程数据"
-                                      ) @Valid @RequestBody Course course,
+                                      ) @Valid @RequestBody CourseSaveDTO dto,
                                       Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
-        if (adminScopeGuard.isCollegeAdmin()) {
-            Course existing = courseService.getById(id);
-            if (existing == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-            adminScopeGuard.assertCourseAccess(existing);
-        }
-        // 存在性校验/权限校验/更新落库下沉至服务层（事务化）
-        Course updatedCourse = courseService.updateCourse(id, course, userId, isAdmin);
-        return ApiResponse.success("更新成功", updatedCourse);
+        return ApiResponse.success("更新成功", courseApplicationService.update(id, dto, auth));
     }
 
     /**
@@ -159,13 +98,9 @@ public class CourseController {
     @PostMapping("/{id}/complete")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "结课归档", description = "写入结课时间，关闭课程及其教学班")
-    public ApiResponse<Course> complete(@Parameter(description = "课程ID") @PathVariable Long id,
-                                        Authentication auth) {
-        assertCourseOwner(id, auth);
-        Long operatorId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
-        return ApiResponse.success("已结课", courseService.completeCourse(id, operatorId, isAdmin));
+    public ApiResponse<CourseVOs.CourseVO> complete(@Parameter(description = "课程ID") @PathVariable Long id,
+                                                    Authentication auth) {
+        return ApiResponse.success("已结课", courseApplicationService.complete(id, auth));
     }
 
     /**
@@ -175,8 +110,7 @@ public class CourseController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除课程", description = "教师或管理员可删除课程（软删除），教师仅能删除自己创建的课程")
     public ApiResponse<Void> delete(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
-        assertCourseOwner(id, auth);
-        courseService.deleteCourseById(id);
+        courseApplicationService.delete(id, auth);
         return ApiResponse.success("删除成功", null);
     }
 
@@ -186,12 +120,9 @@ public class CourseController {
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "审批通过课程", description = "管理员审批通过课程申请，将状态设为ACTIVE")
-    public ApiResponse<Course> approve(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
-        assertCollegeScope(id);
-        Long operatorId = (Long) auth.getPrincipal();
-        // 审批通过同时落 approved_by 与 APPROVE 流水（V13）
-        Course course = courseApprovalService.approve(id, operatorId);
-        return ApiResponse.success("审批成功", course);
+    public ApiResponse<CourseVOs.CourseVO> approve(@Parameter(description = "课程ID") @PathVariable Long id,
+                                                   Authentication auth) {
+        return ApiResponse.success("审批成功", courseApplicationService.approve(id, auth));
     }
 
     /**
@@ -200,10 +131,9 @@ public class CourseController {
     @PatchMapping("/{id}/toggle")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "切换课程状态", description = "在ACTIVE和INACTIVE之间切换课程状态，教师仅能操作自己创建的课程")
-    public ApiResponse<Course> toggle(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
-        assertCourseOwner(id, auth);
-        Course course = courseService.toggleCourseStatus(id);
-        return ApiResponse.success("状态切换成功", course);
+    public ApiResponse<CourseVOs.CourseVO> toggle(@Parameter(description = "课程ID") @PathVariable Long id,
+                                                  Authentication auth) {
+        return ApiResponse.success("状态切换成功", courseApplicationService.toggle(id, auth));
     }
 
     /**
@@ -212,16 +142,13 @@ public class CourseController {
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "驳回课程审批", description = "管理员驳回课程申请，可填写驳回原因")
-    public ApiResponse<Course> reject(@Parameter(description = "课程ID") @PathVariable Long id,
+    public ApiResponse<CourseVOs.CourseVO> reject(@Parameter(description = "课程ID") @PathVariable Long id,
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "驳回原因（可选）"
-                                      ) @Valid @RequestBody(required = false) Map<String, String> body, Authentication auth) {
-        assertCollegeScope(id);
-        String reason = body != null ? body.get("reason") : null;
-        Long operatorId = (Long) auth.getPrincipal();
-        // 驳回同时追加 REJECT 流水（V13）
-        Course course = courseApprovalService.reject(id, operatorId, reason);
-        return ApiResponse.success("已拒绝", course);
+                                      ) @Valid @RequestBody(required = false) CourseRejectDTO body,
+                                      Authentication auth) {
+        String reason = body != null ? body.getReason() : null;
+        return ApiResponse.success("已拒绝", courseApplicationService.reject(id, reason, auth));
     }
 
     /**
@@ -230,11 +157,9 @@ public class CourseController {
     @PostMapping("/{id}/resubmit")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "重新提交课程", description = "仅驳回状态可重提，历史审批流水保留")
-    public ApiResponse<Course> resubmit(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
-        assertCourseOwner(id, auth);
-        Long operatorId = (Long) auth.getPrincipal();
-        Course course = courseApprovalService.resubmit(id, operatorId);
-        return ApiResponse.success("已重新提交", course);
+    public ApiResponse<CourseVOs.CourseVO> resubmit(@Parameter(description = "课程ID") @PathVariable Long id,
+                                                    Authentication auth) {
+        return ApiResponse.success("已重新提交", courseApplicationService.resubmit(id, auth));
     }
 
     /**
@@ -243,10 +168,9 @@ public class CourseController {
     @GetMapping("/{id}/approval-records")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取课程审批流水", description = "按时间正序返回提交/通过/驳回/重提记录")
-    public ApiResponse<List<CourseApprovalRecord>> approvalRecords(
+    public ApiResponse<List<CourseVOs.ApprovalRecordVO>> approvalRecords(
             @Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
-        assertCourseOwner(id, auth);
-        return ApiResponse.success(courseApprovalService.listByCourse(id));
+        return ApiResponse.success(courseApplicationService.approvalRecords(id, auth));
     }
 
     /**
@@ -254,17 +178,11 @@ public class CourseController {
      */
     @GetMapping("/enrolled")
     @Operation(summary = "获取我的已报名课程", description = "返回当前登录用户的课程选课记录列表")
-    public ApiResponse<PagedResponse<CourseEnrollment>> enrolledCourses(
+    public ApiResponse<PagedResponse<CourseVOs.EnrollmentVO>> enrolledCourses(
             Authentication auth,
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
-        Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, userId)
-                .eq(CourseEnrollment::getIsActive, true)
-                .eq(CourseEnrollment::getApprovalStatus, "APPROVED");
-        Page<CourseEnrollment> enrollmentPage = enrollmentService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(enrollmentPage));
+        return ApiResponse.success(courseApplicationService.enrolledCourses(auth, page, size));
     }
 
     /**
@@ -273,15 +191,11 @@ public class CourseController {
     @GetMapping("/my")
     @PreAuthorize("hasRole('TEACHER')")
     @Operation(summary = "获取我创建的课程", description = "返回当前教师用户创建的所有课程列表")
-    public ApiResponse<PagedResponse<Course>> myCourses(
+    public ApiResponse<PagedResponse<CourseVOs.CourseVO>> myCourses(
             Authentication auth,
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
-        Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
-                .eq(Course::getTeacherId, userId);
-        Page<Course> coursePage = courseService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(coursePage));
+        return ApiResponse.success(courseApplicationService.myCourses(auth, page, size));
     }
 
     /**
@@ -290,16 +204,12 @@ public class CourseController {
     @GetMapping("/{id}/students")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取课程学生列表", description = "返回指定课程的所有选课学生记录，教师仅能查看自己课程的学生名单")
-    public ApiResponse<PagedResponse<CourseEnrollment>> students(
+    public ApiResponse<PagedResponse<CourseVOs.EnrollmentVO>> students(
             @Parameter(description = "课程ID") @PathVariable Long id,
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
             Authentication auth) {
-        assertCourseOwner(id, auth);
-        LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getCourseId, id);
-        Page<CourseEnrollment> enrollmentPage = enrollmentService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(enrollmentPage));
+        return ApiResponse.success(courseApplicationService.students(id, page, size, auth));
     }
 
     /**
@@ -308,75 +218,8 @@ public class CourseController {
     @GetMapping("/{id}/stats")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取课程统计数据", description = "返回课程的学生数、待审核数、状态等统计信息")
-    public ApiResponse<CourseStatsVO> getStats(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
-        assertCourseOwner(id, auth);
-        Course course = courseService.getById(id);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-
-        // 已通过正式学员数量
-        LambdaQueryWrapper<CourseEnrollment> activeWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getCourseId, id)
-                .eq(CourseEnrollment::getIsActive, true)
-                .eq(CourseEnrollment::getApprovalStatus, "APPROVED");
-        long totalStudents = enrollmentService.count(activeWrapper);
-
-        // 待审核报名数量
-        LambdaQueryWrapper<CourseEnrollment> pendingWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getCourseId, id)
-                .eq(CourseEnrollment::getApprovalStatus, "PENDING");
-        long pendingStudents = enrollmentService.count(pendingWrapper);
-
-        return ApiResponse.success(new CourseStatsVO(
-                totalStudents, pendingStudents, id,
-                course.getName(), course.getStatus(), course.getApprovalStatus()
-        ));
-    }
-
-    /**
-     * 课程归属校验：管理员放行；教师仅能操作自己创建的课程
-     */
-    private void assertCourseOwner(Long courseId, Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) {
-            assertCollegeScope(courseId);
-            return;
-        }
-        Course course = courseService.getById(courseId);
-        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-        if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程");
-    }
-
-    /**
-     * 院系管理员按授课教师学院限制课程访问；校级管理员不做额外限制。
-     */
-    private void assertCollegeScope(Long courseId) {
-        if (!adminScopeGuard.isCollegeAdmin()) {
-            return;
-        }
-        Course course = courseService.getById(courseId);
-        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-        adminScopeGuard.assertCourseAccess(course);
-    }
-
-    /**
-     * 课程列表学院过滤（V13 起按 {@code courses.college_id}）：
-     * 院系管理员强制本院，显式请求他院 403；校级管理员可按参数筛学院。
-     */
-    private void applyCollegeFilter(LambdaQueryWrapper<Course> queryWrapper, Long requestedCollegeId) {
-        Long scopedCollegeId = adminScopeGuard.currentCollegeFilter();
-        if (scopedCollegeId != null) {
-            if (requestedCollegeId != null && !scopedCollegeId.equals(requestedCollegeId)) {
-                throw new BusinessException(ApiCode.FORBIDDEN, "无权查看其他学院的课程");
-            }
-            queryWrapper.eq(Course::getCollegeId, scopedCollegeId);
-            return;
-        }
-        if (requestedCollegeId != null) {
-            queryWrapper.eq(Course::getCollegeId, requestedCollegeId);
-        }
+    public ApiResponse<CourseStatsVO> getStats(@Parameter(description = "课程ID") @PathVariable Long id,
+                                               Authentication auth) {
+        return ApiResponse.success(courseApplicationService.stats(id, auth));
     }
 }

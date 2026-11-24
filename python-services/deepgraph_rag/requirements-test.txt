@@ -1,0 +1,8 @@
+# 平台适配层测试依赖（不进入运行时镜像）。
+#
+# 为什么单独成文件：requirements-platform.txt 是运行时清单（镜像也装），
+# networkx 只被 test_deepgraph_contract.py 的图构造断言使用，不该污染生产镜像。
+#
+# 用法：pip install -r requirements-platform.txt -r requirements-test.txt
+pytest>=8,<9
+networkx>=3,<4

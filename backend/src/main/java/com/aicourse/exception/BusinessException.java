@@ -1,5 +1,7 @@
 package com.aicourse.exception;
 
+import com.aicourse.common.ApiCode;
+
 /**
  * 自定义业务异常
  * 用于业务逻辑主动抛出异常，携带自定义错误码与提示信息
@@ -10,12 +12,11 @@ public class BusinessException extends RuntimeException {
     private final int code;
 
     /**
-     * 构造方法，默认错误码 400
+     * 构造方法，默认错误码 {@link ApiCode#BAD_REQUEST}（400）。
      * @param message 异常提示信息
      */
     public BusinessException(String message) {
-        super(message);
-        this.code = 400;
+        this(ApiCode.BAD_REQUEST, message);
     }
 
     /**

@@ -136,11 +136,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             return fromHeader;
         }
         if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (JwtUtils.ACCESS_TOKEN_COOKIE.equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
+            // DUP-01：Cookie 遍历统一走 CookieUtils，第三份手写实现（本处）一并收敛
+            return com.aicourse.common.CookieUtils.readCookieValue(request, JwtUtils.ACCESS_TOKEN_COOKIE);
         }
         return null;
     }

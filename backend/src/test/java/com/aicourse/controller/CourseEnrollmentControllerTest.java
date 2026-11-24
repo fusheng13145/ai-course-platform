@@ -28,6 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 仅 approve/reject 带 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")，新增 STUDENT 越权 403 测试。
  */
 @WebMvcTest(CourseEnrollmentController.class)
+// 3E-05D：引入真实用例层（院系收口 / 关键字学生ID集 / 审核状态机已在 application 层）
+@org.springframework.context.annotation.Import(
+        com.aicourse.application.enrollment.CourseEnrollmentApplicationService.class)
 class CourseEnrollmentControllerTest extends ControllerTestBase {
 
     @MockitoBean

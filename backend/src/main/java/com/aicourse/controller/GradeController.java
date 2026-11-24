@@ -6,9 +6,11 @@ import org.slf4j.LoggerFactory;
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.GradeItem;
+import com.aicourse.vo.CurriculumVOs;
 import com.aicourse.entity.GradePolicy;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.dto.GradeItemSaveDTO;
+import com.aicourse.dto.GradePolicySaveDTO;
 
 /**
  * 过程性成绩（多维加权）接口
@@ -48,30 +52,33 @@ public class GradeController {
     /** 保存（新增或更新）课程的过程性成绩方案 */
     @PostMapping("/policy")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<GradePolicy> savePolicy(@Valid @RequestBody GradePolicy policy, Authentication auth) {
+    public ApiResponse<CurriculumVOs.GradePolicyVO> savePolicy(@Valid @RequestBody GradePolicySaveDTO dto, Authentication auth) {
+        GradePolicy policy = dto.toEntity();
         assertCourseOwner(policy.getCourseId(), auth);
         return ApiResponse.success("方案已保存",
-                gradeService.savePolicy(policy, (Long) auth.getPrincipal()));
+                CurriculumVOs.GradePolicyVO.from(gradeService.savePolicy(policy, (Long) auth.getPrincipal())));
     }
 
     /** 获取某课程的成绩方案 */
     @GetMapping("/policy/course/{courseId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<GradePolicy> getPolicy(@PathVariable Long courseId, Authentication auth) {
+    public ApiResponse<CurriculumVOs.GradePolicyVO> getPolicy(@PathVariable Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
-        return ApiResponse.success(gradeService.getPolicy(courseId));
+        return ApiResponse.success(CurriculumVOs.GradePolicyVO.from(gradeService.getPolicy(courseId)));
     }
 
     /** 新增或更新某学生的单项成绩记录 */
     @PostMapping("/item")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<GradeItem> upsertItem(@Valid @RequestBody GradeItem item, Authentication auth) {
+    public ApiResponse<CurriculumVOs.GradeItemVO> upsertItem(@Valid @RequestBody GradeItemSaveDTO dto, Authentication auth) {
+        GradeItem item = dto.toEntity();
         GradePolicy policy = requirePolicy(item.getPolicyId());
         assertCourseOwner(policy.getCourseId(), auth);
         Long uid = (Long) auth.getPrincipal();
         return ApiResponse.success("成绩已保存",
-                gradeService.upsertItem(item.getPolicyId(), item.getStudentId(), item.getComponentKey(),
-                        item.getScore(), item.getRawScore(), item.getSourceId(), uid, item.getRemark()));
+                CurriculumVOs.GradeItemVO.from(gradeService.upsertItem(item.getPolicyId(), item.getStudentId(),
+                        item.getComponentKey(), item.getScore(), item.getRawScore(), item.getSourceId(), uid,
+                        item.getRemark())));
     }
 
     /** 按成绩方案计算单个学生的最终总评成绩 */
@@ -105,8 +112,7 @@ public class GradeController {
 
     private void assertCourseOwner(Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (isAdmin) {
             // 校级管理员保持全平台治理读；院系管理员必须落在本院课程作用域内。
             if (adminScopeGuard.isCollegeAdmin()) {
@@ -127,3 +133,5 @@ public class GradeController {
         }
     }
 }
+
+

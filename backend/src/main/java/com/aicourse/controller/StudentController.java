@@ -1,29 +1,45 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.aicourse.application.student.StudentLearningApplicationService;
+import com.aicourse.application.submission.SubmissionApplicationService;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AssignmentSubmitDTO;
 import com.aicourse.dto.PracticeGenerateDTO;
-import com.aicourse.entity.*;
+import com.aicourse.entity.Question;
+import com.aicourse.entity.Submission;
+import com.aicourse.entity.Task;
+import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
-import com.aicourse.service.*;
+import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.LearningRecordService;
+import com.aicourse.service.SubmissionService;
+import com.aicourse.service.TaskService;
+import com.aicourse.service.WrongQuestionService;
 import com.aicourse.vo.AssignmentDetailVO;
-import com.aicourse.vo.CourseDetailVO;
+import com.aicourse.vo.CourseVOs;
 import com.aicourse.vo.DailyLearningStatVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.aicourse.vo.SubmissionVO;
+import com.aicourse.vo.TaskVO;
+import com.aicourse.vo.TeachingClassOptionVO;
+import com.aicourse.vo.WrongQuestionVOs;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.*;
-import java.util.stream.Collectors;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 学生端接口控制器
@@ -35,33 +51,31 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "学生端")
 public class StudentController {
 
-    private static final Logger log = LoggerFactory.getLogger(StudentController.class);
-
-    private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
     private final TaskService taskService;
     private final SubmissionService submissionService;
     private final WrongQuestionService wrongQuestionService;
     private final LearningRecordService learningRecordService;
-    private final TeachingClassService teachingClassService;
     private final CourseAccessControl courseAccessControl;
+    private final SubmissionApplicationService submissionApplicationService;
+    private final StudentLearningApplicationService studentLearningApplicationService;
 
-    public StudentController(CourseService courseService,
-                             CourseEnrollmentService enrollmentService,
+    public StudentController(CourseEnrollmentService enrollmentService,
                              TaskService taskService,
                              SubmissionService submissionService,
                              WrongQuestionService wrongQuestionService,
                              LearningRecordService learningRecordService,
-                             TeachingClassService teachingClassService,
-                             CourseAccessControl courseAccessControl) {
-        this.courseService = courseService;
+                             CourseAccessControl courseAccessControl,
+                             SubmissionApplicationService submissionApplicationService,
+                             StudentLearningApplicationService studentLearningApplicationService) {
         this.enrollmentService = enrollmentService;
         this.taskService = taskService;
         this.submissionService = submissionService;
         this.wrongQuestionService = wrongQuestionService;
         this.learningRecordService = learningRecordService;
-        this.teachingClassService = teachingClassService;
         this.courseAccessControl = courseAccessControl;
+        this.submissionApplicationService = submissionApplicationService;
+        this.studentLearningApplicationService = studentLearningApplicationService;
     }
 
     // ==================== 学习中心（5个接口） ====================
@@ -70,43 +84,22 @@ public class StudentController {
      * 获取我的课程列表（仅审批通过且有效的选课，V14 / WP5）
      */
     @GetMapping("/courses")
-    public ApiResponse<PagedResponse<Course>> getMyCourses(
+    public ApiResponse<PagedResponse<CourseVOs.CourseVO>> getMyCourses(
             Authentication auth,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
         Long userId = (Long) auth.getPrincipal();
-        List<CourseEnrollment> enrollments = enrollmentService.list(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getIsActive, true)
-                        .eq(CourseEnrollment::getApprovalStatus, "APPROVED"));
-        if (enrollments.isEmpty()) {
-            return ApiResponse.success(PagedResponse.empty());
-        }
-        List<Long> courseIds = enrollments.stream()
-                .map(CourseEnrollment::getCourseId)
-                .collect(Collectors.toList());
-        Page<Course> coursePage = courseService.page(Page.of(page, size),
-                new LambdaQueryWrapper<Course>().in(Course::getId, courseIds));
-        return ApiResponse.success(PagedResponse.of(coursePage));
+        return ApiResponse.success(studentLearningApplicationService.myCourses(userId, page, size));
     }
 
     /**
      * 获取课程学习详情
      */
     @GetMapping("/courses/{courseId}")
-    public ApiResponse<CourseDetailVO> getCourseDetail(
+    public ApiResponse<com.aicourse.vo.CourseDetailVO> getCourseDetail(
             @PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Course course = courseService.getById(courseId);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-        CourseEnrollment enrollment = enrollmentService.getOne(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getCourseId, courseId));
-        return ApiResponse.success(new CourseDetailVO(course, enrollment));
+        return ApiResponse.success(studentLearningApplicationService.courseDetail(userId, courseId));
     }
 
     // 进度不再由客户端写入（安全修复 P0-1）：学生可把任意课程进度改成 100%。
@@ -116,30 +109,8 @@ public class StudentController {
      * 加入课程前可选的启用教学班（V28：学生按教学班选课）。
      */
     @GetMapping("/courses/{courseId}/teaching-classes")
-    public ApiResponse<List<Map<String, Object>>> availableTeachingClasses(@PathVariable Long courseId) {
-        Course course = courseService.getById(courseId);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-        if (course.getApprovalStatus() != null
-                && !"APPROVED".equalsIgnoreCase(course.getApprovalStatus())) {
-            throw new BusinessException("课程尚未通过审核，暂不可选班");
-        }
-        if (course.getStatus() != null && !"ACTIVE".equalsIgnoreCase(course.getStatus())) {
-            throw new BusinessException("课程已结束，暂不可选班");
-        }
-        List<Map<String, Object>> classes = teachingClassService.listByCourse(courseId).stream()
-                .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
-                .map(item -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("id", item.getId());
-                    row.put("name", item.getName());
-                    row.put("code", item.getCode());
-                    row.put("capacity", item.getCapacity());
-                    return row;
-                })
-                .toList();
-        return ApiResponse.success(classes);
+    public ApiResponse<List<TeachingClassOptionVO>> availableTeachingClasses(@PathVariable Long courseId) {
+        return ApiResponse.success(studentLearningApplicationService.availableTeachingClasses(courseId));
     }
 
     /**
@@ -176,50 +147,11 @@ public class StudentController {
      * @param courseId 课程ID（可选，指定时仅返回该课程的待完成作业）
      */
     @GetMapping("/assignments/pending")
-    public ApiResponse<List<Task>> getPendingAssignments(
+    public ApiResponse<List<TaskVO>> getPendingAssignments(
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        // V14 口径对齐（2026-11-14）：有效选课 = is_active 且审批通过（此前漏了 APPROVED 过滤）
-        List<CourseEnrollment> enrollments = enrollmentService.list(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getIsActive, true)
-                        .eq(CourseEnrollment::getApprovalStatus, "APPROVED"));
-        if (enrollments.isEmpty()) {
-            return ApiResponse.success(Collections.emptyList());
-        }
-        List<Long> courseIds = enrollments.stream()
-                .map(CourseEnrollment::getCourseId).collect(Collectors.toList());
-        List<Task> tasks = taskService.list(
-                new LambdaQueryWrapper<Task>()
-                        // 指定课程时按课程精确过滤，否则在已加入课程范围内查询
-                        .eq(courseId != null, Task::getCourseId, courseId)
-                        .in(courseId == null, Task::getCourseId, courseIds)
-                        .eq(Task::getStatus, "PUBLISHED")
-                        .orderByDesc(Task::getCreatedAt));
-        // 2026-11-14 P1-4：按「最新一次提交的状态」判定待办——此前只要有任意提交行即从
-        // 待办剔除，被退回（RETURNED）待重做的作业从待办消失。现口径：无提交，或
-        // 最新一次提交为 RETURNED（允许重交）→ 仍属待办；SUBMITTED/GRADED → 完成。
-        Map<Long, Submission> latestByTask = new HashMap<>();
-        for (Submission s : submissionService.list(
-                new LambdaQueryWrapper<Submission>().eq(Submission::getStudentId, userId))) {
-            Submission cur = latestByTask.get(s.getTaskId());
-            int a = s.getAttemptNumber() != null ? s.getAttemptNumber() : 0;
-            int b = cur != null && cur.getAttemptNumber() != null ? cur.getAttemptNumber() : -1;
-            if (cur == null || a >= b) {
-                latestByTask.put(s.getTaskId(), s);
-            }
-        }
-        Set<Long> finishedTaskIds = latestByTask.values().stream()
-                .filter(s -> s.getStatus() != null
-                        && ("SUBMITTED".equals(s.getStatus()) || "GRADED".equals(s.getStatus())))
-                .map(Submission::getTaskId)
-                .collect(Collectors.toSet());
-        tasks = tasks.stream()
-                .filter(t -> !finishedTaskIds.contains(t.getId()))
-                .collect(Collectors.toList());
-        return ApiResponse.success(tasks);
+        return ApiResponse.success(studentLearningApplicationService.pendingAssignments(userId, courseId));
     }
 
     /**
@@ -227,25 +159,11 @@ public class StudentController {
      * @param courseId 课程ID（可选，指定时仅返回该课程的已提交作业）
      */
     @GetMapping("/assignments/completed")
-    public ApiResponse<List<Submission>> getCompletedAssignments(
+    public ApiResponse<List<SubmissionVO>> getCompletedAssignments(
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        List<Submission> submissions = submissionService.list(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getStudentId, userId)
-                        .orderByDesc(Submission::getCreatedAt));
-        // 指定课程时按作业归属课程过滤（作业→课程）
-        if (courseId != null && !submissions.isEmpty()) {
-            Set<Long> taskIds = submissions.stream()
-                    .map(Submission::getTaskId).collect(Collectors.toSet());
-            Map<Long, Long> taskCourseMap = taskService.listByIds(taskIds).stream()
-                    .collect(Collectors.toMap(Task::getId, Task::getCourseId, (a, b) -> a));
-            submissions = submissions.stream()
-                    .filter(s -> courseId.equals(taskCourseMap.get(s.getTaskId())))
-                    .collect(Collectors.toList());
-        }
-        return ApiResponse.success(submissions);
+        return ApiResponse.success(studentLearningApplicationService.completedAssignments(userId, courseId));
     }
 
     /**
@@ -268,28 +186,24 @@ public class StudentController {
      * 提交作业（统一收口到 SubmissionService，含发布校验/逾期扣分/查重触发，修复 P0-8 双轨问题）
      */
     @PostMapping("/assignments/{assignmentId}/submit")
-    public ApiResponse<Submission> submitAssignment(
+    public ApiResponse<SubmissionVO> submitAssignment(
             @PathVariable Long assignmentId,
             @Valid @RequestBody AssignmentSubmitDTO dto,
             Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        // 提交前校验任务归属与选课关系：学生只能向自己已通过审批的课程任务提交。
-        // 与 SubmissionController 的 /submissions 入口同源，避免只修一条双轨路径。
-        Task task = taskService.getById(assignmentId);
-        courseAccessControl.assertCanReadTask(task, auth);
-        Submission submission = submissionService.submitAssignment(assignmentId, userId, dto.getContent(), dto.getFileUrls());
-        return ApiResponse.success("提交成功", submission);
+        // 与 POST /submissions 同一段用例编排（application 层）：任务存在性 + 课程可读 + 异步预批改。
+        Submission submission = submissionApplicationService.submitForAssignment(assignmentId, dto, auth);
+        return ApiResponse.success("提交成功", SubmissionVO.from(submission));
     }
 
     /**
      * 获取作业批改结果
      */
     @GetMapping("/assignments/{assignmentId}/result")
-    public ApiResponse<Submission> getAssignmentResult(
+    public ApiResponse<SubmissionVO> getAssignmentResult(
             @PathVariable Long assignmentId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Submission submission = submissionService.getByTaskAndStudent(assignmentId, userId);
-        return ApiResponse.success(submission);
+        return ApiResponse.success(SubmissionVO.from(submission));
     }
 
     // ==================== 错题本（5个接口） ====================
@@ -298,21 +212,20 @@ public class StudentController {
      * 获取错题列表
      */
     @GetMapping("/wrong-questions")
-    public ApiResponse<PagedResponse<WrongQuestion>> getWrongQuestions(
+    public ApiResponse<PagedResponse<WrongQuestionVOs.WrongQuestionVO>> getWrongQuestions(
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Page<WrongQuestion> result = wrongQuestionService.getWrongQuestionBook(userId, courseId, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(studentLearningApplicationService.wrongQuestionPage(userId, courseId, page, size));
     }
 
     /**
      * 添加到错题本
      */
     @PostMapping("/wrong-questions")
-    public ApiResponse<WrongQuestion> addWrongQuestion(
+    public ApiResponse<WrongQuestionVOs.WrongQuestionVO> addWrongQuestion(
             @Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Long questionId = Long.valueOf(params.get("questionId"));
@@ -320,7 +233,7 @@ public class StudentController {
         String wrongAnswer = params.get("wrongAnswer");
         String sourceType = params.getOrDefault("sourceType", "PRACTICE");
         WrongQuestion wq = wrongQuestionService.recordWrongAnswer(userId, questionId, courseId, wrongAnswer, sourceType);
-        return ApiResponse.success("添加成功", wq);
+        return ApiResponse.success("添加成功", WrongQuestionVOs.WrongQuestionVO.from(wq));
     }
 
     /**
@@ -347,13 +260,13 @@ public class StudentController {
      * 生成错题练习
      */
     @PostMapping("/wrong-questions/practice")
-    public ApiResponse<List<Question>> generatePractice(
+    public ApiResponse<List<WrongQuestionVOs.PracticeQuestionVO>> generatePractice(
             @Valid @RequestBody PracticeGenerateDTO dto, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Long courseId = dto.getCourseId();
         int count = dto.getCount() != null ? dto.getCount() : 10;
         List<Question> questions = wrongQuestionService.generatePracticePaper(userId, courseId, count);
-        return ApiResponse.success(questions);
+        return ApiResponse.success(WrongQuestionVOs.PracticeQuestionVO.from(questions));
     }
 
     // ==================== 学习进度（3个接口） ====================
@@ -364,8 +277,7 @@ public class StudentController {
     @GetMapping("/progress/overview")
     public ApiResponse<Map<String, Object>> getProgressOverview(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Map<String, Object> stats = learningRecordService.getLearningStats(userId);
-        return ApiResponse.success(stats);
+        return ApiResponse.success(learningRecordService.getLearningStats(userId));
     }
 
     /**
@@ -377,8 +289,7 @@ public class StudentController {
             @RequestParam int year,
             @RequestParam int month) {
         Long userId = (Long) auth.getPrincipal();
-        List<DailyLearningStatVO> data = learningRecordService.getMonthlyLearningData(userId, year, month);
-        return ApiResponse.success(data);
+        return ApiResponse.success(learningRecordService.getMonthlyLearningData(userId, year, month));
     }
 
     /**
@@ -389,7 +300,6 @@ public class StudentController {
             Authentication auth,
             @RequestParam(defaultValue = "7") int days) {
         Long userId = (Long) auth.getPrincipal();
-        List<DailyLearningStatVO> trend = learningRecordService.getLearningTrend(userId, days);
-        return ApiResponse.success(trend);
+        return ApiResponse.success(learningRecordService.getLearningTrend(userId, days));
     }
 }

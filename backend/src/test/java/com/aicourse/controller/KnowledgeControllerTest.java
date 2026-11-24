@@ -17,6 +17,7 @@ import com.aicourse.vo.MasteryVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -26,6 +27,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -38,7 +41,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest({KnowledgeController.class, KnowledgeRelationController.class,
         KnowledgeSearchController.class, KnowledgeExtractionController.class})
-@Import(KnowledgeAccessSupport.class)
+@Import({KnowledgeAccessSupport.class,
+        com.aicourse.application.knowledge.KnowledgePointApplicationService.class,
+        com.aicourse.application.knowledge.KnowledgeSearchApplicationService.class})
 class KnowledgeControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -809,5 +814,41 @@ class KnowledgeControllerTest extends ControllerTestBase {
         mockMvc.perform(delete("/knowledge/relations/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isForbidden());
         verify(relationService, never()).deleteRelation(eq(1L));
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /knowledge/points - 注入 id/createdAt 一律忽略")
+    void createPoint_ignoresInjectedServerFields() throws Exception {
+        when(knowledgePointService.save(any())).thenReturn(true);
+
+        mockMvc.perform(post("/knowledge/points").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"createdAt\":\"2026-01-01T00:00:00\",\"name\":\"知识点\",\"courseId\":1}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<KnowledgePoint> captor = ArgumentCaptor.forClass(KnowledgePoint.class);
+        verify(knowledgePointService).save(captor.capture());
+        assertNull(captor.getValue().getId());
+        assertNull(captor.getValue().getCreatedAt());
+    }
+
+    @Test
+    @DisplayName("PUT /knowledge/points/1 - 注入 courseId 被丢弃，改用既有归属（防跨课程搬运）")
+    void updatePoint_courseIdInjection_isDropped() throws Exception {
+        KnowledgePoint existing = samplePoint();
+        when(knowledgePointService.getById(1L)).thenReturn(existing);
+        when(knowledgePointService.updateById(any())).thenReturn(true);
+
+        mockMvc.perform(put("/knowledge/points/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"courseId\":99,\"name\":\"改名\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<KnowledgePoint> captor = ArgumentCaptor.forClass(KnowledgePoint.class);
+        verify(knowledgePointService).updateById(captor.capture());
+        assertEquals(1L, captor.getValue().getCourseId().longValue(), "归属只认库里既有课程");
+        assertEquals(1L, captor.getValue().getId().longValue(), "主键恒取路径变量");
     }
 }

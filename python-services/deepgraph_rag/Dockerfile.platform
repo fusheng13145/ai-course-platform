@@ -1,0 +1,36 @@
+# 平台侧镜像定义（新增文件，不修改上游 Dockerfile）。
+#
+# 为什么必须另建文件：`Dockerfile` 属于 UPSTREAM_MANIFEST.json 冻结清单，
+# 它的 CMD 是 `streamlit run app.py`（上游单机 UI），不能承载本平台的契约适配层
+# `api_server.py`（FastAPI，端口 8501）。按红线「上游零修改」，容器化入口只能新增文件。
+#
+# 构建：docker build -f Dockerfile.platform -t aicourse/deepgraph-service:local .
+# 运行：uvicorn 直接拉起适配层，绝不拉起 streamlit。
+FROM python:3.11-slim
+
+LABEL org.opencontainers.image.title="aicourse deepgraph-rag adapter (8501)"
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TZ=Asia/Shanghai \
+    DG_DATA_DIR=/app/data \
+    HF_HOME=/models/hf
+
+WORKDIR /app
+
+# 1) 上游依赖（含 torch/faiss/transformers，首次构建耗时长，属预期）
+# 2) 平台适配层依赖（fastapi/uvicorn/httpx/neo4j）
+# 3) 轻量运行时如需镜像瘦身，可注释掉 requirements.txt 一行：引擎将按 UNAVAILABLE 降级，
+#    契约端点仍可用（见 test_deepgraph_contract.py 的降级用例）。
+COPY requirements.txt requirements-platform.txt ./
+RUN pip install --upgrade pip \
+ && pip install -r requirements.txt -r requirements-platform.txt
+
+COPY . .
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8501/api/v1/deepgraph/health', timeout=4).status == 200 else 1)"
+
+CMD ["python", "-m", "uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8501"]

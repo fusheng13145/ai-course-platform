@@ -85,6 +85,7 @@ class SubmissionServiceImplTest {
         SubmissionWriteComponent writeComponent =
                 new SubmissionWriteComponent(null, taskService, jsonSupport,
                         org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
+                        new com.aicourse.service.component.submission.SubmissionSubmitGuard((org.springframework.data.redis.core.StringRedisTemplate) null),
                         meterRegistry);
         CourseEvidenceComponent evidenceComponent =
                 new CourseEvidenceComponent(ragService, knowledgePointService);

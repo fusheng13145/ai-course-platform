@@ -1,6 +1,7 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.common.AiCallContext;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.exception.LLMUnavailableException;

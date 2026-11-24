@@ -30,6 +30,9 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @MockitoBean
     private WrongQuestionService wrongQuestionService;
 
+    @MockitoBean
+    private com.aicourse.application.student.StudentLearningApplicationService studentLearningApplicationService;
+
     private WrongQuestion sampleWq() {
         WrongQuestion wq = new WrongQuestion();
         wq.setId(1L);
@@ -46,12 +49,14 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /wrong-questions?courseId=1&page=1&size=1 - 返回200且data.list为数组")
     void list_authorized_returns_success() throws Exception {
-        when(wrongQuestionService.getWrongQuestionBook(any(), any(), anyInt(), anyInt())).thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
+        // DUP-09 收敛后：控制器只转发 application 层，分页口径统一由 StudentLearningApplicationService 提供
+        when(studentLearningApplicationService.wrongQuestionPage(eq(1L), eq(1L), eq(1), eq(1)))
+                .thenReturn(com.aicourse.common.PagedResponse.empty());
         mockMvc.perform(get("/wrong-questions?courseId=1&page=1&size=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.list").isArray());
-        verify(wrongQuestionService).getWrongQuestionBook(eq(1L), eq(1L), eq(1), eq(1));
+        verify(studentLearningApplicationService).wrongQuestionPage(1L, 1L, 1, 1);
     }
 
     @Test

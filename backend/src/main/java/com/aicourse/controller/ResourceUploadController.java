@@ -6,6 +6,7 @@ import com.aicourse.common.StorageLayout;
 import com.aicourse.common.UploadMagic;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.FileUploadSession;
+import com.aicourse.vo.ResourceVOs;
 import com.aicourse.entity.Resource;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.ResourceAccessSupport;
@@ -112,7 +113,7 @@ public class ResourceUploadController {
      */
     @PostMapping("/upload")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<Resource> uploadResource(
+    public ApiResponse<ResourceVOs.ResourceVO> uploadResource(
             @RequestParam("file") MultipartFile file,
             @RequestParam Long courseId,
             @RequestParam(required = false) String description,
@@ -120,12 +121,12 @@ public class ResourceUploadController {
         // 修复 #5：先校验课程确实存在，避免造出 courseId 悬空的孤儿资源 + 磁盘残留文件
         Course course = courseService.getById(courseId);
         if (course == null) {
-            throw new BusinessException(404, "课程不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         // 修复 #5：补齐对象级 ACL（此前仅有角色校验，任意教师可向他人课程上传资源）。
         // 抛 BusinessException(403) 经全局异常处理器映射为真实 HTTP 403，与同文件其余 ACL 端点一致。
         if (!resourceAccessSupport.canAccessCourse(courseId, auth)) {
-            throw new BusinessException(403, "无权向该课程上传资源");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权向该课程上传资源");
         }
         if (file.isEmpty()) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "上传文件不能为空");
@@ -203,7 +204,7 @@ public class ResourceUploadController {
             resourceVersionService.createNewVersion(resource.getId(), safeFileName, contentType,
                     resource.getUrl(), "初始上传", (Long) auth.getPrincipal(), file.getSize());
 
-            return ApiResponse.success("文件上传成功", resource);
+            return ApiResponse.success("文件上传成功", ResourceVOs.ResourceVO.from(resource));
         } catch (IOException e) {
             log.error("读取上传文件流失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "读取上传文件失败");
@@ -222,31 +223,31 @@ public class ResourceUploadController {
      */
     @PostMapping("/from-upload-session/{sessionId}")
     @PreAuthorize("hasRole('TEACHER')")
-    public ApiResponse<Resource> createFromUploadSession(
+    public ApiResponse<ResourceVOs.ResourceVO> createFromUploadSession(
             @PathVariable Long sessionId,
             @RequestParam Long courseId,
             @RequestParam(required = false) String description,
             Authentication auth) {
         Course course = courseService.getById(courseId);
         if (course == null) {
-            throw new BusinessException(404, "课程不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         if (!resourceAccessSupport.canAccessCourse(courseId, auth)) {
-            throw new BusinessException(403, "无权向该课程上传资源");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权向该课程上传资源");
         }
         FileUploadSession session = fileUploadSessionService.getById(sessionId);
         if (session == null) {
-            throw new BusinessException(404, "上传会话不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "上传会话不存在");
         }
         Long operatorId = (Long) auth.getPrincipal();
         if (session.getUploaderId() == null || !session.getUploaderId().equals(operatorId)) {
-            throw new BusinessException(403, "无权登记该上传会话");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权登记该上传会话");
         }
         if (!"COMPLETED".equals(session.getStatus())) {
-            throw new BusinessException(400, "上传会话尚未合并完成");
+            throw new BusinessException(ApiCode.BAD_REQUEST, "上传会话尚未合并完成");
         }
         if (!StringUtils.hasText(session.getUploadPath())) {
-            throw new BusinessException(400, "上传会话缺少存储路径");
+            throw new BusinessException(ApiCode.BAD_REQUEST, "上传会话缺少存储路径");
         }
 
         String originalFilename = StringUtils.hasText(session.getFilename()) ? session.getFilename() : "unknown";
@@ -254,20 +255,20 @@ public class ResourceUploadController {
         String ext = dot >= 0 ? originalFilename.substring(dot + 1).toLowerCase() : "";
         String contentType = MIME_BY_EXT.get(ext);
         if (contentType == null) {
-            throw new BusinessException(400, "不支持该文件格式上传");
+            throw new BusinessException(ApiCode.BAD_REQUEST, "不支持该文件格式上传");
         }
         String magic;
         try (InputStream in = fileStorageService.download(session.getUploadPath())) {
             if (in == null) {
-                throw new BusinessException(404, "合并文件不存在或已回收");
+                throw new BusinessException(ApiCode.NOT_FOUND, "合并文件不存在或已回收");
             }
             magic = UploadMagic.detect(in.readNBytes(16));
         } catch (IOException e) {
             log.error("读取合并文件头失败: session={}, {}", sessionId, e.getMessage());
-            throw new BusinessException(500, "读取上传文件失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "读取上传文件失败", e);
         }
         if (!UploadMagic.matchesMime(contentType, magic)) {
-            throw new BusinessException(400, "文件内容与声明类型不符，已拒绝登记");
+            throw new BusinessException(ApiCode.BAD_REQUEST, "文件内容与声明类型不符，已拒绝登记");
         }
 
         Resource resource = new Resource();
@@ -283,6 +284,7 @@ public class ResourceUploadController {
         resourceVersionService.createNewVersion(resource.getId(), originalFilename, contentType,
                 resource.getUrl(), "分片上传", operatorId,
                 session.getFileSize() == null ? Long.valueOf(0L) : session.getFileSize());
-        return ApiResponse.success("文件上传成功", resource);
+        return ApiResponse.success("文件上传成功", ResourceVOs.ResourceVO.from(resource));
     }
 }
+

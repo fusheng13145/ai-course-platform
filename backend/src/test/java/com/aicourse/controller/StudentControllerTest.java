@@ -31,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 类级 @PreAuthorize("hasRole('STUDENT')")，故每个接口新增 TEACHER 越权 403 测试。
  */
 @WebMvcTest(StudentController.class)
+// 3E-05B：引入真实用例层（有效选课口径 / 待办判定 / VO 转换下沉后，路由测试仍然穿过真实编排）
+@org.springframework.context.annotation.Import(
+        com.aicourse.application.student.StudentLearningApplicationService.class)
 class StudentControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -49,6 +52,9 @@ class StudentControllerTest extends ControllerTestBase {
     private com.aicourse.service.TeachingClassService teachingClassService;
     @MockitoBean
     private CourseAccessControl courseAccessControl;
+
+    @MockitoBean
+    private com.aicourse.application.submission.SubmissionApplicationService submissionApplicationService;
 
     // ==================== 学习中心 ====================
 
@@ -392,7 +398,7 @@ class StudentControllerTest extends ControllerTestBase {
     void submitAssignment_authorized_passes_security() throws Exception {
         Submission submission = new Submission();
         submission.setId(8L);
-        when(submissionService.submitAssignment(anyLong(), anyLong(), any(), any())).thenReturn(submission);
+        when(submissionApplicationService.submitForAssignment(any(), any(), any())).thenReturn(submission);
 
         mockMvc.perform(post("/student/assignments/1/submit").contentType(MediaType.APPLICATION_JSON)
                         .content("{}").with(withUser(1L, "STUDENT")))
@@ -400,7 +406,7 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(8));
 
-        verify(submissionService).submitAssignment(eq(1L), eq(1L), any(), any());
+        verify(submissionApplicationService).submitForAssignment(eq(1L), any(), any());
     }
 
 

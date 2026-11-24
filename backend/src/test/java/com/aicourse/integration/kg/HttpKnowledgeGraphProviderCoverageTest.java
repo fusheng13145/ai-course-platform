@@ -161,11 +161,12 @@ class HttpKnowledgeGraphProviderCoverageTest {
     @Test
     @DisplayName("isReadTimeout：原始 SocketTimeout 与包装 cause 均识别，其他异常不识别")
     void readTimeoutClassification() {
-        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(provider, "isReadTimeout",
+        // 判定逻辑已收敛到 DownstreamRetrySupport（DUP-10~13），直接测共用实现点
+        assertTrue(com.aicourse.integration.support.DownstreamRetrySupport.isReadTimeout(
                 new SocketTimeoutException("timeout")));
-        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(provider, "isReadTimeout",
+        assertTrue(com.aicourse.integration.support.DownstreamRetrySupport.isReadTimeout(
                 new RuntimeException(new SocketTimeoutException("wrapped"))));
-        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(provider, "isReadTimeout",
+        assertFalse(com.aicourse.integration.support.DownstreamRetrySupport.isReadTimeout(
                 new RuntimeException("other")));
     }
 }

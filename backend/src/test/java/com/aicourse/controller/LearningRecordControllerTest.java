@@ -5,13 +5,17 @@ import com.aicourse.service.LearningRecordService;
 import com.aicourse.vo.DailyLearningStatVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -23,7 +27,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 断言 HTTP 200 + ApiResponse.code=200 + 关键字段透传（jsonPath），并 verify 路由正确委托与参数透传。
  */
 @WebMvcTest(LearningRecordController.class)
+@Import({com.aicourse.application.student.StudentLearningApplicationService.class})
 class LearningRecordControllerTest extends ControllerTestBase {
+
+    @MockitoBean
+    private com.aicourse.service.CourseService courseService;
+
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService courseEnrollmentService;
+
+    @MockitoBean
+    private com.aicourse.service.TaskService taskService;
+
+    @MockitoBean
+    private com.aicourse.service.SubmissionService submissionService;
+
+    @MockitoBean
+    private com.aicourse.service.TeachingClassService teachingClassService;
+
+    @MockitoBean
+    private com.aicourse.service.WrongQuestionService wrongQuestionService;
 
     @MockitoBean
     private LearningRecordService learningRecordService;
@@ -129,5 +152,30 @@ class LearningRecordControllerTest extends ControllerTestBase {
     void getCalendarData_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/learning-records/calendar?year=1&month=1"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 入参收实体回归：请求体里的 userId/id/createdAt 属于服务端字段，必须被 DTO 挡掉，
+     * 归属用户只认登录身份。否则学生可把学时记到别人账上（跨人写越权）。
+     */
+    @Test
+    @DisplayName("POST /learning-records - 请求体注入 userId/id/createdAt 一律忽略，userId 取登录身份")
+    void record_ignoresInjectedServerFields() throws Exception {
+        when(learningRecordService.save(any())).thenReturn(true);
+        String body = "{\"userId\":999,\"id\":777,\"createdAt\":\"2026-01-01T00:00:00\","
+                + "\"courseId\":4007,\"actionType\":\"VIEW\",\"duration\":600,\"progress\":45.5}";
+        mockMvc.perform(post("/learning-records").contentType(MediaType.APPLICATION_JSON).content(body).with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<LearningRecord> captor = ArgumentCaptor.forClass(LearningRecord.class);
+        verify(learningRecordService).save(captor.capture());
+        LearningRecord saved = captor.getValue();
+        assertEquals(1L, saved.getUserId().longValue(), "userId 必须取登录用户，不能被请求体覆盖");
+        assertNull(saved.getId(), "主键不能被请求体指定");
+        assertNull(saved.getCreatedAt(), "创建时间不能被请求体指定");
+        assertEquals(4007L, saved.getCourseId().longValue());
+        assertEquals("VIEW", saved.getActionType());
+        assertEquals(600, saved.getDuration().intValue());
     }
 }

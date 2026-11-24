@@ -26,7 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 该控制器类级别 @PreAuthorize("hasRole('ADMIN')")，原有 6 个 STUDENT 越权 403 测试保留不动。
  */
 @WebMvcTest(PermissionController.class)
-@Import(AdminScopeGuard.class)
+@Import({AdminScopeGuard.class,
+        com.aicourse.application.permission.PermissionApplicationService.class})
 class PermissionControllerTest extends ControllerTestBase {
 
     @MockitoBean

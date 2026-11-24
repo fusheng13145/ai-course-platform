@@ -34,8 +34,8 @@ CHECKS = {
                  "ok_status": {200}, "contains": "<div id=\"app\">", "name": "前端 Vite"},
     "kg": {"port": 8001, "url": "http://127.0.0.1:8001/api/v1/graph/health",
            "ok_status": {200}, "name": "知识图谱服务"},
-    "rag": {"port": 8002, "url": "http://127.0.0.1:8002/api/v1/rag/health",
-            "ok_status": {200}, "name": "RAG 服务"},
+    "rag": {"port": 8501, "url": "http://127.0.0.1:8501/api/v1/rag/health",
+            "ok_status": {200}, "name": "RAG 服务（知识库，已并入 8501）"},
     "fine_tune": {"port": 8003, "url": "http://127.0.0.1:8003/api/v1/fine-tune/health",
                   "ok_status": {200}, "name": "微调服务（可选）"},
 }

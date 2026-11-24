@@ -4,6 +4,8 @@ import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 错题本「联表派生展示字段」填充工具。
@@ -28,6 +30,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 若题目被删除则派生值为 null（前端需自行兜底显示）。</p>
  */
 public final class WrongQuestionSnapshotUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(WrongQuestionSnapshotUtil.class);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -69,6 +73,7 @@ public final class WrongQuestionSnapshotUtil {
                 return node.asText();
             }
         } catch (Exception notJson) {
+            log.debug("知识点快照不是合法 JSON，退化为取首段（历史脏数据兼容）: {}", notJson.getMessage());
             int idx = s.indexOf(',');
             return (idx > 0 ? s.substring(0, idx) : s).trim();
         }

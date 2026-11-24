@@ -4,6 +4,7 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.KnowledgeRelationDTO;
+import com.aicourse.vo.KnowledgeVOs;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
@@ -46,7 +47,7 @@ public class KnowledgeRelationController {
     /** 创建知识点关联关系（教师/管理员权限）。 */
     @PostMapping("/relations")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePointRelation> createRelation(@Valid @RequestBody KnowledgeRelationDTO dto,
+    public ApiResponse<KnowledgeVOs.RelationVO> createRelation(@Valid @RequestBody KnowledgeRelationDTO dto,
                                                               Authentication auth) {
         KnowledgePoint source = knowledgeAccessSupport.requirePoint(dto.getSourceId());
         KnowledgePoint target = knowledgeAccessSupport.requirePoint(dto.getTargetId());
@@ -56,7 +57,7 @@ public class KnowledgeRelationController {
         }
         KnowledgePointRelation relation = relationService.createRelation(
                 dto.getSourceId(), dto.getTargetId(), dto.getRelationType(), dto.getStrength(), dto.getDescription());
-        return ApiResponse.success("创建成功", relation);
+        return ApiResponse.success("创建成功", KnowledgeVOs.RelationVO.from(relation));
     }
 
     /** 删除知识点关联关系（教师/管理员权限）。 */
@@ -74,8 +75,16 @@ public class KnowledgeRelationController {
     }
 
     /** 获取关联关系列表（分页，支持课程筛选；非管理员必须显式指定课程）。 */
+    /**
+     * 关系分页结果转出参模型（阶段 3 · Q-05）。
+     */
+    private static PagedResponse<KnowledgeVOs.RelationVO> toPagedVO(Page<KnowledgePointRelation> page) {
+        return PagedResponse.of(page.getRecords().stream().map(KnowledgeVOs.RelationVO::from).toList(),
+                page.getTotal(), page.getCurrent(), page.getSize());
+    }
+
     @GetMapping("/relations")
-    public ApiResponse<PagedResponse<KnowledgePointRelation>> getRelationList(
+    public ApiResponse<PagedResponse<KnowledgeVOs.RelationVO>> getRelationList(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long courseId,
@@ -92,37 +101,37 @@ public class KnowledgeRelationController {
                     ? relationService.getRelationList(page, size, (Long) null)
                     : relationService.getRelationListByCourses(page, size, readableCourseIds);
         }
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(toPagedVO(result));
     }
 
     /** 获取某知识点的所有关联关系（入向+出向）。 */
     @GetMapping("/relations/point/{pointId}")
-    public ApiResponse<List<KnowledgePointRelation>> getRelationsByPoint(@PathVariable Long pointId,
+    public ApiResponse<List<KnowledgeVOs.RelationVO>> getRelationsByPoint(@PathVariable Long pointId,
                                                                          Authentication auth) {
         KnowledgePoint point = knowledgeAccessSupport.requirePoint(pointId);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(knowledgeAccessSupport.filterRelationsSameCourse(
-                relationService.getRelationsByPoint(pointId), point.getCourseId()));
+        return ApiResponse.success(KnowledgeVOs.RelationVO.from(knowledgeAccessSupport.filterRelationsSameCourse(
+                relationService.getRelationsByPoint(pointId), point.getCourseId())));
     }
 
     /** 获取某知识点的出边（作为源节点）。 */
     @GetMapping("/relations/source/{sourceId}")
-    public ApiResponse<List<KnowledgePointRelation>> getSourceRelations(@PathVariable Long sourceId,
+    public ApiResponse<List<KnowledgeVOs.RelationVO>> getSourceRelations(@PathVariable Long sourceId,
                                                                         Authentication auth) {
         KnowledgePoint point = knowledgeAccessSupport.requirePoint(sourceId);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(knowledgeAccessSupport.filterRelationsSameCourse(
-                relationService.getSourceRelations(sourceId), point.getCourseId()));
+        return ApiResponse.success(KnowledgeVOs.RelationVO.from(knowledgeAccessSupport.filterRelationsSameCourse(
+                relationService.getSourceRelations(sourceId), point.getCourseId())));
     }
 
     /** 获取某知识点的入边（作为目标节点）。 */
     @GetMapping("/relations/target/{targetId}")
-    public ApiResponse<List<KnowledgePointRelation>> getTargetRelations(@PathVariable Long targetId,
+    public ApiResponse<List<KnowledgeVOs.RelationVO>> getTargetRelations(@PathVariable Long targetId,
                                                                         Authentication auth) {
         KnowledgePoint point = knowledgeAccessSupport.requirePoint(targetId);
         courseAccessControl.assertCanReadCourse(point.getCourseId(), auth);
-        return ApiResponse.success(knowledgeAccessSupport.filterRelationsSameCourse(
-                relationService.getTargetRelations(targetId), point.getCourseId()));
+        return ApiResponse.success(KnowledgeVOs.RelationVO.from(knowledgeAccessSupport.filterRelationsSameCourse(
+                relationService.getTargetRelations(targetId), point.getCourseId())));
     }
 
     /** 获取课程知识图谱可视化图数据（nodes + links）。 */
@@ -134,3 +143,5 @@ public class KnowledgeRelationController {
         return ApiResponse.success(relationService.getGraphData(courseId));
     }
 }
+
+

@@ -14,6 +14,7 @@ import com.aicourse.mapper.ExamTeachingClassMapper;
 import com.aicourse.mapper.TaskTeachingClassMapper;
 import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.UserService;
 import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -60,6 +61,7 @@ class ActivityVisibilityGuardScopeTest {
 
     @Mock private CourseService courseService;
     @Mock private CourseEnrollmentService enrollmentService;
+    @Mock private UserService userService;
     @Mock private TeachingClassMapper teachingClassMapper;
     @Mock private TaskTeachingClassMapper taskTeachingClassMapper;
     @Mock private ExamTeachingClassMapper examTeachingClassMapper;
@@ -77,8 +79,11 @@ class ActivityVisibilityGuardScopeTest {
         TableInfoHelper.initTableInfo(assistant, CourseEnrollment.class);
         TableInfoHelper.initTableInfo(assistant, TaskTeachingClass.class);
         TableInfoHelper.initTableInfo(assistant, ExamTeachingClass.class);
+        TeachingClassAccessControl teachingClassAccessControl =
+                new TeachingClassAccessControl(courseService, userService, teachingClassMapper, adminScopeGuard);
         guard = new ActivityVisibilityGuard(courseService, enrollmentService, teachingClassMapper,
-                taskTeachingClassMapper, examTeachingClassMapper, adminScopeGuard, courseAccessControl);
+                taskTeachingClassMapper, examTeachingClassMapper, adminScopeGuard, courseAccessControl,
+                teachingClassAccessControl);
         when(courseService.getById(1L)).thenReturn(course(1L, 7L));
         when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
     }

@@ -110,6 +110,8 @@ public class WebSocketSessionManager {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (IOException e) {
+            // 序列化失败会让这条推送整条丢失（调用方拿 null 直接跳过），必须留痕。
+            log.warn("[ws-session] 消息序列化失败，本次推送已丢弃: {}", e.getMessage());
             return null;
         }
     }

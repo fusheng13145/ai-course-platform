@@ -1,6 +1,7 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.common.AiCallContext;
 import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
 import com.aicourse.integration.rag.RagContract.RagSource;
 import com.aicourse.llm.LLMProvider;

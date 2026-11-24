@@ -11,13 +11,17 @@ import com.aicourse.vo.LearningPathDetailVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -29,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 断言 HTTP 200 + ApiResponse.code=200 + 关键字段透传（jsonPath），并 verify 路由正确委托与参数透传。
  */
 @WebMvcTest(LearningPathController.class)
+@Import({com.aicourse.application.learning.LearningPathApplicationService.class})
 class LearningPathControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -368,5 +373,101 @@ class LearningPathControllerTest extends ControllerTestBase {
     void getProgress_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/learning-paths/1/progress"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 入参收实体回归（路径创建）：请求体里的 studentId/status/currentStage/completionRate/actualCompletionDate/id
+     * 全是服务端或专用推进端点维护的字段，必须被 DTO 挡掉；否则学生可把路径写到别人名下、或直接伪造成已完成。
+     */
+    @Test
+    @DisplayName("POST /learning-paths - 注入 studentId/进度状态/id 一律忽略，归属只认登录身份")
+    void create_ignoresInjectedServerFields() throws Exception {
+        when(learningPathService.save(any())).thenReturn(true);
+        String body = "{\"id\":777,\"studentId\":999,\"courseId\":4007,\"pathName\":\"冲刺\","
+                + "\"status\":\"COMPLETED\",\"currentStage\":9,\"completionRate\":100,"
+                + "\"actualCompletionDate\":\"2026-01-01T00:00:00\"}";
+        mockMvc.perform(post("/learning-paths").contentType(MediaType.APPLICATION_JSON).content(body).with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<LearningPath> captor = ArgumentCaptor.forClass(LearningPath.class);
+        verify(learningPathService).save(captor.capture());
+        LearningPath saved = captor.getValue();
+        assertEquals(1L, saved.getStudentId().longValue(), "studentId 必须取登录用户");
+        assertNull(saved.getId(), "主键不能被请求体指定");
+        assertNull(saved.getStatus(), "路径状态只能由 pause/resume/complete 端点改写");
+        assertNull(saved.getCurrentStage(), "阶段进度只能由 advance 端点改写");
+        assertNull(saved.getCompletionRate(), "完成率不能被请求体直写");
+        assertNull(saved.getActualCompletionDate(), "实际完成时间不能被请求体直写");
+        assertEquals(4007L, saved.getCourseId().longValue());
+        assertEquals("冲刺", saved.getPathName());
+    }
+
+    @Test
+    @DisplayName("PUT /learning-paths/1 - 注入 studentId/进度状态一律忽略，id 恒取路径变量")
+    void update_ignoresInjectedServerFields() throws Exception {
+        when(learningPathService.updateById(any())).thenReturn(true);
+        String body = "{\"studentId\":999,\"status\":\"COMPLETED\",\"completionRate\":100,\"pathName\":\"改过的名字\"}";
+        mockMvc.perform(put("/learning-paths/1").contentType(MediaType.APPLICATION_JSON).content(body).with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<LearningPath> captor = ArgumentCaptor.forClass(LearningPath.class);
+        verify(learningPathService).updateById(captor.capture());
+        LearningPath patch = captor.getValue();
+        assertEquals(1L, patch.getId());
+        assertNull(patch.getStudentId(), "studentId 不能被请求体改写");
+        assertNull(patch.getStatus(), "路径状态不能被请求体改写");
+        assertNull(patch.getCompletionRate(), "完成率不能被请求体直写");
+        assertEquals("改过的名字", patch.getPathName());
+    }
+
+    /**
+     * 入参收实体回归（节点）：learningPathId 恒取路径变量，完成状态/得分/实际用时/完成时间不可由请求体直写，
+     * 否则可把节点改挂到他人路径、或伪造「已完成 + 满分」。
+     */
+    @Test
+    @DisplayName("POST /learning-paths/1/nodes - 注入 learningPathId/完成状态一律忽略")
+    void addNode_ignoresInjectedServerFields() throws Exception {
+        when(learningPathNodeService.save(any())).thenReturn(true);
+        String body = "{\"learningPathId\":999,\"status\":\"COMPLETED\",\"score\":100,\"actualTime\":5,"
+                + "\"completedAt\":\"2026-01-01T00:00:00\",\"title\":\"三次握手\",\"orderIndex\":1}";
+        mockMvc.perform(post("/learning-paths/1/nodes").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<LearningPathNode> captor = ArgumentCaptor.forClass(LearningPathNode.class);
+        verify(learningPathNodeService).save(captor.capture());
+        LearningPathNode saved = captor.getValue();
+        assertEquals(1L, saved.getLearningPathId().longValue(), "learningPathId 必须取路径变量");
+        assertNull(saved.getId(), "主键不能被请求体指定");
+        assertNull(saved.getStatus(), "节点状态只能由 start/complete/skip 端点改写");
+        assertNull(saved.getScore(), "得分只能由 complete 端点写入");
+        assertNull(saved.getActualTime(), "实际用时只能由 complete 端点写入");
+        assertNull(saved.getCompletedAt(), "完成时间不能被请求体直写");
+        assertEquals("三次握手", saved.getTitle());
+        assertEquals(1, saved.getOrderIndex().intValue());
+    }
+
+    @Test
+    @DisplayName("PUT /learning-paths/nodes/1 - 注入 learningPathId/完成状态一律忽略，id 恒取节点变量")
+    void updateNode_ignoresInjectedServerFields() throws Exception {
+        when(learningPathNodeService.getById(any())).thenReturn(sampleNode());
+        when(learningPathNodeService.updateById(any())).thenReturn(true);
+        String body = "{\"learningPathId\":999,\"status\":\"COMPLETED\",\"score\":100,\"title\":\"改名\"}";
+        mockMvc.perform(put("/learning-paths/nodes/1").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<LearningPathNode> captor = ArgumentCaptor.forClass(LearningPathNode.class);
+        verify(learningPathNodeService).updateById(captor.capture());
+        LearningPathNode patch = captor.getValue();
+        assertEquals(1L, patch.getId());
+        assertNull(patch.getLearningPathId(), "learningPathId 不能被请求体改写（否则可把节点改挂到他人路径）");
+        assertNull(patch.getStatus(), "节点状态不能被请求体改写");
+        assertNull(patch.getScore(), "得分不能被请求体直写");
+        assertEquals("改名", patch.getTitle());
     }
 }

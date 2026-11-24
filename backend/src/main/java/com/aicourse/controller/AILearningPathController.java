@@ -7,7 +7,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.security.AIAccessSupport;
 import com.aicourse.service.LearningPathService;
-import com.aicourse.service.component.ai.AiCallContext;
+import com.aicourse.common.AiCallContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;

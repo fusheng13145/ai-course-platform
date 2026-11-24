@@ -1,10 +1,13 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.FileUploadDTO;
+import com.aicourse.vo.FileUploadSessionVO;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.FileUploadSessionService;
@@ -32,9 +35,14 @@ public class FileUploadSessionController {
     private static final Logger log = LoggerFactory.getLogger(FileUploadSessionController.class);
 
     private final FileUploadSessionService fileUploadSessionService;
+    private final com.aicourse.application.storage.FileUploadSessionApplicationService
+            fileUploadSessionApplicationService;
 
-    public FileUploadSessionController(FileUploadSessionService fileUploadSessionService) {
+    public FileUploadSessionController(FileUploadSessionService fileUploadSessionService,
+                                          com.aicourse.application.storage.FileUploadSessionApplicationService
+                                                  fileUploadSessionApplicationService) {
         this.fileUploadSessionService = fileUploadSessionService;
+        this.fileUploadSessionApplicationService = fileUploadSessionApplicationService;
     }
 
     /**
@@ -45,12 +53,8 @@ public class FileUploadSessionController {
     @GetMapping("")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "上传会话列表（管理员）", description = "按创建时间倒序返回最近 100 条分片上传会话")
-    public ApiResponse<List<FileUploadSession>> listSessions() {
-        List<FileUploadSession> sessions = fileUploadSessionService.list(
-                new LambdaQueryWrapper<FileUploadSession>()
-                        .orderByDesc(FileUploadSession::getCreatedAt)
-                        .last("LIMIT 100"));
-        return ApiResponse.success(sessions);
+    public ApiResponse<List<FileUploadSessionVO>> listSessions() {
+        return ApiResponse.success(fileUploadSessionApplicationService.listRecent());
     }
 
     /**
@@ -59,13 +63,13 @@ public class FileUploadSessionController {
      * @return 创建的上传会话
      */
     @PostMapping("")
-    public ApiResponse<FileUploadSession> createUploadSession(
+    public ApiResponse<FileUploadSessionVO> createUploadSession(
             @Valid @RequestBody FileUploadDTO params,
             org.springframework.security.core.Authentication auth) {
         Long uploaderId = (Long) auth.getPrincipal();
         FileUploadSession session = fileUploadSessionService.createUploadSession(
                 params.getFilename(), params.getFileSize(), params.getTotalChunks(), uploaderId);
-        return ApiResponse.success("会话创建成功", session);
+        return ApiResponse.success("会话创建成功", FileUploadSessionVO.forUploader(session));
     }
 
     /**
@@ -79,17 +83,17 @@ public class FileUploadSessionController {
      * @return 更新后的会话
      */
     @PostMapping("/{id}/chunks/{index}")
-    public ApiResponse<FileUploadSession> uploadChunk(@PathVariable Long id, @PathVariable Integer index,
+    public ApiResponse<FileUploadSessionVO> uploadChunk(@PathVariable Long id, @PathVariable Integer index,
                                                       @RequestParam("file") MultipartFile file,
                                                       @RequestParam(value = "md5", required = false) String md5,
                                                       org.springframework.security.core.Authentication auth) {
         try {
             FileUploadSession session = fileUploadSessionService.uploadChunk(
                     id, index, file.getInputStream(), file.getSize(), md5, resolveOperator(id, auth));
-            return ApiResponse.success("分片上传成功", session);
+            return ApiResponse.success("分片上传成功", FileUploadSessionVO.forUploader(session));
         } catch (IOException e) {
             log.error("分片读取失败: session={}, chunk={}, {}", id, index, e.getMessage());
-            throw new BusinessException(500, "分片读取失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "分片读取失败", e);
         }
     }
 
@@ -100,10 +104,10 @@ public class FileUploadSessionController {
      * @return 合并后的会话（status=COMPLETED，uploadPath 为相对上传根的对象名）
      */
     @PostMapping("/{id}/merge")
-    public ApiResponse<FileUploadSession> mergeChunks(@PathVariable Long id,
+    public ApiResponse<FileUploadSessionVO> mergeChunks(@PathVariable Long id,
                                                       org.springframework.security.core.Authentication auth) {
         FileUploadSession session = fileUploadSessionService.mergeChunks(id, resolveOperator(id, auth));
-        return ApiResponse.success("分片合并成功", session);
+        return ApiResponse.success("分片合并成功", FileUploadSessionVO.forUploader(session));
     }
 
     /**
@@ -137,8 +141,7 @@ public class FileUploadSessionController {
      */
     private Long resolveOperator(Long sessionId, org.springframework.security.core.Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (!isAdmin) {
             return userId;
         }
@@ -146,3 +149,4 @@ public class FileUploadSessionController {
         return session != null && session.getUploaderId() != null ? session.getUploaderId() : userId;
     }
 }
+

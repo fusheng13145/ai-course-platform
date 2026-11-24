@@ -1,6 +1,7 @@
 package com.aicourse.integration.deepgraph;
 
 import com.aicourse.integration.ContractPaths;
+import com.aicourse.integration.support.DownstreamRetrySupport;
 import com.alibaba.csp.sentinel.Entry;
 import com.alibaba.csp.sentinel.EntryType;
 import com.alibaba.csp.sentinel.SphU;
@@ -245,7 +246,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         try {
             JsonNode root = OM.readTree(raw);
             // 与 HttpRagProvider 同口径：Python 侧可能以 body{code:503, mode:UNAVAILABLE} 表达降级
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableRetrieve();
             }
             List<DeepGraphSource> sources = parseSources(root.get(ContractPaths.R_RESULTS));
@@ -265,7 +266,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableIngest();
             }
             return new DeepGraphIngestResult(
@@ -290,7 +291,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return new DeepGraphDocumentList(null, ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE,
                         ContractPaths.CODE_UNAVAILABLE);
             }
@@ -323,7 +324,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableChapterGraph();
             }
             List<RelationRow> relations = new ArrayList<>();
@@ -354,7 +355,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableLearningPath();
             }
             return new DeepGraphLearningPathResult(
@@ -406,7 +407,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableCourseGraph();
             }
             List<String> chapters = new ArrayList<>();
@@ -453,7 +454,7 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return new DeepGraphDeleteResult(false, documentName,
                         ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
             }
@@ -463,13 +464,6 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
             return new DeepGraphDeleteResult(null, documentName,
                     ContractPaths.MSG_DEEPGRAPH_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
         }
-    }
-
-    private static boolean isExplicitFailure(JsonNode root) {
-        return root != null
-                && root.has(ContractPaths.R_SUCCESS)
-                && root.get(ContractPaths.R_SUCCESS).isBoolean()
-                && !root.get(ContractPaths.R_SUCCESS).asBoolean();
     }
 
     private DeepGraphRetrievalResult unavailableRetrieve() {
@@ -510,13 +504,13 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
                     return call.execute();
                 } catch (Exception e) {
                     lastException = e;
-                    if (isReadTimeout(e) || isConnectFailure(e) || isServiceUnavailable(e)) {
+                    if (DownstreamRetrySupport.isReadTimeout(e) || DownstreamRetrySupport.isConnectFailure(e) || DownstreamRetrySupport.isServiceUnavailable(e)) {
                         // 读超时 / 连接拒绝（8501 未启动）/ HTTP 503：不重试，直接降级
                         break;
                     }
                     if (i < maxRetries) {
                         log.warn("{}失败，第{}次重试: {}", operation, i + 1, e.getMessage());
-                        sleep(i + 1);
+                        DownstreamRetrySupport.sleep(i + 1);
                     }
                 }
             }
@@ -530,46 +524,4 @@ public class HttpDeepGraphRagProvider implements DeepGraphRagContract {
         }
     }
 
-    private void sleep(int attempt) {
-        try {
-            Thread.sleep(1000L * attempt);
-        } catch (InterruptedException ie) {
-            log.warn("重试等待被中断", ie);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private static boolean isReadTimeout(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof SocketTimeoutException
-                    || t instanceof java.net.http.HttpTimeoutException) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
-
-    private static boolean isServiceUnavailable(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof org.springframework.web.client.HttpServerErrorException hse) {
-                return hse.getStatusCode().value() == ContractPaths.CODE_UNAVAILABLE;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
-
-    private static boolean isConnectFailure(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof java.net.ConnectException) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
 }

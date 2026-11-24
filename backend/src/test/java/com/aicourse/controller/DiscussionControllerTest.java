@@ -7,11 +7,14 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.DiscussionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -267,5 +270,35 @@ class DiscussionControllerTest extends ControllerTestBase {
     void deletePost_unauthorized_returns_401() throws Exception {
         mockMvc.perform(delete("/discussion/post/1"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /discussion/topic/1/reply - 注入 authorId/楼层/审核字段一律忽略")
+    void reply_ignoresInjectedServerFields() throws Exception {
+        DiscussionPost post = new DiscussionPost();
+        post.setId(1L);
+        when(discussionService.reply(eq(1L), any(), eq(1L), any())).thenReturn(post);
+
+        mockMvc.perform(post("/discussion/topic/1/reply").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"authorId\":999,\"authorRole\":\"ADMIN\",\"floor\":10,"
+                                + "\"likeCount\":99,\"moderationStatus\":\"HIDDEN\",\"moderatedBy\":999,"
+                                + "\"content\":\"回复正文\"}")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<DiscussionPost> captor = ArgumentCaptor.forClass(DiscussionPost.class);
+        verify(discussionService).reply(eq(1L), captor.capture(), eq(1L), any());
+        DiscussionPost sent = captor.getValue();
+        assertNull(sent.getId());
+        assertNull(sent.getAuthorId(), "作者由服务端按登录身份写入");
+        assertNull(sent.getAuthorRole());
+        assertNull(sent.getFloor());
+        assertNull(sent.getLikeCount());
+        assertNull(sent.getModerationStatus(), "审核结论不能被发帖人自带");
+        assertNull(sent.getModeratedBy());
+        assertEquals("回复正文", sent.getContent());
     }
 }

@@ -27,6 +27,13 @@ public class WebSocketConfig implements WebSocketConfigurer {
     private final JwtHandshakeInterceptor handshakeInterceptor;
     private final CorsProperties corsProperties;
 
+    /**
+     * 是否允许「未配置 origins 时回退本地开发地址」。与 HTTP CORS 共用同一开关（DEF-07），
+     * 字段注入而非构造参数，保持既有单测可直接 new 出实例。
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.cors.dev-fallback:true}")
+    private boolean corsDevFallback = true;
+
     public WebSocketConfig(RealtimeWebSocketHandler handler,
                            JwtHandshakeInterceptor handshakeInterceptor,
                            CorsProperties corsProperties) {
@@ -40,9 +47,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
      */
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        List<String> origins = corsProperties.getAllowedOrigins();
-        if (origins == null || origins.isEmpty()) {
-            origins = List.of("http://localhost:5173");
+        List<String> origins = com.aicourse.config.CorsOriginResolver.resolve(
+                corsProperties.getAllowedOrigins(), corsDevFallback);
+        if (com.aicourse.config.CorsOriginResolver.isFailClosed(origins)) {
+            // 与 HTTP CORS 保持一致：dev-fallback 关闭且未配置来源时拒绝一切跨域握手。
+            log.warn("[WebSocketConfig] cors.allowed-origins 未配置且 app.cors.dev-fallback=false，"
+                    + "WebSocket 将拒绝一切跨域握手");
         }
         log.info("[WebSocketConfig] 注册 WebSocket 端点 /ws，允许跨域来源: {}", origins);
         registry.addHandler(handler, "/ws")

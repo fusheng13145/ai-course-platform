@@ -14,6 +14,7 @@ import com.aicourse.mapper.ExamTeachingClassMapper;
 import com.aicourse.mapper.TaskTeachingClassMapper;
 import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.UserService;
 import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -50,6 +51,7 @@ class ActivityVisibilityGuardCoverageTest {
 
     @Mock private CourseService courseService;
     @Mock private CourseEnrollmentService enrollmentService;
+    @Mock private UserService userService;
     @Mock private TeachingClassMapper teachingClassMapper;
     @Mock private TaskTeachingClassMapper taskTeachingClassMapper;
     @Mock private ExamTeachingClassMapper examTeachingClassMapper;
@@ -71,8 +73,11 @@ class ActivityVisibilityGuardCoverageTest {
 
     @BeforeEach
     void setUp() {
+        TeachingClassAccessControl teachingClassAccessControl =
+                new TeachingClassAccessControl(courseService, userService, teachingClassMapper, adminScopeGuard);
         guard = new ActivityVisibilityGuard(courseService, enrollmentService, teachingClassMapper,
-                taskTeachingClassMapper, examTeachingClassMapper, adminScopeGuard, courseAccessControl);
+                taskTeachingClassMapper, examTeachingClassMapper, adminScopeGuard, courseAccessControl,
+                teachingClassAccessControl);
     }
 
     private Authentication auth(Long id, String... roles) {

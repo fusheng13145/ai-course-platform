@@ -24,8 +24,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(SubmissionController.class)
 class SubmissionControllerTest extends ControllerTestBase {
 
+    private com.aicourse.common.PagedResponse<com.aicourse.vo.SubmissionVO> pagedWith(Long id) {
+        com.aicourse.vo.SubmissionVO vo = new com.aicourse.vo.SubmissionVO();
+        vo.setId(id);
+        return com.aicourse.common.PagedResponse.of(java.util.List.of(vo), 1L, 1L, 1L);
+    }
+
     @MockitoBean
     private com.aicourse.service.SubmissionService submissionService;
+
+    @MockitoBean
+    private com.aicourse.application.submission.SubmissionApplicationService submissionApplicationService;
 
     @MockitoBean
     private com.aicourse.security.SubmissionAccessControl accessControl;
@@ -64,21 +73,21 @@ class SubmissionControllerTest extends ControllerTestBase {
         saved.setId(10L);
         saved.setStudentId(1L);
         saved.setTaskId(1L);
-        when(submissionService.submitAssignment(eq(1L), eq(1L), any(), any())).thenReturn(saved);
+        when(submissionApplicationService.submit(any(), any())).thenReturn(saved);
         mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"taskId\":1,\"content\":\"作答\"}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.studentId").value(1));
         // D4：提交必须走服务层统一收口（含存在性/发布/逾期/次数校验），而非裸 save
-        verify(submissionService).submitAssignment(eq(1L), eq(1L), any(), any());
+        verify(submissionApplicationService).submit(any(), any());
         verify(submissionService, never()).save(any());
     }
 
     @Test
     @DisplayName("POST /submissions - 任务不存在时按业务异常拒绝，不落库（D4 回归）")
     void submit_taskNotFound_rejected() throws Exception {
-        when(submissionService.submitAssignment(any(), any(), any(), any()))
+        when(submissionApplicationService.submit(any(), any()))
                 .thenThrow(new com.aicourse.exception.BusinessException("作业任务不存在"));
         mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"taskId\":999}").with(withUser(1L, "STUDENT")))
@@ -91,7 +100,7 @@ class SubmissionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /submissions - 未发布作业被服务层拒绝（D4 回归）")
     void submit_unpublished_rejected() throws Exception {
-        when(submissionService.submitAssignment(any(), any(), any(), any()))
+        when(submissionApplicationService.submit(any(), any()))
                 .thenThrow(new com.aicourse.exception.BusinessException("该作业尚未发布"));
         mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"taskId\":1}").with(withUser(1L, "STUDENT")))
@@ -103,7 +112,7 @@ class SubmissionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /submissions - 超过最大提交次数被拒绝（D4 幂等/次数防护回归）")
     void submit_exceedMaxSubmissions_rejected() throws Exception {
-        when(submissionService.submitAssignment(any(), any(), any(), any()))
+        when(submissionApplicationService.submit(any(), any()))
                 .thenThrow(new com.aicourse.exception.BusinessException("已达到最大提交次数限制（3次），无法再次提交"));
         mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"taskId\":1}").with(withUser(1L, "STUDENT")))
@@ -121,7 +130,7 @@ class SubmissionControllerTest extends ControllerTestBase {
         late.setTaskId(1L);
         late.setIsLate(true);
         late.setLatePenalty(new java.math.BigDecimal("10"));
-        when(submissionService.submitAssignment(eq(1L), eq(1L), any(), any())).thenReturn(late);
+        when(submissionApplicationService.submit(any(), any())).thenReturn(late);
         mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"taskId\":1,\"content\":\"迟交\"}").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
@@ -140,13 +149,14 @@ class SubmissionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /submissions - 查询我的提交返回200，列表透传")
     void mySubmissions_authorized_passes_security() throws Exception {
-        when(submissionService.page(any(), any())).thenReturn(submissionPageWith(1L));
+        when(submissionApplicationService.mySubmissions(eq(1L), eq(1L), eq(1L)))
+                .thenReturn(pagedWith(1L));
         mockMvc.perform(get("/submissions?page=1&size=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.list").isArray())
                 .andExpect(jsonPath("$.data.list[0].id").value(1));
-        verify(submissionService).page(any(), any());
+        verify(submissionApplicationService).mySubmissions(1L, 1L, 1L);
     }
 
     @Test
@@ -179,13 +189,14 @@ class SubmissionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /submissions/task/1 - 按任务查询提交返回200，列表透传")
     void list_authorized_passes_security() throws Exception {
-        when(submissionService.page(any(), any())).thenReturn(submissionPageWith(1L));
+        when(submissionApplicationService.listByTask(eq(1L), eq(1L), eq(1L), any()))
+                .thenReturn(pagedWith(1L));
         mockMvc.perform(get("/submissions/task/1?page=1&size=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.list").isArray())
                 .andExpect(jsonPath("$.data.list[0].id").value(1));
-        verify(submissionService).page(any(), any());
+        verify(submissionApplicationService).listByTask(eq(1L), eq(1L), eq(1L), any());
     }
 
     @Test
@@ -201,7 +212,7 @@ class SubmissionControllerTest extends ControllerTestBase {
         Submission s = new Submission();
         s.setId(1L);
         s.setStatus("GRADED");
-        when(submissionService.gradeSubmission(eq(1L), any(), any(), any())).thenReturn(s);
+        when(submissionApplicationService.grade(any(), any(), any())).thenReturn(s);
         mockMvc.perform(post("/submissions/1/grade").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"score\":95,\"feedback\":\"good\"}").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -209,7 +220,7 @@ class SubmissionControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.id").value(1))
                 .andExpect(jsonPath("$.data.status").value("GRADED"));
         // 2026-11-14 P1-2：控制器不再直写实体，统一委托服务层（逾期扣分/百分比/reviewCount 单一口径）
-        verify(submissionService).gradeSubmission(eq(1L), any(), any(), any());
+        verify(submissionApplicationService).grade(any(), any(), any());
         verify(submissionService, never()).updateById(any());
     }
 
@@ -233,13 +244,13 @@ class SubmissionControllerTest extends ControllerTestBase {
     void resubmit_authorized_passes_security() throws Exception {
         Submission s = new Submission();
         s.setId(1L);
-        when(submissionService.resubmit(eq(1L), any(), any())).thenReturn(s);
+        when(submissionApplicationService.resubmit(any(), any(), any())).thenReturn(s);
         mockMvc.perform(post("/submissions/1/resubmit").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"重交\"}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(submissionService).resubmit(eq(1L), any(), any());
+        verify(submissionApplicationService).resubmit(any(), any(), any());
     }
 
     @Test
@@ -254,13 +265,13 @@ class SubmissionControllerTest extends ControllerTestBase {
     void returnSubmission_authorized_passes_security() throws Exception {
         Submission s = new Submission();
         s.setId(1L);
-        when(submissionService.returnSubmission(eq(1L), any())).thenReturn(s);
+        when(submissionApplicationService.returnSubmission(any(), any(), any())).thenReturn(s);
         mockMvc.perform(post("/submissions/1/return").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"不合格\"}").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(submissionService).returnSubmission(eq(1L), any());
+        verify(submissionApplicationService).returnSubmission(any(), any(), any());
     }
 
     @Test
@@ -283,12 +294,12 @@ class SubmissionControllerTest extends ControllerTestBase {
     void aiGrade_authorized_passes_security() throws Exception {
         Submission s = new Submission();
         s.setId(1L);
-        when(submissionService.aiGradeSubmission(eq(1L))).thenReturn(s);
+        when(submissionApplicationService.aiGrade(any(), any())).thenReturn(s);
         mockMvc.perform(post("/submissions/1/ai-grade").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(submissionService).aiGradeSubmission(eq(1L));
+        verify(submissionApplicationService).aiGrade(any(), any());
     }
 
     @Test

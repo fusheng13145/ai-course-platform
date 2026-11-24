@@ -13,6 +13,7 @@ import com.aicourse.mapper.TaskTeachingClassMapper;
 import com.aicourse.mapper.TeachingClassMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,8 +52,20 @@ class ActivityVisibilityGuardTest {
     private AdminScopeGuard adminScopeGuard;
     @Mock
     private CourseAccessControl courseAccessControl;
-    @InjectMocks
+    @Mock
+    private UserService userService;
+
     private ActivityVisibilityGuard guard;
+
+    @org.junit.jupiter.api.BeforeEach
+    void wireGuard() {
+        // DUP-14/15 收敛后：教学班/课程取实体统一走 TeachingClassAccessControl
+        TeachingClassAccessControl teachingClassAccessControl =
+                new TeachingClassAccessControl(courseService, userService, teachingClassMapper, adminScopeGuard);
+        guard = new ActivityVisibilityGuard(courseService, enrollmentService, teachingClassMapper,
+                taskTeachingClassMapper, examTeachingClassMapper, adminScopeGuard, courseAccessControl,
+                teachingClassAccessControl);
+    }
 
     private Authentication auth(long userId, String... roles) {
         return new UsernamePasswordAuthenticationToken(userId, null,

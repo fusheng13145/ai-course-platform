@@ -1,6 +1,7 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.common.AiCallContext;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AiCallLogService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

@@ -5,12 +5,10 @@ import com.aicourse.dto.AdminClassMemberBatchDTO;
 import com.aicourse.dto.OrgAdminClassDTO;
 import com.aicourse.dto.OrgCollegeDTO;
 import com.aicourse.dto.OrgMajorDTO;
-import com.aicourse.entity.AdminClass;
-import com.aicourse.entity.College;
-import com.aicourse.entity.Major;
 import com.aicourse.service.OrgService;
 import com.aicourse.vo.AdminClassMemberBatchVO;
 import com.aicourse.vo.OrgTreeNodeVO;
+import com.aicourse.vo.OrgVOs;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -50,21 +48,22 @@ public class AdminOrgController {
 
     @GetMapping("/colleges")
     @Operation(summary = "学院列表", description = "院系管理员仅本院")
-    public ApiResponse<List<College>> listColleges() {
-        return ApiResponse.success(orgService.listColleges());
+    public ApiResponse<List<OrgVOs.CollegeVO>> listColleges() {
+        // 出参走 OrgVOs，不再直返 College 实体（阶段 3 · Q-05 分层边界）
+        return ApiResponse.success(OrgVOs.CollegeVO.from(orgService.listColleges()));
     }
 
     @PostMapping("/colleges")
     @Operation(summary = "新建学院", description = "仅校级管理员；编码唯一")
-    public ApiResponse<College> createCollege(@Valid @RequestBody OrgCollegeDTO body) {
-        return ApiResponse.success("学院创建成功", orgService.createCollege(body));
+    public ApiResponse<OrgVOs.CollegeVO> createCollege(@Valid @RequestBody OrgCollegeDTO body) {
+        return ApiResponse.success("学院创建成功", OrgVOs.CollegeVO.from(orgService.createCollege(body)));
     }
 
     @PutMapping("/colleges/{id}")
     @Operation(summary = "修改学院", description = "仅校级管理员")
-    public ApiResponse<College> updateCollege(@PathVariable Long id,
-                                              @Valid @RequestBody OrgCollegeDTO body) {
-        return ApiResponse.success("学院已更新", orgService.updateCollege(id, body));
+    public ApiResponse<OrgVOs.CollegeVO> updateCollege(@PathVariable Long id,
+                                                       @Valid @RequestBody OrgCollegeDTO body) {
+        return ApiResponse.success("学院已更新", OrgVOs.CollegeVO.from(orgService.updateCollege(id, body)));
     }
 
     @DeleteMapping("/colleges/{id}")
@@ -78,21 +77,21 @@ public class AdminOrgController {
 
     @GetMapping("/majors")
     @Operation(summary = "专业列表", description = "可按学院过滤；院系管理员仅本院")
-    public ApiResponse<List<Major>> listMajors(@RequestParam(required = false) Long collegeId) {
-        return ApiResponse.success(orgService.listMajors(collegeId));
+    public ApiResponse<List<OrgVOs.MajorVO>> listMajors(@RequestParam(required = false) Long collegeId) {
+        return ApiResponse.success(OrgVOs.MajorVO.from(orgService.listMajors(collegeId)));
     }
 
     @PostMapping("/majors")
     @Operation(summary = "新建专业", description = "院系管理员仅本院")
-    public ApiResponse<Major> createMajor(@Valid @RequestBody OrgMajorDTO body) {
-        return ApiResponse.success("专业创建成功", orgService.createMajor(body));
+    public ApiResponse<OrgVOs.MajorVO> createMajor(@Valid @RequestBody OrgMajorDTO body) {
+        return ApiResponse.success("专业创建成功", OrgVOs.MajorVO.from(orgService.createMajor(body)));
     }
 
     @PutMapping("/majors/{id}")
     @Operation(summary = "修改专业", description = "仅调整编码/名称/状态，不可改所属学院")
-    public ApiResponse<Major> updateMajor(@PathVariable Long id,
-                                          @Valid @RequestBody OrgMajorDTO body) {
-        return ApiResponse.success("专业已更新", orgService.updateMajor(id, body));
+    public ApiResponse<OrgVOs.MajorVO> updateMajor(@PathVariable Long id,
+                                                   @Valid @RequestBody OrgMajorDTO body) {
+        return ApiResponse.success("专业已更新", OrgVOs.MajorVO.from(orgService.updateMajor(id, body)));
     }
 
     @DeleteMapping("/majors/{id}")
@@ -106,23 +105,23 @@ public class AdminOrgController {
 
     @GetMapping("/admin-classes")
     @Operation(summary = "行政班列表", description = "可按学院/专业过滤；院系管理员仅本院")
-    public ApiResponse<List<AdminClass>> listAdminClasses(
+    public ApiResponse<List<OrgVOs.AdminClassVO>> listAdminClasses(
             @RequestParam(required = false) Long collegeId,
             @RequestParam(required = false) Long majorId) {
-        return ApiResponse.success(orgService.listAdminClasses(collegeId, majorId));
+        return ApiResponse.success(OrgVOs.AdminClassVO.from(orgService.listAdminClasses(collegeId, majorId)));
     }
 
     @PostMapping("/admin-classes")
     @Operation(summary = "新建行政班", description = "院系管理员仅本院")
-    public ApiResponse<AdminClass> createAdminClass(@Valid @RequestBody OrgAdminClassDTO body) {
-        return ApiResponse.success("行政班创建成功", orgService.createAdminClass(body));
+    public ApiResponse<OrgVOs.AdminClassVO> createAdminClass(@Valid @RequestBody OrgAdminClassDTO body) {
+        return ApiResponse.success("行政班创建成功", OrgVOs.AdminClassVO.from(orgService.createAdminClass(body)));
     }
 
     @PutMapping("/admin-classes/{id}")
     @Operation(summary = "修改行政班", description = "仅调整名称/编码/年级/班主任/容量/状态")
-    public ApiResponse<AdminClass> updateAdminClass(@PathVariable Long id,
-                                                    @Valid @RequestBody OrgAdminClassDTO body) {
-        return ApiResponse.success("行政班已更新", orgService.updateAdminClass(id, body));
+    public ApiResponse<OrgVOs.AdminClassVO> updateAdminClass(@PathVariable Long id,
+                                                             @Valid @RequestBody OrgAdminClassDTO body) {
+        return ApiResponse.success("行政班已更新", OrgVOs.AdminClassVO.from(orgService.updateAdminClass(id, body)));
     }
 
     @DeleteMapping("/admin-classes/{id}")

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.math.BigDecimal;
 import java.util.List;
@@ -27,6 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 断言 HTTP 200 / code=200 以及业务字段透传到响应体，并用 verify 确认路由正确委托。
  */
 @WebMvcTest(ExamSessionController.class)
+// 3E-03B：引入真实用例层，让既有的 service/accessControl 打桩与 verify 继续作用于真实编排
+@Import(com.aicourse.application.exam.ExamSessionApplicationService.class)
 class ExamSessionControllerTest extends ControllerTestBase {
 
     @MockitoBean

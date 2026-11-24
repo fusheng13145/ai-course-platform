@@ -1,5 +1,6 @@
 package com.aicourse.service.component.auth;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.VerificationCode;
 import com.aicourse.exception.BusinessException;
@@ -71,7 +72,7 @@ public class AuthVerificationComponent {
             redisTemplate.expire(key, VC_ATTEMPT_WINDOW);
         }
         if (count != null && count > VC_ATTEMPT_MAX) {
-            throw new BusinessException(429, "验证码尝试次数过多，请5分钟后再试");
+            throw new BusinessException(ApiCode.TOO_MANY_REQUESTS, "验证码尝试次数过多，请5分钟后再试");
         }
     }
 

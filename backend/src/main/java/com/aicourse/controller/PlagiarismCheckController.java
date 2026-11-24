@@ -1,11 +1,13 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
-import com.aicourse.common.RoleConstants;
+import com.aicourse.vo.PlagiarismVOs;
 import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.PlagiarismMatch;
 import com.aicourse.exception.BusinessException;
@@ -17,7 +19,6 @@ import com.aicourse.dto.PlagiarismCheckCreateDTO;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -64,11 +65,11 @@ public class PlagiarismCheckController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<PlagiarismCheck> create(@Valid @RequestBody PlagiarismCheckCreateDTO dto) {
+    public ApiResponse<PlagiarismVOs.CheckVO> create(@Valid @RequestBody PlagiarismCheckCreateDTO dto) {
         Long submissionId = dto.getSubmissionId();
         String checkType = dto.getCheckType() != null ? dto.getCheckType() : "TEXT";
         PlagiarismCheck check = plagiarismCheckService.createCheck(submissionId, checkType);
-        return ApiResponse.success("查重任务创建成功", check);
+        return ApiResponse.success("查重任务创建成功", PlagiarismVOs.CheckVO.from(check));
     }
 
     /**
@@ -102,13 +103,13 @@ public class PlagiarismCheckController {
      * @return 高相似度匹配明细列表
      */
     @GetMapping("/{id}/matches")
-    public ApiResponse<List<PlagiarismMatch>> getHighSimilarityMatches(
+    public ApiResponse<List<PlagiarismVOs.MatchVO>> getHighSimilarityMatches(
             @PathVariable Long id,
             @RequestParam(required = false, defaultValue = "0.3") BigDecimal threshold,
             Authentication auth) {
         assertCheckReadable(id, auth);
         List<PlagiarismMatch> matches = plagiarismCheckService.getHighSimilarityMatches(id, threshold);
-        return ApiResponse.success(matches);
+        return ApiResponse.success(PlagiarismVOs.MatchVO.from(matches));
     }
 
     /**
@@ -117,10 +118,10 @@ public class PlagiarismCheckController {
      * @return 查重历史列表
      */
     @GetMapping("/submission/{submissionId}")
-    public ApiResponse<List<PlagiarismCheck>> getSubmissionHistory(@PathVariable Long submissionId, Authentication auth) {
+    public ApiResponse<List<PlagiarismVOs.CheckVO>> getSubmissionHistory(@PathVariable Long submissionId, Authentication auth) {
         submissionAccessControl.assertReadable(submissionId, auth);
         List<PlagiarismCheck> checks = plagiarismCheckService.getSubmissionChecks(submissionId);
-        return ApiResponse.success(checks);
+        return ApiResponse.success(PlagiarismVOs.CheckVO.from(checks));
     }
 
     /**
@@ -129,12 +130,12 @@ public class PlagiarismCheckController {
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<PlagiarismCheck>> listAll() {
+    public ApiResponse<List<PlagiarismVOs.CheckVO>> listAll() {
         List<PlagiarismCheck> checks = plagiarismCheckService.lambdaQuery()
                 .orderByDesc(PlagiarismCheck::getCreatedAt)
                 .last("LIMIT 500")
                 .list();
-        return ApiResponse.success(checks);
+        return ApiResponse.success(PlagiarismVOs.CheckVO.from(checks));
     }
 
     /**
@@ -149,13 +150,13 @@ public class PlagiarismCheckController {
      */
     @GetMapping("/student/{studentId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<PlagiarismCheck>> getStudentHistory(@PathVariable Long studentId, Authentication auth) {
+    public ApiResponse<List<PlagiarismVOs.CheckVO>> getStudentHistory(@PathVariable Long studentId, Authentication auth) {
         assertTeacherScopedToStudent(studentId, auth);
         List<PlagiarismCheck> checks = plagiarismCheckService.lambdaQuery()
                 .eq(PlagiarismCheck::getStudentId, studentId)
                 .orderByDesc(PlagiarismCheck::getCreatedAt)
                 .list();
-        return ApiResponse.success(checks);
+        return ApiResponse.success(PlagiarismVOs.CheckVO.from(checks));
     }
 
     /**
@@ -167,7 +168,7 @@ public class PlagiarismCheckController {
     private void assertCheckReadable(Long checkId, Authentication auth) {
         PlagiarismCheck check = plagiarismCheckService.getById(checkId);
         if (check == null) {
-            throw new BusinessException(404, "查重任务不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "查重任务不存在");
         }
         submissionAccessControl.assertReadable(check.getSubmissionId(), auth);
     }
@@ -183,23 +184,18 @@ public class PlagiarismCheckController {
      */
     private void assertTeacherScopedToStudent(Long studentId, Authentication auth) {
         if (studentId == null) {
-            throw new BusinessException(400, "学生ID不能为空");
+            throw new BusinessException(ApiCode.BAD_REQUEST, "学生ID不能为空");
         }
-        if (isAdmin(auth)) {
+        if (AccessSupport.isAdmin(auth)) {
             return;
         }
         Long teacherId = (Long) auth.getPrincipal();
         if (!courseEnrollmentService.hasApprovedEnrollmentWithTeacher(studentId, teacherId)) {
             log.warn("[PlagiarismAccess] 越权访问尝试（教师读取非本人学生查重记录）：studentId={}, teacherId={}",
                     studentId, teacherId);
-            throw new BusinessException(403, "无权查看该学生的查重记录");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权查看该学生的查重记录");
         }
     }
 
-    /** 判定当前主体是否为管理员角色。 */
-    private boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + RoleConstants.ADMIN)::equals);
-    }
 }
+

@@ -1,5 +1,6 @@
 package com.aicourse.security;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.Submission;
@@ -9,7 +10,6 @@ import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.TaskMapper;
 import com.aicourse.service.SubmissionService;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -61,7 +61,7 @@ public class SubmissionAccessControl {
             if (!userId.equals(submission.getStudentId())) {
                 log.warn("[SubmissionAccess] 越权访问尝试（学生非本人提交）：submissionId={}, 访问者={}, 持有者={}",
                         submissionId, userId, submission.getStudentId());
-                throw new BusinessException(403, "无权访问该提交记录");
+                throw new BusinessException(ApiCode.FORBIDDEN, "无权访问该提交记录");
             }
             return;
         }
@@ -76,12 +76,12 @@ public class SubmissionAccessControl {
         String role = roleOf(auth);
         if (RoleConstants.STUDENT.equals(role)) {
             log.warn("[SubmissionAccess] 越权管理尝试（学生角色）：submissionId={}, userId={}", submissionId, userId);
-            throw new BusinessException(403, "学生无权执行该操作");
+            throw new BusinessException(ApiCode.FORBIDDEN, "学生无权执行该操作");
         }
         // 教学写面不替代教师：管理员只读本院提交/成绩，评分/退回/查重仍须课程负责人本人。
         if (isAdmin(auth)) {
             log.warn("[SubmissionAccess] 拒绝管理员代教师管理提交：submissionId={}, userId={}", submissionId, userId);
-            throw new BusinessException(403, "管理员仅可查看提交记录，不能代教师评分或退回");
+            throw new BusinessException(ApiCode.FORBIDDEN, "管理员仅可查看提交记录，不能代教师评分或退回");
         }
         Submission submission = requireSubmission(submissionId);
         assertCanAccessTaskCourse(submission.getTaskId(), auth, true);
@@ -111,7 +111,7 @@ public class SubmissionAccessControl {
     public Task assertCanSubmitTask(Long taskId, Authentication auth) {
         Task task = taskId != null ? taskMapper.selectById(taskId) : null;
         if (task == null) {
-            throw new BusinessException(404, "作业任务不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "作业任务不存在");
         }
         courseAccessControl.assertCanReadTask(task, auth);
         return task;
@@ -122,7 +122,7 @@ public class SubmissionAccessControl {
     private Submission requireSubmission(Long submissionId) {
         Submission submission = submissionService.getById(submissionId);
         if (submission == null) {
-            throw new BusinessException(404, "提交记录不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "提交记录不存在");
         }
         return submission;
     }
@@ -137,11 +137,11 @@ public class SubmissionAccessControl {
     private void assertCanAccessTaskCourse(Long taskId, Authentication auth, boolean manage) {
         Task task = taskMapper.selectById(taskId);
         if (task == null) {
-            throw new BusinessException(404, "关联任务不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "关联任务不存在");
         }
         Course course = courseMapper.selectById(task.getCourseId());
         if (course == null) {
-            throw new BusinessException(404, "关联课程不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "关联课程不存在");
         }
         if (isAdmin(auth)) {
             if (manage) {
@@ -155,25 +155,20 @@ public class SubmissionAccessControl {
         if (!userId.equals(course.getTeacherId())) {
             log.warn("[SubmissionAccess] 越权管理尝试（非授课教师）：submissionId/taskId={}, userId={}, courseId={}, teacherId={}",
                     taskId, userId, course.getId(), course.getTeacherId());
-            throw new BusinessException(403, "无权操作非本人课程的提交记录");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作非本人课程的提交记录");
         }
     }
 
     private boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_" + RoleConstants.ADMIN));
+        // 统一到 AccessSupport：角色判定只保留一处实现（阶段 2 DUP-18/19）
+        return AccessSupport.isAdmin(auth);
     }
 
     private Long principalId(Authentication auth) {
-        return (Long) auth.getPrincipal();
+        return AccessSupport.requirePrincipalId(auth);
     }
 
     private String roleOf(Authentication auth) {
-        List<String> roles = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .filter(a -> a.startsWith("ROLE_"))
-                .map(a -> a.substring("ROLE_".length()))
-                .toList();
-        return roles.isEmpty() ? "" : roles.get(0);
+        return AccessSupport.roleOf(auth);
     }
 }

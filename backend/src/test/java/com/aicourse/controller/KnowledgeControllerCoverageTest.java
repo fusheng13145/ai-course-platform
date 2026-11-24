@@ -73,7 +73,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest({KnowledgeController.class, KnowledgeRelationController.class,
         KnowledgeSearchController.class, KnowledgeExtractionController.class})
-@Import(com.aicourse.security.KnowledgeAccessSupport.class)
+@Import({com.aicourse.security.KnowledgeAccessSupport.class,
+        com.aicourse.application.knowledge.KnowledgePointApplicationService.class,
+        com.aicourse.application.knowledge.KnowledgeSearchApplicationService.class})
 class KnowledgeControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean private KnowledgePointService knowledgePointService;

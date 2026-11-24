@@ -1,25 +1,26 @@
 package com.aicourse.controller;
 
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.common.RoleConstants;
 import com.aicourse.dto.GradeDTO;
 import com.aicourse.dto.SubmissionCreateDTO;
 import com.aicourse.dto.SubmissionResubmitDTO;
-import com.aicourse.entity.CourseEnrollment;
+
 import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.Submission;
-import com.aicourse.entity.Task;
-import com.aicourse.entity.User;
-import com.aicourse.security.CourseAccessControl;
+
+
+
+
 import com.aicourse.security.SubmissionAccessControl;
-import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.NotificationService;
+
+
 import com.aicourse.service.SubmissionService;
-import com.aicourse.service.TaskService;
-import com.aicourse.service.UserService;
+
+
 import com.aicourse.vo.PlagiarismCheckResultVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.aicourse.vo.SubmissionVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,17 +28,19 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
+
+
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
+
+
+
 import lombok.extern.slf4j.Slf4j;
+import com.aicourse.application.submission.SubmissionApplicationService;
+import com.aicourse.vo.UnsubmittedStudentVO;
 
 /**
  * 作业提交与评分接口控制器
@@ -54,28 +57,16 @@ public class SubmissionController {
     private final SubmissionService submissionService;
     private final SubmissionAccessControl accessControl;
     private final com.aicourse.service.PlagiarismCheckService plagiarismCheckService;
-    private final TaskService taskService;
-    private final CourseEnrollmentService enrollmentService;
-    private final UserService userService;
-    private final NotificationService notificationService;
-    private final CourseAccessControl courseAccessControl;
+    private final SubmissionApplicationService submissionApplicationService;
 
     public SubmissionController(SubmissionService submissionService,
                                 SubmissionAccessControl accessControl,
                                 com.aicourse.service.PlagiarismCheckService plagiarismCheckService,
-                                TaskService taskService,
-                                CourseEnrollmentService enrollmentService,
-                                UserService userService,
-                                NotificationService notificationService,
-                                CourseAccessControl courseAccessControl) {
+                                SubmissionApplicationService submissionApplicationService) {
         this.submissionService = submissionService;
         this.accessControl = accessControl;
         this.plagiarismCheckService = plagiarismCheckService;
-        this.taskService = taskService;
-        this.enrollmentService = enrollmentService;
-        this.userService = userService;
-        this.notificationService = notificationService;
-        this.courseAccessControl = courseAccessControl;
+        this.submissionApplicationService = submissionApplicationService;
     }
 
     /**
@@ -85,72 +76,30 @@ public class SubmissionController {
      * @return 提交记录
      */
     @PostMapping
-    public ApiResponse<Submission> submit(@Valid @RequestBody SubmissionCreateDTO body,
+    public ApiResponse<SubmissionVO> submit(@Valid @RequestBody SubmissionCreateDTO body,
                                           Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        // 修复 D4：原实现直接 submissionService.save(...)，绕过一切校验，导致
-        //   ① 不校验 task 是否存在/是否发布/是否过期；② 同一 (taskId, studentId) 可无限重复 POST 产生多行。
-        // 现统一收口到 {@link SubmissionService#submitAssignment}（与 StudentController 的
-        // /student/assignments/{id}/submit 同源，修复历史「P0-8 双轨问题」），由服务层集中实现：
-        //   - 任务存在性校验（不存在抛「作业任务不存在」）
-        //   - 发布态校验（未发布抛「该作业尚未发布」）
-        //   - 提交次数上限（maxSubmissions>0 时超限拒绝）
-        //   - 逾期策略：本项目的既有约定是「允许迟交但计逾期扣分」——过期不拒绝，而是置 isLate + latePenalty
-        //     （见 SubmissionWriteComponent，配合 Task.latePenaltyPerDay / Submission.isLate 字段），故此处沿用该策略。
-        //   - 重复提交语义：既有实现按「多次提交、attemptNumber 递增、最新一次为准」处理，并复用草稿行避免草稿+正式双行；
-        //     submissions 表无 (task_id, student_id) 唯一约束，本次仅在应用层实现，未加 DB 迁移（待团队评审）。
-        // 仍仅接收白名单 DTO，绝不使用 Submission 实体直接入参，防止注入 score/graderId/status 等敏感列。
-        // 提交前对象级校验：任务存在 + 已发布 + 学生已通过该课程选课（教师须为授课教师）。
-        // 服务层仍保留发布/截止/次数/逾期策略，此处补上此前缺失的课程成员边界。
-        accessControl.assertCanSubmitTask(body.getTaskId(), auth);
-        Submission submission = submissionService.submitAssignment(
-                body.getTaskId(), userId, body.getContent(), body.getFileUrls());
-        // 异步 AI 预批改：提交后自动触发，不阻塞学生提交响应；
-        // 教师打开批阅页时可直接看到 AI 建议分数和评语
-        final Long savedId = submission.getId();
-        CompletableFuture.runAsync(() -> {
-            try {
-                submissionService.aiGradeSubmission(savedId);
-                log.info("AI预批改完成: submissionId={}", savedId);
-            } catch (Exception e) {
-                log.warn("AI预批改失败（不影响提交流程）: submissionId={}", savedId, e);
-            }
-        });
-        return ApiResponse.success("提交成功", submission);
+        Submission submission = submissionApplicationService.submit(body, auth);
+        return ApiResponse.success("提交成功", SubmissionVO.from(submission));
     }
-
     /**
      * 保存作业草稿（学生）。
      * <p>草稿与正式提交共用同一条 submission 行：草稿不计入成绩与次数统计，
      * 正式提交时由 SubmissionWriteComponent 复用该行转正（attempt_number 沿用草稿预占号）。</p>
      */
     @PostMapping("/draft")
-    public ApiResponse<Submission> saveDraft(@Valid @RequestBody SubmissionCreateDTO body,
+    public ApiResponse<SubmissionVO> saveDraft(@Valid @RequestBody SubmissionCreateDTO body,
                                              Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        Task task = accessControl.assertCanSubmitTask(body.getTaskId(), auth);
-        Submission draft = submissionService.saveDraft(task.getId(), userId, body.getContent(), body.getFileUrls());
-        return ApiResponse.success("草稿已保存", draft);
+        Submission draft = submissionApplicationService.saveDraft(body, auth);
+        return ApiResponse.success("草稿已保存", SubmissionVO.from(draft));
     }
-
     /**
      * 任务未提交学生名单（教师 / 管理员）。
      * <p>口径：课程在册学生（enrollment.isActive）− 已有非草稿提交的学生。</p>
      */
     @GetMapping("/task/{taskId}/unsubmitted")
-    public ApiResponse<List<Map<String, Object>>> unsubmitted(@PathVariable Long taskId,
-                                                              Authentication auth) {
-        Task task = requireManageableTask(taskId, auth);
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (User student : unsubmittedStudents(task)) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("studentId", student.getId());
-            row.put("username", student.getUsername());
-            row.put("fullName", student.getFullName());
-            row.put("studentNo", student.getStudentId());
-            rows.add(row);
-        }
-        return ApiResponse.success(rows);
+    public ApiResponse<List<UnsubmittedStudentVO>> unsubmitted(@PathVariable Long taskId,
+                                                               Authentication auth) {
+        return ApiResponse.success(submissionApplicationService.unsubmittedStudents(taskId, auth));
     }
 
     /**
@@ -161,90 +110,33 @@ public class SubmissionController {
     @PostMapping("/task/{taskId}/remind")
     public ApiResponse<Map<String, Object>> remindUnsubmitted(@PathVariable Long taskId,
                                                               Authentication auth) {
-        Task task = requireManageableTask(taskId, auth);
-        List<User> students = unsubmittedStudents(task);
+        SubmissionApplicationService.ReminderOutcome outcome =
+                submissionApplicationService.remindUnsubmitted(taskId, auth);
         Map<String, Object> result = new LinkedHashMap<>();
-        if (students.isEmpty()) {
-            result.put("count", 0);
-            return ApiResponse.success("没有未提交的学生", result);
-        }
-        List<Long> userIds = students.stream().map(User::getId).collect(Collectors.toList());
-        String title = "作业催交：" + task.getTitle();
-        String content = task.getDueDate() != null
-                ? "请在 " + task.getDueDate().toString().replace('T', ' ') + " 前完成并提交；逾期将按规则扣分。"
-                : "请尽快完成并提交。";
-        notificationService.batchSendNotifications(userIds, title, content, "SYSTEM", "TASK_REMIND", "MEDIUM",
-                "/assignment/" + taskId, null);
-        result.put("count", userIds.size());
-        return ApiResponse.success("已向 " + userIds.size() + " 名学生发送催交通知", result);
+        result.put("count", outcome.count());
+        return ApiResponse.success(outcome.message(), result);
     }
 
-    /** 取任务并校验当前用户可管理其所属课程 */
-    private Task requireManageableTask(Long taskId, Authentication auth) {
-        Task task = taskService.getById(taskId);
-        if (task == null) {
-            throw new com.aicourse.exception.BusinessException(404, "作业任务不存在");
-        }
-        if (task.getCourseId() == null) {
-            throw new com.aicourse.exception.BusinessException(400, "任务未关联课程");
-        }
-        courseAccessControl.assertCanManageCourse(task.getCourseId(), auth);
-        return task;
-    }
-
-    /** 课程在册学生中，尚未正式提交该任务的人（按账号排序，便于教师核对） */
-    private List<User> unsubmittedStudents(Task task) {
-        List<CourseEnrollment> enrollments = enrollmentService.list(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getCourseId, task.getCourseId())
-                        .eq(CourseEnrollment::getIsActive, true));
-        if (enrollments.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Set<Long> enrolledIds = enrollments.stream()
-                .map(CourseEnrollment::getStudentId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
-        List<Submission> submitted = submissionService.list(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTaskId, task.getId())
-                        .ne(Submission::getStatus, "DRAFT"));
-        Set<Long> submittedIds = submitted.stream()
-                .map(Submission::getStudentId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
-        enrolledIds.removeAll(submittedIds);
-        if (enrolledIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return userService.listByIds(enrolledIds).stream()
-                .sorted((a, b) -> String.valueOf(a.getUsername()).compareTo(String.valueOf(b.getUsername())))
-                .collect(Collectors.toList());
-    }
 
     /**
      * 查询当前用户的作业提交记录（按 studentId 归属过滤）
      */
     @GetMapping
-    public ApiResponse<PagedResponse<Submission>> mySubmissions(
+    public ApiResponse<PagedResponse<SubmissionVO>> mySubmissions(
             Authentication auth,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<Submission> queryWrapper = new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getStudentId, userId)
-                .orderByDesc(Submission::getCreatedAt);
-        Page<Submission> submissionPage = submissionService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(submissionPage));
+        return ApiResponse.success(submissionApplicationService.mySubmissions(userId, page, size));
     }
 
     /**
      * 根据ID查询提交记录详情（对象级授权：学生仅本人，教师仅本人课程）
      */
     @GetMapping("/{id}")
-    public ApiResponse<Submission> getById(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<SubmissionVO> getById(@PathVariable Long id, Authentication auth) {
         accessControl.assertReadable(id, auth);
-        return ApiResponse.success(submissionService.getById(id));
+        return ApiResponse.success(SubmissionVO.from(submissionService.getById(id)));
     }
 
     /**
@@ -252,21 +144,13 @@ public class SubmissionController {
      * 学生：仅返回本人提交；教师/管理员：仅返回其本人任教课程下的全部提交。
      */
     @GetMapping("/task/{taskId}")
-    public ApiResponse<PagedResponse<Submission>> list(
+    public ApiResponse<PagedResponse<SubmissionVO>> list(
             @PathVariable Long taskId,
             Authentication auth,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
-        accessControl.assertCanListTask(taskId, auth);
-        Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<Submission> queryWrapper = new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTaskId, taskId);
-        // 学生视角：强制仅本人提交，防止查看全班作业
-        if (RoleConstants.STUDENT.equals(roleOf(auth))) {
-            queryWrapper.eq(Submission::getStudentId, userId);
-        }
-        Page<Submission> submissionPage = submissionService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(submissionPage));
+        // 任务可列性授权 + 学生仅本人视角统一在 application 层（3E-05E）
+        return ApiResponse.success(submissionApplicationService.listByTask(taskId, page, size, auth));
     }
 
     /**
@@ -277,26 +161,23 @@ public class SubmissionController {
      */
     @PostMapping("/{id}/grade")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<Submission> grade(
+    public ApiResponse<SubmissionVO> grade(
             @PathVariable Long id,
             @Valid @RequestBody GradeDTO grade,
             Authentication auth) {
-        accessControl.assertManageable(id, auth);
-        Submission submission = submissionService.gradeSubmission(
-                id, grade.getScore(), grade.getFeedback(), (Long) auth.getPrincipal());
-        return ApiResponse.success("评分成功", submission);
+        Submission submission = submissionApplicationService.grade(id, grade, auth);
+        return ApiResponse.success("评分成功", SubmissionVO.from(submission));
     }
 
     /**
      * 重新提交作业（仅提交者本人或任教教师）
      */
     @PostMapping("/{id}/resubmit")
-    public ApiResponse<Submission> resubmit(@PathVariable Long id,
+    public ApiResponse<SubmissionVO> resubmit(@PathVariable Long id,
                                             @Valid @RequestBody SubmissionResubmitDTO body,
                                             Authentication auth) {
-        accessControl.assertReadable(id, auth);
-        Submission submission = submissionService.resubmit(id, body.getContent(), body.getFileUrls());
-        return ApiResponse.success("重新提交成功", submission);
+        Submission submission = submissionApplicationService.resubmit(id, body, auth);
+        return ApiResponse.success("重新提交成功", SubmissionVO.from(submission));
     }
 
     /**
@@ -304,13 +185,12 @@ public class SubmissionController {
      */
     @PostMapping("/{id}/return")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<Submission> returnSubmission(@PathVariable Long id,
+    public ApiResponse<SubmissionVO> returnSubmission(@PathVariable Long id,
                                                      @Valid @RequestBody java.util.Map<String, String> body,
                                                      Authentication auth) {
-        accessControl.assertManageable(id, auth);
         String reason = body.get("reason");
-        Submission submission = submissionService.returnSubmission(id, reason);
-        return ApiResponse.success("退回成功", submission);
+        Submission submission = submissionApplicationService.returnSubmission(id, reason, auth);
+        return ApiResponse.success("退回成功", SubmissionVO.from(submission));
     }
 
     /**
@@ -318,10 +198,9 @@ public class SubmissionController {
      */
     @PostMapping("/{id}/ai-grade")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<Submission> aiGrade(@PathVariable Long id, Authentication auth) {
-        accessControl.assertManageable(id, auth);
-        Submission submission = submissionService.aiGradeSubmission(id);
-        return ApiResponse.success("AI评分完成", submission);
+    public ApiResponse<SubmissionVO> aiGrade(@PathVariable Long id, Authentication auth) {
+        Submission submission = submissionApplicationService.aiGrade(id, auth);
+        return ApiResponse.success("AI评分完成", SubmissionVO.from(submission));
     }
 
     /**
@@ -365,11 +244,5 @@ public class SubmissionController {
         return ApiResponse.success(null);
     }
 
-    private String roleOf(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .map(org.springframework.security.core.GrantedAuthority::getAuthority)
-                .filter(a -> a.startsWith("ROLE_"))
-                .map(a -> a.substring("ROLE_".length()))
-                .findFirst().orElse("");
-    }
 }
+

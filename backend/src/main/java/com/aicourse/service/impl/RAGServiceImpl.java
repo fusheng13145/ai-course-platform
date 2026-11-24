@@ -89,7 +89,7 @@ public class RAGServiceImpl implements RAGService {
     public RAGServiceImpl(
             @Value("${rag.enabled:true}") boolean enabled,
             @Value("${rag.provider:}") String providerMode,
-            @Value("${rag.base-url:http://localhost:8002}") String baseUrl,
+            @Value("${rag.base-url:http://localhost:8501}") String baseUrl,
             @Value("${rag.connect-timeout:5}") int connectTimeout,
             @Value("${rag.read-timeout:60}") int readTimeout,
             @Value("${rag.max-retries:2}") int maxRetries,

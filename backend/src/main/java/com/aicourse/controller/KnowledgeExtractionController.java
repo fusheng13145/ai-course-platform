@@ -12,7 +12,7 @@ import com.aicourse.security.KnowledgeAccessSupport;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointService;
-import com.aicourse.service.component.ai.AiCallContext;
+import com.aicourse.common.AiCallContext;
 import com.aicourse.vo.KnowledgePathPlanVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,6 +36,10 @@ import java.util.concurrent.Callable;
 @RequestMapping("/knowledge")
 @Tag(name = "知识图谱-抽取与路径")
 public class KnowledgeExtractionController {
+
+    /** 本类日志（DEF-05：降级分支必须留痕，否则「知识图谱返回解析失败」在生产里无声无息）。 */
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(KnowledgeExtractionController.class);
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
 
@@ -144,6 +148,7 @@ public class KnowledgeExtractionController {
             Map<String, Object> map = KG_OM.convertValue(node, Map.class);
             return map != null ? map : Map.of(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
         } catch (Exception e) {
+            log.warn("知识图谱返回解析失败，降级为本地模式: {}", e.getMessage());
             Map<String, Object> fallback = new LinkedHashMap<>();
             fallback.put(ContractPaths.R_MODE, ContractPaths.MODE_LOCAL);
             fallback.put("note", "知识图谱服务返回解析失败，已使用本地降级");

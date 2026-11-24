@@ -12,6 +12,7 @@ import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.application.user.UserAdminApplicationService;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -40,7 +41,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>注意：PasswordEncoder 由 SecurityConfig 提供的真实 bean 注入，无需 mock。
  */
 @WebMvcTest({SystemAdminController.class, AdminStatisticsController.class, SystemMaintenanceController.class})
-@Import(AdminScopeGuard.class)
+// 3E-05A：引入真实用例层，让既有 mock 统计口径与 verify 继续作用于真实编排
+@Import({AdminScopeGuard.class,
+        UserAdminApplicationService.class,
+        com.aicourse.application.admin.AdminStatisticsApplicationService.class})
 class SystemAdminControllerTest extends ControllerTestBase {
 
     @MockitoBean

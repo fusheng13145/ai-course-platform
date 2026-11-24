@@ -126,6 +126,9 @@ public class JwtUtils {
             long seconds = (expiration.getTime() - System.currentTimeMillis()) / 1000;
             return seconds > 0 ? seconds : 0;
         } catch (JwtException | IllegalArgumentException e) {
+            // 令牌非法/过期是高频且预期的路径，用 debug 避免刷日志；但要能查到，
+            // 否则 Cookie 下发异常时只能看到「maxAge=0」而不知原因（DEF-05）。
+            log.debug("令牌剩余有效期计算失败（按 0 处理）: {}", e.getMessage());
             return 0;
         }
     }
@@ -144,6 +147,7 @@ public class JwtUtils {
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             // 令牌过期、签名错误、格式非法、空参数均判定为无效
+            log.debug("令牌校验失败（判定为无效）: {}", e.getMessage());
             return false;
         }
     }

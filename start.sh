@@ -37,7 +37,7 @@ fi
 echo "============================================================"
 echo " AI Course Platform - unified launcher"
 echo " subcommand: $SUB"
-echo " ports: Ollama 11434 / MinIO 9000 / Neo4j 7687 / KG 8001 / RAG 8002"
+echo " ports: Ollama 11434 / MinIO 9000 / Neo4j 7687 / KG 8001 / DeepGraph 8501 (RAG knowledge base included)"
 echo "        LoRA 8003 / API 8080 (API_PORT=8081 for parallel) / Web 5173-5175"
 echo " services already listening are adopted, never restarted, never killed."
 echo " Ctrl+C terminates only the processes this launcher started."

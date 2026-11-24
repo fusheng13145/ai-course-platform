@@ -276,7 +276,9 @@ services:
       kg-service:
         condition: service_healthy
         required: false
-      rag-service:
+      # Q-03 收敛（2026-11-24）：8002 知识库端点已并入 deepgraph-service（8501），
+      # 后端「等引擎就绪」的对象随之换成 8501；rag-service 转入 legacy-rag profile 不再拉起。
+      deepgraph-service:
         condition: service_healthy
         required: false
     environment:
@@ -412,7 +414,12 @@ services:
       KG_ENABLED: ${KG_ENABLED:-true}
       KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
       RAG_ENABLED: ${RAG_ENABLED:-true}
-      RAG_BASE_URL: ${RAG_BASE_URL:-http://rag-service:8002}
+      # Q-03 收敛：知识库端点（原 8002 /api/v1/rag/*）现由 deepgraph-service(8501) 承载，
+      # 故 RAG_BASE_URL 指向 8501。Java 侧只改这一处地址，契约与客户端代码零改动。
+      RAG_BASE_URL: ${RAG_BASE_URL:-http://deepgraph-service:8501}
+      # 8501 服务自身的 base-url 同样走服务名（此前容器形态下缺失该键，deepgraph 第二源
+      # 只能拿到 localhost:8501 而在容器内不可达——一并补上，属升级不是降级）
+      DG_RAG_BASE_URL: ${DG_RAG_BASE_URL:-http://deepgraph-service:8501}
       # 微调 8003 不在 D-A4 ② 范围：保持关闭（上线需第三个镜像或 systemd unit，见部署文档）。
       FT_ENABLED: ${FT_ENABLED:-false}
       FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
@@ -505,6 +512,11 @@ services:
         RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
     image: aicourse/rag-service:local
     container_name: aicourse-rag-service
+    # Q-03 收敛（2026-11-24）：知识库 9 个端点已并入 deepgraph-service(8501)，
+    # 本服务**默认不再拉起**（避免两套进程同时读写同一语料卷、且 8501 变单点正是本轮决策）。
+    # 回滚手段：`docker compose --profile legacy-rag up -d rag-service`，并把
+    #   RAG_BASE_URL 改回 http://rag-service:8002（其余代码无需回退）。
+    profiles: ["legacy-rag"]
     # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
     deploy:
       resources:
@@ -514,7 +526,6 @@ services:
       <<: *labels-python
       aicourse.role: rag
     restart: unless-stopped
-    profiles: ["python"]
     depends_on:
       kg-service:
         condition: service_healthy
@@ -567,6 +578,80 @@ services:
   #   1) docker compose --profile ft up -d fine-tune-service
   #   2) .env 置 FT_ENABLED=true（backend 侧开关，缺省 false＝不改变既有行为）
   # 端口默认仍只绑回环；CPU 版 torch 经构建参数 TORCH_CPU_INDEX 控制（默认 PyTorch CPU 源）。
+  # DeepGraph RAG（8501）：已验收 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配层。
+  # 镜像入口必须是 Dockerfile.platform（拉起 uvicorn api_server:app）；
+  # 上游 Dockerfile 的 CMD 是 streamlit run app.py，属 UPSTREAM_MANIFEST 冻结文件，不得改。
+  deepgraph-service:
+    build:
+      context: ./python-services/deepgraph_rag
+      dockerfile: Dockerfile.platform
+    image: aicourse/deepgraph-service:local
+    container_name: aicourse-deepgraph-service
+    # 资源上限：Q-03 收敛后本服务同时承载 deepgraph（torch + faiss + cross-encoder）
+    # 与知识库引擎（jieba/rank_bm25/faiss/embedding），2g 会 OOM-Kill 建索引，故提到 3g
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    labels:
+      <<: *labels-python
+      aicourse.role: deepgraph
+    restart: unless-stopped
+    profiles: ["python"]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      # 知识库 /ask 的图谱增强（R3）走 kg_service；8002 时代即依赖 kg 健康后启动，收敛后不降级
+      kg-service:
+        condition: service_healthy
+        required: false
+    environment:
+      DG_DATA_DIR: /app/data
+      # Q-03 收敛：知识库语料单独落在 /app/data/rag，与 deepgraph 的 metadata/faiss 互不覆盖。
+      # 迁移：把原 8002 的 rag-data 卷内容拷进 dg-data:/app/data/rag 即可延续既有语料
+      #（本地裸跑则默认沿用 python-services/rag_service/data，见 knowledge_engine.data_dir()）。
+      RAG_DATA_DIR: /app/data/rag
+      RAG_GRAPH_ENABLED: ${RAG_GRAPH_ENABLED:-true}
+      KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
+      # 知识库端点限流：0=关闭（与 8002 口径一致；Java 侧已有方法级 QPS 限制）
+      RAG_RATE_LIMIT_PER_MINUTE: ${RAG_RATE_LIMIT_PER_MINUTE:-0}
+      HF_HOME: /models/hf
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      # GraphRAG 关系上下文（与 kg-service 共用同一 Neo4j）
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD 必须设置（请 cp .env.example .env 后填入）}
+      # 生成后端与 8002 对齐
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      OLLAMA_BASE_URL: ${DG_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${DG_HOST_BIND:-127.0.0.1}:${DG_HOST_PORT:-8501}:8501"
+    volumes:
+      - dg-data:/app/data
+      # 知识库语料（原 8002 的 rag-data 卷）在收敛后挂到主数据卷的子目录，单一挂载点更不易配错
+      - rag-data:/app/data/rag
+      - hf-cache:/models/hf
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/api/v1/deepgraph/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 8s
+      retries: 5
+      start_period: 120s
+
   fine-tune-service:
     build:
       context: ./python-services/fine_tune_service
@@ -961,6 +1046,8 @@ volumes:
   neo4j_plugins:
   # Python 引擎数据卷（D-A4 ②）
   rag-data:
+  # DeepGraph 文档级 RAG 数据卷（FAISS 索引 / 文档库 / 临时解析产物）
+  dg-data:
   # LoRA 微调数据卷（2026-11-07 P1 整改批：训练产物/导出权重/数据集元数据）
   ft-data:
   hf-cache:

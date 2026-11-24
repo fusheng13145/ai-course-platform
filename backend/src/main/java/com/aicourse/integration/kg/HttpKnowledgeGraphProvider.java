@@ -1,6 +1,7 @@
 package com.aicourse.integration.kg;
 
 import com.aicourse.integration.ContractPaths;
+import com.aicourse.integration.support.DownstreamRetrySupport;
 import com.alibaba.csp.sentinel.Entry;
 import com.alibaba.csp.sentinel.EntryType;
 import com.alibaba.csp.sentinel.SphU;
@@ -112,13 +113,13 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
                     return localFallback.planLearningPath(request);
                 } catch (Exception e) {
                     lastException = e;
-                    if (isReadTimeout(e)) {
+                    if (DownstreamRetrySupport.isReadTimeout(e)) {
                         // 读超时（含经 RestClient 包装的情况）不重试：直接降级到本地 BFS
                         break;
                     }
                     if (i < maxRetries) {
                         log.warn("图谱引擎路径规划失败，第{}次重试: {}", i + 1, e.getMessage());
-                        sleep(i + 1);
+                        DownstreamRetrySupport.sleep(i + 1);
                     }
                 }
             }
@@ -198,7 +199,7 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return null;
             }
             JsonNode pathNode = root.has(ContractPaths.R_PATH) ? root.get(ContractPaths.R_PATH)
@@ -236,7 +237,7 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableIngest(courseId);
             }
             String status = root.has(ContractPaths.R_STATUS) ? root.get(ContractPaths.R_STATUS).asText() : null;
@@ -257,7 +258,7 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableSubGraph(courseId, maxHops);
             }
             String status = root.has(ContractPaths.R_STATUS) ? root.get(ContractPaths.R_STATUS).asText() : null;
@@ -279,13 +280,6 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
             log.debug("图谱子图返回解析失败：{}", e.getMessage());
             return unavailableSubGraph(courseId, maxHops);
         }
-    }
-
-    private static boolean isExplicitFailure(JsonNode root) {
-        return root != null
-                && root.has(ContractPaths.R_SUCCESS)
-                && root.get(ContractPaths.R_SUCCESS).isBoolean()
-                && !root.get(ContractPaths.R_SUCCESS).asBoolean();
     }
 
     private IngestResult unavailableIngest(Long courseId) {
@@ -312,13 +306,13 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
                 return call.execute();
             } catch (Exception e) {
                 lastException = e;
-                if (isReadTimeout(e) || isServiceUnavailable(e)) {
+                if (DownstreamRetrySupport.isReadTimeout(e) || DownstreamRetrySupport.isServiceUnavailable(e)) {
                     // 读超时 / HTTP 503：不重试，直接降级
                     break;
                 }
                 if (i < maxRetries) {
                     log.warn("{}失败，第{}次重试: {}", operation, i + 1, e.getMessage());
-                    sleep(i + 1);
+                    DownstreamRetrySupport.sleep(i + 1);
                 }
             }
         }
@@ -327,36 +321,4 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         return fallback.get();
     }
 
-    private void sleep(int attempt) {
-        try {
-            Thread.sleep(1000L * attempt);
-        } catch (InterruptedException ie) {
-            log.warn("重试等待被中断", ie);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /** 是否为读超时：RestClient 会将底层 SocketTimeoutException 包装为 ResourceAccessException。 */
-    private static boolean isReadTimeout(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof SocketTimeoutException
-                    || t instanceof java.net.http.HttpTimeoutException) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
-
-    private static boolean isServiceUnavailable(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof org.springframework.web.client.HttpServerErrorException hse) {
-                return hse.getStatusCode().value() == ContractPaths.CODE_UNAVAILABLE;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
 }

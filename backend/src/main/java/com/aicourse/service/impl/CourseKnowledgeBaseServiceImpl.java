@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.entity.Resource;
@@ -83,7 +84,7 @@ public class CourseKnowledgeBaseServiceImpl implements CourseKnowledgeBaseServic
     public String buildFromCourse(Long courseId) {
         Course course = courseId == null ? null : courseService.getById(courseId);
         if (course == null) {
-            throw new BusinessException(404, "课程不存在或已被删除");
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在或已被删除");
         }
 
         List<KbDoc> candidates = collectDocuments(course);

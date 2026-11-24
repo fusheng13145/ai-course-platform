@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-RAG 演示语料重放：scripts/rag_corpus.json -> Python RAG 服务（8002）
+RAG 演示语料重放：scripts/rag_corpus.json -> Python RAG 服务（知识库，8501）
 ====================================================================
-`python-services/rag_service/data/` 被 .gitignore 排除，语料只存在于运行态；
+**8002 已于批次 3B-2 退役**：知识库 9 个端点与 `rag_engine` 并进 8501（`deepgraph_rag`），
+故本脚本默认打到 8501，端点路径不变（`/api/v1/rag/*`），调用方零改动。
+语料落盘位置随之变为 `python-services/deepgraph_rag/data/knowledge/`（可用 `RAG_DATA_DIR` 覆盖），
+`python-services/rag_service/data/` 只是退役前的旧目录（迁移时已整体拷贝过去）。
 本脚本把版本控制里的 `rag_corpus.json` 重放到引擎，使换机器/清目录后
 AI 问答仍能命中真实索引（否则按契约降级为"AI 服务暂时不可用"）。
 
 用法：
     python scripts/seed-rag-corpus.py [course_id ...]   # 缺省重放全部课程
-前置：RAG 服务已启动（地址用 RAG_BASE_URL 覆盖，缺省 http://localhost:8002）。
+前置：知识库服务已启动（地址用 RAG_BASE_URL 覆盖，缺省 http://localhost:8501）。
 幂等：同名文档内容一致则跳过，不一致则 PUT 覆盖；范围内的每门课程都会重建向量索引。
 """
 import json
@@ -25,7 +28,8 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 ROOT = Path(__file__).resolve().parent.parent
-RAG_BASE = os.getenv("RAG_BASE_URL", "http://localhost:8002").rstrip("/")
+# 8002 退役：知识库随 8501 提供，默认基址随之改指（RAG_BASE_URL 仍可覆盖）
+RAG_BASE = os.getenv("RAG_BASE_URL", "http://localhost:8501").rstrip("/")
 CORPUS = ROOT / "scripts" / "rag_corpus.json"
 
 

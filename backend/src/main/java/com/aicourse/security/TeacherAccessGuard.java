@@ -100,7 +100,6 @@ public class TeacherAccessGuard {
 
     /** 是否管理员角色：课程归属类校验对管理员放行。 */
     public boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        return AccessSupport.isAdmin(auth);
     }
 }

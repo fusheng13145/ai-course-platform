@@ -34,8 +34,8 @@ public final class ContractPaths {
     public static final String RAG_ENABLED = "rag.enabled";
     /** RAG：Python RAG 微服务基址。 */
     public static final String RAG_BASE_URL = "rag.base-url";
-    /** RAG：基址默认值。 */
-    public static final String RAG_DEFAULT_BASE_URL = "http://localhost:8002";
+    /** RAG：基址默认值。8002 已于批次 3B-2 退役，知识库端点并入 8501（deepgraph 进程）。 */
+    public static final String RAG_DEFAULT_BASE_URL = "http://localhost:8501";
 
     /** FT：是否启用 Python 微调微服务（默认 false → 使用本地占位 / 503 降级）。 */
     public static final String FT_ENABLED = "fine-tune.enabled";

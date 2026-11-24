@@ -9,6 +9,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 资源控制器拆分的共享 ACL。
@@ -18,6 +20,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ResourceAccessSupport {
+
+    private static final Logger log = LoggerFactory.getLogger(ResourceAccessSupport.class);
 
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
@@ -32,21 +36,13 @@ public class ResourceAccessSupport {
     }
 
     public boolean isAdmin(Authentication auth) {
-        if (auth == null || auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + RoleConstants.ADMIN)::equals);
+        // 统一到 AccessSupport：角色判定只保留一处实现（阶段 2 DUP-19）
+        return AccessSupport.isAdmin(auth);
     }
 
     public boolean isTeacher(Authentication auth) {
-        if (auth == null || auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + RoleConstants.TEACHER)::equals);
+        // 统一到 AccessSupport：教师判定同角色判定一样只保留一处实现（DUP-19）
+        return AccessSupport.hasRole(auth, RoleConstants.TEACHER);
     }
 
     /**
@@ -111,6 +107,8 @@ public class ResourceAccessSupport {
             adminScopeGuard.assertCourseAccess(courseService.getById(courseId));
             return true;
         } catch (AccessDeniedException e) {
+            // 拒绝即不可见：语义正确，但院系管理员「看不到某门课」必须能追溯原因
+            log.debug("管理员课程作用域拒绝: courseId={}, cause={}", courseId, e.getMessage());
             return false;
         }
     }

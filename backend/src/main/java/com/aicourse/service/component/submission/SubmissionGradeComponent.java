@@ -1,5 +1,6 @@
 package com.aicourse.service.component.submission;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.constant.SubmissionStatus;
 import com.aicourse.entity.KnowledgePoint;
@@ -131,7 +132,7 @@ public class SubmissionGradeComponent {
             throw new BusinessException("提交记录不存在");
         }
         if (!assignmentId.equals(submission.getTaskId())) {
-            throw new BusinessException(403, "提交记录不属于该作业");
+            throw new BusinessException(ApiCode.FORBIDDEN, "提交记录不属于该作业");
         }
         return gradeSubmission(submissionId, grade.getScore(), grade.getFeedback(), graderId);
     }

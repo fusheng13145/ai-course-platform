@@ -269,6 +269,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         try {
             return Integer.parseInt(semesterName.substring(0, 4));
         } catch (NumberFormatException ex) {
+            // 学期名首四位不是年份时学年留空：脏学期名会让课程归属学期错乱，需可追溯
+            log.debug("学期名无法解析学年，year 留空: semesterName={}", semesterName);
             return null;
         }
     }

@@ -102,7 +102,22 @@ public class CookieUtils {
      * @return Cookie 值，不存在返回 null
      */
     public String readCookie(HttpServletRequest request, String name) {
-        if (request.getCookies() == null) {
+        return readCookieValue(request, name);
+    }
+
+    /**
+     * 从请求 Cookie 中读取指定名称的值（静态实现点，供非 Spring Bean 场景如 Servlet Filter 使用）。
+     *
+     * <p>阶段 2 DUP-01：{@code DoubleSubmitCsrfFilter} 曾自带一份字节级同构的 Cookie 遍历，
+     * 与本文各自演进会让 CSRF 校验与登录态读取出现不一致（例如一边支持同名多值、一边不支持）。
+     * 现收敛为单一实现，过滤器直接调用本方法。</p>
+     *
+     * @param request 请求对象
+     * @param name    Cookie 名称
+     * @return Cookie 值，不存在返回 null
+     */
+    public static String readCookieValue(HttpServletRequest request, String name) {
+        if (request == null || request.getCookies() == null) {
             return null;
         }
         for (Cookie cookie : request.getCookies()) {

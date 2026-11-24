@@ -50,8 +50,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         TeacherImportController.class,
         TeacherAnalyticsController.class
 })
-@Import(com.aicourse.security.TeacherAccessGuard.class)
+// 3E-03C：引入真实用例层，让既有打桩/verify 继续作用于真实编排
+@Import({com.aicourse.security.TeacherAccessGuard.class,
+        com.aicourse.application.question.TeacherQuestionApplicationService.class,
+        com.aicourse.application.teacher.TeacherImportApplicationService.class,
+        com.aicourse.application.teacher.TeacherAssignmentApplicationService.class,
+        com.aicourse.application.course.CourseApplicationService.class})
 class TeacherControllerTest extends ControllerTestBase {
+
+    @MockitoBean
+    private com.aicourse.service.CourseDefinitionService courseDefinitionService;
+
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
 
     @MockitoBean
     private CourseService courseService;

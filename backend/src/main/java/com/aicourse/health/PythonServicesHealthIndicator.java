@@ -42,7 +42,7 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
             @Value("${knowledge-graph.base-url:http://localhost:8001}") String kgBaseUrl,
             @Value("${knowledge-graph.health-path:/api/v1/graph/health}") String kgHealthPath,
             @Value("${rag.enabled:true}") boolean ragEnabled,
-            @Value("${rag.base-url:http://localhost:8002}") String ragBaseUrl,
+            @Value("${rag.base-url:http://localhost:8501}") String ragBaseUrl,
             @Value("${rag.health-path:/api/v1/rag/health}") String ragHealthPath,
             @Value("${fine-tune.enabled:false}") boolean ftEnabled,
             @Value("${fine-tune.base-url:http://localhost:8003}") String ftBaseUrl,

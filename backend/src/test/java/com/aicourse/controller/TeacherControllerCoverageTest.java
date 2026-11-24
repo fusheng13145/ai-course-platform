@@ -4,6 +4,7 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.Question;
+import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseChapterService;
@@ -81,8 +82,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         TeacherImportController.class,
         TeacherAnalyticsController.class
 })
-@Import(com.aicourse.security.TeacherAccessGuard.class)
+// 3E-03C：引入真实用例层，让既有打桩/verify 继续作用于真实编排
+@Import({com.aicourse.security.TeacherAccessGuard.class,
+        com.aicourse.application.question.TeacherQuestionApplicationService.class,
+        com.aicourse.application.teacher.TeacherImportApplicationService.class,
+        com.aicourse.application.teacher.TeacherAssignmentApplicationService.class,
+        com.aicourse.application.course.CourseApplicationService.class})
 class TeacherControllerCoverageTest extends ControllerTestBase {
+
+    @MockitoBean
+    private com.aicourse.service.CourseDefinitionService courseDefinitionService;
+
+    @MockitoBean
+    private com.aicourse.security.AdminScopeGuard adminScopeGuard;
 
     private static final long TEACHER_ID = 10L;
     private static final long ADMIN_ID = 90L;
@@ -299,24 +311,29 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
     // ==================== 作业：创建时的可选字段与归属校验 ====================
 
     @Test
-    @DisplayName("POST /teacher/assignments - 已带 courseId/isPublished/status：不覆盖教师显式值")
-    void createAssignment_explicitFields_preserved() throws Exception {
+    @DisplayName("POST /teacher/assignments - 注入 isPublished/status/creatorId 一律忽略，创建人取登录身份")
+    void createAssignment_injectedServerFields_areDropped() throws Exception {
         when(courseService.getById(COURSE_ID)).thenReturn(course(COURSE_ID, TEACHER_ID));
         when(taskService.save(any(Task.class))).thenReturn(true);
 
-        // 命中 task.getCourseId() != null（走归属校验）、getIsPublished() == null 为假、getStatus() == null 为假
+        // 入参收 DTO 后：isPublished=true / status=PUBLISHED / creatorId=9999 / id=8888 全部不生效
         mockMvc.perform(post("/teacher/assignments").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"第三章作业\",\"courseId\":" + COURSE_ID
-                                + ",\"isPublished\":true,\"status\":\"PUBLISHED\"}")
+                                + ",\"isPublished\":true,\"status\":\"PUBLISHED\""
+                                + ",\"creatorId\":9999,\"id\":8888}")
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.isPublished").value(true))
-                .andExpect(jsonPath("$.data.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.isPublished").value(false))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.courseId").value((int) COURSE_ID));
 
-        verify(courseService).getById(COURSE_ID);
-        verify(taskService).save(any(Task.class));
+        ArgumentCaptor<Task> captor = ArgumentCaptor.forClass(Task.class);
+        verify(taskService).save(captor.capture());
+        Task saved = captor.getValue();
+        assertNull(saved.getId());
+        assertEquals(TEACHER_ID, saved.getCreatorId().longValue());
+        assertEquals(Boolean.FALSE, saved.getIsPublished());
     }
 
     @Test
@@ -1331,5 +1348,87 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(404))
                 .andExpect(jsonPath("$.message").value("章节不存在"));
         verify(chapterService, never()).removeById(any(Long.class));
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("PUT /teacher/courses/{id} - 注入 approvalStatus/approvedBy 被丢弃")
+    void updateCourse_ignoresInjectedApprovalFields() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(course(COURSE_ID, TEACHER_ID));
+        when(courseService.updateCourseById(eq(COURSE_ID), any(Course.class))).thenReturn(course(COURSE_ID, TEACHER_ID));
+
+        mockMvc.perform(put("/teacher/courses/" + COURSE_ID).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approvalStatus\":\"APPROVED\",\"approvedBy\":999,\"completedAt\":"
+                                + "\"2026-01-01T00:00:00\",\"semester\":\"2026春\"}")
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Course> captor = ArgumentCaptor.forClass(Course.class);
+        verify(courseService).updateCourseById(eq(COURSE_ID), captor.capture());
+        assertNull(captor.getValue().getApprovalStatus());
+        assertNull(captor.getValue().getApprovedBy());
+        assertNull(captor.getValue().getCompletedAt());
+        assertNull(captor.getValue().getSemester());
+    }
+
+    @Test
+    @DisplayName("PUT /teacher/assignments/{id} - 注入 creatorId/isPublished 被丢弃")
+    void updateAssignment_ignoresInjectedServerFields() throws Exception {
+        Task existing = new Task();
+        existing.setId(COURSE_ID);
+        existing.setCourseId(COURSE_ID);
+        existing.setCreatorId(TEACHER_ID);
+        when(taskService.getById(COURSE_ID)).thenReturn(existing);
+        when(courseService.getById(COURSE_ID)).thenReturn(course(COURSE_ID, TEACHER_ID));
+        when(taskService.updateTaskById(eq(COURSE_ID), any(Task.class))).thenReturn(existing);
+
+        mockMvc.perform(put("/teacher/assignments/" + COURSE_ID).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"creatorId\":999,\"isPublished\":true,\"status\":\"PUBLISHED\",\"title\":\"改名\"}")
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Task> captor = ArgumentCaptor.forClass(Task.class);
+        verify(taskService).updateTaskById(eq(COURSE_ID), captor.capture());
+        Task patch = captor.getValue();
+        assertNull(patch.getCreatorId());
+        assertNull(patch.getIsPublished());
+        assertNull(patch.getStatus());
+        assertEquals("改名", patch.getTitle());
+    }
+
+    @Test
+    @DisplayName("PUT /teacher/assignments/{id}/submissions/{sid} - 批改只写 score/feedback，graderId 取登录身份")
+    void gradeSubmission_onlyScoreAndFeedbackReachService() throws Exception {
+        Task existing = new Task();
+        existing.setId(COURSE_ID);
+        existing.setCourseId(COURSE_ID);
+        existing.setCreatorId(TEACHER_ID);
+        when(taskService.getById(COURSE_ID)).thenReturn(existing);
+        when(courseService.getById(COURSE_ID)).thenReturn(course(COURSE_ID, TEACHER_ID));
+        Submission graded = new Submission();
+        graded.setId(9L);
+        when(submissionService.gradeSubmissionByTeacher(eq(COURSE_ID), eq(9L), any(Submission.class), eq(TEACHER_ID)))
+                .thenReturn(graded);
+
+        mockMvc.perform(put("/teacher/assignments/" + COURSE_ID + "/submissions/9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"graderId\":999,\"studentId\":999,\"status\":\"GRADED\","
+                                + "\"score\":88,\"feedback\":\"结构清晰\"}")
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Submission> captor = ArgumentCaptor.forClass(Submission.class);
+        verify(submissionService).gradeSubmissionByTeacher(eq(COURSE_ID), eq(9L), captor.capture(), eq(TEACHER_ID));
+        Submission grade = captor.getValue();
+        assertEquals(0, new java.math.BigDecimal("88").compareTo(grade.getScore()));
+        assertEquals("结构清晰", grade.getFeedback());
+        assertNull(grade.getId());
+        assertNull(grade.getGraderId(), "批阅人取登录身份，不接受请求体");
+        assertNull(grade.getStudentId());
+        assertNull(grade.getStatus());
     }
 }

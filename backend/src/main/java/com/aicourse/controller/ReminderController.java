@@ -1,10 +1,14 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.common.RoleConstants;
+import com.aicourse.security.AccessSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.vo.NoticeVOs;
 import com.aicourse.entity.Reminder;
 import com.aicourse.service.ReminderService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -43,10 +47,9 @@ public class ReminderController {
      * @return 创建的提醒
      */
     @PostMapping("")
-    public ApiResponse<Reminder> createReminder(@Valid @RequestBody ReminderCreateDTO dto, Authentication auth) {
+    public ApiResponse<NoticeVOs.ReminderVO> createReminder(@Valid @RequestBody ReminderCreateDTO dto, Authentication auth) {
         Long currentUserId = (Long) auth.getPrincipal();
-        boolean privileged = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_TEACHER".equals(a.getAuthority()));
+        boolean privileged = AccessSupport.isAdmin(auth) || AccessSupport.hasRole(auth, RoleConstants.TEACHER);
         Long userId = privileged ? dto.getUserId() : currentUserId;
         if (userId == null) {
             userId = currentUserId;
@@ -75,7 +78,7 @@ public class ReminderController {
 
         Reminder reminder = reminderService.createReminder(userId, reminderType, taskId, courseId,
                 title, message, dueDate, triggerDay);
-        return ApiResponse.success("创建成功", reminder);
+        return ApiResponse.success("创建成功", NoticeVOs.ReminderVO.from(reminder));
     }
 
     /**
@@ -84,10 +87,10 @@ public class ReminderController {
      * @return 待办提醒列表
      */
     @GetMapping("/pending")
-    public ApiResponse<List<Reminder>> getPendingReminders(Authentication auth) {
+    public ApiResponse<List<NoticeVOs.ReminderVO>> getPendingReminders(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         List<Reminder> reminders = reminderService.getPendingReminders(userId);
-        return ApiResponse.success(reminders);
+        return ApiResponse.success(NoticeVOs.ReminderVO.from(reminders));
     }
 
     /**
@@ -97,19 +100,18 @@ public class ReminderController {
      * @return 待办提醒列表
      */
     @GetMapping("/todos")
-    public ApiResponse<List<Reminder>> getTodos(Authentication auth) {
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    public ApiResponse<List<NoticeVOs.ReminderVO>> getTodos(Authentication auth) {
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (isAdmin) {
             List<Reminder> reminders = reminderService.lambdaQuery()
                     .ne(Reminder::getStatus, "CANCELLED")
                     .orderByDesc(Reminder::getScheduledAt)
                     .last("LIMIT 500")
                     .list();
-            return ApiResponse.success(reminders);
+            return ApiResponse.success(NoticeVOs.ReminderVO.from(reminders));
         }
         Long userId = (Long) auth.getPrincipal();
-        return ApiResponse.success(reminderService.getPendingReminders(userId));
+        return ApiResponse.success(NoticeVOs.ReminderVO.from(reminderService.getPendingReminders(userId)));
     }
 
     /**
@@ -149,9 +151,9 @@ public class ReminderController {
      */
     @PostMapping("/send-due")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<List<Reminder>> sendDueReminders() {
+    public ApiResponse<List<NoticeVOs.ReminderVO>> sendDueReminders() {
         List<Reminder> sentReminders = reminderService.sendDueReminders(LocalDateTime.now());
-        return ApiResponse.success("发送完成", sentReminders);
+        return ApiResponse.success("发送完成", NoticeVOs.ReminderVO.from(sentReminders));
     }
 
     /**
@@ -162,11 +164,11 @@ public class ReminderController {
      * @return 更新后的提醒
      */
     @PutMapping("/{id}")
-    public ApiResponse<Reminder> updateReminder(@PathVariable Long id, @Valid @RequestBody ReminderUpdateDTO dto,
+    public ApiResponse<NoticeVOs.ReminderVO> updateReminder(@PathVariable Long id, @Valid @RequestBody ReminderUpdateDTO dto,
                                                 Authentication auth) {
         assertOwner(id, auth);
         Reminder updated = reminderService.updateReminder(id, dto);
-        return ApiResponse.success("更新成功", updated);
+        return ApiResponse.success("更新成功", NoticeVOs.ReminderVO.from(updated));
     }
 
     /**
@@ -177,10 +179,10 @@ public class ReminderController {
         if (reminder == null) {
             throw new com.aicourse.exception.BusinessException("提醒不存在");
         }
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (!isAdmin && !reminder.getUserId().equals((Long) auth.getPrincipal())) {
-            throw new com.aicourse.exception.BusinessException(403, "无权操作该提醒");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该提醒");
         }
     }
 }
+

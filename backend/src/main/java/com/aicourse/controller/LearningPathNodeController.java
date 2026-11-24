@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.LearningPathNodeCompleteDTO;
 import com.aicourse.entity.LearningPath;
+import com.aicourse.vo.LearningProgressVOs;
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.RoleUtil;
@@ -47,10 +48,10 @@ public class LearningPathNodeController {
      * @return 有序节点列表
      */
     @GetMapping("/path/{pathId}")
-    public ApiResponse<List<LearningPathNode>> getPathNodes(@PathVariable Long pathId, Authentication auth) {
+    public ApiResponse<List<LearningProgressVOs.NodeVO>> getPathNodes(@PathVariable Long pathId, Authentication auth) {
         assertPathOwner(auth, pathId);
         List<LearningPathNode> nodes = nodeService.getPathNodes(pathId);
-        return ApiResponse.success(nodes);
+        return ApiResponse.success(LearningProgressVOs.NodeVO.from(nodes));
     }
 
     /**
@@ -102,10 +103,10 @@ public class LearningPathNodeController {
      * @return 当前进行中的节点
      */
     @GetMapping("/current/{pathId}")
-    public ApiResponse<LearningPathNode> getCurrentNode(@PathVariable Long pathId, Authentication auth) {
+    public ApiResponse<LearningProgressVOs.NodeVO> getCurrentNode(@PathVariable Long pathId, Authentication auth) {
         assertPathOwner(auth, pathId);
         LearningPathNode currentNode = nodeService.getCurrentNode(pathId);
-        return ApiResponse.success(currentNode);
+        return ApiResponse.success(LearningProgressVOs.NodeVO.from(currentNode));
     }
 
     // ==================== 访问控制 ====================
@@ -150,3 +151,4 @@ public class LearningPathNodeController {
         assertPathOwner(auth, node.getLearningPathId());
     }
 }
+

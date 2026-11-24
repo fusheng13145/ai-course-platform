@@ -62,4 +62,21 @@ class WebSocketConfigTest {
         verify(registration).setAllowedOriginPatterns(
                 new String[]{"https://a.example.com", "https://b.example.com"});
     }
+
+    @Test
+    void registerWebSocketHandlers_failsClosedWhenDevFallbackDisabled() {
+        CorsProperties cors = new CorsProperties();
+        // 生产口径：未配置 origins 且 app.cors.dev-fallback=false
+        WebSocketConfig config = new WebSocketConfig(handler, handshakeInterceptor, cors);
+        org.springframework.test.util.ReflectionTestUtils.setField(config, "corsDevFallback", false);
+
+        lenient().when(registry.addHandler(any(), anyString())).thenReturn(registration);
+        lenient().when(registration.addInterceptors(any())).thenReturn(registration);
+        lenient().when(registration.setAllowedOriginPatterns(any())).thenReturn(registration);
+
+        config.registerWebSocketHandlers(registry);
+
+        // 与 HTTP CORS 同口径：一处来源都不放行，而不是静默回退 localhost（DEF-07）
+        verify(registration).setAllowedOriginPatterns(new String[0]);
+    }
 }

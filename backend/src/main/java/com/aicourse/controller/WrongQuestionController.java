@@ -4,12 +4,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.WrongQuestionPracticeDTO;
 import com.aicourse.entity.Question;
+import com.aicourse.vo.WrongQuestionVOs;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.application.student.StudentLearningApplicationService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.vo.WrongQuestionGroupVO;
 import com.aicourse.vo.WrongQuestionStatsVO;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import com.aicourse.dto.WrongQuestionUpdateDTO;
 
 /**
  * 错题本接口控制器
@@ -36,9 +40,12 @@ public class WrongQuestionController {
     private static final Logger log = LoggerFactory.getLogger(WrongQuestionController.class);
 
     private final WrongQuestionService wrongQuestionService;
+    private final StudentLearningApplicationService studentLearningApplicationService;
 
-    public WrongQuestionController(WrongQuestionService wrongQuestionService) {
+    public WrongQuestionController(WrongQuestionService wrongQuestionService,
+                                   StudentLearningApplicationService studentLearningApplicationService) {
         this.wrongQuestionService = wrongQuestionService;
+        this.studentLearningApplicationService = studentLearningApplicationService;
     }
 
     /**
@@ -50,14 +57,15 @@ public class WrongQuestionController {
      * @return 分页错题列表
      */
     @GetMapping
-    public ApiResponse<PagedResponse<WrongQuestion>> list(
+    public ApiResponse<PagedResponse<WrongQuestionVOs.WrongQuestionVO>> list(
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Page<WrongQuestion> result = wrongQuestionService.getWrongQuestionBook(userId, courseId, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        // 错题分页口径收敛到 StudentLearningApplicationService#wrongQuestionPage（DUP-09）
+        return ApiResponse.success(
+                studentLearningApplicationService.wrongQuestionPage(userId, courseId, page, size));
     }
 
     /**
@@ -67,7 +75,7 @@ public class WrongQuestionController {
      * @return 错题记录
      */
     @PostMapping
-    public ApiResponse<WrongQuestion> record(@Valid @RequestBody Map<String, String> params, Authentication auth) {
+    public ApiResponse<WrongQuestionVOs.WrongQuestionVO> record(@Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Long questionId = Long.valueOf(params.get("questionId"));
         Long courseId = params.get("courseId") != null ? Long.valueOf(params.get("courseId")) : null;
@@ -76,7 +84,7 @@ public class WrongQuestionController {
 
         WrongQuestion wrongQuestion = wrongQuestionService.recordWrongAnswer(
                 userId, questionId, courseId, wrongAnswer, sourceType);
-        return ApiResponse.success("错题记录成功", wrongQuestion);
+        return ApiResponse.success("错题记录成功", WrongQuestionVOs.WrongQuestionVO.from(wrongQuestion));
     }
 
     /**
@@ -109,13 +117,21 @@ public class WrongQuestionController {
      * @param auth 认证信息
      * @return 未掌握的错题列表
      */
+    /**
+     * 错题分页结果转出参模型（阶段 3 · Q-05）。
+     */
+    private static PagedResponse<WrongQuestionVOs.WrongQuestionVO> toPagedVO(Page<WrongQuestion> page) {
+        return PagedResponse.of(page.getRecords().stream().map(WrongQuestionVOs.WrongQuestionVO::from).toList(),
+                page.getTotal(), page.getCurrent(), page.getSize());
+    }
+
     @GetMapping("/unmastered")
-    public ApiResponse<List<WrongQuestion>> getUnmastered(
+    public ApiResponse<List<WrongQuestionVOs.WrongQuestionVO>> getUnmastered(
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         List<WrongQuestion> unmasteredList = wrongQuestionService.getUnmastered(userId, courseId);
-        return ApiResponse.success(unmasteredList);
+        return ApiResponse.success(WrongQuestionVOs.WrongQuestionVO.from(unmasteredList));
     }
 
     /**
@@ -161,13 +177,13 @@ public class WrongQuestionController {
      * @return 练习题目列表
      */
     @PostMapping("/practice-paper")
-    public ApiResponse<List<Question>> generatePracticePaper(
+    public ApiResponse<List<WrongQuestionVOs.PracticeQuestionVO>> generatePracticePaper(
             @Valid @RequestBody WrongQuestionPracticeDTO params, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         int count = params.getCount() != null ? params.getCount() : 10;
         List<Question> questions = wrongQuestionService.generatePracticePaper(
                 userId, params.getCourseId(), count);
-        return ApiResponse.success(questions);
+        return ApiResponse.success(WrongQuestionVOs.PracticeQuestionVO.from(questions));
     }
 
     /**
@@ -176,9 +192,9 @@ public class WrongQuestionController {
      * @return 推荐的相关题目列表
      */
     @GetMapping("/{id}/related")
-    public ApiResponse<List<Question>> recommendRelated(@PathVariable Long id) {
+    public ApiResponse<List<WrongQuestionVOs.PracticeQuestionVO>> recommendRelated(@PathVariable Long id) {
         List<Question> questions = wrongQuestionService.recommendRelatedQuestions(id);
-        return ApiResponse.success(questions);
+        return ApiResponse.success(WrongQuestionVOs.PracticeQuestionVO.from(questions));
     }
 
     /**
@@ -189,18 +205,14 @@ public class WrongQuestionController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<WrongQuestion> update(@PathVariable Long id, @Valid @RequestBody WrongQuestion wq,
+    public ApiResponse<WrongQuestionVOs.WrongQuestionVO> update(@PathVariable Long id, @Valid @RequestBody WrongQuestionUpdateDTO dto,
                                              Authentication auth) {
         requireOwnedWrongQuestion(id, auth);
         // 白名单更新：仅允许学生修正错因/AI分析/知识点，杜绝通过请求体注入 studentId/courseId 等字段
-        WrongQuestion update = new WrongQuestion();
-        update.setId(id);
-        update.setReason(wq.getReason());
-        update.setAiAnalysis(wq.getAiAnalysis());
-        update.setKnowledgePointName(wq.getKnowledgePointName());
+        WrongQuestion update = dto.toEntity(id);
         wrongQuestionService.updateById(update);
         WrongQuestion updatedWq = wrongQuestionService.getById(id);
-        return ApiResponse.success("更新成功", updatedWq);
+        return ApiResponse.success("更新成功", WrongQuestionVOs.WrongQuestionVO.from(updatedWq));
     }
 
     /**
@@ -224,11 +236,13 @@ public class WrongQuestionController {
             throw new BusinessException(ApiCode.NOT_FOUND, "错题记录不存在");
         }
         Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (!isAdmin && !userId.equals(wq.getStudentId())) {
             throw new BusinessException(ApiCode.FORBIDDEN, "无权操作他人错题");
         }
         return wq;
     }
 }
+
+
+

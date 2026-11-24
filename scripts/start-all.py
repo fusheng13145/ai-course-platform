@@ -75,11 +75,12 @@ ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "logs"
 
 # 依赖序即启动序：Ollama（AI/FT 本地生成）→ MinIO（对象存储）→ Neo4j →
-# KG → RAG → LoRA 微调 → Java → 前端（代理要能打到 API）
-ENGINE_SERVICES = ("neo4j", "kg", "rag", "deepgraph", "ft")
+# KG → DeepGraph(8501，内嵌原 8002 知识库) → LoRA 微调 → Java → 前端（代理要能打到 API）
+ENGINE_SERVICES = ("neo4j", "kg", "deepgraph", "ft")
 SERVICES = ("ollama", "minio", *ENGINE_SERVICES, "api", "web")
-# deepgraph(8501)：已验收 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配器（2026-11-21 接入）
-PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "rag": 8002, "deepgraph": 8501, "ft": 8003, "api": 8080}
+# deepgraph(8501)：已验收 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配器（2026-11-21 接入）；
+# 2026-11-24（批次 3B-2）起同一进程同时承载知识库 9 端点（原 8002 已退役，不再有独立端口）。
+PORTS = {"ollama": 11434, "minio": 9000, "neo4j": 7687, "kg": 8001, "deepgraph": 8501, "ft": 8003, "api": 8080}
 WEB_PORTS = (5173, 5174, 5175)
 DB_PORT, CACHE_PORT = 3306, 6379
 
@@ -128,7 +129,7 @@ def parse_args(argv: list) -> tuple:
 def wanted_services(mode: str) -> dict:
     """子命令该管哪些服务——依赖门、接管判定与收尸清单都按这张表收窄。
 
-    全量后端链包含 Ollama / MinIO / Neo4j / KG / RAG / LoRA / Spring Boot；
+    全量后端链包含 Ollama / MinIO / Neo4j / KG / DeepGraph（内嵌知识库）/ LoRA / Spring Boot；
     `frontend` 只保留 Vite，不能因为 .env 写了 KG_ENABLED=true 就把后端偷拉起来。
     """
     managed = mode in (MODE_ALL, MODE_BACKEND)
@@ -137,7 +138,6 @@ def wanted_services(mode: str) -> dict:
         "minio": managed,
         "neo4j": managed,
         "kg": managed,
-        "rag": managed,
         "deepgraph": managed,
         "ft": managed,
         "api": managed,
@@ -153,7 +153,7 @@ def color_enabled(flags: list, vt_available: bool) -> bool:
 
 def usage(sink: "Sink") -> None:
     sink.info("用法：start.bat [all|backend|frontend|status] [--no-color]")
-    sink.info("      all       起缺的、接管在跑的：Ollama/MinIO/Neo4j/KG/RAG/LoRA/API/Web")
+    sink.info("      all       起缺的、接管在跑的：Ollama/MinIO/Neo4j/KG/DeepGraph(含知识库)/LoRA/API/Web")
     sink.info("      backend   起 Ollama/MinIO/引擎/LoRA/API，不起 Vite")
     sink.info("      frontend  只起 Vite（5173/5174/5175 择口）")
     sink.info("      status    只报全量服务状态，不起任何进程")
@@ -428,10 +428,11 @@ def engine_flags(in_use, ports=PORTS) -> dict:
     绝不能复用启动器开场时的快照：冷启动时引擎必然还在起来，照旧快照注入
     `KG_ENABLED`/`RAG_ENABLED` 就等于把"要重启后端才切 mode=ENGINE"（§18.5）
     固化进一键脚本——Java 的 `@Value` 只在启动那一刻读端口，之后不会再改。
+
+    8002 退役后知识库与 deepgraph 是同一个端口，"知识库可用"= 8501 在听。
     """
     return {
         "kg": bool(in_use(ports["kg"])),
-        "rag": bool(in_use(ports["rag"])),
         "deepgraph": bool(in_use(ports["deepgraph"])),
     }
 
@@ -442,6 +443,9 @@ def backend_env(base: dict, dotenv: dict, *, redis_open: bool, kg_up: bool, rag_
 
     刻意与 .bat 同口径：整份 `.env` 都进进程环境（非只读那两把钥匙），否则同一台机器
     上分步起和一键起拿到的配置不同，故障就没法复现了。
+
+    `rag_up` 现在的含义是「知识库能用」，判据就是 8501 在听（8002 已退役、不再单起）：
+    Java 侧 `RAG_BASE_URL` 已指向 8501，若这里漏置位，后端的 RAG 会停在 native 而降级。
     """
     for key in REQUIRED_KEYS:
         if not (dotenv.get(key) or "").strip():
@@ -825,7 +829,7 @@ def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
         "minio": scope["minio"] and minio_enabled(env),
         "neo4j": scope["neo4j"] and bool(neo4j_home) and eng.should_start(env.get("NEO4J_ENABLED")),
         "kg": scope["kg"] and eng.should_start(env.get("KG_ENABLED")),
-        "rag": scope["rag"] and eng.should_start(env.get("RAG_ENABLED")),
+        # 8002 退役：知识库随 deepgraph 进程起，不再有独立开关
         "deepgraph": scope["deepgraph"] and eng.should_start(env.get("DG_RAG_ENABLED")),
         "ft": scope["ft"] and eng.should_start(env.get("FT_ENABLED")),
         "api": scope["api"],
@@ -847,7 +851,7 @@ def snapshot(api_port_value: int = DEFAULT_API_PORT, app_title: str = "") -> dic
         "minio": port_in_use(PORTS["minio"]),
         "neo4j": port_in_use(PORTS["neo4j"]),
         "kg": port_in_use(PORTS["kg"]),
-        "rag": port_in_use(PORTS["rag"]),
+        # 知识库（原 8002）与 deepgraph 同口：一个 bool 就是两者的存活
         "deepgraph": port_in_use(PORTS["deepgraph"]),
         "ft": port_in_use(PORTS["ft"]),
         # 端口在听不等于本项目后端：只认 /probe 200，避免把 8080 上别人的应用接管成自己的
@@ -861,12 +865,14 @@ def print_status(sink: Sink, status: dict, env: dict, app_title: str, api_port_v
     sink.info("-" * 62)
     for dep, port in (("mysql", DB_PORT), ("redis", CACHE_PORT)):
         sink.info(f"{dep:6s} :{port}  {'UP' if port_in_use(port) else 'DOWN'}")
-    for name in ("ollama", "minio", "neo4j", "kg", "rag", "deepgraph", "ft"):
+    for name in ("ollama", "minio", "neo4j", "kg", "deepgraph", "ft"):
         if not status.get(name):
             sink.info(f"{name:6s} :{PORTS[name]}  DOWN")
             continue
-        if name in ("kg", "rag", "ft"):
+        if name in ("kg", "ft"):
             detail = eng.describe(name, status[name])
+        elif name == "deepgraph":
+            detail = eng.describe(name, status[name]) + "｜" + eng.describe("rag", status[name])
         elif name == "minio":
             detail = "UP (health 200)" if health_ok(http_probe_status(MINIO_HEALTH_URL)) else \
                 "UP (端口在听，/minio/health/live 未返 200)"
@@ -1011,7 +1017,7 @@ def main(argv=None) -> int:
         usage(sink)
         sink.close()
         return 2
-    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（ollama/minio/neo4j/kg/rag/ft/api/web）")
+    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（ollama/minio/neo4j/kg/deepgraph(含知识库)/ft/api/web）")
     sink.info("=" * 62)
 
     if mode == MODE_STATUS:
@@ -1072,7 +1078,7 @@ def main(argv=None) -> int:
                 env,
                 redis_open=not redis_needs_auth(),
                 kg_up=status["kg"],
-                rag_up=status["rag"],
+                rag_up=status["deepgraph"],
                 deepgraph_up=status["deepgraph"],
             )
         except MissingCredential as exc:
@@ -1121,7 +1127,7 @@ def main(argv=None) -> int:
                 env,
                 redis_open=not redis_needs_auth(),
                 kg_up=engine_live["kg"],
-                rag_up=engine_live["rag"],
+                rag_up=engine_live["deepgraph"],
                 deepgraph_up=engine_live["deepgraph"],
             )
             children["api"] = start_api(run_env, java_home, sink, api_port_value)

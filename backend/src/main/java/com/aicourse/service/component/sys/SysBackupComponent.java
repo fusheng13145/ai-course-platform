@@ -329,6 +329,7 @@ public class SysBackupComponent {
                         gunzip.getInputStream().transferTo(out);
                     } catch (IOException ignored) {
                         // mysql 提前退出导致管道断开：退出码检查兜底报错
+                        log.debug("恢复管道中断（mysql 可能提前退出，退出码检查兜底）: {}", ignored.getMessage());
                     }
                 });
                 pump.start();
@@ -358,6 +359,7 @@ public class SysBackupComponent {
                         producer.destroyForcibly();
                     }
                 } catch (InterruptedException ie) {
+                    log.warn("等待备份管道结束时被中断，已强制销毁子进程并恢复中断标志");
                     producer.destroyForcibly();
                     Thread.currentThread().interrupt();
                 }

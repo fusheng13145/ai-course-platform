@@ -93,6 +93,7 @@ public class UploadResourceController {
                 }
             } catch (IllegalArgumentException ignored) {
                 // 历史脏值按扩展名再判一次，不因单条错误声明打崩下载。
+                log.debug("资源声明的 Content-Type 无法解析，改用扩展名推断: declaredType={}", declaredType);
             }
         }
         return MediaTypeFactory.getMediaType(fileName)

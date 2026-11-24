@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.vo.NotificationVO;
 import com.aicourse.entity.Notification;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -44,7 +45,7 @@ public class NotificationController {
      * @return 分页通知列表
      */
     @GetMapping("")
-    public ApiResponse<PagedResponse<Notification>> getUserNotifications(
+    public ApiResponse<PagedResponse<NotificationVO>> getUserNotifications(
             Authentication auth,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Boolean isRead,
@@ -52,7 +53,7 @@ public class NotificationController {
             @RequestParam(defaultValue = "10") int size) {
         Long userId = (Long) auth.getPrincipal();
         Page<Notification> result = notificationService.getUserNotifications(userId, category, isRead, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(PagedResponse.of(result.convert(NotificationVO::from)));
     }
 
     /**
@@ -64,14 +65,14 @@ public class NotificationController {
      * @return 课程维度通知分页
      */
     @GetMapping("/course/{courseId}")
-    public ApiResponse<PagedResponse<Notification>> getCourseNotifications(
+    public ApiResponse<PagedResponse<NotificationVO>> getCourseNotifications(
             @PathVariable Long courseId,
             Authentication auth,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         Long userId = (Long) auth.getPrincipal();
         Page<Notification> result = notificationService.getCourseNotifications(userId, courseId, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(PagedResponse.of(result.convert(NotificationVO::from)));
     }
 
     /**
@@ -150,3 +151,4 @@ public class NotificationController {
         return ApiResponse.success("发送成功");
     }
 }
+

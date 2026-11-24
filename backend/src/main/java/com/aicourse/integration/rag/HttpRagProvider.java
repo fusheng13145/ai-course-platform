@@ -1,6 +1,7 @@
 package com.aicourse.integration.rag;
 
 import com.aicourse.integration.ContractPaths;
+import com.aicourse.integration.support.DownstreamRetrySupport;
 import com.alibaba.csp.sentinel.Entry;
 import com.alibaba.csp.sentinel.EntryType;
 import com.alibaba.csp.sentinel.SphU;
@@ -271,7 +272,7 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableDocument();
             }
             return new RagDocument(documentId, null, null, null,
@@ -282,14 +283,6 @@ public class HttpRagProvider implements RagContract {
         }
     }
 
-    /** 响应体显式声明 success=false 时视为失败；缺省 success 的历史响应保持兼容。 */
-    private static boolean isExplicitFailure(JsonNode root) {
-        return root != null
-                && root.has(ContractPaths.R_SUCCESS)
-                && root.get(ContractPaths.R_SUCCESS).isBoolean()
-                && !root.get(ContractPaths.R_SUCCESS).asBoolean();
-    }
-
     private RagDocument parseDocument(String raw) {
         if (raw == null || raw.isBlank()) {
             return unavailableDocument();
@@ -298,7 +291,7 @@ public class HttpRagProvider implements RagContract {
             JsonNode root = OM.readTree(raw);
             // Python 侧引擎不可用可能以 HTTP 200 + {code:503, success:false} 返回；
             // 原实现只看字段是否存在，会把“删除/新增失败”当成 ENGINE 成功。
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableDocument();
             }
             Long id = null;
@@ -334,7 +327,7 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return new RagDocumentList(null, ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
             }
             List<RagDocument> docs = new ArrayList<>();
@@ -357,7 +350,7 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
-            if (ContractPaths.isUnavailable(root) || isExplicitFailure(root)) {
+            if (ContractPaths.isUnavailable(root) || DownstreamRetrySupport.isExplicitFailure(root)) {
                 return unavailableIndex();
             }
             Boolean success = null;
@@ -410,7 +403,7 @@ public class HttpRagProvider implements RagContract {
                     return call.execute();
                 } catch (Exception e) {
                     lastException = e;
-                    if (isReadTimeout(e) || isConnectFailure(e) || isServiceUnavailable(e)) {
+                    if (DownstreamRetrySupport.isReadTimeout(e) || DownstreamRetrySupport.isConnectFailure(e) || DownstreamRetrySupport.isServiceUnavailable(e)) {
                         // 读超时 / 连接拒绝 / HTTP 503：不重试，直接降级。
                         // 读超时避免无效等待放大雪崩；连接拒绝说明 8002 未启动，
                         // 503 说明引擎明确宣告不可用（I-1 契约化后由状态码直接表达）；
@@ -419,7 +412,7 @@ public class HttpRagProvider implements RagContract {
                     }
                     if (i < maxRetries) {
                         log.warn("{}失败，第{}次重试: {}", operation, i + 1, e.getMessage());
-                        sleep(i + 1);
+                        DownstreamRetrySupport.sleep(i + 1);
                     }
                 }
             }
@@ -432,57 +425,4 @@ public class HttpRagProvider implements RagContract {
         }
     }
 
-    private void sleep(int attempt) {
-        try {
-            Thread.sleep(1000L * attempt);
-        } catch (InterruptedException ie) {
-            log.warn("重试等待被中断", ie);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /** 是否为读超时：RestClient 会将底层 SocketTimeoutException 包装为 ResourceAccessException。 */
-    private static boolean isReadTimeout(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof SocketTimeoutException
-                    || t instanceof java.net.http.HttpTimeoutException) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
-
-    /**
-     * 是否为连接失败（8002 未启动最常见）。
-     * <p>RestClient 通常把 {@link java.net.ConnectException} 包成 ResourceAccessException，
-     * 需沿 cause 链判断，不能只看顶层类型。</p>
-     */
-    /**
-     * 是否为「引擎明确宣告不可用」（HTTP 503，I-1 契约化后由状态码表达）。
-     * <p>RestClient 会把 5xx 包成 {@link org.springframework.web.client.HttpServerErrorException}，
-     * 且可能再被上层包装，因此沿 cause 链找。</p>
-     */
-    private static boolean isServiceUnavailable(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof org.springframework.web.client.HttpServerErrorException hse) {
-                return hse.getStatusCode().value() == ContractPaths.CODE_UNAVAILABLE;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
-
-    private static boolean isConnectFailure(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof java.net.ConnectException) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
-    }
 }

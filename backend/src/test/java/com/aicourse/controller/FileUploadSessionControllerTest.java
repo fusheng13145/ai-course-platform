@@ -5,6 +5,7 @@ import com.aicourse.entity.FileUploadSession;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 该控制器无 @PreAuthorize，仅需认证，故不新增越权 403 测试。
  */
 @WebMvcTest(FileUploadSessionController.class)
+@Import({com.aicourse.application.storage.FileUploadSessionApplicationService.class})
 class FileUploadSessionControllerTest extends ControllerTestBase {
 
     @MockitoBean

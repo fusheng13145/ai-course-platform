@@ -55,8 +55,12 @@ class SignInServiceImplCoverageTest {
     }
 
     private Authentication authWithCustomAuthority() {
+        return authWithCustomAuthority("ROLE_ADMIN");
+    }
+
+    private Authentication authWithCustomAuthority(String authority) {
         Authentication a = mock(Authentication.class);
-        GrantedAuthority custom = () -> "ROLE_ADMIN";
+        GrantedAuthority custom = () -> authority;
         doReturn(List.of(custom)).when(a).getAuthorities();
         return a;
     }
@@ -208,8 +212,15 @@ class SignInServiceImplCoverageTest {
 
         SignIn in3 = new SignIn(); in3.setCourseId(1L);
         assertDoesNotThrow(() -> service.createSignIn(in3, 3L, auth(true)));
+        // 阶段 3 · DUP 收敛后的口径变化（有意为之）：管理员判定只看 authority 字符串是否等于 ROLE_ADMIN，
+        // 不再看 authority 的具体实现类。旧实现用 instanceof SimpleGrantedAuthority 只是为了规避强转，
+        // 并不是安全规则；它会让"非 SimpleGrantedAuthority 但确实持有 ROLE_ADMIN"的认证被判成非管理员（假阴性）。
+        // 生产环境授权项一律由 JwtRequestFilter 以 SimpleGrantedAuthority 构造，故线上行为不变。
         SignIn in4 = new SignIn(); in4.setCourseId(1L);
-        assertThrows(BusinessException.class, () -> service.createSignIn(in4, 3L, authWithCustomAuthority()));
+        assertDoesNotThrow(() -> service.createSignIn(in4, 3L, authWithCustomAuthority()));
+        // 反过来，非管理员的自定义 authority 仍必须被拒（不能因为"匹配不严"而放宽）
+        SignIn in5 = new SignIn(); in5.setCourseId(1L);
+        assertThrows(BusinessException.class, () -> service.createSignIn(in5, 3L, authWithCustomAuthority("ROLE_TEACHER")));
     }
 
     @Test

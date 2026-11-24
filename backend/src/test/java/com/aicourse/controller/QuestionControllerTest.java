@@ -38,8 +38,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 断言 HTTP 200 + ApiResponse.code=200 + 关键字段透传（jsonPath），并 verify 路由正确委托与参数透传。
  */
 @WebMvcTest({QuestionController.class, QuestionCommandController.class, QuestionAiController.class})
-@Import(com.aicourse.security.QuestionAccessSupport.class)
+// 3E-03C：引入真实用例层，让既有 service/ACL 打桩与 wrapper 断言继续作用于真实编排
+@Import({com.aicourse.security.QuestionAccessSupport.class,
+        com.aicourse.application.question.QuestionBankApplicationService.class,
+        com.aicourse.application.knowledge.KnowledgePointApplicationService.class})
 class QuestionControllerTest extends ControllerTestBase {
+
+    @MockitoBean
+    private com.aicourse.service.KnowledgePointRelationService knowledgePointRelationService;
+
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService courseEnrollmentService;
+
+    @MockitoBean
+    private com.aicourse.security.KnowledgeAccessSupport knowledgeAccessSupport;
 
     @MockitoBean
     private QuestionService questionService;
@@ -734,5 +746,48 @@ class QuestionControllerTest extends ControllerTestBase {
         mockMvc.perform(post("/questions/1/copy").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isForbidden());
         verify(questionService, never()).copyQuestion(1L);
+    }
+
+    /**
+     * 入参收实体回归：批量导入用 {@code QuestionSaveDTO} 接收，请求体里的 id/createdBy/usageCount/correctRate
+     * 等实体服务端字段必须被挡掉，只落到业务字段；否则一次导入即可伪造统计数或指定主键。
+     */
+    @Test
+    @DisplayName("POST /questions/batch-import - 注入 id/createdBy/usageCount/correctRate 一律忽略")
+    void batchImport_ignoresInjectedServerFields() throws Exception {
+        when(questionService.batchImport(anyList(), anyLong())).thenReturn(1);
+        String body = "[{\"id\":777,\"createdBy\":999,\"usageCount\":99,\"correctRate\":100,"
+                + "\"courseId\":4007,\"content\":\"题干\",\"type\":\"single\",\"correctAnswers\":\"A\"}]";
+        mockMvc.perform(post("/questions/batch-import").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.imported").value(1));
+
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        verify(questionService).batchImport(captor.capture(), eq(1L));
+        @SuppressWarnings("unchecked")
+        List<Question> importedList = captor.getValue();
+        Question imported = importedList.get(0);
+        assertNull(imported.getId(), "主键不能被请求体指定");
+        assertNull(imported.getCreatedBy(), "创建人由 service 写入");
+        assertNull(imported.getUsageCount(), "使用次数是服务端统计字段");
+        assertNull(imported.getCorrectRate(), "正确率是服务端统计字段");
+        assertEquals(4007L, imported.getCourseId().longValue());
+        assertEquals("题干", imported.getContent());
+    }
+
+    /**
+     * 批量导入保持「单条不合法只跳过、不整批 400」的既有语义：DTO 不做 Bean Validation 级联。
+     */
+    @Test
+    @DisplayName("POST /questions/batch-import - 单条缺题干仍返回200，交给 service 跳过")
+    void batchImport_invalidItem_isSkippedNotRejected() throws Exception {
+        when(questionService.batchImport(anyList(), anyLong())).thenReturn(0);
+        mockMvc.perform(post("/questions/batch-import").contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"courseId\":4007}]").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(1));
     }
 }
