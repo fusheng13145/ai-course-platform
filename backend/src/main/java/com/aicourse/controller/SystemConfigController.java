@@ -191,14 +191,4 @@ public class SystemConfigController {
         return ApiResponse.success("测试邮件已发送", null);
     }
 
-    // ===================== 读侧可见性辅助（修复 #7） =====================
-
-    /**
-     * 敏感键名脱敏：命中 {@code *_key / apikey / secret / password / token / credential}
-     * 一类键名时，不返回明文值（防止 is_public 被误标时泄露密钥）。
-     */
-    private String maskSensitiveValue(String key, String value) {
-        return SystemConfigVO.maskValue(key, value);
-    }
-
 }

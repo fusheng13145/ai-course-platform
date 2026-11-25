@@ -494,10 +494,6 @@ public class ActivityVisibilityGuard {
         return AccessSupport.hasRole(auth, RoleConstants.STUDENT);
     }
 
-    private boolean hasRole(Authentication auth, String role) {
-        return AccessSupport.hasRole(auth, role);
-    }
-
     private Long principalId(Authentication auth) {
         return AccessSupport.requirePrincipalId(auth);
     }

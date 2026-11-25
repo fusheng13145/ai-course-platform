@@ -15,7 +15,6 @@ import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.TeacherCourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -73,12 +72,6 @@ public class TeacherController {
         Course saved = courseService.createCourse(course, teacherId);
         courseApprovalService.recordSubmission(saved.getId(), teacherId);
         return ApiResponse.success("创建成功", CourseVOs.CourseVO.from(saved));
-    }
-
-    /** 课程分页转出参模型（阶段 3 · Q-05）。 */
-    private static PagedResponse<CourseVOs.CourseVO> toPagedCourseVO(Page<Course> page) {
-        return PagedResponse.of(page.getRecords().stream().map(CourseVOs.CourseVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
     }
 
     /** 分页获取当前教师拥有的课程列表 */

@@ -73,6 +73,15 @@ public class SubmissionSubmitGuard {
     /** Redis 缺失/故障时的进程内锁表：key → 锁对象。 */
     private final Map<String, ReentrantLock> localLocks = new ConcurrentHashMap<>();
 
+    /**
+     * 锁表「取锁 / 回收」的专用监视器。
+     *
+     * <p>不能拿 {@link ReentrantLock} 实例当 monitor：它与 AQS 状态无关，既保证不了互斥，
+     * 又会被 SpotBugs 判为 {@code JLM_JSR166_LOCK_MONITORENTER}。回收与取锁必须互斥 ——
+     * 否则新线程可能拿到一把即将被移除的旧锁，与随后创建的锁并存，进程内互斥就此失效。</p>
+     */
+    private final Object lockTableMonitor = new Object();
+
     @Autowired
     public SubmissionSubmitGuard(ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         this.redisTemplate = redisTemplateProvider.getIfAvailable();
@@ -109,11 +118,14 @@ public class SubmissionSubmitGuard {
     }
 
     private Lease acquireLocal(String key) {
-        ReentrantLock lock = localLocks.computeIfAbsent(key, k -> new ReentrantLock());
-        if (!lock.tryLock()) {
-            throw busy();
+        // 取锁与回收（LocalLease#close）在同一监视器内，避免「拿到即被回收」的双锁并存
+        synchronized (lockTableMonitor) {
+            ReentrantLock lock = localLocks.computeIfAbsent(key, k -> new ReentrantLock());
+            if (!lock.tryLock()) {
+                throw busy();
+            }
+            return new LocalLease(key, lock);
         }
-        return new LocalLease(key, lock);
     }
 
     private BusinessException busy() {
@@ -190,8 +202,8 @@ public class SubmissionSubmitGuard {
                 return;
             }
             releaseAfterTransaction(() -> {
-                synchronized (lock) {
-                    lock.unlock();
+                lock.unlock();
+                synchronized (lockTableMonitor) {
                     if (!lock.isLocked() && !lock.hasQueuedThreads()) {
                         localLocks.remove(key, lock);
                     }

@@ -16,7 +16,6 @@ import com.aicourse.application.student.StudentLearningApplicationService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.vo.WrongQuestionGroupVO;
 import com.aicourse.vo.WrongQuestionStatsVO;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -117,14 +116,6 @@ public class WrongQuestionController {
      * @param auth 认证信息
      * @return 未掌握的错题列表
      */
-    /**
-     * 错题分页结果转出参模型（阶段 3 · Q-05）。
-     */
-    private static PagedResponse<WrongQuestionVOs.WrongQuestionVO> toPagedVO(Page<WrongQuestion> page) {
-        return PagedResponse.of(page.getRecords().stream().map(WrongQuestionVOs.WrongQuestionVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
-
     @GetMapping("/unmastered")
     public ApiResponse<List<WrongQuestionVOs.WrongQuestionVO>> getUnmastered(
             @RequestParam(required = false) Long courseId,
