@@ -31,10 +31,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # ---- 依赖：三套 requirements 的并集（engine_hub/requirements-hub.txt 用 -r 引用）----
+# 每份都显式改名落盘。原因（2026-11-25 CI 实证）：deepgraph 与 fine_tune 各自都有
+# requirements.txt，写成 `COPY a/requirements.txt b/requirements.txt /app/req/` 时
+# 后者会静默覆盖前者，而下面的 sed 又按「不同目标名」去找 → pip 报
+# `Could not open requirements file: /app/req/fine_tune_service-requirements.txt`。
 COPY kg_service/requirements.txt /app/req/kg_service-requirements.txt
-COPY deepgraph_rag/requirements.txt deepgraph_rag/requirements-platform.txt /app/req/
-COPY fine_tune_service/requirements.txt fine_tune_service/requirements-engine.txt /app/req/
+COPY deepgraph_rag/requirements.txt /app/req/requirements.txt
+COPY deepgraph_rag/requirements-platform.txt /app/req/requirements-platform.txt
+COPY fine_tune_service/requirements.txt /app/req/fine_tune_service-requirements.txt
+COPY fine_tune_service/requirements-engine.txt /app/req/requirements-engine.txt
 COPY engine_hub/requirements-hub.txt /app/req/requirements-hub.txt
+
+# 先断言 6 份清单都在，再 sed + pip：缺文件当场报错，不让问题拖到 pip 阶段才暴露。
+RUN set -e; for f in kg_service-requirements.txt requirements.txt requirements-platform.txt \
+      fine_tune_service-requirements.txt requirements-engine.txt requirements-hub.txt; do \
+      test -s "/app/req/$f" || { echo "missing or empty /app/req/$f"; exit 1; }; done
 
 # -r 的相对路径以「引用文件所在目录」解析：这里把并集清单的引用改成容器内平铺路径，
 # 避免 ../kg_service 在容器里不存在（容器内四份 requirements 都在 /app/req）。
