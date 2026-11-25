@@ -39,7 +39,6 @@ export default defineConfig({
         'src/router/**/*.ts',
         'src/config/**/*.ts',
         'src/monitoring/**/*.ts',
-        'src/layouts/**/*.ts',
       ],
       exclude: ['src/main.ts', 'src/utils/logger.ts', 'src/**/__tests__/**', 'src/**/*.d.ts'],
       thresholds: {

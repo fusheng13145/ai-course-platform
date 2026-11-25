@@ -25,7 +25,6 @@
     "probe:narrow": "node tools/p10-narrow-overflow.mjs --label=verify"
   },
   "dependencies": {
-    "@vueuse/core": "^11.3.0",
     "axios": "^1.21.1",
     "dayjs": "^1.11.10",
     "dompurify": "^3.4.17",
