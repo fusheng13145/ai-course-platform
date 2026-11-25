@@ -1,18 +1,17 @@
 """
-RAG 检索引擎（8002）契约冒烟测试
-==================================
-验证 docs/项目手册.md（第八部分）与 Java 端 `RAGServiceImpl` 下游调用对齐的契约端点。
-使用 FastAPI TestClient 内嵌运行，不依赖外部端口，CI 中稳定快速。
+RAG 知识库契约测试（原 8002，现挂 8501）
+==========================================
+守卫 `ContractPaths.RAG_*`（Java 侧 RAGServiceImpl 的 8 个端点契约：路径 + JSON 形状 + 降级语义）。
 
-⚠️ 本测试守卫的是**契约（端点路径 + JSON 形状）**：
-演进引擎逻辑（rag_engine.py）时，必须保持以下端点与响应结构与本测试一致。
+⚠️ 本测试只守契约，不改断言。被测对象固定为合并服务 `deepgraph_rag/api_server.py`（8501），
+实现位于 `knowledge_api.py` / `knowledge_engine.py`。
 
-本地运行：
-    pip install -r requirements.txt pytest
-    pytest -q test_rag_contract.py
+本地运行（在 python-services/deepgraph_rag 下）：
+    pip install -r requirements-platform.txt pytest
+    pytest -q test_rag_contract_merged.py
 
-引擎说明：真实检索引擎在 rag_engine.py（BM25+向量混合召回），重依赖懒加载；
-本测试在 CI（无引擎依赖）下验证占位/降级契约，在本地（依赖齐备）额外验证真实检索。
+背景：8002 独立服务已在批次 3B-2 退役，本文件随实现一起搬入 deepgraph_rag；
+平台侧删除了退役副本 `rag_service/`，原先的 `RAG_CONTRACT_APP` 双模式开关不再是选项。
 """
 
 import os
@@ -21,30 +20,17 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-# 契约测试的「被测对象」可切换（Q-03 双引擎收敛）：
-#   默认 → 本目录 8002 服务（历史口径，保持向后兼容）；
-#   RAG_CONTRACT_APP=merged → 8501 合并服务（deepgraph_rag/api_server.py）。
-# 切换后**本文件一行断言都不改**：路径、形状、降级语义必须逐条相同，否则即为「降级」。
-# 用法（同进程同时跑 deepgraph 套件，构成「不降级」硬证据）：
-#   set RAG_CONTRACT_APP=merged
-#   python -m pytest -q rag_service/test_rag_contract.py deepgraph_rag/test_deepgraph_contract.py
-_MERGED = os.getenv("RAG_CONTRACT_APP", "").strip().lower() == "merged"
+_DG_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _DG_DIR)
+import api_server  # noqa: E402  - 合并服务（8501）
+import knowledge_api  # noqa: E402
+import knowledge_engine as rag_engine  # noqa: E402
 
-if _MERGED:
-    _DG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "deepgraph_rag")
-    sys.path.insert(0, _DG_DIR)
-    import api_server  # noqa: E402  - 合并服务（8501）
-    import knowledge_api  # noqa: E402
-    import knowledge_engine as rag_engine  # noqa: E402
-
-    # 测试正文里 `import rag_service` + `rag_service._engine_ready_for` 的桩化必须命中
-    # 合并实现，否则桩打在旧模块上、断言打在合并端点上，会出现「真绿假绿」。
-    sys.modules["rag_service"] = knowledge_api
-    app = api_server.app
-    MSG_RAG_UNAVAILABLE = knowledge_api.MSG_RAG_UNAVAILABLE
-else:
-    import rag_engine  # noqa: E402,F811
-    from rag_service import MSG_RAG_UNAVAILABLE, app  # noqa: E402,F811
+# 测试正文里 `import rag_service` + `rag_service._engine_ready_for` 的桩化必须命中合并实现，
+# 否则桩打在已删除的退役模块上、断言打在合并端点上，会出现「真绿假绿」。
+sys.modules["rag_service"] = knowledge_api
+app = api_server.app
+MSG_RAG_UNAVAILABLE = knowledge_api.MSG_RAG_UNAVAILABLE
 
 
 @pytest.fixture(autouse=True)

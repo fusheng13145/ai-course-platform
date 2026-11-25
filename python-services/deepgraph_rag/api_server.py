@@ -1,22 +1,21 @@
 """
-DeepGraph RAG 文档图谱服务（8501）· FastAPI 契约适配器
-======================================================
+DeepGraph RAG 文档图谱服务（8501）· FastAPI 契约服务
+====================================================
 
-本文件是 ai-course-platform 集成层的新增适配器，**不属于已验收的复制内容**：
-`app.py` / `backend.py` / `config.py` / `neo4j_handler.py` / `utils/*` 与
-`requirements.txt` 等自 DeepSeek-RAG-Chatbot-main（已通过验收）原样复制，
-一字未改；本适配器只做"协议翻译"，把已验收的 Streamlit 应用以
-FastAPI 契约服务形式接入平台（对齐 8001/8002/8003 的既有契约风格）。
+**归属：本项目自有代码。** 2026-11-25 阶段3「第三方内容清零」后，本目录内的
+`config.py` / `backend.py` / `neo4j_handler.py` / `utils/*` 全部为本项目自研实现，
+仅保留 FastAPI 契约面（端点路径、请求/响应字段、降级语义）不变——
+契约是平台侧的验收基线，实现不再依赖任何上游仓库代码。
 
-为什么可以直接 headless 调用原实现（2026-11-21 实测）：
-- Streamlit 1.56 在无 `streamlit run` 环境下 `st.session_state` 读写可用、
-  `st.write/st.error/...` 仅打印告警不抛错；
-- 因此本适配器直接调用真实 `process_documents` / `retrieve_documents` /
-  `generate_llm_response` / `build_chapter_knowledge_graph` / `neo4j_db`，
-  不重写、不复制任何算法逻辑。
+分层：
+- `config.py`        运行配置（只读环境变量，不内置任何凭据）
+- `backend.py`       生成层（LLM 调用 / 实体抽取 / 章节图谱入口）
+- `neo4j_handler.py` 图谱存储（三元组入库、上下文查询、学习路径）
+- `utils/`           文档接入（persistence / doc_handler / build_graph / retriever_pipeline）
+- `runtime_state.py` 进程内运行态（替代 Streamlit session_state）
+- `knowledge_api.py` + `knowledge_engine.py` 知识库能力（原 8002，已并入本服务）
 
-契约端点（对齐 Java 端 `com.aicourse.integration` 风格；降级语义与 8002 一致：
-HTTP 503 + body{code:503, mode:"UNAVAILABLE", error}，绝不自称 ENGINE）：
+契约端点（降级语义：HTTP 503 + body{code:503, mode:"UNAVAILABLE", error}，绝不自称 ENGINE）：
   GET    /api/v1/deepgraph/health
   POST   /api/v1/deepgraph/ingest        {course_id, document_name, content, build_*?}
   POST   /api/v1/deepgraph/ingest-file    raw body（pdf/docx/txt），query: course_id/document_name
@@ -28,7 +27,7 @@ HTTP 503 + body{code:503, mode:"UNAVAILABLE", error}，绝不自称 ENGINE）：
   POST   /api/v1/deepgraph/learning-path {target, course_id?, max_depth?, search_all_sources?}
   GET    /api/v1/deepgraph/course-graph?course_id=&document_name=
 
-Q-03 双引擎收敛后，本服务同时承载原 8002 的 9 个知识库端点（实现见 knowledge_api.py，
+Q-03 双引擎收敛后，本服务同时承载原 8002 的知识库端点（实现见 knowledge_api.py，
 路径与方法逐项不变，Java 侧只需把 RAG_BASE_URL 指向 8501）：
   GET    /api/v1/rag/health
   POST   /api/v1/rag/ask
@@ -36,14 +35,15 @@ Q-03 双引擎收敛后，本服务同时承载原 8002 的 9 个知识库端点
   POST   /api/v1/rag/retrieve
   POST   /api/v1/rag/index/build/{courseId}    DELETE /api/v1/rag/index/{courseId}
 
-适配器自有环境变量（均不写入上游文件）：
+服务自有环境变量：
   DG_INTERNAL_AUTH_MODE=optional|required   required 且 INTERNAL_API_KEY 空时 503 fail-closed
   DG_RATE_LIMIT_PER_MINUTE=120              0 关闭；按 X-User-Id（缺省回退客户端 IP）滑动窗口
   DG_MAX_UPLOAD_BYTES=52428800              ingest-file 上限
-  DG_KG_SYNC=1                              Streamlit → Neo4j 桥接开关
+  DG_KG_SYNC=1                              图谱同步到课程图谱（kg_service）的桥接开关
+  DG_DATA_DIR=<dir>                         落盘根目录（默认包内 data/）
 
-运行依赖：Ollama（nomic-embed-text 嵌入 + HyDE/实体抽取辅助）、Neo4j（图谱，
-缺失时相关增强自动跳过）、DeepSeek API 或 Ollama 生成模型（LLM_PROVIDER 切换）。
+运行依赖：Ollama（嵌入模型 + HyDE/实体抽取辅助）、Neo4j（图谱，缺失时相关增强
+自动降级）、DeepSeek API 或 Ollama 生成模型（AI_PROVIDER 切换）。
 """
 from __future__ import annotations
 
@@ -66,28 +66,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-try:
-    import streamlit as st
-except Exception:  # 无 streamlit 的瘦环境（CI / 纯 API 镜像）不应因此起不来
-    # 适配层只在两处用到 st：读 rerank 开关与写 retrieval_pipeline 缓存（见下方 session_state 用法）。
-    # 用最小假体把这两处降级为「进程内 dict + 无副作用方法」，绝不伪造 UI 行为。
-    class _SessionStateStub(dict):
-        def get(self, key, default=None):
-            return dict.get(self, key, default)
+from runtime_state import STATE
 
-    class _StStub:
-        def __init__(self):
-            self.session_state = _SessionStateStub()
-
-        def __getattr__(self, name):
-            def _noop(*args, **kwargs):
-                return None
-
-            return _noop
-
-    st = _StStub()
-
-# ---- 已验收复制内容（原样调用，禁止修改） ----
+# ---- 本项目自有引擎（8501 适配层直接调用的运行面） ----
 try:
     import backend as chatbot_backend
     import config as chatbot_config
@@ -96,7 +77,7 @@ try:
     from utils.build_graph import retrieve_from_graph
     from utils.doc_handler import process_documents
     from utils.retriever_pipeline import retrieve_documents
-    from utils.llm_client import get_provider, get_provider_name
+    from backend import get_provider, get_provider_name
 
     HEAVY_IMPORT_ERRORS: List[str] = []
 except Exception as _import_exc:  # 重依赖缺失（CI/瘦环境）：契约端点按降级语义应答
@@ -388,8 +369,8 @@ USER_HEADER = "X-User-Id"
 TRACE_ID: ContextVar[str] = ContextVar("deepgraph_trace_id", default="")
 USER_ID: ContextVar[str] = ContextVar("deepgraph_user_id", default="")
 
-# Streamlit 的 session_state 是进程级全局状态；复制内容读取这些键，无法按请求隔离。
-# 因此所有会读写 session_state 的检索/入库/问答路径必须串行，否则并发请求会互相污染
+# 运行态（runtime_state.STATE）是进程级全局状态，无法按请求隔离。
+# 因此所有会读写开关与当前文档的检索/入库/问答路径必须串行，否则并发请求会互相污染
 # enable_hyde/enable_reranking/max_contexts/current_source。吞吐换正确性，符合本地单机服务定位。
 _SESSION_LOCK = threading.RLock()
 
@@ -584,9 +565,9 @@ def _course_doc_name(course_id: int, document_name: str) -> str:
 
 
 def _reranker():
-    """惰性加载 CrossEncoder（与 app.py load_cross_encoder_with_retry 同款镜像回退）。
+    """惰性加载 CrossEncoder（镜像站回退由 `config.HF_ENDPOINT` 统一注入）。
 
-    加载失败返回 None——retriever_pipeline 对 reranker=None 自动跳过重排（原实现内的宽恕路径）。
+    加载失败返回 None——`retriever_pipeline` 对 `reranker=None` 自动跳过重排（宽恕路径）。
     可用 CROSS_ENCODER_MODEL 环境变量覆盖默认模型（config.py 读取该变量）。
     """
     global _RERANKER
@@ -599,9 +580,8 @@ def _reranker():
             from sentence_transformers import CrossEncoder
 
             _RERANKER = CrossEncoder(chatbot_config.CROSS_ENCODER_MODEL)
-            # 适配器侧把重排器接进管道 dict：retrieve_documents 读取
-            # retrieval_pipeline["reranker"]（原实现预留的接线点），
-            # 使「启用 Neural Reranking」开关真正生效；复制内容本身未改动。
+            # 把重排器接进管道 dict：retrieve_documents 读取
+            # pipeline["reranker"]，使「启用 Neural Reranking」开关真正生效。
         except Exception as exc:
             print(f"[deepgraph] CrossEncoder 加载失败（重排将自动跳过）: {exc}")
             _RERANKER = None
@@ -611,11 +591,11 @@ def _reranker():
 def _rerank_scores(query: str, docs: list) -> Optional[List[float]]:
     """返回与 docs 对齐的真实 CrossEncoder 重排分数；不可用时返回 None。
 
-    上游 utils/retriever_pipeline.py 只用分数排序且被 UPSTREAM_MANIFEST 字节冻结，
-    无法回传分数；此处由适配层用同一模型对返回结果补算，保证透出真实模型输出。
+    `retrieve_documents` 只回排序后的文档、不带分数；这里用同一模型对结果补算，
+    保证透出的是真实模型输出而不是序号折算。
     重排未启用、模型未加载或计算失败时返回 None，由上层按 null 如实透出，禁止伪造。
     """
-    if not docs or not st.session_state.get("enable_reranking", True):
+    if not docs or not STATE.get("enable_reranking", True):
         return None
     model = _reranker()
     if model is None:
@@ -645,7 +625,7 @@ def _course_doc_names(course_id: int) -> List[str]:
     try:
         metadata = persistence.load_metadata()
         names = [n for n in metadata.get("doc_names", []) if n.startswith(_doc_prefix(course_id))]
-        # 只保留磁盘上真实存在的文档（与 app.py auto_load_existing_data 同判据）
+        # 只保留磁盘上真实存在的文档（与入库侧的登记判据一致）
         return [n for n in names if persistence.get_saved_document_path(n)]
     except Exception:
         return []
@@ -666,7 +646,7 @@ def _chunks_from_faiss(faiss_db) -> list:
 
 
 def _rebuild_pipeline_from_disk(course_id: int) -> Optional[dict]:
-    """服务重启后按持久化数据重建课程管道（等价 app.py load_document_data 的多文档聚合版）。"""
+    """服务重启后按持久化数据重建课程管道（多文档聚合成一个课程级管道）。"""
     if not engine_available():
         return None
     doc_names = _course_doc_names(course_id)
@@ -723,10 +703,7 @@ def _rebuild_pipeline_from_disk(course_id: int) -> Optional[dict]:
 
 
 class _UploadedShim:
-    """模拟 Streamlit UploadedFile 的最小接口（.name / .getvalue()）。
-
-    仅适配器侧输入适配，使真实 load_single_file / process_documents 原样运行；
-    不修改复制内容。
+    """入参文件的最小接口（.name / .getvalue()），让 HTTP 字节直接进文档接入流水线。
     """
 
     def __init__(self, name: str, data: bytes):
@@ -740,7 +717,7 @@ class _UploadedShim:
 def _source_name_for(doc, pipeline: dict) -> str:
     """取片段真实来源文档名：优先 Document.metadata.source，最后回退课程首个文档。
 
-    上游加载器（PyPDFLoader/Docx2txtLoader/TextLoader）会把上传文件落到临时路径，
+    解析器会把上传内容落到临时文件再读取，
     metadata.source 因此可能是 ``tmpXXXX.txt``；这种临时名不是课程文档身份，
     不能透给前端，必须回退到课程持久化文档名。
     """
@@ -760,22 +737,22 @@ def _source_name_for(doc, pipeline: dict) -> str:
 
 
 def _sync_session_state(course_id: Optional[int], pipeline: Optional[dict]) -> None:
-    """把适配器维护的管道/开关同步进原实现读取的 session_state（headless 可用，已实测）。"""
+    """把课程管道与检索开关写进进程内运行态 STATE（无 UI 依赖）。"""
     try:
         with _SESSION_LOCK:
             if pipeline is not None:
-                st.session_state["retrieval_pipeline"] = pipeline
-                st.session_state["documents_loaded"] = True
+                STATE["retrieval_pipeline"] = pipeline
+                STATE["documents_loaded"] = True
                 doc_names = pipeline.get("doc_names") or []
                 if doc_names:
-                    st.session_state["doc_names"] = doc_names
-                    st.session_state.setdefault("current_source", doc_names[-1])
+                    STATE["doc_names"] = doc_names
+                    STATE.setdefault("current_source", doc_names[-1])
             # 开关默认值与已验收 app.py 的侧边栏初始值一致（HyDE 默认关、GraphRAG/重排默认开）
-            st.session_state.setdefault("enable_hyde", os.getenv("DG_ENABLE_HYDE", "0") == "1")
-            st.session_state.setdefault("enable_graph_rag", True)
-            st.session_state.setdefault("enable_reranking", True)
-            st.session_state.setdefault("max_contexts", 3)
-            st.session_state.setdefault("answer_mode", "向量检索 + 知识图谱")
+            STATE.setdefault("enable_hyde", os.getenv("DG_ENABLE_HYDE", "0") == "1")
+            STATE.setdefault("enable_graph_rag", True)
+            STATE.setdefault("enable_reranking", True)
+            STATE.setdefault("max_contexts", 3)
+            STATE.setdefault("answer_mode", "向量检索 + 知识图谱")
     except Exception as exc:
         print(f"[deepgraph] session_state 同步告警（不影响检索）: {exc}")
 
@@ -790,9 +767,9 @@ def _apply_flags(req_flags: dict) -> None:
         for req_key, state_key in mapping.items():
             value = req_flags.get(req_key)
             if value is not None:
-                st.session_state[state_key] = bool(value)
+                STATE[state_key] = bool(value)
         if req_flags.get("max_contexts") is not None:
-            st.session_state["max_contexts"] = int(req_flags["max_contexts"])
+            STATE["max_contexts"] = int(req_flags["max_contexts"])
 
 
 def _degrade(error: str, status: int = 503):
@@ -924,7 +901,7 @@ async def ingest_file(
 ):
     """二进制上传入口（PDF/DOCX/TXT）：只做传输适配，解析仍由原实现 load_single_file 完成。
 
-    使用 raw body 而非 multipart，避免给上游 requirements 增加 `python-multipart`；
+    使用 raw body 而非 multipart，避免为 multipart 引入额外依赖；
     Java/脚本可用 `Content-Type: application/pdf` 等直接 POST 文件字节。
     """
     if not engine_available():
@@ -990,7 +967,7 @@ def _ingest_document(course_id: int, document_name: str, content_bytes: bytes,
     with _PIPELINE_LOCK:
         _PIPELINES[course_id] = course_pipeline
     try:
-        st.session_state["current_source"] = doc_name
+        STATE["current_source"] = doc_name
     except Exception:
         pass
     _sync_session_state(course_id, course_pipeline)
@@ -1011,7 +988,7 @@ def _ingest_document(course_id: int, document_name: str, content_bytes: bytes,
     if kg and kg.number_of_edges() > 0:
         hierarchical_sync["global_graph"] = sync_chapter_graph_to_course_kg(
             course_id, kg, doc_name)
-    # 上游 process_documents 返回的是 {file_name: chapters_dict}（多文件聚合）；
+    # `process_documents` 返回的是 {file_name: chapters_dict}（多文件聚合）；
     # 单文件入库必须取本文件对应的章节表，否则会把文件名当成“唯一章节”。
     chapter_map = chapters.get(doc_name, {}) if isinstance(chapters, dict) else {}
     if not isinstance(chapter_map, dict):
@@ -1139,7 +1116,14 @@ def _retrieve_impl(req: RetrieveRequest, pipeline: dict) -> dict:
         "enable_reranking": req.enable_reranking,
         "max_contexts": req.top_k,
     })
-    docs = retrieve_documents(req.query, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL, "")
+    docs = retrieve_documents(
+        req.query,
+        chatbot_config.OLLAMA_API_URL,
+        chatbot_config.MODEL,
+        "",
+        flags=STATE,
+        pipeline=pipeline,
+    )
     scores = _rerank_scores(req.query, docs)
     results = []
     for i, doc in enumerate(docs):
@@ -1158,7 +1142,7 @@ def _retrieve_impl(req: RetrieveRequest, pipeline: dict) -> dict:
         })
     # Neo4j GraphRAG 关系上下文（原 backend.get_retrieval_context 的图谱分支，多文档聚合）
     graph_lines: List[str] = []
-    if st.session_state.get("enable_graph_rag", True):
+    if STATE.get("enable_graph_rag", True):
         try:
             entities = chatbot_backend.extract_entities_from_prompt(req.query)
             if entities:
@@ -1209,7 +1193,7 @@ def _qa_impl(req: QaRequest, pipeline: dict) -> dict:
     else:
         doc_names = pipeline.get("doc_names") or []
         source_doc = doc_names[-1] if doc_names else ""
-    st.session_state["current_source"] = source_doc
+    STATE["current_source"] = source_doc
 
     vector_docs: list = []
     graph_lines: List[str] = []
@@ -1217,6 +1201,7 @@ def _qa_impl(req: QaRequest, pipeline: dict) -> dict:
         vector_docs = retrieve_documents(
             req.question, chatbot_config.OLLAMA_API_URL, chatbot_config.MODEL,
             "\n".join(str(m.get("content", "")) for m in req.chat_history[-5:]),
+            flags=STATE, pipeline=pipeline,
         )
     if req.answer_mode in ("向量检索 + 知识图谱", "仅知识图谱"):
         try:

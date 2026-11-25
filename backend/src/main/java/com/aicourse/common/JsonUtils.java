@@ -1,5 +1,8 @@
 package com.aicourse.common;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,7 +36,7 @@ public final class JsonUtils {
             return MAPPER.writeValueAsString(obj);
         } catch (Exception e) {
             log.error("JSON 序列化失败: {}", e.getMessage(), e);
-            throw new RuntimeException("JSON 序列化失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "JSON 序列化失败", e);
         }
     }
 

@@ -1,19 +1,36 @@
-streamlit
-networkx
-torch
-requests
-numpy
-pandas
-langchain-community
-langchain-core
-langchain-ollama
-faiss-cpu
-sentence-transformers
-rank-bm25
-pydantic
-PyMuPDF
-docx2txt
-tqdm
-pypdf
-python-dotenv
-jieba
+# deepgraph_rag 引擎运行依赖（本项目自有清单，2026-11-25 阶段3「第三方内容清零」重写）
+#
+# 与 requirements-platform.txt 的分工：
+#   本文件 = 引擎运行面（解析 / 切块 / 向量化 / 图检索 / 重排）
+#   平台清单 = HTTP 服务面（fastapi / uvicorn / httpx / neo4j / 重排 tokenizer 缺口）
+#   安装：pip install -r requirements.txt -r requirements-platform.txt
+#
+# 已移除项（原上游清单遗留，本项目运行面不再需要）：
+#   streamlit —— 8501 是 FastAPI 服务，没有任何 UI 依赖；运行态由 runtime_state.py 承载
+#   PyMuPDF   —— 全仓无 import fitz，PDF 解析实际走 pypdf
+
+numpy>=1.26,<3
+pandas>=2.2,<3
+networkx>=3.3,<4
+requests>=2.31,<3
+pydantic>=2,<3
+python-dotenv>=1,<2
+tqdm>=4.66,<5
+
+# 中文分词与关键词召回
+jieba>=0.42,<1
+rank-bm25>=0.2,<1
+
+# 向量化与向量检索
+faiss-cpu>=1.8,<2
+torch>=2.4
+sentence-transformers>=3,<6
+langchain-core>=0.3,<2
+langchain-community>=0.3,<2
+langchain-classic>=1,<2
+langchain-ollama>=0.3,<1
+langchain-text-splitters>=0.3,<2
+
+# 文档解析（PDF / DOCX；TXT 走内置解码）
+pypdf>=5,<7
+docx2txt>=0.8,<1

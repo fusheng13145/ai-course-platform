@@ -210,14 +210,14 @@ jobs:
           pip install -r requirements.txt pytest
           pytest -q
 
-      # 与 ci.yml 对称：RAG 契约护栏同样纳入发布门禁（此前缺失，2026-08-27 补齐）
-      - name: Python RAG contract
-        # 与 ci.yml 的 python-rag-contract 同口径：整目录跑（契约 + 引擎单测）；
-        # 发布门禁不装引擎重依赖（requirements-engine.txt），相应用例自动 skip。
-        working-directory: python-services/rag_service
+      # 与 ci.yml 对称：原 8002 的 RAG 契约护栏纳入发布门禁（2026-08-27 补齐）。
+      # 2026-11-25（阶段3）：rag_service/ 目录已物理删除，契约测试搬入 deepgraph_rag，
+      # 与 DeepGraph 契约同目录一次跑完，断言未改。
+      - name: Python RAG + DeepGraph contract
+        working-directory: python-services/deepgraph_rag
         run: |
-          pip install -r requirements.txt pytest
-          pytest -q
+          pip install -r requirements-platform.txt -r requirements-test.txt pytest
+          pytest -q test_rag_contract_merged.py test_deepgraph_contract.py test_merged_contract.py
 
   # ------------------------------------------------------------------
   # Docker 镜像：tag 化构建并推送 GHCR（生产部署拉取源）
@@ -289,24 +289,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push rag-service image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./python-services/rag_service
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/rag-service:${{ github.ref_name }}
-            ghcr.io/${{ github.repository }}/rag-service:latest
-          build-args: |
-            HF_ENDPOINT=https://hf-mirror.com
-            RAG_EMBED_MODEL=BAAI/bge-small-zh-v1.5
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # 【2026-11-25 阶段3】rag-service 镜像已停止构建：源代码目录 rag_service/ 已删除，
+      # 知识库能力随 deepgraph-service(8501) 交付，不再有第二个知识库容器。
 
-      # FT 引擎镜像（profile: ft，2026-11-14 P2-6/U5b 补齐）：此前发布链不含 ft——
-      # compose `--profile ft up` 必拉取失败。置于最后：前四镜像已推送，ft 失败仍可见
-      # 且不回滚已交付镜像。Dockerfile 已按修复候选①（torch==2.11.0+cpu 本地版本号）
-      # 改写阻断 CUDA 回落；本步即该修复的实机验证位。
       - name: Build & push fine-tune-service image
         uses: docker/build-push-action@v7
         with:

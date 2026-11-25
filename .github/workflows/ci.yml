@@ -117,6 +117,36 @@ jobs:
         run: npm run size:gate
 
   # ------------------------------------------------------------------
+  # 前端门禁聚合状态（分支保护要求的状态检查名沿用旧作业名 `Frontend (lint + build)`）
+  #
+  # 背景：前端门禁在收敛时拆成了 `frontend-quality`（lint/format/audit）与
+  # `frontend-build`（构建 + 体积门禁）两个作业，但 main 分支保护规则里的必需检查
+  # 仍写着旧名 `Frontend (lint + build)`，导致 PR 永久停在 "Expected — Waiting for
+  # status to be reported"，合并按钮点不动。
+  #
+  # 这里用一个不做任何构建的聚合作业补上这个检查名：只有两个前端门禁都成功它才成功，
+  # 任一失败/取消它都失败。这样既恢复合并能力，又不削弱任何既有门禁
+  # （真正干活仍是上面两个作业，聚合作业只透传结果）。
+  # ------------------------------------------------------------------
+  frontend-gate:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    needs: [frontend-quality, frontend-build]
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate frontend gates
+        run: |
+          echo "frontend-quality=${{ needs.frontend-quality.result }}"
+          echo "frontend-build=${{ needs.frontend-build.result }}"
+          if [ "${{ needs.frontend-quality.result }}" != "success" ] \
+             || [ "${{ needs.frontend-build.result }}" != "success" ]; then
+            echo "::error::Frontend gates did not pass (lint/build)"
+            exit 1
+          fi
+          echo "Frontend gates passed"
+
+  # ------------------------------------------------------------------
   # 后端：编译 + 单元测试 + Testcontainers 集成测试（Java 21，与 backend/Dockerfile 的 temurin-21 对齐）
   # ------------------------------------------------------------------
   backend:
@@ -709,10 +739,11 @@ jobs:
         run: pytest -q
 
   # ------------------------------------------------------------------
-  # Python RAG 检索服务（端口 8002）契约校验
-  # 覆盖 docs/系统架构设计.md 集成契约章节的关键端点，与 Java 端
-  # RAGServiceImpl 的下游调用对齐。rag_service.py 已接真实混合检索引擎
-  # （rag_engine.py：BM25+向量+RRF，重依赖懒加载），本 job 只跑无重依赖的用例。
+  # Python 引擎契约校验（单作业覆盖 8501 上的两套契约）
+  # DeepGraph 适配层 10 端点 + 知识库（原 8002，已并入 8501）8 端点，与 Java 端
+  # DeepGraphRagService / RAGServiceImpl 的下游调用对齐（ContractPaths.java）。
+  # 8002 独立服务与 rag_service/ 目录已于 2026-11-25（阶段3）物理删除，
+  # 契约测试随之搬入 deepgraph_rag/test_rag_contract_merged.py，断言一字未改。
   # ------------------------------------------------------------------
   python-deepgraph-contract:
     name: Python DeepGraph Adapter Contract (8501)
@@ -748,56 +779,10 @@ jobs:
         # deepgraph 既有端点一个不少。重依赖未装的 CI 环境同样应全绿（引擎走降级语义）。
         run: pytest -q test_merged_contract.py
 
-  python-rag-contract:
-    name: Python RAG Service Contract (8002 → 8501 收敛)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: python-services/rag_service
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          # merged 契约步骤会把同一批断言打到 deepgraph_rag/api_server.py（8501），
-          # 因此缓存键必须同时覆盖deepgraph 的平台适配层清单。
-          cache-dependency-path: |
-            python-services/rag_service/requirements.txt
-            python-services/deepgraph_rag/requirements-platform.txt
-            python-services/deepgraph_rag/requirements-test.txt
-
-      - name: Install dependencies
-        # merged 契约步骤会把同一批断言打到 deepgraph_rag/api_server.py（8501）：
-        #   · 它顶层 import requests、运行期还要 neo4j → 缺则 collection 阶段直接
-        #     ModuleNotFoundError: No module named 'requests'；
-        #   · test_deepgraph_contract.py 的图构造断言用 networkx（requirements-test.txt）。
-        # 两份清单都不含 torch/faiss，装上不改变「引擎降级」语义。
-        run: pip install -r requirements.txt -r ../deepgraph_rag/requirements-platform.txt -r ../deepgraph_rag/requirements-test.txt pytest
-
-      - name: Contract + engine unit tests (FastAPI TestClient)
-        # 缺陷修复（2026-10-04）：原先只跑单文件契约测试（旧名 contract_test.py，
-        # 现 test_rag_contract.py），`test_rag_engine.py`
-        # （BM25+向量+RRF 混合检索、分块、索引生命周期、损坏恢复等 29 例）从未进过 PR 门禁。
-        # 引擎重依赖（numpy/jieba/rank_bm25/faiss/sentence-transformers）在 CI 不安装，
-        # rag_engine 与用例都做了软依赖处理：缺依赖的用例按 skipif 自动跳过，纯算法用例照常跑。
-        # 需要真实引擎全绿时另行安装 requirements-engine.txt（见 eval-nightly.yml）。
-        run: pytest -q
-
-      - name: Merged contract — 8002 端点挂在 8501 上仍须逐条同形（Q-03 不降级护栏）
-        # 同一批断言原样打到合并服务：`RAG_CONTRACT_APP=merged` 时 test_rag_contract.py
-        # 把被测对象换成 deepgraph_rag/api_server.py（8501），断言行一字未改。
-        # 同时跑 8501 自身的契约套件与收敛护栏，构成「一套进程、两套契约」的门禁。
-        env:
-          RAG_CONTRACT_APP: merged
-        run: |
-          python -m pytest -q test_rag_contract.py \
-            ../deepgraph_rag/test_deepgraph_contract.py \
-            ../deepgraph_rag/test_merged_contract.py
+      - name: RAG contract on merged app (原 8002 的 8 端点，断言未改)
+        # test_rag_contract_merged.py 由已删除的 rag_service/test_rag_contract.py 搬入，
+        # 通过 sys.modules["rag_service"] = knowledge_api 让原断言仍指向合并实现。
+        run: pytest -q test_rag_contract_merged.py
 
   # ------------------------------------------------------------------
   # Python LoRA 微调服务（端口 8003）契约校验

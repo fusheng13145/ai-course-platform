@@ -64,8 +64,9 @@ PORTS = {"neo4j": 7687, "kg": 8001, "deepgraph": 8501, "ft": 8003}
 HUB_PORT = 8600
 HUB_SERVICE = "hub"
 ORDER_HUB = ("neo4j", HUB_SERVICE)
-# hub 需要三套重依赖同装：按此顺序找现成 venv（engine_hub 一般没有，落 deepgraph_rag / rag_service）
-HUB_VENV_CANDIDATES = ("engine_hub", "deepgraph_rag", "rag_service", "kg_service", "fine_tune_service")
+# hub 需要三套重依赖同装：按此顺序找现成 venv（engine_hub 一般没有，落 deepgraph_rag）
+# 注意：rag_service 已随 8002 退役删除，不再作为 venv 候选（否则会误用一个没有本次依赖的旧环境）
+HUB_VENV_CANDIDATES = ("engine_hub", "deepgraph_rag", "kg_service", "fine_tune_service")
 PORTS[HUB_SERVICE] = HUB_PORT
 
 
@@ -98,7 +99,7 @@ DEFAULT_NEO4J_HOMES = (
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
 SERVICE_DIRS = {"kg": "kg_service", "deepgraph": "deepgraph_rag", "ft": "fine_tune_service",
                 HUB_SERVICE: "engine_hub"}
-# deepgraph 的入口是契约适配器 api_server.py（复制的 app.py 是 Streamlit UI，不进 uvicorn）；
+# deepgraph 的入口是契约服务 api_server.py（引擎内无任何 UI 进程）；
 # 该进程同时挂载 deepgraph 与知识库（原 8002）两套路由。
 APP_MODULES = {"kg": "kg_service:app", "deepgraph": "api_server:app", "ft": "lora_service:app",
                HUB_SERVICE: "hub:app"}

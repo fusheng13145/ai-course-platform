@@ -1,31 +1,25 @@
-# 平台自有适配层依赖（不属于 RAG 上游，禁止合并进 requirements.txt）
+# 平台服务面依赖（HTTP 契约层）
 #
-# 上游 requirements.txt 是 Streamlit 单机应用的依赖清单，按 UPSTREAM_MANIFEST.json
-# 保持 byte-identical，不得追加。api_server.py 是本平台新增的 FastAPI 适配层：
-#   pip install -r requirements.txt -r requirements-platform.txt
-#
-# fastapi：适配层 HTTP 框架
+# 分工：
+#   requirements.txt          = 引擎运行面（文档解析 / 切块 / 向量化 / 图检索 / 重排）
+#   requirements-platform.txt = 服务面（HTTP 框架 / 图数据库驱动 / 重排 tokenizer 缺口）
+# 安装：pip install -r requirements.txt -r requirements-platform.txt
+
+# fastapi：契约服务 HTTP 框架
 # uvicorn[standard]：ASGI 服务器（启动 api_server:app）
-# httpx：starlette TestClient 依赖，仅测试期实际使用；固定版本满足 fastapi 0.115+
+# httpx：starlette TestClient 依赖，仅测试期实际使用
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
 httpx>=0.27,<1
-# requests：api_server.py 直接 import 它做 Ollama/DeepSeek HTTP 调用与流式代理，
-# 上游 requirements.txt 虽含 requests 但本环境可能只装平台层（CI/轻量镜像），
-# 缺它会直接 ImportError 导致服务起不来，故在平台清单显式声明。
+# requests：契约服务直接使用（Ollama / OpenAI 兼容通道 HTTP 调用）
 requests>=2.31,<3
-# neo4j：上游 neo4j_handler.py 运行期必需的官方驱动，但上游 requirements.txt 漏列；
-# 该文件按 UPSTREAM_MANIFEST 冻结不可补写，缺失会导致 api_server 引擎整体降级为
-# UNAVAILABLE（health.dep_errors 报 No module named 'neo4j'），故由平台适配层补齐。
+# neo4j：本项目 neo4j_handler.py 运行期必需的官方驱动
 neo4j>=5.26,<7
 
-# ---- Q-03 双引擎收敛（2026-11-24）：知识库引擎（原 8002）搬入本服务后补齐的缺口 ----
-# 上游 requirements.txt 已含 torch / faiss-cpu / sentence-transformers / rank-bm25 /
-# jieba / numpy，但**缺下面两项**，缺任一项即出现「8002 能力降级」：
-#   sentencepiece：BAAI/bge-reranker-base 用 XLM-R tokenizer，缺失则 Cross-Encoder
-#                  重排加载失败（rerank.cached=false）——重排能力直接消失；
+# ---- 重排能力缺口（缺任一项即出现「重排静默消失」） ----
+#   sentencepiece：CrossEncoder（bge-reranker-base 等）用 XLM-R tokenizer，缺失则重排加载失败；
 #   pyarrow>=24：datasets 5.x 的硬要求，低版本缺 pyarrow.json_ 别名会让整个
-#                sentence-transformers 导入失败，引擎整体 UNAVAILABLE。
-# 版本取自 rag_service/requirements-engine.txt（本机 3.11.9 实测可用），跨平台部署请重新解析。
+#                sentence-transformers 导入失败，引擎整体降级。
+# 版本按本机 Python 3.11 实测可用解析，跨平台部署请重新解析。
 sentencepiece==0.2.1
 pyarrow>=24,<25

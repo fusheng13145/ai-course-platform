@@ -1,5 +1,8 @@
 package com.aicourse.config;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -56,7 +59,7 @@ public class MinioConfig {
             }
         } catch (Exception e) {
             log.error("MinIO bucket 检查/创建失败: {} - {}", bucket, e.getMessage());
-            throw new RuntimeException("MinIO bucket 初始化失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "MinIO bucket 初始化失败", e);
         }
 
         return client;

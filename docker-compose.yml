@@ -602,83 +602,10 @@ services:
       retries: 5
       start_period: 20s
 
-  rag-service:
-    build:
-      context: ./python-services/rag_service
-      args:
-        HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
-        RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
-    image: aicourse/rag-service:local
-    container_name: aicourse-rag-service
-    # Q-03 收敛（2026-11-24）：知识库 9 个端点已并入 deepgraph-service(8501)，
-    # 本服务**默认不再拉起**（避免两套进程同时读写同一语料卷、且 8501 变单点正是本轮决策）。
-    # 回滚手段：`docker compose --profile legacy-rag up -d rag-service`，并把
-    #   RAG_BASE_URL 改回 http://rag-service:8002（其余代码无需回退）。
-    profiles: ["legacy-rag"]
-    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-    labels:
-      <<: *labels-python
-      aicourse.role: rag
-    restart: unless-stopped
-    depends_on:
-      kg-service:
-        condition: service_healthy
-    environment:
-      RAG_DATA_DIR: /app/data
-      # 嵌入权重通路：镜像内 HF_HOME=/models/hf，此处由命名卷承载，离线可预置。
-      HF_HOME: /models/hf
-      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
-      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
-      RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
-      # 生成后端：默认 deepseek；切 ollama 时无 API Key，失败仍按原语义降级。
-      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
-      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
-      # 容器内 localhost 指容器自身；访问宿主 Ollama 走 host.docker.internal。
-      # Linux 额外由下方 extra_hosts 映射到宿主网关，Windows/macOS Docker Desktop 原生支持。
-      OLLAMA_BASE_URL: ${RAG_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
-      OLLAMA_THINK: ${OLLAMA_THINK:-}
-      # R3 图谱增强：RAG 从 KG 取课程节点并带 1 跳关系。
-      KG_BASE_URL: http://kg-service:8001
-      RAG_GRAPH_ENABLED: ${RAG_GRAPH_ENABLED:-true}
-      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
-      TZ: Asia/Shanghai
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "${RAG_HOST_BIND:-127.0.0.1}:${RAG_HOST_PORT:-8002}:8002"
-    volumes:
-      - rag-data:/app/data
-      - hf-cache:/models/hf
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/api/v1/rag/health', timeout=3)",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # 【2026-11-25 阶段3 清理】rag-service 已删除：知识库端点早已并入 deepgraph-service(8501)，
+  # 原 8002 处于「收敛只做路由、未删代码」的孤儿状态，且能力更弱（缺 2 个 DELETE 端点）。
+  # 回滚口径：RAG_BASE_URL 指向 8501（默认已是），不再有第二套知识库进程。
 
-  # fine-tune-service（8003）：LoRA 微调引擎。**引擎侧已交付**（python-services/fine_tune_service，
-  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 52 passed / 1 skipped，手册 DR-78）。
-  # 【2026-11-07 P1 整改批】补齐 Dockerfile 并纳入编排：独立 profile "ft"（不随 python profile
-  # 默认拉起——镜像含 torch 体量大，且 FT 属重资源可选能力）。启用链路：
-  #   1) docker compose --profile ft up -d fine-tune-service
-  #   2) .env 置 FT_ENABLED=true（backend 侧开关，缺省 false＝不改变既有行为）
-  # 端口默认仍只绑回环；CPU 版 torch 经构建参数 TORCH_CPU_INDEX 控制（默认 PyTorch CPU 源）。
-  # DeepGraph RAG（8501）：已验收 DeepSeek-RAG-Chatbot 原样复制 + api_server.py 契约适配层。
-  # 镜像入口必须是 Dockerfile.platform（拉起 uvicorn api_server:app）；
-  # 上游 Dockerfile 的 CMD 是 streamlit run app.py，属 UPSTREAM_MANIFEST 冻结文件，不得改。
   deepgraph-service:
     build:
       context: ./python-services/deepgraph_rag

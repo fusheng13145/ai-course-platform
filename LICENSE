@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) [2025] [N SAI AKHIL]
+Copyright (c) 2026 江苏科技大学「基于知识图谱 + LLM 的 AI 助教系统」项目组
+项目负责人：李昂、虞子晗；核心成员：曾丽娟、张佳言、赵元将；指导教师：滕玮
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +20,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+第三方资产声明见仓库根目录 THIRD_PARTY_NOTICES.md。
+本仓库中 python-services/deepgraph_rag/ 下的部分文件为第三方 MIT 授权实现的
+逐字节副本，其版权归原作者所有，不适用上述本项目版权声明。

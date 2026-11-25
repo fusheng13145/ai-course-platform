@@ -8,7 +8,6 @@ import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.CourseKnowledgeBaseService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -56,16 +55,9 @@ public class CourseKnowledgeBaseController {
     /**
      * 将服务层返回的 JSON 文本安全反序列化为 JsonNode；
      * 解析失败时回退为文本节点，保证接口永不因格式问题抛 500。
+     * <p>实现已收敛到 {@link com.aicourse.util.JsonNodeSupport}，此处仅保留调用点语义。</p>
      */
     private JsonNode toJson(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        try {
-            return OBJECT_MAPPER.readTree(raw);
-        } catch (Exception e) {
-            log.warn("课程知识库响应解析为JSON失败，已回退为文本节点: {}", e.getMessage());
-            return TextNode.valueOf(raw);
-        }
+        return com.aicourse.util.JsonNodeSupport.parseOrText(raw, OBJECT_MAPPER, "课程知识库");
     }
 }

@@ -9,7 +9,6 @@ import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.DeepGraphRagService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -222,16 +221,9 @@ public class DeepGraphRagController {
     /**
      * 将服务层返回的 JSON 文本安全反序列化为 JsonNode；
      * 解析失败时回退为文本节点，保证接口永不因格式问题抛 500。
+     * <p>实现已收敛到 {@link com.aicourse.util.JsonNodeSupport}，此处仅保留调用点语义。</p>
      */
     private JsonNode toJson(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        try {
-            return OBJECT_MAPPER.readTree(raw);
-        } catch (Exception e) {
-            log.warn("DeepGraph RAG 响应解析为JSON失败，已回退为文本节点: {}", e.getMessage());
-            return TextNode.valueOf(raw);
-        }
+        return com.aicourse.util.JsonNodeSupport.parseOrText(raw, OBJECT_MAPPER, "DeepGraph RAG");
     }
 }

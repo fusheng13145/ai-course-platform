@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -61,6 +60,14 @@ class UserAdminApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("管理员重置密码的事务边界必须在 application 层（改密 + 吊销会话同事务）")
+    void resetPassword_isTransactionalBoundary() throws Exception {
+        Method method = UserAdminApplicationService.class.getMethod("resetPassword", Long.class, String.class);
+        assertNotNull(method.getAnnotation(Transactional.class),
+                "resetPassword 必须带 @Transactional：密码变更与吊销会话必须同成同败");
+    }
+
+    @Test
     @DisplayName("删除前必须先吊销会话再软删（顺序错会留下「已删用户仍有有效令牌」窗口）")
     void deleteUser_revokesSessionsBeforeRemoval() {
         User existing = new User();
@@ -98,15 +105,16 @@ class UserAdminApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("重置密码后吊销会话失败：密码已落库，不得抛出把成功的写操作带崩")
-    void resetPassword_sessionRevokeFailureIsSwallowed() {
+    @DisplayName("重置密码后吊销会话失败：异常必须上抛，由事务回滚密码变更")
+    void resetPassword_sessionRevokeFailurePropagates() {
         User user = new User();
         user.setId(5L);
         when(userService.getById(5L)).thenReturn(user);
         when(passwordEncoder.encode(any())).thenReturn("$2a$new");
         when(userSessionService.revokeAllActiveSessions(5L)).thenThrow(new RuntimeException("redis down"));
 
-        assertDoesNotThrow(() -> service.resetPassword(5L, "Aa123456!"));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.resetPassword(5L, "Aa123456!"));
+        assertEquals("redis down", ex.getMessage(), "吊销失败的原因必须原样上抛，不得被日志吞掉");
         verify(userService).updateById(any(User.class));
     }
 

@@ -215,9 +215,10 @@ public class UserAdminApplicationService {
 
     /**
      * 重置密码。
-     * <p>与用户自助改密同口径：密码写库成功后吊销全部活跃会话，旧 access/refresh token 一律失效。
-     * 吊销失败不回滚密码更新，但必须显式记日志便于人工核查。</p>
+     * <p>与用户自助改密同口径：密码写库与吊销全部活跃会话必须在同一事务内完成。
+     * 吊销失败则整体回滚——"密码已改、旧 token 仍有效"属于安全缺口，不能以降级日志收场。</p>
      */
+    @Transactional(rollbackFor = Exception.class)
     public void resetPassword(Long userId, String newPassword) {
         User user = userService.getById(userId);
         if (user == null) {
@@ -231,12 +232,9 @@ public class UserAdminApplicationService {
         PasswordPolicy.validate(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         userService.updateById(user);
-        try {
-            int revoked = userSessionService.revokeAllActiveSessions(userId);
-            log.info("[admin] 重置用户密码后吊销活跃会话: userId={}, revoked={}", userId, revoked);
-        } catch (Exception e) {
-            log.error("[admin] 密码已重置但吊销会话失败（需人工核查）: userId={}", userId, e);
-        }
+        // 旧会话必须在同一事务内吊销：失败向上抛出并回滚密码变更，不留"已改密但旧 token 可用"的窗口。
+        int revoked = userSessionService.revokeAllActiveSessions(userId);
+        log.info("[admin] 重置用户密码后吊销活跃会话: userId={}, revoked={}", userId, revoked);
     }
 
     /** JSON 批量导入（兼容保留）：逐行校验、逐行跳过，失败不中断整批。 */
