@@ -516,11 +516,11 @@ def test_rerank_scores_none_when_disabled_or_unavailable(monkeypatch):
     def _must_not_load():
         pytest.fail("开关关闭时不应加载重排模型")
 
-    monkeypatch.setattr(api_server.st, "session_state", {"enable_reranking": False})
+    monkeypatch.setattr(api_server, "STATE", {"enable_reranking": False})
     monkeypatch.setattr(api_server, "_reranker", _must_not_load)
     assert api_server._rerank_scores("TCP", [FakeDoc()]) is None
 
-    monkeypatch.setattr(api_server.st, "session_state", {"enable_reranking": True})
+    monkeypatch.setattr(api_server, "STATE", {"enable_reranking": True})
     monkeypatch.setattr(api_server, "_reranker", lambda: None)
     assert api_server._rerank_scores("TCP", [FakeDoc()]) is None
     assert api_server._rerank_scores("TCP", []) is None
@@ -535,6 +535,6 @@ def test_rerank_scores_surfaces_model_failure_as_none(monkeypatch):
         def predict(self, pairs):
             raise RuntimeError("model exploded")
 
-    monkeypatch.setattr(api_server.st, "session_state", {"enable_reranking": True})
+    monkeypatch.setattr(api_server, "STATE", {"enable_reranking": True})
     monkeypatch.setattr(api_server, "_reranker", lambda: BrokenReranker())
     assert api_server._rerank_scores("TCP", [FakeDoc()]) is None

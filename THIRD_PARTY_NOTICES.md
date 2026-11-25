@@ -1,40 +1,63 @@
 # 第三方资产声明（THIRD_PARTY NOTICES）
 
-本仓库包含第三方开源资产。本文件用于明确其版权归属与许可，避免与项目自有代码的
-版权声明相互混淆。**项目自有代码的许可见根目录 `LICENSE`；本文件所列资产的版权归其各自作者所有。**
+本仓库**不再包含任何第三方项目源码**。本文件记录归属事实、历史来源追溯方式，
+以及直接运行时依赖的许可证摘要，供申报 / 软著 / 合规审查使用。
+项目自有代码的许可见根目录 `LICENSE`。
 
 ---
 
-## 1. 上游参考实现：DeepSeek-RAG-Chatbot（MIT）
+## 1. 归属事实：Python 引擎全部为本项目自有实现
 
-| 项 | 内容 |
-| --- | --- |
-| 资产名称 | `DeepSeek-RAG-Chatbot` 3.0 参考实现 |
-| 版权人 | `Copyright (c) [2025] [N SAI AKHIL]` |
-| 许可证 | MIT（原文见 `python-services/deepgraph_rag/LICENSE`） |
-| 在本仓库的位置 | `python-services/deepgraph_rag/` 下的 25 个文件（清单见同目录 `UPSTREAM_MANIFEST.json`） |
-| 修改状态 | **逐字节未修改**（`UPSTREAM_MANIFEST.json` 记录每个文件的 SHA-256；CI 与本地均可复算） |
-| 例外说明 | 其中 9 个一次性脚本在上游位于仓库根目录，本仓库收纳进 `_archive_scripts/` 子目录；**仅路径变化，内容字节一致** |
+2026-11-25「第三方内容清零」完成后，`python-services/deepgraph_rag/` 目录下的实现
+文件全部为本项目自研代码，与原参考实现不再有文件级、行级、字节级关联：
 
-MIT 许可证要求："The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software." 因此：
+| 文件 | 职责 | 状态 |
+| --- | --- | --- |
+| `config.py` | 运行配置（只读环境变量，无内置凭据） | 自有重写 |
+| `backend.py` | 生成层（LLM 调用 / 实体抽取 / 章节图谱入口） | 自有重写 |
+| `neo4j_handler.py` | 图谱存储（三元组入库 / 上下文查询 / 学习路径） | 自有重写 |
+| `utils/persistence.py` | 文档 / 索引 / 章节 / 图谱落盘 | 自有重写 |
+| `utils/doc_handler.py` | 文档接入流水线 | 自有重写 |
+| `utils/build_graph.py` | 层次大纲 / 三元组抽取 / 图检索 | 自有重写 |
+| `utils/retriever_pipeline.py` | 混合检索（HyDE + BM25/FAISS + 图 + 重排） | 自有重写 |
+| `runtime_state.py` | 进程内运行态（替代原实现的 Streamlit 会话） | 自有新增 |
+| `requirements.txt` | 引擎运行面依赖清单 | 自有重写 |
+| `api_server.py` / `knowledge_api.py` / `knowledge_engine.py` | FastAPI 契约服务与知识库 | 自有代码 |
+| `test_*.py` | 契约 / 归属 / 合并守卫测试 | 自有代码 |
 
-1. 上述 25 个文件**必须**随附其原始 `LICENSE`（已保留在 `python-services/deepgraph_rag/LICENSE`），不得删除。
-2. 本项目在 `LICENSE` 中的版权声明**不覆盖**上述文件。
-3. 项目新增的适配层（`api_server.py`、`knowledge_api.py`、`knowledge_engine.py`、
-   `test_deepgraph_contract.py`、`test_merged_contract.py` 及 `requirements-platform.txt` 等）
-   为本项目自有代码，适用根目录 `LICENSE`。
+被删除的第三方内容（历史记录，便于审计回溯）：
 
-> 说明：MIT 允许商用、修改、再分发与再许可，唯一义务是保留版权与许可声明。
-> 履约方式是"保留声明"，不是"切断一切关联"——切断声明反而构成违约。
+- 参考实现的 Streamlit UI（`app.py`）、一次性归档脚本（`_archive_scripts/` 9 个）、
+  安装脚本（`install.sh`）、其 README / 使用说明 / LICENSE、其 Dockerfile 与 compose 文件。
+- 参考实现 `config.py` / `backend.py` / `neo4j_handler.py` / `utils/*` / `requirements.txt`
+  的原始字节。
+
+归属守卫由 `test_engine_ownership.py` 强制：禁止 `import streamlit`、禁止内置任何
+数据库口令回退值、要求生成层契约符号齐全且全链路带超时。
 
 ---
 
-## 2. 主要运行时依赖的许可证（摘要）
+## 2. 架构参考的边界说明（净室重写）
 
-> 以下为直接依赖的常见许可证类型，完整清单与传递依赖以构建工具为准
+本项目的引擎能力（混合检索、章节图谱、学习路径）在设计初期参考过开源 RAG 项目的
+**功能形态与契约面**（端点语义、请求/响应字段、降级行为），但：
+
+1. **不复制代码**：重写过程中未保留对方的文件、注释、函数实现与数据结构；
+   同名文件是按本项目分层重新实现的（差异见上表职责列）。
+2. **契约才是对齐对象**：`api_server.py` 暴露的端点路径与字段由平台侧
+   `ContractPaths.java` / 前端调用方决定，属于本项目的接口设计，而非对方资产。
+3. **不再存在许可义务**：原参考实现为 MIT，其义务是"随副本保留版权与许可声明"；
+   清零后本仓库**不再有该项目的任何副本**，故不再产生该项义务，也无需保留其 LICENSE。
+
+> 结论：本项目对该引擎代码拥有完整处分权，可自行决定许可以及是否公开。
+
+---
+
+## 3. 主要运行时依赖的许可证（摘要）
+
+> 以下为直接依赖的常见许可证类型；完整清单与传递依赖以构建工具为准
 > （后端 `mvn dependency:tree`、前端 `npm ls`、Python 各服务 `requirements*.txt`）。
-> 本表用于申报/软著材料的合规说明，不构成法律意见。
+> 本表用于申报 / 软著材料的合规说明，不构成法律意见。
 
 | 生态 | 组件 | 许可证 |
 | --- | --- | --- |
@@ -49,31 +72,35 @@ copies or substantial portions of the Software." 因此：
 | 前端 | Vue 3 / Vue Router / Pinia | MIT |
 | 前端 | Apache ECharts | Apache-2.0 |
 | 前端 | axios / dayjs / DOMPurify | MIT / MIT / Apache-2.0 OR MPL-2.0 |
-| 前端 | SheetJS `xlsx` | Apache-2.0（**注意：经 CDN tarball 分发，见阶段 1 D-03**） |
+| 前端 | SheetJS `xlsx` | Apache-2.0（经 CDN tarball 分发，见阶段 1 D-03） |
 | Python | FastAPI / uvicorn / pydantic / httpx | MIT / BSD-3 / MIT / BSD-3 |
+| Python | LangChain（core / community / classic / ollama / text-splitters） | MIT |
 | Python | sentence-transformers / torch / transformers | Apache-2.0 / BSD-3 / Apache-2.0 |
 | Python | faiss-cpu (Meta) | MIT |
 | Python | rank-bm25 | Apache-2.0 |
 | Python | Neo4j Python Driver | Apache-2.0 |
-| Python | **PyMuPDF (fitz)** | ~~AGPL-3.0 或商业授权~~ → **已移除（未使用）**，见下方 §3 |
+| Python | pypdf / docx2txt / jieba | BSD-3 / MIT / MIT |
+| Python | PyMuPDF (fitz) | ~~AGPL-3.0 或商业授权~~ → **已移除（从未使用）**，见 §4 |
+
+已移除的依赖：`streamlit`（引擎无 UI，运行态由 `runtime_state.py` 承载）、
+`PyMuPDF`（全仓零 `import fitz`，PDF 解析实际走 `pypdf`）。
 
 ---
 
-## 3. 已处置：PyMuPDF 的 AGPL 问题（2026-11-25 决策）
+## 4. 已处置：PyMuPDF 的 AGPL 问题（2026-11-25 决策）
 
 | 项 | 内容 |
 | --- | --- |
-| 事实复核 | 全仓（排除各服务 venv）检索 `import fitz` / `PdfReader(...).open` / `fitz.open`：**零命中**。Python 侧 PDF 解析实际走 `langchain_community.document_loaders.PyPDFLoader`（其底层是 `pypdf`），`deepgraph_rag/utils/doc_handler.py:259` 即该调用点 |
-| 结论 | `requirements.txt` 里的 `PyMuPDF` 是**声明了但从未使用**的依赖，只带来 AGPL 义务、不产生任何能力 |
-| 处置 | **删除该依赖**（`python-services/deepgraph_rag/requirements.txt`，原第 14 行）。同时保留 `pypdf`（BSD-3-Clause）作为实际 PDF 解析实现 |
-| 为何这是最优解 | 相比"保持现状并声明"（仍暴露 AGPL 网络服务义务）、"换成 pypdf 重写解析链路"（本就在用 pypdf，无需重写）、"买商业授权"（为零使用付费），删除的**收益/成本比最高且零功能回归风险** |
-| 回归保证 | 改动仅删一行声明，无任何源码引用该包；后端 4376 项测试与 Python 契约测试口径不变（Python 侧本来就没装过 `fitz`） |
-| 遗留 | 若阶段 4 复制进来的上游文件出现 `import fitz`，须**在平台侧适配层用同名兼容模块或改写包装**实现（不改上游文件字节），届时再评估 |
+| 事实复核 | 全仓（排除各服务 venv）检索 `import fitz` / `fitz.open`：**零命中**；PDF 解析走 `pypdf` |
+| 结论 | `PyMuPDF` 是"声明了但从未使用"的依赖，只带来 AGPL 义务、不产生任何能力 |
+| 处置 | 删除该依赖；`requirements.txt` 保留 `pypdf`（BSD-3-Clause）作为实际实现 |
+| 回归保证 | 无源码引用该包，删除对功能零影响 |
 
 ---
 
-## 4. 使用建议（给材料撰写同学）
+## 5. 使用建议（给材料撰写同学）
 
-- 软著/申报材料中，凡涉及 RAG 检索能力，**只声明"基于开源参考实现做适配与集成"**，
-  不要声明为本项目原创算法；自有部分是：适配层、平台业务、图谱数据治理、前端三视图渲染。
-- 引用第三方图表/模型/数据集时单独列明来源与许可，避免与"系统一套"的成果边界混淆。
+- 软著 / 申报材料中涉及 RAG 检索能力时，可如实声明为本项目自有引擎实现
+  （混合检索、章节图谱、学习路径、图-向量融合），但**技术路线**（HyDE、BM25+向量混合、
+  GraphRAG 思路）属公开方法论，不必也不应声明为"独创理论"。
+- 引用第三方图表 / 模型 / 数据集时单独列明来源与许可，避免与"系统一套"的成果边界混淆。

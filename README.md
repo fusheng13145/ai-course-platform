@@ -94,12 +94,12 @@ Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务
 | --- | --- | --- | --- |
 | 知识图谱 | `python-services/kg_service/` | 8001 | 11 个契约端点；`kg_store.py` 支持 Neo4j 与内存双后端（不可达时自动回落内存图）；多跳路径规划在图库侧完成，Java 侧只做本地 BFS 兜底；CI 护栏 `test_kg_contract.py` |
 | RAG 检索（知识库） | `python-services/deepgraph_rag/knowledge_engine.py`（引擎）+ `knowledge_api.py`（端点） | 8501 | **原 8002 已退役（批次 3B-2）**：`rag_engine.py` 逐字搬进 `knowledge_engine.py`，9 个 `/api/v1/rag/*` 端点同名挂在 8501 上与 deepgraph 同进程。混合检索（BM25 + 向量 + RRF + **HyDE + Cross-Encoder 重排**，`ENGINE_VERSION=1.1`）能力不变。⚠️ 语料落在 `python-services/deepgraph_rag/data/knowledge/`（gitignore），换机或重建环境时用 `python scripts/seed-rag-corpus.py <courseId>` 从 `scripts/rag_corpus.json` 重放并重建索引（当前有效语料：课程 1 七篇 + 样例课 **4178《计算机网络》十篇**，共 49 chunks） |
-| 文档图谱 RAG | `python-services/deepgraph_rag/` | 8501 | **已验收 DeepSeek-RAG-Chatbot 原样复制**（`app.py`/`backend.py`/`utils/*`/`neo4j_handler.py` 一字未改，2026-11-21 接入）+ 新增 `api_server.py` 契约适配器：整篇课程文档（PDF/DOCX/TXT）的 FAISS+BM25 混合召回、Neo4j GraphRAG 关系上下文、HyDE、Cross-Encoder 重排、章节图谱与学习路径；问答主链（`/ai/qa/*`）在 `DG_RAG_ENABLED`（8501 监听时自动置位）下自动合并其召回，引擎缺失时静默跳过；契约护栏 `test_deepgraph_contract.py` |
+| 文档图谱 RAG | `python-services/deepgraph_rag/` | 8501 | **本项目自有实现**（2026-11-25 第三方内容清零：`config/backend/neo4j_handler/utils/*` 全部自研重写，见 `UPSTREAM_MANIFEST.json` 的 `platform_owned`）+ `api_server.py` 契约服务：整篇课程文档（PDF/DOCX/TXT）的 FAISS+BM25 混合召回、Neo4j GraphRAG 关系上下文、HyDE、Cross-Encoder 重排、章节图谱与学习路径；问答主链（`/ai/qa/*`）在 `DG_RAG_ENABLED`（8501 监听时自动置位）下自动合并其召回，引擎缺失时静默跳过；契约护栏 `test_deepgraph_contract.py` |
 | LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理；`FT_ENABLED=true` 时由 `start-all.py` 编排。 |
 
 - `max_hops` 自 2026-10-05 起**只用于"是否采纳"判定，不参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义见 `docs/系统架构设计.md`）。
 - **AI 面失败不伪装成功**：大模型调用失败一律返回 HTTP 503 + `code=503`，`message` 指认病因（凭据被拒／额度／未配置／空响应）。没有有效凭据时 AI 端点就是不可用——这比"200 带一句客套话"更该先知道（DR-74）。
-- 早期 RAG 成员的 Streamlit 原型（原 `python-services/deepgraph_rag/`，8501）当年归档的原因是「`utils/` 模块从未提交导致无法启动」（`7c6ced0`）。2026-11-21 该缺口已由**已通过验收**的 `DeepSeek-RAG-Chatbot-main`（完整 utils + neo4j_handler + 中文实体抽取）补齐：按"复制内容一字不改 + 新增 `api_server.py` 契约适配器"方式真实接入并恢复 8501 端口，Java 消费侧见 `com.aicourse.integration.deepgraph`，证据与验收见 `docs/DeepGraphRAG接入-2026-11-21.md`。
+- 早期 RAG 成员的 Streamlit 原型（原 `python-services/deepgraph_rag/`，8501）当年归档的原因是「`utils/` 模块从未提交导致无法启动」（`7c6ced0`）。2026-11-21 该缺口曾以「复制参考实现 + 新增 `api_server.py` 契约适配器」方式补齐并恢复 8501 端口；2026-11-25 阶段3 已完成**第三方内容清零**：参考实现的源码副本全部删除，引擎改为本项目自研实现（契约面不变），Java 消费侧见 `com.aicourse.integration.deepgraph`，证据与验收见 `docs/DeepGraphRAG接入-2026-11-21.md`。
 
 ---
 

@@ -8,22 +8,9 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
-# RAG 上游快照：DeepSeek-RAG-Chatbot-main 的复制内容必须按源仓库字节保真。
-# 全局 `* text=auto eol=lf` 会把源仓库的 CRLF 改写成 LF，导致“零修改”只能按
-# 归一化内容成立；此路径例外让 Git 存储/检出都不做 EOL 转换，配合
-# `python-services/deepgraph_rag/UPSTREAM_MANIFEST.json` 的原始 SHA-256 校验。
-# 使用 binary（等价 -text -diff -merge）而不是 -text：快照文件按字节原样入库，
-# 同时避免 `git diff --check` 把 CRLF 的 \r 误报成“trailing whitespace”。
-# 适配器 api_server.py / 契约测试是平台自有源码，必须保留 text 以便正常 diff。
-python-services/deepgraph_rag/*.py binary
-python-services/deepgraph_rag/utils/*.py binary
-python-services/deepgraph_rag/_archive_scripts/*.py binary
-python-services/deepgraph_rag/api_server.py text eol=lf diff
-python-services/deepgraph_rag/test_deepgraph_contract.py text eol=lf diff
-# 平台自有契约测试（同目录下其余 *.py 属上游字节保真快照，按 binary 入库）：
-# 这两个文件是阶段3 搬入/改写的自有源码，必须保留 text 以便审阅 diff。
-python-services/deepgraph_rag/test_merged_contract.py text eol=lf diff
-python-services/deepgraph_rag/test_rag_contract_merged.py text eol=lf diff
+# python-services/deepgraph_rag 现已全部为本项目自有实现（2026-11-25 第三方内容清零），
+# 不再存在第三方字节保真快照：统一按 text/eol=lf 入库，便于正常审阅 diff。
+python-services/deepgraph_rag/** text eol=lf diff
 
 # 二进制文件不做行尾转换
 *.png binary

@@ -99,7 +99,7 @@ DEFAULT_NEO4J_HOMES = (
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
 SERVICE_DIRS = {"kg": "kg_service", "deepgraph": "deepgraph_rag", "ft": "fine_tune_service",
                 HUB_SERVICE: "engine_hub"}
-# deepgraph 的入口是契约适配器 api_server.py（复制的 app.py 是 Streamlit UI，不进 uvicorn）；
+# deepgraph 的入口是契约服务 api_server.py（引擎内无任何 UI 进程）；
 # 该进程同时挂载 deepgraph 与知识库（原 8002）两套路由。
 APP_MODULES = {"kg": "kg_service:app", "deepgraph": "api_server:app", "ft": "lora_service:app",
                HUB_SERVICE: "hub:app"}
