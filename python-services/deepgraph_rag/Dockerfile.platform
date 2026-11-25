@@ -28,6 +28,14 @@ RUN pip install --upgrade pip \
 
 COPY . .
 
+# 非 root 运行（Trivy DS-0002「镜像未指定非 root USER」，HIGH）。与 backend/frontend/
+# engine_hub 同一口径：能修就不豁免。数据卷与 HF 缓存目录须对 app 用户可写，
+# 否则首次落盘（课程索引、模型缓存）会因权限失败而整体降级。
+RUN mkdir -p /app/data /models/hf \
+ && useradd --create-home --uid 10001 app \
+ && chown -R app:app /app /models/hf
+USER app
+
 EXPOSE 8501
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \

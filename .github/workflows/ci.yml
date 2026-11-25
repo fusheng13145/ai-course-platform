@@ -764,10 +764,18 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: python-services/rag_service/requirements.txt
+          # merged 契约步骤会把同一批断言打到 deepgraph_rag/api_server.py（8501），
+          # 因此缓存键必须同时覆盖deepgraph 的平台适配层清单。
+          cache-dependency-path: |
+            python-services/rag_service/requirements.txt
+            python-services/deepgraph_rag/requirements-platform.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest
+        # merged 契约步骤 import 的是 deepgraph_rag/api_server.py，它顶层 import requests、
+        # 运行期还要 neo4j；只装 rag_service 的清单会在 collection 阶段直接
+        # ModuleNotFoundError: No module named 'requests'（CI 首跑实测）。
+        # 平台适配层清单不含 torch/faiss，装上不改变「引擎降级」语义。
+        run: pip install -r requirements.txt -r ../deepgraph_rag/requirements-platform.txt pytest
 
       - name: Contract + engine unit tests (FastAPI TestClient)
         # 缺陷修复（2026-10-04）：原先只跑单文件契约测试（旧名 contract_test.py，
