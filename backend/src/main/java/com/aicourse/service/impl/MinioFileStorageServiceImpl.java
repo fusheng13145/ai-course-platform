@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 
 import com.aicourse.common.StorageLayout;
 import com.aicourse.service.FileStorageService;
@@ -58,7 +61,7 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
             return objectName;
         } catch (Exception e) {
             log.error("MinIO 文件上传失败: {} - {}", objectName, e.getMessage());
-            throw new RuntimeException("MinIO 文件上传失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "MinIO 文件上传失败", e);
         }
     }
 
@@ -73,7 +76,7 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
                     .build());
         } catch (Exception e) {
             log.error("MinIO 文件下载失败: {} - {}", objectName, e.getMessage());
-            throw new RuntimeException("MinIO 文件下载失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "MinIO 文件下载失败", e);
         }
     }
 
@@ -113,7 +116,7 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
                     log.warn("MinIO 未命中，回退历史本地文件: {}", key);
                     return Files.newInputStream(fallback);
                 } catch (IOException e) {
-                    throw new RuntimeException("历史本地文件读取失败: " + key, e);
+                    throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "历史本地文件读取失败: " + key, e);
                 }
             }
             log.warn("MinIO 对象不存在，且无历史本地文件: {}", key);

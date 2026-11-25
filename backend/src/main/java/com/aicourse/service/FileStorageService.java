@@ -1,5 +1,8 @@
 package com.aicourse.service;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 import com.aicourse.common.StorageLayout;
 
 import java.io.IOException;
@@ -37,7 +40,7 @@ public interface FileStorageService {
         try (InputStream in = Files.newInputStream(source)) {
             return upload(objectName, in, contentType, size);
         } catch (IOException e) {
-            throw new RuntimeException("读取待上传文件失败: " + source, e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "读取待上传文件失败: " + source, e);
         }
     }
 

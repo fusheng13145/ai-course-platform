@@ -1,5 +1,8 @@
 package com.aicourse.flowcontrol;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 import com.alibaba.csp.sentinel.annotation.aspectj.SentinelResourceAspect;
 import com.alibaba.csp.sentinel.datasource.Converter;
 import com.alibaba.csp.sentinel.datasource.FileRefreshableDataSource;
@@ -178,7 +181,7 @@ public class SentinelConfig {
                 return objectMapper.readValue(s, new TypeReference<List<FlowRule>>() {
                 });
             } catch (Exception e) {
-                throw new RuntimeException("[Sentinel] 流控规则文件解析失败", e);
+                throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "[Sentinel] 流控规则文件解析失败", e);
             }
         };
     }
@@ -190,7 +193,7 @@ public class SentinelConfig {
                 return objectMapper.readValue(s, new TypeReference<List<DegradeRule>>() {
                 });
             } catch (Exception e) {
-                throw new RuntimeException("[Sentinel] 熔断规则文件解析失败", e);
+                throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "[Sentinel] 熔断规则文件解析失败", e);
             }
         };
     }

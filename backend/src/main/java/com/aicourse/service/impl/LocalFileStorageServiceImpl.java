@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 
 import com.aicourse.common.StorageLayout;
 import com.aicourse.service.FileStorageService;
@@ -37,7 +40,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         Path root = StorageLayout.uploadRoot(uploadDir);
         Path targetPath = StorageLayout.resolveKey(root, objectName);
         if (targetPath == null) {
-            throw new RuntimeException("非法文件路径: " + objectName);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "非法文件路径: " + objectName);
         }
         try {
             // 支持多级子目录，如 resources/1/xxx.pdf
@@ -47,7 +50,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             return objectName;
         } catch (IOException e) {
             log.error("本地文件上传失败: {} - {}", objectName, e.getMessage());
-            throw new RuntimeException("文件上传失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "文件上传失败", e);
         }
     }
 
@@ -69,7 +72,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             return Files.newInputStream(path);
         } catch (IOException e) {
             log.error("本地文件读取失败: {} - {}", objectName, e.getMessage());
-            throw new RuntimeException("文件读取失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "文件读取失败", e);
         }
     }
 
@@ -112,7 +115,7 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             return Files.newInputStream(path);
         } catch (IOException e) {
             log.error("本地文件读取失败: {} - {}", storedUrl, e.getMessage());
-            throw new RuntimeException("文件读取失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "文件读取失败", e);
         }
     }
 

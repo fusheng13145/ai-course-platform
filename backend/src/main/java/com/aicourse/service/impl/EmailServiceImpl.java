@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+
 
 import com.aicourse.service.EmailService;
 import jakarta.mail.*;
@@ -140,7 +143,7 @@ public class EmailServiceImpl implements EmailService {
             log.info("邮件发送成功，收件人：{}，主题：{}", to, subject);
         } catch (Exception e) {
             log.error("邮件发送失败，收件人：{}，异常信息：{}", to, e.getMessage(), e);
-            throw new RuntimeException("邮件发送失败：" + e.getMessage(), e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "邮件发送失败：" + e.getMessage(), e);
         }
     }
 
