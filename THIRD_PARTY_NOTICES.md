@@ -55,19 +55,20 @@ copies or substantial portions of the Software." 因此：
 | Python | faiss-cpu (Meta) | MIT |
 | Python | rank-bm25 | Apache-2.0 |
 | Python | Neo4j Python Driver | Apache-2.0 |
-| Python | **PyMuPDF (fitz)** | **AGPL-3.0 或商业授权**（见下方 §3，需决策） |
+| Python | **PyMuPDF (fitz)** | ~~AGPL-3.0 或商业授权~~ → **已移除（未使用）**，见下方 §3 |
 
 ---
 
-## 3. 待决策：PyMuPDF 的 AGPL 问题
+## 3. 已处置：PyMuPDF 的 AGPL 问题（2026-11-25 决策）
 
 | 项 | 内容 |
 | --- | --- |
-| 事实 | 上游 `requirements.txt` 引入 `PyMuPDF`，`utils/doc_handler.py` 使用 `fitz` 解析 PDF |
-| 许可性质 | AGPL-3.0：若通过网络向他人提供服务，需向使用者提供对应源码（并可主张适用 AGPL） |
-| 与项目目标冲突点 | 项目要申报软著、并对"自有代码"主张版权；AGPL 组件混入服务端链路会削弱该主张的清晰度 |
-| 可选处置 | ① 保持现状并在软著材料中明示该组件为第三方 AGPL 组件、仅用于文档解析；② 解析链路改用 `pypdf`（上游 `requirements.txt` 已同时引入，切换成本可控）；③ 购买 PyMuPDF 商业授权 |
-| 现状 | **未处置**，仅登记。上游文件被逐字节冻结，改动须走"替换实现 + 重算清单"流程 |
+| 事实复核 | 全仓（排除各服务 venv）检索 `import fitz` / `PdfReader(...).open` / `fitz.open`：**零命中**。Python 侧 PDF 解析实际走 `langchain_community.document_loaders.PyPDFLoader`（其底层是 `pypdf`），`deepgraph_rag/utils/doc_handler.py:259` 即该调用点 |
+| 结论 | `requirements.txt` 里的 `PyMuPDF` 是**声明了但从未使用**的依赖，只带来 AGPL 义务、不产生任何能力 |
+| 处置 | **删除该依赖**（`python-services/deepgraph_rag/requirements.txt`，原第 14 行）。同时保留 `pypdf`（BSD-3-Clause）作为实际 PDF 解析实现 |
+| 为何这是最优解 | 相比"保持现状并声明"（仍暴露 AGPL 网络服务义务）、"换成 pypdf 重写解析链路"（本就在用 pypdf，无需重写）、"买商业授权"（为零使用付费），删除的**收益/成本比最高且零功能回归风险** |
+| 回归保证 | 改动仅删一行声明，无任何源码引用该包；后端 4376 项测试与 Python 契约测试口径不变（Python 侧本来就没装过 `fitz`） |
+| 遗留 | 若阶段 4 复制进来的上游文件出现 `import fitz`，须**在平台侧适配层用同名兼容模块或改写包装**实现（不改上游文件字节），届时再评估 |
 
 ---
 
