@@ -748,7 +748,10 @@ def _source_name_for(doc, pipeline: dict) -> str:
     for key in ("source", "file_name", "document_name"):
         value = metadata.get(key) if isinstance(metadata, dict) else None
         if value:
-            base = os.path.basename(str(value))
+            # 先统一分隔符再取末段：上传 loader 在 Windows 上落的是反斜杠临时路径，
+            # 而 Linux 上的 os.path.basename 只按 "/" 切分，会把整条路径当成文件名返回，
+            # tmp 判定随之漏过、临时路径被当成文档名透给前端（CI linux runner 实测复现）。
+            base = os.path.basename(str(value).replace("\\", "/"))
             if not re.match(r"^tmp[a-z0-9_]+\.(txt|pdf|docx)$", base, re.IGNORECASE):
                 return base
             break
