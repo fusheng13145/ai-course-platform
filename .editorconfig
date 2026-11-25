@@ -1,0 +1,27 @@
+# 编辑器统一口径。CI 的判定仍以各语言工具为准：
+#   Java  → Maven 编译/ArchUnit/SpotBugs（不强制格式化）
+#   Vue/TS→ Prettier（singleQuote、semi=false、tabWidth=2、LF）
+#   Python→ 现有 4 空格/LF 风格（pytest + py_compile 守卫）
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{java,xml,yml,yaml,toml,properties,sql}]
+indent_size = 4
+
+[*.{js,ts,vue,json,css,scss,html}]
+indent_size = 2
+
+[*.md]
+# Markdown 行尾双空格是有意换行，不做裁剪
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+# cmd.exe 解析依赖 CRLF；与 .gitattributes 的 *.bat/*.cmd eol=crlf 对齐
+end_of_line = crlf

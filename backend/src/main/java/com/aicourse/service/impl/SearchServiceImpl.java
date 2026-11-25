@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * 搜索侧按「名称命中 0.7 + 内容命中 0.3」加权评分，命中率 &gt; 0 才进入候选。
  *
  * <p>设计边界：这是轻量聚合搜索（LIKE 预过滤 + bigram 评分），不做倒排索引与向量召回；
- * 向量语义检索属于 RAG 引擎（8002）职责，二者定位互补、互不替代。
+ * 向量语义检索属于 RAG 引擎（Engine Hub 8600；分离布局 8501）职责，二者定位互补、互不替代。
  */
 @Service
 public class SearchServiceImpl implements SearchService {

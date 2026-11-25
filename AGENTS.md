@@ -368,7 +368,7 @@ python scripts/sync-kg-to-python.py <courseId>
 
 - `.github/workflows/ci.yml` 14 个作业；另有 `deploy.yml`（1）、`eval-nightly.yml`（1）、`release.yml`（4）三个辅助工作流；`frontend-e2e` 在 PR 跑核心 3 spec，push `main`／`workflow_dispatch` 跑完整流程套件。
 - push 事件对 `docs/**`、`archive/**`、`*.md` 走 `paths-ignore` ⇒ **纯文档改动不触发 CI**，不能拿“CI 没红”当验证。
-- `main` 当前**无分支保护**（GitHub API 返回 404 Branch not protected），无强制评审、无 required checks；合并采用“CI 可执行 job 全绿”的团队约定。
+- `main` 记录为受保护（2026-11-19，GitHub `protected=true`）；required checks 与评审要求以仓库实际设置为准，团队约定是“CI 可执行 job 全绿后合并”。
 - 开 PR 走浏览器；GitHub MCP 的写类工具在本仓历史实测报 schema 错且真的没生效，用之前先做一次无害写入复验。
 
 ---

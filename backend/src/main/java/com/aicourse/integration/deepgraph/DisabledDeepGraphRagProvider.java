@@ -9,7 +9,7 @@ import java.util.List;
  * <p>
  * 不依赖任何 Python 服务，所有方法返回 {@code 503} 降级占位。上层
  * {@code CourseEvidenceComponent} 按 {@code engineReady()} 判定后静默忽略本引擎，
- * 问答链自动回落到 8002 检索 + 知识图谱接地的既有路径，行为与未集成前完全一致。
+ * 问答链自动回落到知识点语料检索 + 知识图谱接地的既有路径，行为与未集成前完全一致。
  * </p>
  */
 public class DisabledDeepGraphRagProvider implements DeepGraphRagContract {
