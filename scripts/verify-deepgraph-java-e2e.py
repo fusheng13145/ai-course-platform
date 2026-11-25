@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Java→8501 集成 E2E：登录 admin，走 /api/rag/deepgraph/* 与 /api/ai/qa/stream。
+"""Java→引擎集成 E2E：登录 admin，走 /api/rag/deepgraph/* 与 /api/ai/qa/stream。
+
+目标端口不写死在文案里：端口统一后默认经 Engine Hub 单口 :8600 转发，
+回滚布局（ENGINE_LAYOUT=separate）下是 :8501 的独立进程 —— 两种布局下本脚本同样适用。
 
 阶段一（无索引）：deepgraph retrieve 按契约 503 降级、SSE 问答照常（knowledge 接地）。
 阶段二（ingest 后）：SSE 终帧 sources 来自 deepgraph 引擎（集成主证明）。
@@ -86,7 +89,7 @@ def main():
 
     # deepgraph 引擎健康（经 Java 代理）
     status, body = get_json("GET", f"{API}/rag/deepgraph/health")
-    results.append(step("GET /rag/deepgraph/health（Java→8501）",
+    results.append(step("GET /rag/deepgraph/health（Java→deepgraph 引擎）",
                         status == 200 and body.get("enabled") is True and body.get("reachable") is True,
                         f"http={status} body={body}"))
 
@@ -108,9 +111,14 @@ def main():
             else:
                 # 门面契约记录以 camelCase 序列化（storedAs/chunkCount）
                 stored.append((data.get("storedAs") or "", data.get("chunkCount") or 0))
-        chunk_total = sum(s[1] for s in stored)
-        results.append(step(f"Java 入库 {len(chapters)} 章文档（→8501 原实现全链路）", ok_all,
-                            f"stored={[s[0] for s in stored[:2]]}... 累计chunk={chunk_total}"))
+        # chunkCount 是**课程级总数**（api_server._ingest_document 返回
+        # len(course_pipeline["chunks"])，每次入库都会因重建管道而变化），
+        # 不是单篇 chunk 数。早期写法把它们相加，10 篇就得到一个根本不存在的
+        # "累计 17270"——数字看着壮观，却没人能对上任何一个真实索引。
+        # 正确口径：取最后一次返回值（此时课程管道已重建完整）。
+        course_chunks = stored[-1][1] if stored else 0
+        results.append(step(f"Java 入库 {len(chapters)} 章文档（→引擎全链路）", ok_all,
+                            f"stored={[s[0] for s in stored[:2]]}... 课程级总chunk={course_chunks}"))
     else:
         # 自适应：该课程已有索引则断言 ENGINE 成功，否则断言契约降级（HTTP 200 信封 +
         # data.code=503 + data.mode=UNAVAILABLE，与 8002 同款；Java↔Python 线上才是 503）
