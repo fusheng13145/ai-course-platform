@@ -26,5 +26,5 @@ services:
   kg-service:
     image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/kg-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
 
-  rag-service:
-    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/rag-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+  # 【2026-11-25 阶段3】rag-service 镜像已停止发布：知识库能力随 deepgraph-service(8501) 交付。
+  # 若仍需临时回滚到 8002，请使用历史 tag 手工指定 image，勿改本清单。
