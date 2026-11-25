@@ -73,7 +73,7 @@
 | 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥77%（阻断）／0 bug（阻断）／8 条架构守护 |
 | 实时通信 | Spring WebSocket | 通知与监考 |
 | 限流熔断 | Sentinel | 下游流控 + 慢调用熔断 |
-| AI 引擎 | Python FastAPI | KG 8001 / RAG 8002 / LoRA 8003 |
+| AI 引擎 | Python FastAPI | **Engine Hub 8600**（单进程承载 KG / DeepGraph + 知识库 / LoRA 微调；旧分离布局 8001·8501·8003 由 `ENGINE_LAYOUT=separate` 回滚启用） |
 | 图数据库（可选） | Neo4j | 5.26，本机独立实例；缺失时 KG 自动回落内存图 |
 
 数据面口径：当前库表 **61** 张（2026-11-19 `audit-stats.py`）；`index.sql` 与迁移链由结构守卫对齐；以脚本输出为准，不在本 README 维护第二套计数。
@@ -84,10 +84,16 @@
 
 Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务对接（`ContractPaths` 是调用约定的唯一事实来源）：
 
+> **端口统一（2026-11-24）**：KG / DeepGraph+知识库 / LoRA 三套引擎默认由 `python-services/engine_hub/`
+> 合成**一个进程、一个端口 `:8600`**（`ENGINE_LAYOUT=hub`）。hub 按原始 path 前缀（`/api/v1/graph`、
+> `/api/v1/deepgraph`、`/api/v1/rag`、`/api/v1/fine-tune`）原样分发、**不剥前缀**，因此四个
+> `*_BASE_URL` 指同一个地址即可，Java 契约与前端零改动；`/health` 汇总四能力 ready，
+> 未知前缀返回 404 并列出可用前缀。下表"端口"列是**分离布局**下的原始端口，也是回滚口的端口。
+
 | 服务 | 目录 | 端口 | 说明 |
 | --- | --- | --- | --- |
 | 知识图谱 | `python-services/kg_service/` | 8001 | 11 个契约端点；`kg_store.py` 支持 Neo4j 与内存双后端（不可达时自动回落内存图）；多跳路径规划在图库侧完成，Java 侧只做本地 BFS 兜底；CI 护栏 `test_kg_contract.py` |
-| RAG 检索 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 真实混合检索（BM25 + 向量 + RRF + **HyDE + Cross-Encoder 重排**，`ENGINE_VERSION=1.1`）。⚠️ 语料落在 gitignore 的 `data/`，换机或重建环境时用 `python scripts/seed-rag-corpus.py <courseId>` 从 `scripts/rag_corpus.json` 重放并重建索引（当前有效语料：课程 1 七篇 + 样例课 **4178《计算机网络》十篇**，共 49 chunks） |
+| RAG 检索（知识库） | `python-services/deepgraph_rag/knowledge_engine.py`（引擎）+ `knowledge_api.py`（端点） | 8501 | **原 8002 已退役（批次 3B-2）**：`rag_engine.py` 逐字搬进 `knowledge_engine.py`，9 个 `/api/v1/rag/*` 端点同名挂在 8501 上与 deepgraph 同进程。混合检索（BM25 + 向量 + RRF + **HyDE + Cross-Encoder 重排**，`ENGINE_VERSION=1.1`）能力不变。⚠️ 语料落在 `python-services/deepgraph_rag/data/knowledge/`（gitignore），换机或重建环境时用 `python scripts/seed-rag-corpus.py <courseId>` 从 `scripts/rag_corpus.json` 重放并重建索引（当前有效语料：课程 1 七篇 + 样例课 **4178《计算机网络》十篇**，共 49 chunks） |
 | 文档图谱 RAG | `python-services/deepgraph_rag/` | 8501 | **已验收 DeepSeek-RAG-Chatbot 原样复制**（`app.py`/`backend.py`/`utils/*`/`neo4j_handler.py` 一字未改，2026-11-21 接入）+ 新增 `api_server.py` 契约适配器：整篇课程文档（PDF/DOCX/TXT）的 FAISS+BM25 混合召回、Neo4j GraphRAG 关系上下文、HyDE、Cross-Encoder 重排、章节图谱与学习路径；问答主链（`/ai/qa/*`）在 `DG_RAG_ENABLED`（8501 监听时自动置位）下自动合并其召回，引擎缺失时静默跳过；契约护栏 `test_deepgraph_contract.py` |
 | LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理；`FT_ENABLED=true` 时由 `start-all.py` 编排。 |
 
@@ -102,7 +108,7 @@ Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务
 ### 依赖纪律（先看这条）
 
 - **必要**：JDK 21、Node 20.19+、本机在跑的 MySQL 8.4（3306）与 Redis（6379）。两份 `.bat` 启动时自检，缺失即报错退出。
-- **可选**：Neo4j（7687／7474）、KG 8001、RAG 8002、LoRA 8003——缺失只降级不阻塞（`KG_ENABLED`／`RAG_ENABLED` 关闭时走 Java 本地 Provider 与 BFS 兜底）。
+- **可选**：Neo4j（7687／7474）、Engine Hub 8600（内嵌 KG / DeepGraph + 知识库 / LoRA；分离布局下分别是 8001／8501／8003）——缺失只降级不阻塞（`KG_ENABLED`／`RAG_ENABLED` 关闭时走 Java 本地 Provider 与 BFS 兜底）。
 - 本机缺**必要**依赖时：**上报项目主**，不要自行 `docker pull`、也不要安装替代物。启动器（`start.bat` → `scripts/start-all.py`）已不含任何 docker 分支（原"探测 3307 则切数据源"的路径已删除）。
 
 ### 三步起栈

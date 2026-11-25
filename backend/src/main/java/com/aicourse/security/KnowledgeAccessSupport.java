@@ -105,12 +105,8 @@ public class KnowledgeAccessSupport {
     }
 
     public boolean isAdmin(Authentication auth) {
-        if (auth == null || auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + RoleConstants.ADMIN)::equals);
+        // 统一到 AccessSupport：角色判定只保留一处实现（阶段 2 DUP-19）
+        return AccessSupport.isAdmin(auth);
     }
 
     public KnowledgePoint requirePoint(Long id) {

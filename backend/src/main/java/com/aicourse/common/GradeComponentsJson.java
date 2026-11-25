@@ -20,6 +20,9 @@ import java.io.IOException;
  */
 public final class GradeComponentsJson {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(GradeComponentsJson.class);
+
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 
@@ -67,6 +70,9 @@ public final class GradeComponentsJson {
             JsonNode node = MAPPER.readTree(value);
             return node.isArray() ? (ArrayNode) node : MAPPER.createArrayNode();
         } catch (Exception e) {
+            // 权重串坏掉时退化成空数组：出参看起来「没有配置权重」，成绩方案编辑页会显示空白。
+            // 这条必须留痕，否则脏数据只能靠人肉比对库表才能发现（DEF-05）。
+            log.warn("成绩构成权重 JSON 解析失败，降级为空数组: {}", e.getMessage());
             return MAPPER.createArrayNode();
         }
     }

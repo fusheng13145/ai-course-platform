@@ -186,13 +186,11 @@ public class TeachingClassAccessControl {
     }
 
     private boolean isAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities() != null
-                && auth.getAuthorities().stream()
-                .anyMatch(g -> ("ROLE_" + RoleConstants.ADMIN).equals(g.getAuthority()));
+        return AccessSupport.isAdmin(auth);
     }
 
     private Long principalId(Authentication auth) {
-        return (Long) auth.getPrincipal();
+        return AccessSupport.requirePrincipalId(auth);
     }
 
     /**

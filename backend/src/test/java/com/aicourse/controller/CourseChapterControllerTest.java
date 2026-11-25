@@ -7,12 +7,15 @@ import com.aicourse.service.CourseService;
 import com.aicourse.service.TeacherCourseService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -353,5 +356,48 @@ class CourseChapterControllerTest extends ControllerTestBase {
         mockMvc.perform(get("/chapters/1").with(withUser(5L, "STUDENT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /chapters - 注入 id/createdAt 一律忽略，courseId 作为业务字段保留")
+    void create_ignoresInjectedServerFields() throws Exception {
+        CourseChapter saved = new CourseChapter();
+        saved.setId(1L);
+        when(chapterService.createChapter(any(), eq(1L), anyBoolean())).thenReturn(saved);
+
+        mockMvc.perform(post("/chapters").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"createdAt\":\"2026-01-01T00:00:00\",\"courseId\":1,\"title\":\"测试章节\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<CourseChapter> captor = ArgumentCaptor.forClass(CourseChapter.class);
+        verify(chapterService).createChapter(captor.capture(), eq(1L), eq(false));
+        CourseChapter created = captor.getValue();
+        assertNull(created.getId(), "主键由数据库生成");
+        assertNull(created.getCreatedAt(), "创建时间由填充器生成");
+        assertEquals(1L, created.getCourseId().longValue(), "创建时 courseId 是业务字段");
+        assertEquals("测试章节", created.getTitle());
+    }
+
+    @Test
+    @DisplayName("PUT /chapters/1 - 注入 courseId 被丢弃，章节不会被搬到别的课程下")
+    void update_courseIdInjection_isDropped() throws Exception {
+        CourseChapter updated = new CourseChapter();
+        updated.setId(1L);
+        updated.setCourseId(1L);
+        when(chapterService.updateChapter(eq(1L), any(CourseChapter.class), eq(1L), anyBoolean())).thenReturn(updated);
+
+        mockMvc.perform(put("/chapters/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"courseId\":99,\"title\":\"改名\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<CourseChapter> captor = ArgumentCaptor.forClass(CourseChapter.class);
+        verify(chapterService).updateChapter(eq(1L), captor.capture(), eq(1L), eq(false));
+        assertNull(captor.getValue().getCourseId(), "归属只认库里既有章节");
+        assertEquals("改名", captor.getValue().getTitle());
     }
 }

@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import com.aicourse.security.AccessSupport;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +15,7 @@ import com.aicourse.dto.UserLoginDTO;
 import com.aicourse.dto.UserRegisterDTO;
 import com.aicourse.dto.UserUpdateDTO;
 import com.aicourse.dto.VerifyCodeDTO;
+import com.aicourse.vo.UserVO;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AuthService;
@@ -233,10 +236,8 @@ public class AuthController {
      * @return 用户ID
      */
     private Long requireLogin(Authentication auth) {
-        if (auth == null || !(auth.getPrincipal() instanceof Long)) {
-            throw new BusinessException(ApiCode.UNAUTHORIZED, "未授权，请先登录");
-        }
-        return (Long) auth.getPrincipal();
+        // 401 口径收敛到 AccessSupport.requirePrincipalId（DUP-03，取 userId 双实现）
+        return AccessSupport.requirePrincipalId(auth);
     }
 
     /**
@@ -247,7 +248,7 @@ public class AuthController {
      */
     @PutMapping("/me")
     @Operation(summary = "更新当前用户个人资料")
-    public ApiResponse<User> updateCurrentUser(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
+    public ApiResponse<UserVO> updateCurrentUser(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
         Long userId = requireLogin(auth);
         log.debug("更新个人资料 userId={}", userId);
         User existing = userService.getById(userId);
@@ -280,7 +281,7 @@ public class AuthController {
         userService.updateProfile(userId, patch);
         // 返回联查后的完整资料（含学校/学院/专业/行政班名称），前端可直接回填。
         User updatedUser = userService.getUserProfile(userId);
-        return ApiResponse.success("个人资料更新成功", updatedUser);
+        return ApiResponse.success("个人资料更新成功", UserVO.from(updatedUser));
     }
 
     /**
@@ -332,3 +333,4 @@ public class AuthController {
         return authService.verifyCode(body.getEmail(), body.getCode());
     }
 }
+

@@ -15,6 +15,8 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.UserStatsVO;
+import com.aicourse.vo.UserSummaryVO;
+import com.aicourse.vo.UserVO;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,13 +63,16 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "分页查询用户列表")
-    public ApiResponse<PagedResponse<User>> list(
+    public ApiResponse<PagedResponse<UserVO>> list(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String keyword) {
         Page<User> userPage = searchScoped(keyword, role, (int) page, (int) size);
-        return ApiResponse.success(PagedResponse.of(userPage));
+        // 出参走 UserVO，不再直返实体（阶段 3 · Q-05）
+        return ApiResponse.success(PagedResponse.of(
+                userPage.getRecords().stream().map(UserVO::from).toList(),
+                userPage.getTotal(), userPage.getCurrent(), userPage.getSize()));
     }
 
     /**
@@ -85,16 +90,15 @@ public class UserController {
     @GetMapping("/{id}")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "根据ID查询用户详情")
-    public ApiResponse<User> getById(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<UserVO> getById(@PathVariable Long id, Authentication auth) {
         User user = userService.getById(id);
         if (user != null) {
             if (!id.equals((Long) auth.getPrincipal())) {
                 adminScopeGuard.assertUserAccess(user);
                 maskSensitive(user);
             }
-            user.setPassword(null);
         }
-        return ApiResponse.success(user);
+        return ApiResponse.success(UserVO.from(user));
     }
 
     /**
@@ -107,45 +111,52 @@ public class UserController {
     @GetMapping("/{id}/profile")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取用户详细资料")
-    public ApiResponse<User> getProfile(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<UserVO> getProfile(@PathVariable Long id, Authentication auth) {
         User user = userService.getUserProfile(id);
         if (!id.equals((Long) auth.getPrincipal())) {
             adminScopeGuard.assertUserAccess(user);
             maskSensitive(user);
         }
-        return ApiResponse.success(user);
+        return ApiResponse.success(UserVO.from(user));
     }
 
     /**
      * 获取同班同学列表
      * 仅允许本人或管理员访问
+     *
+     * <p>出参为脱敏模型 {@link UserSummaryVO}：同学列表不携带 email/phone/studentId。
+     * 原实现直接返回 {@code List<User>}，等于把全班联系方式与学号一次性下发给任意同学。
+     *
      * @param id 用户ID
-     * @return 同班同学列表
+     * @return 同班同学列表（脱敏）
      */
     @GetMapping("/{id}/classmates")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取同班同学列表")
-    public ApiResponse<List<User>> getClassmates(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<List<UserSummaryVO>> getClassmates(@PathVariable Long id, Authentication auth) {
         if (!id.equals((Long) auth.getPrincipal())) {
             adminScopeGuard.assertUserAccess(userService.getById(id));
         }
         List<User> classmates = userService.getClassmates(id);
-        return ApiResponse.success(classmates);
+        return ApiResponse.success(classmates.stream().map(UserSummaryVO::from).toList());
     }
 
     /**
      * 获取教师的学生列表
      * 仅允许教师或管理员访问
+     *
+     * <p>出参为脱敏模型 {@link UserSummaryVO}，理由同 {@code /{id}/classmates}。
+     *
      * @param auth 认证信息
-     * @return 学生列表
+     * @return 学生列表（脱敏）
      */
     @GetMapping("/teacher/students")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取教师的学生列表")
-    public ApiResponse<List<User>> getTeacherStudents(Authentication auth) {
+    public ApiResponse<List<UserSummaryVO>> getTeacherStudents(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
         List<User> students = userService.getTeacherStudents(teacherId);
-        return ApiResponse.success(students);
+        return ApiResponse.success(students.stream().map(UserSummaryVO::from).toList());
     }
 
     /**
@@ -205,13 +216,15 @@ public class UserController {
     @GetMapping("/search")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "搜索用户")
-    public ApiResponse<PagedResponse<User>> search(
+    public ApiResponse<PagedResponse<UserVO>> search(
             @RequestParam String keyword,
             @RequestParam(required = false) String role,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         Page<User> result = searchScoped(keyword, role, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        return ApiResponse.success(PagedResponse.of(
+                result.getRecords().stream().map(UserVO::from).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize()));
     }
 
     /** 校级走原查询；院系管理员强制追加本学院过滤。 */
@@ -232,7 +245,7 @@ public class UserController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "新增用户")
-    public ApiResponse<User> create(@Valid @RequestBody AdminCreateUserDTO dto) {
+    public ApiResponse<UserVO> create(@Valid @RequestBody AdminCreateUserDTO dto) {
         User user = new User();
         user.setUsername(dto.getUsername());
         user.setFullName(dto.getFullName());
@@ -257,8 +270,7 @@ public class UserController {
             user.setAdminClassId(dto.getAdminClassId() == 0L ? null : dto.getAdminClassId());
         }
         userService.save(user);
-        user.setPassword(null);
-        return ApiResponse.success("创建成功", user);
+        return ApiResponse.success("创建成功", UserVO.from(user));
     }
 
     /**
@@ -272,7 +284,7 @@ public class UserController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "修改用户信息")
-    public ApiResponse<User> update(@PathVariable Long id, @Valid @RequestBody AdminUpdateUserDTO dto) {
+    public ApiResponse<UserVO> update(@PathVariable Long id, @Valid @RequestBody AdminUpdateUserDTO dto) {
         User existing = userService.getById(id);
         if (existing == null) {
             throw new BusinessException("用户不存在");
@@ -327,10 +339,7 @@ public class UserController {
                     .set(User::getAdminClassId, null));
         }
         User updatedUser = userService.getById(id);
-        if (updatedUser != null) {
-            updatedUser.setPassword(null);
-        }
-        return ApiResponse.success("更新成功", updatedUser);
+        return ApiResponse.success("更新成功", UserVO.from(updatedUser));
     }
 
     /**
@@ -381,10 +390,10 @@ public class UserController {
      */
     @GetMapping("/profile")
     @Operation(summary = "查询当前登录用户个人信息")
-    public ApiResponse<User> profile(Authentication auth) {
+    public ApiResponse<UserVO> profile(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         User user = userService.getUserProfile(userId);
-        return ApiResponse.success(user);
+        return ApiResponse.success(UserVO.from(user));
     }
 
     /**
@@ -397,7 +406,7 @@ public class UserController {
      */
     @PutMapping("/profile")
     @Operation(summary = "修改当前登录用户个人信息")
-    public ApiResponse<User> updateProfile(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
+    public ApiResponse<UserVO> updateProfile(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
         Long userId = (Long) auth.getPrincipal();
         User user = new User();
         if (updates.getFullName() != null) {
@@ -420,6 +429,6 @@ public class UserController {
         }
         userService.updateProfile(userId, user);
         User updatedUser = userService.getUserProfile(userId);
-        return ApiResponse.success("更新成功", updatedUser);
+        return ApiResponse.success("更新成功", UserVO.from(updatedUser));
     }
 }

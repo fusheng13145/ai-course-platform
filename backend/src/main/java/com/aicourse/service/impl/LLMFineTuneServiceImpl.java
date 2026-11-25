@@ -52,7 +52,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
     @Autowired
     public LLMFineTuneServiceImpl(
             @Value("${fine-tune.enabled:false}") boolean enabled,
-            @Value("${fine-tune.base-url:http://localhost:8003}") String baseUrl,
+            @Value("${fine-tune.base-url:" + ContractPaths.FT_DEFAULT_BASE_URL + "}") String baseUrl,
             @Value("${fine-tune.connect-timeout:5}") int connectTimeout,
             @Value("${fine-tune.read-timeout:300}") int readTimeout,
             @Value("${fine-tune.max-retries:1}") int maxRetries,

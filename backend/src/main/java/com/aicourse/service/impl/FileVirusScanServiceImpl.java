@@ -334,6 +334,9 @@ public class FileVirusScanServiceImpl implements FileVirusScanService {
         try {
             return Files.readString(file, StandardCharsets.UTF_8);
         } catch (IOException e) {
+            // 扫描结果读不出来时按「无输出」处理：这一步若静默，会被上层当成「扫描通过」，
+            // 等于病毒扫描形同虚设，必须留痕（warn 而非 debug）。
+            log.warn("读取病毒扫描结果失败，按空内容处理: file={}, err={}", file, e.getMessage());
             return "";
         }
     }

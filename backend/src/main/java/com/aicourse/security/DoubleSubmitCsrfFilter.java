@@ -142,16 +142,9 @@ public class DoubleSubmitCsrfFilter extends OncePerRequestFilter {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    /** Cookie 读取统一走 {@link com.aicourse.common.CookieUtils#readCookieValue}（DUP-01 收敛）。 */
     private String readCookie(HttpServletRequest request, String name) {
-        if (request.getCookies() == null) {
-            return null;
-        }
-        for (Cookie cookie : request.getCookies()) {
-            if (name.equals(cookie.getName())) {
-                return cookie.getValue();
-            }
-        }
-        return null;
+        return com.aicourse.common.CookieUtils.readCookieValue(request, name);
     }
 
     /** 定长比较，避免基于时序的令牌猜测。 */

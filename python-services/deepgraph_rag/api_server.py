@@ -28,6 +28,14 @@ HTTP 503 + body{code:503, mode:"UNAVAILABLE", error}，绝不自称 ENGINE）：
   POST   /api/v1/deepgraph/learning-path {target, course_id?, max_depth?, search_all_sources?}
   GET    /api/v1/deepgraph/course-graph?course_id=&document_name=
 
+Q-03 双引擎收敛后，本服务同时承载原 8002 的 9 个知识库端点（实现见 knowledge_api.py，
+路径与方法逐项不变，Java 侧只需把 RAG_BASE_URL 指向 8501）：
+  GET    /api/v1/rag/health
+  POST   /api/v1/rag/ask
+  POST   /api/v1/rag/documents      GET/PUT/DELETE /api/v1/rag/documents[...]
+  POST   /api/v1/rag/retrieve
+  POST   /api/v1/rag/index/build/{courseId}    DELETE /api/v1/rag/index/{courseId}
+
 适配器自有环境变量（均不写入上游文件）：
   DG_INTERNAL_AUTH_MODE=optional|required   required 且 INTERNAL_API_KEY 空时 503 fail-closed
   DG_RATE_LIMIT_PER_MINUTE=120              0 关闭；按 X-User-Id（缺省回退客户端 IP）滑动窗口
@@ -58,7 +66,26 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-import streamlit as st
+try:
+    import streamlit as st
+except Exception:  # 无 streamlit 的瘦环境（CI / 纯 API 镜像）不应因此起不来
+    # 适配层只在两处用到 st：读 rerank 开关与写 retrieval_pipeline 缓存（见下方 session_state 用法）。
+    # 用最小假体把这两处降级为「进程内 dict + 无副作用方法」，绝不伪造 UI 行为。
+    class _SessionStateStub(dict):
+        def get(self, key, default=None):
+            return dict.get(self, key, default)
+
+    class _StStub:
+        def __init__(self):
+            self.session_state = _SessionStateStub()
+
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                return None
+
+            return _noop
+
+    st = _StStub()
 
 # ---- 已验收复制内容（原样调用，禁止修改） ----
 try:
@@ -377,6 +404,20 @@ def _rate_limit_per_minute() -> int:
         return 120
 
 
+def _rag_rate_limit_per_minute() -> int:
+    """知识库端点（/api/v1/rag/*）的限流阈值。
+
+    Q-03 收敛后 8002 的 9 个端点并入本服务：原 8002 没有进程内限流（Java 侧已有
+    方法级 QPS 限制），若直接套用 DG 的 120/min，会让「建立索引 / 反复试问」这类
+    正常使用被合并服务掐断——那是能力降级。故该前缀默认**关闭**限流（0），
+    仅当运维显式设置 RAG_RATE_LIMIT_PER_MINUTE>0 才生效。
+    """
+    try:
+        return max(0, int(os.getenv("RAG_RATE_LIMIT_PER_MINUTE", "0") or "0"))
+    except ValueError:
+        return 0
+
+
 def _max_upload_bytes() -> int:
     try:
         return max(1, int(os.getenv("DG_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)) or "0"))
@@ -391,8 +432,8 @@ def _client_identity(request: Request) -> str:
     return f"ip:{request.client.host if request.client else 'unknown'}"
 
 
-def _rate_limited(identity: str, now: float) -> bool:
-    limit = _rate_limit_per_minute()
+def _rate_limited(identity: str, now: float, path: str = "") -> bool:
+    limit = _rag_rate_limit_per_minute() if path.startswith("/api/v1/rag/") else _rate_limit_per_minute()
     if limit <= 0:
         return False
     window_start = now - 60.0
@@ -445,7 +486,7 @@ async def _request_guard(request: Request, call_next):
                         "trace_id": TRACE_ID.get(),
                     },
                 )
-            if _rate_limited(_client_identity(request), time.monotonic()):
+            if _rate_limited(_client_identity(request), time.monotonic(), request.url.path):
                 return JSONResponse(
                     status_code=429,
                     content={
@@ -707,7 +748,10 @@ def _source_name_for(doc, pipeline: dict) -> str:
     for key in ("source", "file_name", "document_name"):
         value = metadata.get(key) if isinstance(metadata, dict) else None
         if value:
-            base = os.path.basename(str(value))
+            # 先统一分隔符再取末段：上传 loader 在 Windows 上落的是反斜杠临时路径，
+            # 而 Linux 上的 os.path.basename 只按 "/" 切分，会把整条路径当成文件名返回，
+            # tmp 判定随之漏过、临时路径被当成文档名透给前端（CI linux runner 实测复现）。
+            base = os.path.basename(str(value).replace("\\", "/"))
             if not re.match(r"^tmp[a-z0-9_]+\.(txt|pdf|docx)$", base, re.IGNORECASE):
                 return base
             break
@@ -1407,6 +1451,21 @@ def course_graph(course_id: int = Query(...), document_name: str = Query(...)):
     except Exception as exc:
         traceback.print_exc()
         return _degrade(f"课程图谱聚合失败：{type(exc).__name__}: {exc}")
+
+
+# ---------------- 知识库端点挂载（Q-03 双引擎收敛：原 8002 → 本服务） ----------------
+# 挂载点与 8002 完全同名（/api/v1/rag/*），客户端零改动。中间件只保留本服务的
+# `_request_guard` 一套（X-Internal-Key 校验 + trace 透传 + 限流），不再叠加 8002 的。
+from knowledge_api import router as knowledge_router  # noqa: E402  - 放在末尾便于追溯收敛位置
+
+app.include_router(knowledge_router)
+
+# 启动自检用的一行日志（在导入期打印，避免用已弃用的 on_event("startup")）
+_MERGED_RAG_PATHS = sorted({f"{sorted(r.methods)[0]} {r.path}" for r in knowledge_router.routes})
+print(
+    "[deepgraph] Q-03 收敛完成：本服务同时承载 deepgraph(8501) 与知识库(原 8002) 端点，"
+    f"知识库端点 {len(_MERGED_RAG_PATHS)} 个"
+)
 
 
 if __name__ == "__main__":

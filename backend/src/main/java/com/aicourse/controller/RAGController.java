@@ -6,9 +6,9 @@ import org.slf4j.LoggerFactory;
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.AdminScope;
-import com.aicourse.common.RoleConstants;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.RAGService;
@@ -49,22 +49,14 @@ public class RAGController {
         this.courseAccessControl = courseAccessControl;
     }
 
-    /** ROLE_ 前缀剥离后的角色名（与 DiscussionController 同语义，此处只用于管理员判定）。 */
-    private boolean isAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_ADMIN"::equals);
-    }
-
     /** 院系管理员：ADMIN + SCOPE_ADMIN_COLLEGE；没有该作用域的存量 ADMIN 仍按校级处理。 */
     private boolean isCollegeAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(AdminScope.AUTHORITY_COLLEGE::equals);
+        // 作用域判定同样收敛到 AccessSupport，避免 authorities 遍历再散一份
+        return AccessSupport.hasAuthority(auth, AdminScope.AUTHORITY_COLLEGE);
     }
 
     private boolean isSchoolAdmin(Authentication auth) {
-        return isAdmin(auth) && !isCollegeAdmin(auth);
+        return AccessSupport.isAdmin(auth) && !isCollegeAdmin(auth);
     }
 
     /**
@@ -104,7 +96,7 @@ public class RAGController {
     public ApiResponse<JsonNode> listDocuments(@RequestParam(required = false) Long courseId,
                                                Authentication auth) {
         if (courseId == null) {
-            if (!isAdmin(auth)) {
+            if (!AccessSupport.isAdmin(auth)) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "列举全部课程文档仅管理员可用");
             }
             JsonNode all = toJson(ragService.listDocuments(null));
@@ -230,7 +222,7 @@ public class RAGController {
             courseAccessControl.assertCanReadCourse(courseId, auth);
             return;
         }
-        if (!isAdmin(auth)) {
+        if (!AccessSupport.isAdmin(auth)) {
             throw new BusinessException(ApiCode.BAD_REQUEST, "请指定课程ID后再使用课程知识库检索");
         }
     }

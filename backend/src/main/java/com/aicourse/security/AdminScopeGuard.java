@@ -216,14 +216,22 @@ public class AdminScopeGuard {
 
     private boolean hasAuthority(String authority) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || authentication.getAuthorities() == null) {
-            return false;
+        // 授权项匹配收敛到 AccessSupport，作用域判定与角色判定共用同一比较口径
+        return AccessSupport.hasAuthority(authentication, authority);
+    }
+
+    /**
+     * 审计自助口径（8A/WP9）：本人放行；其余一律按校级口径，院系管理员直接 403。
+     *
+     * <p>收敛自 {@code LoginLogController} 与 {@code UserSessionController} 各自私有的
+     * {@code assertSelfOrSchoolAdmin}（DUP-08，权限断言双实现）。</p>
+     *
+     * @param userId 目标用户ID
+     */
+    public void assertSelfOrSchoolOnly(Long userId) {
+        if (userId != null && userId.equals(currentUserId())) {
+            return;
         }
-        for (GrantedAuthority granted : authentication.getAuthorities()) {
-            if (authority.equals(granted.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
+        assertSchoolOnly();
     }
 }

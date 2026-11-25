@@ -1,23 +1,23 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.application.admin.OperationLogApplicationService;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.entity.OperationLog;
-import com.aicourse.security.AdminScopeGuard;
-import com.aicourse.service.OperationLogService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.aicourse.vo.OperationLogVO;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import java.util.Map;
 
 /**
  * 操作日志查询控制器（管理员权限）
+ *
+ * <p>3E-05D：筛选条件拼接、院系范围助手与统计口径（3 处 wrapper）已下移到
+ * {@link OperationLogApplicationService}。</p>
  */
 @Tag(name = "操作审计", description = "操作日志查询与统计")
 @RestController
@@ -25,15 +25,10 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class OperationLogController {
 
-    private static final Logger log = LoggerFactory.getLogger(OperationLogController.class);
+    private final OperationLogApplicationService operationLogApplicationService;
 
-    private final OperationLogService operationLogService;
-    private final AdminScopeGuard adminScopeGuard;
-
-    public OperationLogController(OperationLogService operationLogService,
-                                  AdminScopeGuard adminScopeGuard) {
-        this.operationLogService = operationLogService;
-        this.adminScopeGuard = adminScopeGuard;
+    public OperationLogController(OperationLogApplicationService operationLogApplicationService) {
+        this.operationLogApplicationService = operationLogApplicationService;
     }
 
     /**
@@ -47,23 +42,15 @@ public class OperationLogController {
      * @return 分页操作日志
      */
     @GetMapping("/operation-logs")
-    public ApiResponse<PagedResponse<OperationLog>> queryLogs(
+    public ApiResponse<PagedResponse<OperationLogVO>> queryLogs(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "15") int size,
             @RequestParam(required = false) String module,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String status) {
-        // 8A（WP9）：审计对院系管理员先 403，校级原口径不变——不再做「本院可见」降级
-        adminScopeGuard.assertSchoolOnly();
-        LambdaQueryWrapper<OperationLog> qw = new LambdaQueryWrapper<OperationLog>()
-                .eq(module != null && !module.isEmpty(), OperationLog::getModule, module)
-                .eq(action != null && !action.isEmpty(), OperationLog::getAction, action)
-                .eq(status != null && !status.isEmpty(), OperationLog::getStatus, status)
-                .like(username != null && !username.isEmpty(), OperationLog::getUsername, username)
-                .orderByDesc(OperationLog::getCreatedAt);
-        Page<OperationLog> logPage = operationLogService.page(Page.of(page, size), qw);
-        return ApiResponse.success(PagedResponse.of(logPage));
+        return ApiResponse.success(
+                operationLogApplicationService.queryLogs(page, size, module, action, username, status));
     }
 
     /**
@@ -71,37 +58,7 @@ public class OperationLogController {
      * @return 按模块/操作类型统计
      */
     @GetMapping("/operation-logs/statistics")
-    public ApiResponse<java.util.Map<String, Object>> getStatistics() {
-        // 8A（WP9）：同上，院系管理员 403
-        adminScopeGuard.assertSchoolOnly();
-        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
-        LambdaQueryWrapper<OperationLog> totalWrapper = new LambdaQueryWrapper<>();
-        applyCollegeScope(totalWrapper, collegeUserIds);
-        // 校级保持原口径（count() 全表统计）；院系按本院用户过滤
-        long totalCount = collegeUserIds == null
-                ? operationLogService.count()
-                : operationLogService.count(totalWrapper);
-
-        LambdaQueryWrapper<OperationLog> successWrapper = new LambdaQueryWrapper<OperationLog>()
-                .eq(OperationLog::getStatus, "SUCCESS");
-        applyCollegeScope(successWrapper, collegeUserIds);
-        long successCount = operationLogService.count(successWrapper);
-        long failedCount = totalCount - successCount;
-        return ApiResponse.success(java.util.Map.of(
-                "totalCount", totalCount,
-                "successCount", successCount,
-                "failedCount", failedCount
-        ));
-    }
-
-    private void applyCollegeScope(LambdaQueryWrapper<OperationLog> qw, List<Long> collegeUserIds) {
-        if (collegeUserIds == null) {
-            return;
-        }
-        if (collegeUserIds.isEmpty()) {
-            qw.eq(OperationLog::getUserId, -1L);
-        } else {
-            qw.in(OperationLog::getUserId, collegeUserIds);
-        }
+    public ApiResponse<Map<String, Object>> getStatistics() {
+        return ApiResponse.success(operationLogApplicationService.statistics());
     }
 }

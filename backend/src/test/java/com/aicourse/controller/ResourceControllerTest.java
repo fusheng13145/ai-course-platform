@@ -170,9 +170,9 @@ class ResourceControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.list").isArray())
                 .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.records[0].id").value(2));
+                .andExpect(jsonPath("$.data.list[0].id").value(2));
         verify(resourceService).searchResources(eq("test"), eq(1L), eq(1), eq(1));
     }
 

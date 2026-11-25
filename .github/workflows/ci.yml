@@ -714,8 +714,42 @@ jobs:
   # RAGServiceImpl 的下游调用对齐。rag_service.py 已接真实混合检索引擎
   # （rag_engine.py：BM25+向量+RRF，重依赖懒加载），本 job 只跑无重依赖的用例。
   # ------------------------------------------------------------------
+  python-deepgraph-contract:
+    name: Python DeepGraph Adapter Contract (8501)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: python-services/deepgraph_rag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          # 只缓存平台适配层依赖：上游 requirements.txt 含 torch/faiss，
+          # 本作业按「引擎降级」语义运行，不安装重依赖（见测试文件头注释）。
+          cache-dependency-path: python-services/deepgraph_rag/requirements-platform.txt
+
+      - name: Install platform adapter dependencies
+        # 上游 requirements.txt 冻结不可改，且重依赖（torch/faiss/transformers）
+        # 在 CI 不安装：api_server 的引擎按 UNAVAILABLE 降级，契约与降级用例仍应全绿。
+        # requirements-test.txt 只含 pytest / networkx（测试专用，不进运行时镜像）。
+        run: pip install -r requirements-platform.txt -r requirements-test.txt
+
+      - name: Contract tests (29 cases, adapter)
+        run: pytest -q test_deepgraph_contract.py
+
+      - name: Merged contract (Q-03 收敛护栏：8002 能力搬入 8501 后不得降级)
+        # test_merged_contract.py 做三件事：引擎搬迁逐行等价、8002 端点集合 ⊆ 8501、
+        # deepgraph 既有端点一个不少。重依赖未装的 CI 环境同样应全绿（引擎走降级语义）。
+        run: pytest -q test_merged_contract.py
+
   python-rag-contract:
-    name: Python RAG Service Contract (8002)
+    name: Python RAG Service Contract (8002 → 8501 收敛)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -730,10 +764,20 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: python-services/rag_service/requirements.txt
+          # merged 契约步骤会把同一批断言打到 deepgraph_rag/api_server.py（8501），
+          # 因此缓存键必须同时覆盖deepgraph 的平台适配层清单。
+          cache-dependency-path: |
+            python-services/rag_service/requirements.txt
+            python-services/deepgraph_rag/requirements-platform.txt
+            python-services/deepgraph_rag/requirements-test.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest
+        # merged 契约步骤会把同一批断言打到 deepgraph_rag/api_server.py（8501）：
+        #   · 它顶层 import requests、运行期还要 neo4j → 缺则 collection 阶段直接
+        #     ModuleNotFoundError: No module named 'requests'；
+        #   · test_deepgraph_contract.py 的图构造断言用 networkx（requirements-test.txt）。
+        # 两份清单都不含 torch/faiss，装上不改变「引擎降级」语义。
+        run: pip install -r requirements.txt -r ../deepgraph_rag/requirements-platform.txt -r ../deepgraph_rag/requirements-test.txt pytest
 
       - name: Contract + engine unit tests (FastAPI TestClient)
         # 缺陷修复（2026-10-04）：原先只跑单文件契约测试（旧名 contract_test.py，
@@ -743,6 +787,17 @@ jobs:
         # rag_engine 与用例都做了软依赖处理：缺依赖的用例按 skipif 自动跳过，纯算法用例照常跑。
         # 需要真实引擎全绿时另行安装 requirements-engine.txt（见 eval-nightly.yml）。
         run: pytest -q
+
+      - name: Merged contract — 8002 端点挂在 8501 上仍须逐条同形（Q-03 不降级护栏）
+        # 同一批断言原样打到合并服务：`RAG_CONTRACT_APP=merged` 时 test_rag_contract.py
+        # 把被测对象换成 deepgraph_rag/api_server.py（8501），断言行一字未改。
+        # 同时跑 8501 自身的契约套件与收敛护栏，构成「一套进程、两套契约」的门禁。
+        env:
+          RAG_CONTRACT_APP: merged
+        run: |
+          python -m pytest -q test_rag_contract.py \
+            ../deepgraph_rag/test_deepgraph_contract.py \
+            ../deepgraph_rag/test_merged_contract.py
 
   # ------------------------------------------------------------------
   # Python LoRA 微调服务（端口 8003）契约校验

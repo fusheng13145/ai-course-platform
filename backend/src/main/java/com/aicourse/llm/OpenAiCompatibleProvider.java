@@ -212,6 +212,7 @@ public abstract class OpenAiCompatibleProvider implements LLMProvider {
                     try {
                         Thread.sleep(500L * attempt);
                     } catch (InterruptedException ie) {
+                        log.debug("[{}] 重试等待被中断，放弃剩余重试: {}", name, ie.getMessage());
                         Thread.currentThread().interrupt();
                         last = ie;
                         break;

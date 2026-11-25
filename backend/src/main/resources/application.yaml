@@ -429,7 +429,9 @@ knowledge-graph:
   # 是否启用 Python 知识图谱服务（当前 Java 端仅保留消费侧与 HTTP 代理，默认关闭）
   enabled: ${KG_ENABLED:false}
   # Python知识图谱服务地址（独立端口，与RAG服务隔离）
-  base-url: ${KG_BASE_URL:http://localhost:8001}
+  # 【2026-11-24 端口统一】默认指向 EngineHub 单口 8600（kg/deepgraph/rag/ft 同进程承载）。
+  # 旧分离布局（ENGINE_LAYOUT=separate）由 scripts/start-all.py 显式注入 8001，无需改这里。
+  base-url: ${KG_BASE_URL:http://localhost:8600}
   # HTTP 连接超时（秒）
   connect-timeout: ${KG_CONNECT_TIMEOUT:5}
   # HTTP 读取超时（秒）
@@ -449,13 +451,14 @@ knowledge-graph:
 # 本端不内置引擎实现，仅保留 RAGService 标准化接口 + HTTP 代理；默认调用 Python 端 /api/v1/rag/*
 # 契约（权威单一事实来源见 docs/系统架构设计.md 的集成契约章节），不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
 rag:
-  # 引擎选择：python（默认，Python 8002 优先）| java（不调 Python，问答走纯 LLM 兜底）
+  # 引擎选择：python（默认，Python 知识库优先）| java（不调 Python，问答走纯 LLM 兜底）
   # 临时回退无需改代码：RAG_PROVIDER=java；或 provider 置空 + RAG_ENABLED=false
   provider: ${RAG_PROVIDER:python}
   # 兼容开关：仅当 provider 未显式配置时生效（默认 true）
   enabled: ${RAG_ENABLED:true}
-  # Python RAG服务地址（独立端口，与知识图谱服务隔离）
-  base-url: ${RAG_BASE_URL:http://localhost:8002}
+  # 知识库服务地址。8002 已于批次 3B-2 退役；现由 EngineHub :8600 承载（分隔布局下是 8501 deepgraph 进程），
+  # 因此默认与 deepgraph-rag.base-url 同址；回滚期可用 RAG_BASE_URL=http://localhost:8002（legacy-rag profile）
+  base-url: ${RAG_BASE_URL:http://localhost:8600}
   # HTTP 连接超时（秒）
   connect-timeout: ${RAG_CONNECT_TIMEOUT:5}
   # HTTP 读取超时（秒）
@@ -478,7 +481,7 @@ deepgraph-rag:
   # 是否启用（默认 false；start-all 编排器在 8501 已监听时自动置位 DG_RAG_ENABLED）
   enabled: ${DG_RAG_ENABLED:false}
   # Python deepgraph_rag 服务地址
-  base-url: ${DG_RAG_BASE_URL:http://localhost:8501}
+  base-url: ${DG_RAG_BASE_URL:http://localhost:8600}
   # HTTP 连接超时（秒）
   connect-timeout: ${DG_RAG_CONNECT_TIMEOUT:5}
   # HTTP 读取超时（秒）：章节图谱/生成走本地大模型时单次可达数十秒（Python 侧 call_llm 自身超时 180s）
@@ -493,7 +496,7 @@ fine-tune:
   # 是否启用微调服务
   enabled: ${FT_ENABLED:false}
   # Python微调服务地址
-  base-url: ${FT_BASE_URL:http://localhost:8003}
+  base-url: ${FT_BASE_URL:http://localhost:8600}
   # HTTP 连接超时（秒）
   connect-timeout: ${FT_CONNECT_TIMEOUT:5}
   # HTTP 读取超时（秒，微调任务可能较长）

@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.common.RoleConstants;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
@@ -64,7 +66,7 @@ public class AnalyticsController {
     public ApiResponse<Map<String, Object>> dashboard(
             @Parameter(description = "教师ID（可选，传入时返回教师端数据）") @RequestParam(required = false) Long teacherId,
             Authentication auth) {
-        if (!isAdmin(auth)) {
+        if (!AccessSupport.isAdmin(auth)) {
             Long currentUserId = (Long) auth.getPrincipal();
             if (teacherId != null && !currentUserId.equals(teacherId)) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "无权查看其他教师的仪表盘");
@@ -226,7 +228,7 @@ public class AnalyticsController {
             @Parameter(description = "学生ID") @PathVariable Long studentId,
             Authentication auth) {
         assertCourseOwner(courseId, auth);
-        if (!isAdmin(auth) && !courseEnrollmentService.hasApprovedEnrollment(studentId, courseId)) {
+        if (!AccessSupport.isAdmin(auth) && !courseEnrollmentService.hasApprovedEnrollment(studentId, courseId)) {
             throw new BusinessException(ApiCode.NOT_FOUND, "该学生不属于此课程");
         }
         Map<String, Object> data = analyticsService.getStudentCourseDetail(courseId, studentId);
@@ -279,7 +281,7 @@ public class AnalyticsController {
     public ApiResponse<Map<String, Object>> examStatistics(
             @Parameter(description = "试卷ID") @PathVariable Long examPaperId,
             Authentication auth) {
-        if (!isAdmin(auth)) {
+        if (!AccessSupport.isAdmin(auth)) {
             ExamPaper examPaper = examPaperService.getById(examPaperId);
             if (examPaper == null) {
                 throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
@@ -334,7 +336,7 @@ public class AnalyticsController {
 
     /** 教师只能查看自己课程中的学生学情；管理员按作用域查看（院系仅本院课程，校级跨课程）。 */
     private void assertCourseOwner(Long courseId, Authentication auth) {
-        if (isAdmin(auth)) {
+        if (AccessSupport.isAdmin(auth)) {
             assertCollegeCourseAccess(courseId);
             return;
         }
@@ -364,20 +366,14 @@ public class AnalyticsController {
         adminScopeGuard.assertCourseAccess(course);
     }
 
-    private boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
-    }
-
     private void assertCanViewStudentAnalytics(Long studentId, Authentication auth) {
         Long currentUserId = (Long) auth.getPrincipal();
-        if (isAdmin(auth)) {
+        if (AccessSupport.isAdmin(auth)) {
             adminScopeGuard.assertUserAccessById(studentId);
             return;
         }
         if (currentUserId.equals(studentId)) return;
-        boolean isTeacher = auth.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_TEACHER".equals(authority.getAuthority()));
+        boolean isTeacher = AccessSupport.hasRole(auth, RoleConstants.TEACHER);
         if (isTeacher && courseEnrollmentService.hasApprovedEnrollmentWithTeacher(studentId, currentUserId)) return;
         throw new BusinessException(ApiCode.FORBIDDEN, "无权查看该学生的学习数据");
     }

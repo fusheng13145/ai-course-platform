@@ -50,6 +50,9 @@ public class KnowledgeMasteryComponent {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
     private static final BigDecimal FULL_SCORE = BigDecimal.ONE;
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(KnowledgeMasteryComponent.class);
+
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final QuestionService questionService;
@@ -322,10 +325,13 @@ public class KnowledgeMasteryComponent {
                     result.put(questionId, score);
                 } catch (Exception ignored) {
                     // 单题分值脏数据不影响其余题目
+                    log.debug("掌握度计算跳过脏分值题目: {}", ignored.getMessage());
                 }
             });
             return result;
         } catch (Exception ignored) {
+            // 整批解析失败会让掌握度全空、前端显示「暂无数据」，必须留痕（DEF-05）。
+            log.warn("掌握度数据解析失败，返回空结果: {}", ignored.getMessage());
             return Collections.emptyMap();
         }
     }

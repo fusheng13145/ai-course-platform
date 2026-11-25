@@ -3,13 +3,14 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.QuestionGenerateDTO;
 import com.aicourse.entity.KnowledgePoint;
+import com.aicourse.vo.TeacherQuestionVO;
 import com.aicourse.entity.Question;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.QuestionAccessSupport;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
-import com.aicourse.service.component.ai.AiCallContext;
+import com.aicourse.common.AiCallContext;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +38,8 @@ public class QuestionAiController {
     private final QuestionService questionService;
     private final AIService aiService;
     private final KnowledgePointService knowledgePointService;
+    private final com.aicourse.application.knowledge.KnowledgePointApplicationService
+            knowledgePointApplicationService;
     private final CourseAccessControl courseAccessControl;
     private final QuestionAccessSupport questionAccessSupport;
 
@@ -44,12 +47,15 @@ public class QuestionAiController {
                                 AIService aiService,
                                 KnowledgePointService knowledgePointService,
                                 CourseAccessControl courseAccessControl,
-                                QuestionAccessSupport questionAccessSupport) {
+                                QuestionAccessSupport questionAccessSupport,
+                                com.aicourse.application.knowledge.KnowledgePointApplicationService
+                                        knowledgePointApplicationService) {
         this.questionService = questionService;
         this.aiService = aiService;
         this.knowledgePointService = knowledgePointService;
         this.courseAccessControl = courseAccessControl;
         this.questionAccessSupport = questionAccessSupport;
+        this.knowledgePointApplicationService = knowledgePointApplicationService;
     }
 
     /**
@@ -58,7 +64,7 @@ public class QuestionAiController {
     @PostMapping("/generate-by-ai")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "AI智能生成题目")
-    public ApiResponse<Question> generateByAI(@Valid @RequestBody Map<String, String> params, Authentication auth) {
+    public ApiResponse<TeacherQuestionVO> generateByAI(@Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long courseId = Long.valueOf(params.get("courseId"));
         courseAccessControl.assertCanManageCourse(courseId, auth);
         // 出题治理两层校验（2026-11-14 审计 D3）：本端点此前缺治理闸，管理员总闸与逐人名单
@@ -70,7 +76,7 @@ public class QuestionAiController {
 
         Question question = questionService.generateByAI(courseId, type, difficulty, knowledgePointNames);
         question.setCreatedBy((Long) auth.getPrincipal());
-        return ApiResponse.success("AI生成成功", question);
+        return ApiResponse.success("AI生成成功", TeacherQuestionVO.from(question));
     }
 
     /**
@@ -101,7 +107,7 @@ public class QuestionAiController {
     @PostMapping("/generate-by-ai/batch")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "AI批量生成题目")
-    public ApiResponse<List<Question>> generateBatchByAI(@Valid @RequestBody QuestionGenerateDTO dto, Authentication auth) {
+    public ApiResponse<List<TeacherQuestionVO>> generateBatchByAI(@Valid @RequestBody QuestionGenerateDTO dto, Authentication auth) {
         Long courseId = dto.getCourseId();
         String type = dto.getType();
         String difficulty = dto.getDifficulty();
@@ -113,19 +119,16 @@ public class QuestionAiController {
 
         // 知识点感知增强：用户未指定知识点时，自动从课程知识图谱中提取
         if ((kp == null || kp.isBlank()) && courseId != null) {
-            List<KnowledgePoint> kps = knowledgePointService.list(
-                    new LambdaQueryWrapper<KnowledgePoint>()
-                            .eq(KnowledgePoint::getCourseId, courseId));
-            if (!kps.isEmpty()) {
-                kp = kps.stream().map(KnowledgePoint::getName)
-                        .limit(15).collect(Collectors.joining("、"));
-            }
+            // 3E-05E：知识点取数与拼接（limit 15、按库序）下移到 application 层
+            kp = knowledgePointApplicationService.namesByCourse(courseId, 15).orElse(null);
         }
 
         final String resolvedKp = kp;
         List<Question> questions = AiCallContext.run((Long) auth.getPrincipal(), courseId, "QUESTION_GENERATE",
                 () -> questionService.generateBatchByAI(
                         courseId, type, difficulty, resolvedKp, count, (Long) auth.getPrincipal()));
-        return ApiResponse.success("AI批量生成成功（" + (resolvedKp != null ? "知识点感知" : "通用模式") + "）", questions);
+        return ApiResponse.success("AI批量生成成功（" + (resolvedKp != null ? "知识点感知" : "通用模式") + "）",
+                TeacherQuestionVO.from(questions));
     }
 }
+

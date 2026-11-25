@@ -8,11 +8,14 @@ import com.aicourse.service.SignInService;
 import com.aicourse.service.VoteService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -443,5 +446,35 @@ class InteractionControllerTest extends ControllerTestBase {
     void myVote_forbidden_for_teacher() throws Exception {
         mockMvc.perform(get("/interaction/vote/1/my").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isForbidden());
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /interaction/sign-in/1/sign - 注入 studentId/status/ip/时间一律忽略（防替他人补签）")
+    void sign_ignoresInjectedServerFields() throws Exception {
+        SignInRecord rec = new SignInRecord();
+        rec.setId(1L);
+        when(signInService.sign(eq(1L), any(), eq(1L), anyString(), anyString())).thenReturn(rec);
+
+        mockMvc.perform(post("/interaction/sign-in/1/sign").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"studentId\":999,\"status\":\"SIGNED\","
+                                + "\"signTime\":\"2026-01-01T00:00:00\",\"ip\":\"1.1.1.1\",\"userAgent\":\"fake\","
+                                + "\"photoUrl\":\"http://x/p.jpg\"}")
+                        .header("User-Agent", "JUnit")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<SignInRecord> captor = ArgumentCaptor.forClass(SignInRecord.class);
+        verify(signInService).sign(eq(1L), captor.capture(), eq(1L), anyString(), anyString());
+        SignInRecord sent = captor.getValue();
+        assertNull(sent.getId());
+        assertNull(sent.getStudentId(), "学生身份只认登录态");
+        assertNull(sent.getStatus(), "签到结果由服务端判定");
+        assertNull(sent.getSignTime());
+        assertNull(sent.getIp(), "IP 取请求来源");
+        assertNull(sent.getUserAgent());
+        assertEquals("http://x/p.jpg", sent.getPhotoUrl());
     }
 }

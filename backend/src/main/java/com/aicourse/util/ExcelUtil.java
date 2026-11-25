@@ -204,6 +204,7 @@ public final class ExcelUtil {
             }
             return JSON_MAPPER.writeValueAsString(List.of(node.asText()));
         } catch (Exception notJson) {
+            log.warn("单元格不是合法 JSON，按分隔符拆分: {}", notJson.getMessage());
             List<String> parts = Arrays.stream(trimmed.split("[,，;；\\r\\n]+"))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
@@ -254,7 +255,7 @@ public final class ExcelUtil {
      * 用户导入：从 xlsx 文件解析用户列表（跳过空行与表头行，密码缺省生成随机初始密码）。
      */
     public static List<User> readUsers(MultipartFile file) throws IOException {
-        return parseUsers(file).users();
+        return parseUsers(file.getInputStream()).users();
     }
 
     /**
@@ -262,13 +263,21 @@ public final class ExcelUtil {
      * 供导入接口回传管理员转告用户（明文仅本次响应出现一次）。
      */
     public static UserImportResult readUsersWithGenerated(MultipartFile file) throws IOException {
-        return parseUsers(file);
+        return parseUsers(file.getInputStream());
     }
 
-    private static UserImportResult parseUsers(MultipartFile file) throws IOException {
+    /**
+     * 用户导入（含临时密码）的传输无关入口：application 层不依赖 {@code MultipartFile}，
+     * 由控制器读取流后传入（阶段3 分层契约：Web 类型止步于 controller）。
+     */
+    public static UserImportResult readUsersWithGenerated(java.io.InputStream in) throws IOException {
+        return parseUsers(in);
+    }
+
+    private static UserImportResult parseUsers(java.io.InputStream in) throws IOException {
         List<User> list = new ArrayList<>();
         Map<String, String> generatedPasswords = new java.util.LinkedHashMap<>();
-        try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
+        try (Workbook wb = WorkbookFactory.create(in)) {
             Sheet sheet = wb.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -395,6 +404,7 @@ public final class ExcelUtil {
         try {
             return BigDecimal.valueOf(Double.parseDouble(s)).intValue();
         } catch (NumberFormatException e) {
+            log.debug("单元格数值无法解析，按缺省处理: value={}", s);
             return null;
         }
     }

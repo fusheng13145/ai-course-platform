@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.QuestionSaveDTO;
+import com.aicourse.vo.TeacherQuestionVO;
 import com.aicourse.entity.Question;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.QuestionAccessSupport;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -53,13 +55,13 @@ public class QuestionCommandController {
     @Operation(summary = "创建题目",
             description = "字段真名：correctAnswers（MySQL JSON 列，必须是合法 JSON 文本：单选 \"A\"、多选 [\"A\",\"B\"]、判断 \"true\"；裸 A 会 400）；"
                     + "options/knowledgePoints 为 JSON 文本字符串列。创建时 courseId 必填。")
-    public ApiResponse<Question> create(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
+    public ApiResponse<TeacherQuestionVO> create(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
                                         Authentication auth) {
         Question question = dto.toEntity();
         courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         Question created = questionService.createQuestion(question);
-        return ApiResponse.success("创建成功", created);
+        return ApiResponse.success("创建成功", TeacherQuestionVO.from(created));
     }
 
     /**
@@ -84,11 +86,11 @@ public class QuestionCommandController {
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "复制题目")
-    public ApiResponse<Question> copy(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<TeacherQuestionVO> copy(@PathVariable Long id, Authentication auth) {
         Question existing = questionAccessSupport.requireQuestion(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         Question copied = questionService.copyQuestion(id);
-        return ApiResponse.success("复制成功", copied);
+        return ApiResponse.success("复制成功", TeacherQuestionVO.from(copied));
     }
 
     /**
@@ -99,13 +101,13 @@ public class QuestionCommandController {
     @Operation(summary = "新增题目",
             description = "字段真名与 JSON 列契约同 POST /questions/create：correctAnswers 为合法 JSON 文本，"
                     + "options/knowledgePoints 为 JSON 文本字符串列；创建时 courseId 必填。")
-    public ApiResponse<Question> createBasic(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
+    public ApiResponse<TeacherQuestionVO> createBasic(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
                                              Authentication auth) {
         Question question = dto.toEntity();
         courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.save(question);
-        return ApiResponse.success("创建成功", question);
+        return ApiResponse.success("创建成功", TeacherQuestionVO.from(question));
     }
 
     /**
@@ -115,7 +117,7 @@ public class QuestionCommandController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改题目",
             description = "字段真名与 JSON 列契约同创建端点；courseId 忽略请求值，始终沿用原题目课程。")
-    public ApiResponse<Question> update(@PathVariable Long id,
+    public ApiResponse<TeacherQuestionVO> update(@PathVariable Long id,
                                         @Valid @RequestBody QuestionSaveDTO dto,
                                         Authentication auth) {
         Question existing = questionAccessSupport.requireQuestion(id);
@@ -125,7 +127,7 @@ public class QuestionCommandController {
         question.setCourseId(existing.getCourseId());
         questionService.updateQuestion(question);
         Question updatedQuestion = questionService.getById(id);
-        return ApiResponse.success("更新成功", updatedQuestion);
+        return ApiResponse.success("更新成功", TeacherQuestionVO.from(updatedQuestion));
     }
 
     /**
@@ -143,15 +145,26 @@ public class QuestionCommandController {
 
     /**
      * 批量导入题目（进阶：一次性导入多题，自动跳过无效项）
+     * <p>入参逐项走 {@link QuestionSaveDTO}：只接受题目业务字段，{@code id}／{@code createdBy}／
+     * {@code usageCount}／{@code correctRate} 等由服务端填写，客户端传入一律忽略。
+     * 不做 Bean Validation 级联，保持「单条不合法只跳过、不整批 400」的既有语义。</p>
      */
     @PostMapping("/batch-import")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，自动跳过无效项）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
-    public ApiResponse<BatchImportResultVO> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
-        for (Question question : questions) {
-            courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
+    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，自动跳过无效项）；"
+            + "入参字段真名同 POST /questions/create，服务端字段不接受传入；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
+    public ApiResponse<BatchImportResultVO> batchImport(@RequestBody List<QuestionSaveDTO> items, Authentication auth) {
+        List<Question> questions = new ArrayList<>(items == null ? 0 : items.size());
+        if (items != null) {
+            for (QuestionSaveDTO item : items) {
+                Question question = item == null ? new Question() : item.toEntity();
+                courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
+                questions.add(question);
+            }
         }
         int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
         return ApiResponse.success("导入完成", new BatchImportResultVO(imported, questions.size()));
     }
 }
+
+

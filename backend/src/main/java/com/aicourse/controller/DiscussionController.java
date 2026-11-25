@@ -7,10 +7,13 @@ import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.vo.DiscussionVOs;
+import com.aicourse.dto.DiscussionPostSaveDTO;
 import com.aicourse.entity.DiscussionPost;
 import com.aicourse.entity.DiscussionTopic;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.CourseAccessControl;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.service.DiscussionService;
 import com.aicourse.vo.LikePostVO;
 import com.aicourse.vo.TopicDetailVO;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import com.aicourse.common.RoleConstants;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.dto.DiscussionTopicSaveDTO;
 
 /**
  * 课程讨论接口（话题 / 回复 / 点赞 / 置顶 / 关闭）
@@ -58,34 +62,34 @@ public class DiscussionController {
         courseAccessControl.assertCanReadCourse(courseId, auth);
     }
 
-    /** 从认证信息中提取角色（ROLE_TEACHER -> TEACHER） */
-    private String roleOf(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .filter(a -> a.startsWith("ROLE_"))
-                .map(a -> a.substring(5))
-                .findFirst()
-                .orElse(RoleConstants.STUDENT);
+    /**
+     * 从认证信息中提取角色（ROLE_TEACHER -> TEACHER）。
+     * <p>解析逻辑统一在 {@link AccessSupport#roleOf}；本处只保留**领域默认值**：
+     * 讨论区把「无 ROLE_ 授权」视为学生（作者角色列不允许空串，否则前端展示为空白）。</p>
+     */
+    private String authorRoleOf(Authentication auth) {
+        String role = AccessSupport.roleOf(auth);
+        return role.isEmpty() ? RoleConstants.STUDENT : role;
     }
 
     /** 当前登录用户发布一个新的讨论话题 */
     @PostMapping("/topic")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<DiscussionTopic> createTopic(@Valid @RequestBody DiscussionTopic topic, Authentication auth) {
+    public ApiResponse<DiscussionVOs.TopicVO> createTopic(@Valid @RequestBody DiscussionTopicSaveDTO dto, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        assertCourseMember(topic.getCourseId(), auth);
-        return ApiResponse.success("发布成功", discussionService.createTopic(topic, userId, roleOf(auth)));
+        assertCourseMember(dto.getCourseId(), auth);
+        return ApiResponse.success("发布成功", DiscussionVOs.TopicVO.from(discussionService.createTopic(dto.toEntity(), userId, authorRoleOf(auth))));
     }
 
     /** 查询某课程下的讨论话题列表，支持按章节、关键词、精华筛选 */
     @GetMapping("/topic/course/{courseId}")
-    public ApiResponse<List<DiscussionTopic>> listTopics(@PathVariable Long courseId,
+    public ApiResponse<List<DiscussionVOs.TopicVO>> listTopics(@PathVariable Long courseId,
                                                          @RequestParam(required = false) Long chapterId,
                                                          @RequestParam(required = false) String keyword,
                                                          @RequestParam(required = false) Boolean essence,
                                                          Authentication auth) {
         assertCourseMember(courseId, auth);
-        return ApiResponse.success(discussionService.listTopics(courseId, chapterId, keyword, essence));
+        return ApiResponse.success(DiscussionVOs.TopicVO.from(discussionService.listTopics(courseId, chapterId, keyword, essence)));
     }
 
     /** 获取单个话题的完整详情（含回复与统计） */
@@ -98,12 +102,14 @@ public class DiscussionController {
     /** 在指定话题下发表一条回复 */
     @PostMapping("/topic/{id}/reply")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<DiscussionPost> reply(@PathVariable Long id,
-                                             @Valid @RequestBody DiscussionPost post,
+    public ApiResponse<DiscussionVOs.PostVO> reply(@PathVariable Long id,
+                                             @Valid @RequestBody DiscussionPostSaveDTO dto,
                                              Authentication auth) {
+        // 入参收 DTO：作者/楼层/审核状态由服务端写入，客户端只能提交内容与 @提及
+        DiscussionPost post = dto.toEntity();
         Long userId = (Long) auth.getPrincipal();
         assertCourseMembershipOfTopic(id, auth);
-        return ApiResponse.success("回复成功", discussionService.reply(id, post, userId, roleOf(auth)));
+        return ApiResponse.success("回复成功", DiscussionVOs.PostVO.from(discussionService.reply(id, post, userId, authorRoleOf(auth))));
     }
 
     /**
@@ -140,26 +146,26 @@ public class DiscussionController {
     /** 关闭或重新开启某个话题（作者本人 / 本课程教师 / 管理员） */
     @PostMapping("/topic/{id}/close")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<DiscussionTopic> closeTopic(@PathVariable Long id, Authentication auth) {
-        return ApiResponse.success("已关闭", discussionService.closeTopic(id, auth));
+    public ApiResponse<DiscussionVOs.TopicVO> closeTopic(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.success("已关闭", DiscussionVOs.TopicVO.from(discussionService.closeTopic(id, auth)));
     }
 
     /** 置顶或取消置顶某个话题（作者本人 / 本课程教师 / 管理员） */
     @PostMapping("/topic/{id}/pin")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<DiscussionTopic> pinTopic(@PathVariable Long id,
+    public ApiResponse<DiscussionVOs.TopicVO> pinTopic(@PathVariable Long id,
                                                  @RequestParam boolean pinned,
                                                  Authentication auth) {
-        return ApiResponse.success("已更新", discussionService.pinTopic(id, pinned, auth));
+        return ApiResponse.success("已更新", DiscussionVOs.TopicVO.from(discussionService.pinTopic(id, pinned, auth)));
     }
 
     /** 标记或取消标记某个话题为精华（本课程教师 / 管理员） */
     @PostMapping("/topic/{id}/essence")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<DiscussionTopic> markEssence(@PathVariable Long id,
+    public ApiResponse<DiscussionVOs.TopicVO> markEssence(@PathVariable Long id,
                                                     @RequestParam boolean essence,
                                                     Authentication auth) {
-        return ApiResponse.success("已更新", discussionService.markEssence(id, essence, auth));
+        return ApiResponse.success("已更新", DiscussionVOs.TopicVO.from(discussionService.markEssence(id, essence, auth)));
     }
 
     /** 删除某条回复：作者本人、本课程教师或管理员 */
@@ -178,3 +184,4 @@ public class DiscussionController {
         return ApiResponse.success("已删除");
     }
 }
+

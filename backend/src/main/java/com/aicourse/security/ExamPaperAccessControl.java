@@ -8,7 +8,6 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -151,20 +150,15 @@ public class ExamPaperAccessControl {
     }
 
     private boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_" + RoleConstants.ADMIN));
+        // 统一到 AccessSupport：角色判定只保留一处实现（阶段 2 DUP-18/19）
+        return AccessSupport.isAdmin(auth);
     }
 
     private Long principalId(Authentication auth) {
-        return (Long) auth.getPrincipal();
+        return AccessSupport.requirePrincipalId(auth);
     }
 
     private String roleOf(Authentication auth) {
-        List<String> roles = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .filter(a -> a.startsWith("ROLE_"))
-                .map(a -> a.substring("ROLE_".length()))
-                .toList();
-        return roles.isEmpty() ? "" : roles.get(0);
+        return AccessSupport.roleOf(auth);
     }
 }

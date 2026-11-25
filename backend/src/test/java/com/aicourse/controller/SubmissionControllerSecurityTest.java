@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 复用 ControllerTestBase 的安全装配（withUser 注入 Long principal）。
  */
 @WebMvcTest(SubmissionController.class)
-@Import(SubmissionAccessControl.class)
+@Import({SubmissionAccessControl.class,com.aicourse.application.submission.SubmissionApplicationService.class})
 class SubmissionControllerSecurityTest extends ControllerTestBase {
 
     @Autowired
@@ -52,6 +52,7 @@ class SubmissionControllerSecurityTest extends ControllerTestBase {
     private com.aicourse.service.UserService userService;
     @MockitoBean
     private com.aicourse.service.NotificationService notificationService;
+
 
     private Submission submission(Long id, Long studentId, Long taskId) {
         Submission s = new Submission();

@@ -1,18 +1,22 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.common.RoleConstants;
+import com.aicourse.security.AccessSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.ProctorEventReportDTO;
 import com.aicourse.entity.ProctorEvent;
 import com.aicourse.entity.ProctorSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ProctorService;
 import com.aicourse.vo.ProctorRiskSummaryVO;
+import com.aicourse.vo.ProctorVOs;
 import com.aicourse.vo.ProctorThresholdVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,26 +54,27 @@ public class ProctorController {
      */
     @PostMapping("/session/start")
     @PreAuthorize("hasRole('STUDENT')")
-    public ApiResponse<ProctorSession> start(@RequestParam Long examSessionId, Authentication auth) {
+    public ApiResponse<ProctorVOs.SessionVO> start(@RequestParam Long examSessionId, Authentication auth) {
         examSessionAccessControl.assertOwnedByStudent(examSessionId, auth);
         return ApiResponse.success("监考已开始",
-                proctorService.startSession(examSessionId, (Long) auth.getPrincipal()));
+                ProctorVOs.SessionVO.from(proctorService.startSession(examSessionId, (Long) auth.getPrincipal())));
     }
 
     /** 考生上报一条监考事件（越权上报会被拒绝） */
     @PostMapping("/session/{id}/event")
     @PreAuthorize("hasRole('STUDENT')")
-    public ApiResponse<ProctorEvent> logEvent(@PathVariable Long id,
-                                              @Valid @RequestBody ProctorEvent event,
+    public ApiResponse<ProctorVOs.EventVO> logEvent(@PathVariable Long id,
+                                              @Valid @RequestBody ProctorEventReportDTO dto,
                                               Authentication auth) {
+        // 入参收 DTO：会话归属由路径 + 归属校验决定；status/reviewerId 等复核字段不接受客户端传入
         Long studentId = (Long) auth.getPrincipal();
         ProctorSession session = proctorService.getById(id);
         if (session == null || !session.getStudentId().equals(studentId)) {
             throw new BusinessException(ApiCode.FORBIDDEN, "无权上报该会话事件");
         }
         return ApiResponse.success("已记录",
-                proctorService.logEvent(id, event.getType(), event.getSeverity(),
-                        event.getDetail(), event.getEvidenceUrl()));
+                ProctorVOs.EventVO.from(proctorService.logEvent(id, dto.getType(), dto.getSeverity(),
+                        dto.getDetail(), dto.getEvidenceUrl())));
     }
 
     /**
@@ -78,9 +83,9 @@ public class ProctorController {
      */
     @PostMapping("/session/{id}/end")
     @PreAuthorize("hasRole('STUDENT')")
-    public ApiResponse<ProctorSession> end(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<ProctorVOs.SessionVO> end(@PathVariable Long id, Authentication auth) {
         requireOwnedSession(id, (Long) auth.getPrincipal());
-        return ApiResponse.success("监考已结束", proctorService.endSession(id));
+        return ApiResponse.success("监考已结束", ProctorVOs.SessionVO.from(proctorService.endSession(id)));
     }
 
     /**
@@ -90,9 +95,9 @@ public class ProctorController {
      */
     @GetMapping("/session/{id}/events")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<ProctorEvent>> events(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<List<ProctorVOs.EventVO>> events(@PathVariable Long id, Authentication auth) {
         assertCourseManageable(id, auth);
-        return ApiResponse.success(proctorService.listEvents(id));
+        return ApiResponse.success(ProctorVOs.EventVO.from(proctorService.listEvents(id)));
     }
 
     /**
@@ -101,21 +106,20 @@ public class ProctorController {
      */
     @GetMapping("/exam/{examSessionId}/student/{studentId}/session")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<ProctorSession> studentSession(@PathVariable Long examSessionId,
+    public ApiResponse<ProctorVOs.SessionVO> studentSession(@PathVariable Long examSessionId,
                                                       @PathVariable Long studentId,
                                                       Authentication auth) {
         Long uid = (Long) auth.getPrincipal();
-        boolean isStudent = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_STUDENT".equals(a.getAuthority()));
+        boolean isStudent = AccessSupport.hasRole(auth, RoleConstants.STUDENT);
         if (isStudent) {
             if (!uid.equals(studentId)) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "无权查看他人监考会话");
             }
             examSessionAccessControl.assertOwnedByStudent(examSessionId, auth);
-            return ApiResponse.success(proctorService.getStudentSession(examSessionId, studentId));
+            return ApiResponse.success(ProctorVOs.SessionVO.from(proctorService.getStudentSession(examSessionId, studentId)));
         }
         examSessionAccessControl.assertManageable(examSessionId, auth);
-        return ApiResponse.success(proctorService.getStudentSession(examSessionId, studentId));
+        return ApiResponse.success(ProctorVOs.SessionVO.from(proctorService.getStudentSession(examSessionId, studentId)));
     }
 
     /**
@@ -160,10 +164,10 @@ public class ProctorController {
      */
     @GetMapping("/events/{eventId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<ProctorEvent> getEvent(@PathVariable Long eventId, Authentication auth) {
+    public ApiResponse<ProctorVOs.EventVO> getEvent(@PathVariable Long eventId, Authentication auth) {
         ProctorEvent event = proctorService.getEvent(eventId);
         assertCourseManageable(requireEventSession(event), auth);
-        return ApiResponse.success(event);
+        return ApiResponse.success(ProctorVOs.EventVO.from(event));
     }
 
     /**
@@ -173,7 +177,7 @@ public class ProctorController {
      */
     @PostMapping("/events/{eventId}/review")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<ProctorEvent> reviewEvent(@PathVariable Long eventId,
+    public ApiResponse<ProctorVOs.EventVO> reviewEvent(@PathVariable Long eventId,
                                                 @Valid @RequestBody Map<String, String> body,
                                                 Authentication auth) {
         String status = body.get("status");
@@ -181,7 +185,7 @@ public class ProctorController {
         Long reviewerId = (Long) auth.getPrincipal();
         assertCourseManageable(requireEventSession(proctorService.getEvent(eventId)), auth);
         return ApiResponse.success("复核已提交",
-                proctorService.reviewEvent(eventId, status, note, reviewerId));
+                ProctorVOs.EventVO.from(proctorService.reviewEvent(eventId, status, note, reviewerId)));
     }
 
     // ==================== 对象级归属校验辅助 ====================
@@ -224,3 +228,4 @@ public class ProctorController {
         }
     }
 }
+

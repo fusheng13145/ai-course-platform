@@ -15,6 +15,7 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -22,6 +23,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -32,7 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对每个 endpoint 打桩 service 并断言 PagedResponse / 实体字段透传，verify 确认路由正确委托。
  */
 @WebMvcTest(CourseController.class)
-@Import(AdminScopeGuard.class)
+// 3E-04B：引入真实用例层，让既有 service/守卫打桩与 verify 继续作用于真实编排
+@Import({AdminScopeGuard.class,com.aicourse.application.course.CourseApplicationService.class})
 class CourseControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -564,5 +568,50 @@ class CourseControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data[0].action").value("SUBMIT"));
         verify(courseApprovalService).listByCourse(1L);
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /courses - 注入 id/审批字段/学期快照一律忽略（审批只能走审批端点）")
+    void create_ignoresInjectedApprovalFields() throws Exception {
+        when(courseService.createCourse(any(Course.class), eq(1L))).thenReturn(course(1L, 1L));
+
+        mockMvc.perform(post("/courses").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"approvalStatus\":\"APPROVED\",\"approvedBy\":999,"
+                                + "\"approvalTime\":\"2026-01-01T00:00:00\",\"completedAt\":\"2026-01-01T00:00:00\","
+                                + "\"semester\":\"2026春\",\"year\":2025,\"code\":\"CS101\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Course> captor = ArgumentCaptor.forClass(Course.class);
+        verify(courseService).createCourse(captor.capture(), eq(1L));
+        Course created = captor.getValue();
+        assertNull(created.getId(), "主键由数据库生成");
+        assertNull(created.getApprovalStatus(), "审批状态由 service 强制 PENDING");
+        assertNull(created.getApprovedBy());
+        assertNull(created.getApprovalTime());
+        assertNull(created.getCompletedAt(), "结课归档时间只能由结课端点写入");
+        assertNull(created.getSemester(), "学期名由 service 按 semesterId 回填");
+        assertNull(created.getYear(), "学年由服务端解析");
+        assertEquals("CS101", created.getCode(), "旧建课入口的课程字段保留");
+    }
+
+    @Test
+    @DisplayName("PUT /courses/1 - 注入审批字段被丢弃")
+    void update_ignoresInjectedApprovalFields() throws Exception {
+        when(courseService.updateCourse(eq(1L), any(Course.class), eq(1L), anyBoolean())).thenReturn(course(1L, 1L));
+
+        mockMvc.perform(put("/courses/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approvalStatus\":\"APPROVED\",\"approvedBy\":999,\"semester\":\"2026春\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Course> captor = ArgumentCaptor.forClass(Course.class);
+        verify(courseService).updateCourse(eq(1L), captor.capture(), eq(1L), eq(false));
+        assertNull(captor.getValue().getApprovalStatus());
+        assertNull(captor.getValue().getApprovedBy());
+        assertNull(captor.getValue().getSemester());
     }
 }

@@ -77,6 +77,7 @@ public class MyBatisSlowSqlInterceptor implements Interceptor {
             }
             return ms.getId() + " | " + sql;
         } catch (Exception e) {
+            log.debug("慢SQL 描述解析失败: {}", e.getMessage());
             return "（SQL 描述解析失败: " + e.getMessage() + "）";
         }
     }

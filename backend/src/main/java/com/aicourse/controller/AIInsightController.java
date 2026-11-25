@@ -11,7 +11,7 @@ import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningRecommendationService;
-import com.aicourse.service.component.ai.AiCallContext;
+import com.aicourse.common.AiCallContext;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +42,8 @@ public class AIInsightController {
     private final AIService aiService;
     private final AnalyticsService analyticsService;
     private final CourseEnrollmentService courseEnrollmentService;
+    private final com.aicourse.application.enrollment.CourseEnrollmentApplicationService
+            courseEnrollmentApplicationService;
     private final KnowledgePointService knowledgePointService;
     private final LearningRecommendationService learningRecommendationService;
     private final AIAccessSupport aiAccessSupport;
@@ -51,13 +53,16 @@ public class AIInsightController {
                                CourseEnrollmentService courseEnrollmentService,
                                KnowledgePointService knowledgePointService,
                                LearningRecommendationService learningRecommendationService,
-                               AIAccessSupport aiAccessSupport) {
+                               AIAccessSupport aiAccessSupport,
+                               com.aicourse.application.enrollment.CourseEnrollmentApplicationService
+                                       courseEnrollmentApplicationService) {
         this.aiService = aiService;
         this.analyticsService = analyticsService;
         this.courseEnrollmentService = courseEnrollmentService;
         this.knowledgePointService = knowledgePointService;
         this.learningRecommendationService = learningRecommendationService;
         this.aiAccessSupport = aiAccessSupport;
+        this.courseEnrollmentApplicationService = courseEnrollmentApplicationService;
     }
 
     /** 个性化学习推荐。GET /api/ai/recommendations/learning */
@@ -121,12 +126,7 @@ public class AIInsightController {
                 // （按本人有效选课课程聚合，掌握度升序），LLM 据此定位薄弱知识点。
                 // 查询失败降级为无快照（与既有降级纪律一致）。
                 try {
-                    List<Long> courseIds = courseEnrollmentService.list(
-                                    new LambdaQueryWrapper<CourseEnrollment>()
-                                            .eq(CourseEnrollment::getStudentId, userId)
-                                            .eq(CourseEnrollment::getIsActive, true)
-                                            .eq(CourseEnrollment::getApprovalStatus, "APPROVED"))
-                            .stream().map(CourseEnrollment::getCourseId).distinct().toList();
+                    List<Long> courseIds = courseEnrollmentApplicationService.activeCourseIds(userId);
                     userStats.put("knowledgeMastery", knowledgePointService.masterySnapshot(userId, courseIds, 10));
                 } catch (Exception e) {
                     log.warn("知识点掌握度快照获取失败，降级为纯统计口径: userId={}, err={}", userId, e.getMessage());

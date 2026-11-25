@@ -1,25 +1,29 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import jakarta.validation.Valid;
-
-import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.application.permission.PermissionApplicationService;
 import com.aicourse.common.ApiResponse;
-import com.aicourse.common.AdminScope;
-import com.aicourse.entity.RolePermission;
-import com.aicourse.exception.BusinessException;
-import com.aicourse.security.AdminScopeGuard;
-import com.aicourse.service.PermissionService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.aicourse.dto.RolePermissionSaveDTO;
+import com.aicourse.vo.RolePermissionVO;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 /**
  * 权限管理接口控制器（仅管理员可访问）
+ *
+ * <p>3E-05E：作用域收窄读口径、校级写校验、作用域规范化与 2 处 wrapper 已下移到
+ * {@link PermissionApplicationService}。</p>
  */
 @Tag(name = "权限管理", description = "角色权限的增删改查")
 @RestController
@@ -27,14 +31,10 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class PermissionController {
 
-    private static final Logger log = LoggerFactory.getLogger(PermissionController.class);
+    private final PermissionApplicationService permissionApplicationService;
 
-    private final PermissionService permissionService;
-    private final AdminScopeGuard adminScopeGuard;
-
-    public PermissionController(PermissionService permissionService, AdminScopeGuard adminScopeGuard) {
-        this.permissionService = permissionService;
-        this.adminScopeGuard = adminScopeGuard;
+    public PermissionController(PermissionApplicationService permissionApplicationService) {
+        this.permissionApplicationService = permissionApplicationService;
     }
 
     /**
@@ -43,12 +43,8 @@ public class PermissionController {
      * @return 角色对应权限集合
      */
     @GetMapping("/role/{role}")
-    public ApiResponse<List<RolePermission>> getByRole(@PathVariable String role) {
-        LambdaQueryWrapper<RolePermission> queryWrapper = new LambdaQueryWrapper<RolePermission>()
-                .eq(RolePermission::getRole, role.toUpperCase());
-        applyScopeFilter(queryWrapper);
-        List<RolePermission> permissionList = permissionService.list(queryWrapper);
-        return ApiResponse.success(permissionList);
+    public ApiResponse<List<RolePermissionVO>> getByRole(@PathVariable String role) {
+        return ApiResponse.success(permissionApplicationService.listByRole(role));
     }
 
     /**
@@ -56,66 +52,30 @@ public class PermissionController {
      * @return 所有权限数据
      */
     @GetMapping("/all")
-    public ApiResponse<List<RolePermission>> getAll() {
-        LambdaQueryWrapper<RolePermission> queryWrapper = new LambdaQueryWrapper<>();
-        applyScopeFilter(queryWrapper);
-        List<RolePermission> permissionList = permissionService.list(queryWrapper);
-        return ApiResponse.success(permissionList);
-    }
-
-    /**
-     * 院系管理员只能看到 ALL 与 COLLEGE 作用域的权限项；校级（含存量无作用域 ADMIN）保持全量。
-     */
-    private void applyScopeFilter(LambdaQueryWrapper<RolePermission> queryWrapper) {
-        if (AdminScope.COLLEGE.equals(adminScopeGuard.currentAdminScope())) {
-            queryWrapper.in(RolePermission::getScope, List.of(AdminScope.ALL, AdminScope.COLLEGE));
-        }
-    }
-
-    /**
-     * 规范化并校验权限作用域：空值按 ALL；只接受 ALL/SCHOOL/COLLEGE。
-     */
-    private void normalizeScope(RolePermission permission) {
-        if (permission.getScope() == null || permission.getScope().isBlank()) {
-            permission.setScope(AdminScope.ALL);
-            return;
-        }
-        String normalized = AdminScope.normalize(permission.getScope());
-        if (!AdminScope.ALL.equals(normalized) && !AdminScope.isValid(normalized)) {
-            throw new BusinessException(400, "作用域只能是 ALL、SCHOOL 或 COLLEGE");
-        }
-        permission.setScope(normalized);
+    public ApiResponse<List<RolePermissionVO>> getAll() {
+        return ApiResponse.success(permissionApplicationService.listAll());
     }
 
     /**
      * 新增权限配置
-     * @param permission 权限信息
+     * @param dto 权限信息（收 DTO：不接受客户端传 id）
      * @return 新增权限数据
      */
     @PostMapping("/create")
-    public ApiResponse<RolePermission> create(@Valid @RequestBody RolePermission permission) {
-        adminScopeGuard.assertSchoolOnly();
-        normalizeScope(permission);
-        permissionService.save(permission);
-        return ApiResponse.success("创建成功", permission);
+    public ApiResponse<RolePermissionVO> create(@Valid @RequestBody RolePermissionSaveDTO dto) {
+        return ApiResponse.success("创建成功", permissionApplicationService.create(dto));
     }
 
     /**
      * 修改权限配置
      * @param id 权限ID
-     * @param permission 待更新权限数据
+     * @param dto 待更新权限数据
      * @return 更新后权限数据
      */
     @PutMapping("/update/{id}")
-    public ApiResponse<RolePermission> update(@PathVariable Long id, @Valid @RequestBody RolePermission permission) {
-        adminScopeGuard.assertSchoolOnly();
-        if (permission.getScope() != null) {
-            normalizeScope(permission);
-        }
-        permission.setId(id);
-        permissionService.updateById(permission);
-        RolePermission updatedPermission = permissionService.getById(id);
-        return ApiResponse.success("更新成功", updatedPermission);
+    public ApiResponse<RolePermissionVO> update(@PathVariable Long id,
+                                                @Valid @RequestBody RolePermissionSaveDTO dto) {
+        return ApiResponse.success("更新成功", permissionApplicationService.update(id, dto));
     }
 
     /**
@@ -125,8 +85,7 @@ public class PermissionController {
      */
     @DeleteMapping("/delete/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        adminScopeGuard.assertSchoolOnly();
-        permissionService.removeById(id);
+        permissionApplicationService.delete(id);
         return ApiResponse.success("删除成功", null);
     }
 
@@ -136,13 +95,7 @@ public class PermissionController {
      * @return 状态切换后权限数据
      */
     @PatchMapping("/toggle/{id}")
-    public ApiResponse<RolePermission> toggleStatus(@PathVariable Long id) {
-        adminScopeGuard.assertSchoolOnly();
-        RolePermission permission = permissionService.getById(id);
-        if (permission != null) {
-            permission.setIsActive(!permission.getIsActive());
-            permissionService.updateById(permission);
-        }
-        return ApiResponse.success("切换成功", permission);
+    public ApiResponse<RolePermissionVO> toggleStatus(@PathVariable Long id) {
+        return ApiResponse.success("切换成功", permissionApplicationService.toggle(id));
     }
 }

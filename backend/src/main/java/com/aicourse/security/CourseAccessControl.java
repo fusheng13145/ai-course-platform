@@ -12,7 +12,6 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -151,7 +150,7 @@ public class CourseAccessControl {
     }
 
     public boolean isStudent(Authentication auth) {
-        return hasRole(auth, RoleConstants.STUDENT);
+        return AccessSupport.hasRole(auth, RoleConstants.STUDENT);
     }
 
     /** 教师是否是这门课任一教学班的主讲（V28 多教学班模型）。 */
@@ -176,19 +175,14 @@ public class CourseAccessControl {
     }
 
     private boolean isAdmin(Authentication auth) {
-        return hasRole(auth, RoleConstants.ADMIN);
+        return AccessSupport.isAdmin(auth);
     }
 
     private boolean hasRole(Authentication auth, String role) {
-        if (auth == null || auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(("ROLE_" + role)::equals);
+        return AccessSupport.hasRole(auth, role);
     }
 
     private Long principalId(Authentication auth) {
-        return (Long) auth.getPrincipal();
+        return AccessSupport.requirePrincipalId(auth);
     }
 }

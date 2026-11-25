@@ -32,7 +32,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RAG_DIR = ROOT / "python-services" / "rag_service"
+# 8002 退役后真正的引擎实现在 8501 的 knowledge_engine（由 rag_engine 逐字搬迁）；
+# 探针要验的必须是**线上这一份**，否则测的是已退役代码。
+RAG_DIR = ROOT / "python-services" / "deepgraph_rag"
 JAR = ROOT / "backend" / "target" / "backend-0.0.1-SNAPSHOT.jar"
 PROBE_PORT = os.getenv("PROBE_PORT", "8081")  # DR-86：一键启动的后端在 8080，写死 8081 会让 chains 连不上并被误读成"后端没起来"
 
@@ -68,7 +70,11 @@ def key_verdict(env: dict) -> str:
 
 
 def probe_engine() -> int:
-    """Python 引擎生成层：走 rag_engine.generate_answer 的真实代码路径。"""
+    """Python 引擎生成层：走 knowledge_engine.generate_answer 的真实代码路径。
+
+    8002 退役后这是唯一在线实现（`rag_service/rag_engine.py` 只剩退役副本，
+    逐字等价由 `deepgraph_rag/test_merged_contract.py` 守护）。
+    """
     sys.path.insert(0, str(RAG_DIR))
     env = dotenv()
     key = engines().effective_api_key(env.get("DEEPSEEK_API_KEY"))
@@ -79,14 +85,14 @@ def probe_engine() -> int:
             os.environ[k] = exported[k]
     logging.basicConfig(level=logging.INFO, format="[engine-log] %(levelname)s %(name)s: %(message)s")
     print(f"[engine] 密钥形状：{key_verdict(env)}")
-    import rag_engine  # noqa: PLC0415
+    import knowledge_engine  # noqa: PLC0415
 
     contexts = [{
         "document_name": "进程与线程",
         "snippet": "进程是操作系统资源分配的基本单位，拥有独立地址空间；"
                    "线程是CPU调度的基本单位，同一进程内的线程共享堆和全局变量。",
     }]
-    answer, gen_mode = rag_engine.generate_answer("进程和线程的区别是什么？", contexts)
+    answer, gen_mode = knowledge_engine.generate_answer("进程和线程的区别是什么？", contexts)
     print(f"[engine] gen_mode = {gen_mode}  （LLM 才算真实生成）")
     print(f"[engine] 回答前 40 字 = {(answer or '')[:40]!r}")
     return 0 if gen_mode == "LLM" else 1

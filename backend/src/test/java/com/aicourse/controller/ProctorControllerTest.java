@@ -480,4 +480,31 @@ class ProctorControllerTest extends ControllerTestBase {
                 .andExpect(status().isForbidden());
     }
 
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /proctor/session/1/event - 注入 status/reviewerId/proctorSessionId 被丢弃，只取四字段")
+    void logEvent_ignoresInjectedReviewFields() throws Exception {
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setStudentId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
+
+        ProctorEvent event = new ProctorEvent();
+        event.setId(50L);
+        event.setType("TAB_SWITCH");
+        when(proctorService.logEvent(anyLong(), any(), any(), any(), any())).thenReturn(event);
+
+        mockMvc.perform(post("/proctor/session/1/event").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"proctorSessionId\":99,\"status\":\"EXEMPTED\",\"reviewerId\":999,"
+                                + "\"type\":\"TAB_SWITCH\",\"severity\":\"HIGH\",\"detail\":\"切屏\","
+                                + "\"evidenceUrl\":\"http://x/a.png\"}")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        // 复核字段没有任何进入服务层的可能：委托参数只来自 DTO 的四个业务字段
+        verify(proctorService).logEvent(eq(1L), eq("TAB_SWITCH"), eq("HIGH"), eq("切屏"), eq("http://x/a.png"));
+    }
+
 }

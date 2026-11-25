@@ -2,6 +2,8 @@ package com.aicourse.common;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -16,6 +18,8 @@ import java.util.stream.Collectors;
  * 和归一化规则，否则会出现“同名知识点匹配不上”或“子串误匹配”。</p>
  */
 public final class KnowledgePointNameUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(KnowledgePointNameUtils.class);
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -39,6 +43,7 @@ public final class KnowledgePointNameUtils {
                         .collect(Collectors.toList());
             } catch (Exception ignored) {
                 // 非法 JSON 退回分隔符拆分，保持与历史数据兼容
+                log.debug("知识点列以 [ 开头但不是合法 JSON 数组，退化为分隔符拆分: {}", ignored.getMessage());
             }
         }
         return Arrays.stream(trimmed.split("[,，;；]"))

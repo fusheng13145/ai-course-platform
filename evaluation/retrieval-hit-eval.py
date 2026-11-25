@@ -20,7 +20,7 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QA_SET = os.path.join(ROOT, "evaluation", "qa-set.json")
-RAG_BASE = os.environ.get("RAG_BASE_URL", "http://127.0.0.1:8002").rstrip("/")
+RAG_BASE = os.environ.get("RAG_BASE_URL", "http://127.0.0.1:8501").rstrip("/")
 
 
 def post_json(url, payload, timeout=60):

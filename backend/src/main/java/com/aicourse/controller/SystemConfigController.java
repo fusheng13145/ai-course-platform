@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.security.AccessSupport;
+import com.aicourse.vo.SystemConfigVO;
 import com.aicourse.entity.SystemConfig;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
@@ -53,9 +55,9 @@ public class SystemConfigController {
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<List<SystemConfig>> list() {
+    public ApiResponse<List<SystemConfigVO>> list() {
         List<SystemConfig> configs = systemConfigService.list();
-        return ApiResponse.success(configs);
+        return ApiResponse.success(SystemConfigVO.from(configs));
     }
 
     /**
@@ -71,18 +73,16 @@ public class SystemConfigController {
      * @return 分组配置列表
      */
     @GetMapping("/group/{group}")
-    public ApiResponse<List<SystemConfig>> getByGroup(@PathVariable String group, Authentication auth) {
+    public ApiResponse<List<SystemConfigVO>> getByGroup(@PathVariable String group, Authentication auth) {
         List<SystemConfig> configs = systemConfigService.getConfigsByGroup(group);
-        if (isAdmin(auth)) {
-            return ApiResponse.success(configs);
+        if (AccessSupport.isAdmin(auth)) {
+            return ApiResponse.success(SystemConfigVO.from(configs));
         }
         // 非管理员：仅保留公开项，并脱敏敏感键名。
-        // 注意：getConfigsByGroup 结果来自 @Cacheable，**不可原地 mutate**（会污染缓存），
-        // 故以副本形式返回脱敏后的对象。
-        List<SystemConfig> visible = configs.stream()
+        // getConfigsByGroup 结果来自 @Cacheable，VO 工厂只读不写，不会污染缓存。
+        List<SystemConfigVO> visible = SystemConfigVO.masked(configs.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsPublic()))
-                .map(this::maskedCopy)
-                .toList();
+                .toList());
         return ApiResponse.success(visible);
     }
 
@@ -91,9 +91,9 @@ public class SystemConfigController {
      * @return 公开配置列表
      */
     @GetMapping("/public")
-    public ApiResponse<List<SystemConfig>> getPublic() {
+    public ApiResponse<List<SystemConfigVO>> getPublic() {
         List<SystemConfig> configs = systemConfigService.getPublicConfigs();
-        return ApiResponse.success(configs);
+        return ApiResponse.success(SystemConfigVO.from(configs));
     }
 
     /**
@@ -112,13 +112,13 @@ public class SystemConfigController {
         SystemConfig config = systemConfigService.getConfigByKey(key);
         String value = config != null ? config.getConfigValue() : null;
 
-        if (!isAdmin(auth)) {
+        if (!AccessSupport.isAdmin(auth)) {
             // 键不存在时无信息可泄露，保持原有「返回 null」语义；
             // 存在但非公开 → 显式 403。
             if (config != null && !Boolean.TRUE.equals(config.getIsPublic())) {
-                throw new BusinessException(403, "无权读取该配置项");
+                throw new BusinessException(ApiCode.FORBIDDEN, "无权读取该配置项");
             }
-            value = maskSensitiveValue(key, value);
+            value = SystemConfigVO.maskValue(key, value);
         }
         return ApiResponse.success("获取成功", value);
     }
@@ -162,15 +162,14 @@ public class SystemConfigController {
      * @return 匹配的配置列表
      */
     @GetMapping("/search")
-    public ApiResponse<List<SystemConfig>> search(@RequestParam String keyword, Authentication auth) {
+    public ApiResponse<List<SystemConfigVO>> search(@RequestParam String keyword, Authentication auth) {
         List<SystemConfig> configs = systemConfigService.searchConfigs(keyword);
-        if (isAdmin(auth)) {
-            return ApiResponse.success(configs);
+        if (AccessSupport.isAdmin(auth)) {
+            return ApiResponse.success(SystemConfigVO.from(configs));
         }
-        List<SystemConfig> visible = configs.stream()
+        List<SystemConfigVO> visible = SystemConfigVO.masked(configs.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsPublic()))
-                .map(this::maskedCopy)
-                .toList();
+                .toList());
         return ApiResponse.success(visible);
     }
 
@@ -192,47 +191,4 @@ public class SystemConfigController {
         return ApiResponse.success("测试邮件已发送", null);
     }
 
-    // ===================== 读侧可见性辅助（修复 #7） =====================
-
-    /** 当前调用方是否为 ADMIN。 */
-    private boolean isAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-    }
-
-    /**
-     * 敏感键名脱敏：命中 {@code *_key / apikey / secret / password / token / credential}
-     * 一类键名时，不返回明文值（防止 is_public 被误标时泄露密钥）。
-     */
-    private String maskSensitiveValue(String key, String value) {
-        if (value == null || key == null) {
-            return value;
-        }
-        String k = key.toLowerCase();
-        if (k.contains("secret") || k.contains("password") || k.contains("token")
-                || k.contains("credential") || k.contains("api_key") || k.contains("apikey")
-                || k.endsWith("_key") || k.endsWith("key")) {
-            return "******";
-        }
-        return value;
-    }
-
-    /**
-     * 生成脱敏副本（不修改源对象）。用于对 {@code @Cacheable} 返回的配置实体做读侧脱敏，
-     * 避免原地 mutate 污染缓存。
-     */
-    private SystemConfig maskedCopy(SystemConfig src) {
-        SystemConfig copy = new SystemConfig();
-        copy.setId(src.getId());
-        copy.setConfigKey(src.getConfigKey());
-        copy.setConfigGroup(src.getConfigGroup());
-        copy.setConfigType(src.getConfigType());
-        copy.setDescription(src.getDescription());
-        copy.setIsPublic(src.getIsPublic());
-        copy.setSortOrder(src.getSortOrder());
-        copy.setCreatedAt(src.getCreatedAt());
-        copy.setUpdatedAt(src.getUpdatedAt());
-        copy.setConfigValue(maskSensitiveValue(src.getConfigKey(), src.getConfigValue()));
-        return copy;
-    }
 }

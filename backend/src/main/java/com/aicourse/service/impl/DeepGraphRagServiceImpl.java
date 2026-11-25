@@ -63,7 +63,7 @@ public class DeepGraphRagServiceImpl implements DeepGraphRagService {
     @Autowired
     public DeepGraphRagServiceImpl(
             @Value("${deepgraph-rag.enabled:false}") boolean enabled,
-            @Value("${deepgraph-rag.base-url:http://localhost:8501}") String baseUrl,
+            @Value("${deepgraph-rag.base-url:" + ContractPaths.DEEPGRAPH_DEFAULT_BASE_URL + "}") String baseUrl,
             @Value("${deepgraph-rag.connect-timeout:5}") int connectTimeout,
             @Value("${deepgraph-rag.read-timeout:180}") int readTimeout,
             @Value("${deepgraph-rag.max-retries:1}") int maxRetries,

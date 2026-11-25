@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.ApiCode;
+import com.aicourse.dto.LearningPathNodeSaveDTO;
+import com.aicourse.dto.LearningPathSaveDTO;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.exception.BusinessException;
@@ -15,7 +17,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.vo.LearningPathDetailVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.aicourse.vo.LearningPathVOs;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -37,13 +39,17 @@ public class LearningPathController {
     private final LearningPathService learningPathService;
     private final LearningPathNodeService learningPathNodeService;
     private final CourseEnrollmentService enrollmentService;
+    private final com.aicourse.application.learning.LearningPathApplicationService learningPathApplicationService;
 
     public LearningPathController(LearningPathService learningPathService,
                                   LearningPathNodeService learningPathNodeService,
-                                  CourseEnrollmentService enrollmentService) {
+                                  CourseEnrollmentService enrollmentService,
+                                  com.aicourse.application.learning.LearningPathApplicationService
+                                          learningPathApplicationService) {
         this.learningPathService = learningPathService;
         this.learningPathNodeService = learningPathNodeService;
         this.enrollmentService = enrollmentService;
+        this.learningPathApplicationService = learningPathApplicationService;
     }
 
     /**
@@ -52,12 +58,9 @@ public class LearningPathController {
      * @return 学习路线列表
      */
     @GetMapping
-    public ApiResponse<List<LearningPath>> myPaths(Authentication auth) {
+    public ApiResponse<List<LearningPathVOs.PathVO>> myPaths(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<LearningPath> queryWrapper = new LambdaQueryWrapper<LearningPath>()
-                .eq(LearningPath::getStudentId, userId);
-        List<LearningPath> pathList = learningPathService.list(queryWrapper);
-        return ApiResponse.success(pathList);
+        return ApiResponse.success(learningPathApplicationService.myPaths(userId));
     }
 
     /**
@@ -67,39 +70,45 @@ public class LearningPathController {
      * @return 学习路线信息
      */
     @GetMapping("/{id}")
-    public ApiResponse<LearningPath> getById(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<LearningPathVOs.PathVO> getById(@PathVariable Long id, Authentication auth) {
         LearningPath learningPath = assertPathOwner(auth, id);
-        return ApiResponse.success(learningPath);
+        return ApiResponse.success(LearningPathVOs.PathVO.from(learningPath));
     }
 
     /**
      * 新增学习路线（学生/管理员权限）
-     * @param path 学习路线信息
+     * <p>入参只接受路径业务描述字段：{@code studentId} 恒取登录用户，{@code id}／进度状态／
+     * {@code completionRate} 等由服务端与专用推进接口维护，客户端传入一律忽略。</p>
+     * @param dto 学习路线信息
      * @param auth 认证信息
      * @return 新增路线数据
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<LearningPath> create(@Valid @RequestBody LearningPath path, Authentication auth) {
+    public ApiResponse<LearningPathVOs.PathVO> create(@Valid @RequestBody LearningPathSaveDTO dto, Authentication auth) {
+        LearningPath path = dto.toEntity();
         path.setStudentId((Long) auth.getPrincipal());
         learningPathService.save(path);
-        return ApiResponse.success("创建成功", path);
+        return ApiResponse.success("创建成功", LearningPathVOs.PathVO.from(path));
     }
 
     /**
      * 修改学习路线（owner 校验：仅本人或管理员可修改，防止篡改他人路径）
+     * <p>入参为局部更新语义（{@code null} 表示不改），{@code studentId}／进度状态字段不接受客户端传入，
+     * 进度结论只能由 pause/resume/complete/advance 专用端点改写。</p>
      * @param id 路线ID
-     * @param path 待更新数据
+     * @param dto 待更新数据
      * @param auth 认证信息
      * @return 更新后路线信息
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<LearningPath> update(@PathVariable Long id, @Valid @RequestBody LearningPath path, Authentication auth) {
+    public ApiResponse<LearningPathVOs.PathVO> update(@PathVariable Long id, @Valid @RequestBody LearningPathSaveDTO dto, Authentication auth) {
         assertPathOwner(auth, id);
-        path.setId(id);
-        learningPathService.updateById(path);
-        return ApiResponse.success("更新成功", path);
+        LearningPath patch = dto.toEntity();
+        patch.setId(id);
+        learningPathService.updateById(patch);
+        return ApiResponse.success("更新成功", LearningPathVOs.PathVO.from(patch));
     }
 
     /**
@@ -109,46 +118,48 @@ public class LearningPathController {
      * @return 节点列表
      */
     @GetMapping("/{id}/nodes")
-    public ApiResponse<List<LearningPathNode>> getNodes(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<List<LearningPathVOs.NodeVO>> getNodes(@PathVariable Long id, Authentication auth) {
         assertPathOwner(auth, id);
-        LambdaQueryWrapper<LearningPathNode> queryWrapper = new LambdaQueryWrapper<LearningPathNode>()
-                .eq(LearningPathNode::getLearningPathId, id);
-        List<LearningPathNode> nodeList = learningPathNodeService.list(queryWrapper);
-        return ApiResponse.success(nodeList);
+        return ApiResponse.success(learningPathApplicationService.nodes(id));
     }
 
     /**
      * 新增路线节点（owner 校验：只能给自己的路线加节点）
+     * <p>入参只接受节点编排字段：{@code learningPathId} 恒取路径 ID，完成状态／得分／实际用时
+     * 只能由 {@code LearningPathNodeController} 的 start/complete/skip 端点写入。</p>
      * @param id 路线ID
-     * @param node 节点信息
+     * @param dto 节点信息
      * @param auth 认证信息
      * @return 新增节点数据
      */
     @PostMapping("/{id}/nodes")
-    public ApiResponse<LearningPathNode> addNode(@PathVariable Long id, @Valid @RequestBody LearningPathNode node, Authentication auth) {
+    public ApiResponse<LearningPathVOs.NodeVO> addNode(@PathVariable Long id, @Valid @RequestBody LearningPathNodeSaveDTO dto, Authentication auth) {
         assertPathOwner(auth, id);
+        LearningPathNode node = dto.toEntity();
         node.setLearningPathId(id);
         learningPathNodeService.save(node);
-        return ApiResponse.success("添加成功", node);
+        return ApiResponse.success("添加成功", LearningPathVOs.NodeVO.from(node));
     }
 
     /**
      * 修改路线节点（owner 校验：仅节点所属路线的主人或管理员可改）
+     * <p>局部更新语义；{@code learningPathId}／完成状态不接受客户端传入，防止把节点改挂到他人路径或伪造完成。</p>
      * @param nodeId 节点ID
-     * @param node 待更新数据
+     * @param dto 待更新数据
      * @param auth 认证信息
      * @return 更新后节点信息
      */
     @PutMapping("/nodes/{nodeId}")
-    public ApiResponse<LearningPathNode> updateNode(@PathVariable Long nodeId, @Valid @RequestBody LearningPathNode node, Authentication auth) {
+    public ApiResponse<LearningPathVOs.NodeVO> updateNode(@PathVariable Long nodeId, @Valid @RequestBody LearningPathNodeSaveDTO dto, Authentication auth) {
         LearningPathNode existing = learningPathNodeService.getById(nodeId);
         if (existing == null) {
             throw new BusinessException("学习路径节点不存在");
         }
         assertPathOwner(auth, existing.getLearningPathId());
-        node.setId(nodeId);
-        learningPathNodeService.updateById(node);
-        return ApiResponse.success("更新成功", node);
+        LearningPathNode patch = dto.toEntity();
+        patch.setId(nodeId);
+        learningPathNodeService.updateById(patch);
+        return ApiResponse.success("更新成功", LearningPathVOs.NodeVO.from(patch));
     }
 
     /**
@@ -158,13 +169,13 @@ public class LearningPathController {
      * @return 生成的节点列表
      */
     @GetMapping("/generate")
-    public ApiResponse<List<LearningPathNode>> generate(@RequestParam Long courseId, Authentication auth) {
+    public ApiResponse<List<LearningPathVOs.NodeVO>> generate(@RequestParam Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         if (userId == null) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "用户ID不能为空");
         }
         List<LearningPathNode> nodes = learningPathService.generateLearningPath(userId, courseId);
-        return ApiResponse.success(nodes);
+        return ApiResponse.success(LearningPathVOs.NodeVO.from(nodes));
     }
 
     public CourseEnrollmentService getEnrollmentService() {
@@ -180,10 +191,10 @@ public class LearningPathController {
      * @return 活跃学习路径
      */
     @GetMapping("/active/{courseId}")
-    public ApiResponse<LearningPath> getActivePath(@PathVariable Long courseId, Authentication auth) {
+    public ApiResponse<LearningPathVOs.PathVO> getActivePath(@PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         LearningPath activePath = learningPathService.getActivePath(userId, courseId);
-        return ApiResponse.success(activePath);
+        return ApiResponse.success(LearningPathVOs.PathVO.from(activePath));
     }
 
     /**

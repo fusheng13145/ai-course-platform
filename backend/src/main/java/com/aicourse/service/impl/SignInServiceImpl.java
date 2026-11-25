@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -264,9 +265,7 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         if (course == null) {
             throw new BusinessException("课程不存在");
         }
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> a instanceof SimpleGrantedAuthority
-                        && "ROLE_ADMIN".equals(((SimpleGrantedAuthority) a).getAuthority()));
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (!isAdmin && !userId.equals(course.getTeacherId())) {
             throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程");
         }

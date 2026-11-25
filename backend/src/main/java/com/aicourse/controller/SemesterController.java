@@ -54,10 +54,10 @@ public class SemesterController {
      */
     @PostMapping
     @Operation(summary = "创建学期", description = "学期名唯一；结束日期不得早于开始日期")
-    public ApiResponse<Semester> create(@Valid @RequestBody SemesterCreateDTO body) {
+    public ApiResponse<com.aicourse.vo.SemesterVO> create(@Valid @RequestBody SemesterCreateDTO body) {
         adminScopeGuard.assertSchoolOnly();
         return ApiResponse.success("学期创建成功",
-                semesterService.create(body.getName(), body.getStartDate(), body.getEndDate()));
+                com.aicourse.vo.SemesterVO.from(semesterService.create(body.getName(), body.getStartDate(), body.getEndDate())));
     }
 
     /**

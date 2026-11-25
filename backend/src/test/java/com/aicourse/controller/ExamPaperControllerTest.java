@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对每个 endpoint 打桩 service 并断言 PagedResponse / 实体 / Map 字段透传，verify 确认路由委托。
  */
 @WebMvcTest({ExamPaperController.class, ExamPaperQuestionController.class, ExamPaperTargetController.class})
+@org.springframework.context.annotation.Import(com.aicourse.application.exam.ExamPaperApplicationService.class)
 class ExamPaperControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -233,6 +234,9 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /exam-papers/1 - 教师删除试卷返回200")
     void delete_authorized_passes_security() throws Exception {
+        ExamPaper existing = new ExamPaper();
+        existing.setId(1L);
+        when(examPaperService.getById(eq(1L))).thenReturn(existing);
         mockMvc.perform(delete("/exam-papers/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
@@ -244,6 +248,9 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /exam-papers/1 - 已有考试记录时返回409且不执行删除")
     void delete_withExamSessions_returns409() throws Exception {
+        ExamPaper existing = new ExamPaper();
+        existing.setId(1L);
+        when(examPaperService.getById(eq(1L))).thenReturn(existing);
         when(examSessionService.count(any())).thenReturn(3L);
         mockMvc.perform(delete("/exam-papers/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isConflict())
@@ -254,6 +261,9 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /exam-papers/1 - 无考试记录时仍可删除（守卫不误伤）")
     void delete_withoutExamSessions_stillDeletes() throws Exception {
+        ExamPaper existing = new ExamPaper();
+        existing.setId(1L);
+        when(examPaperService.getById(eq(1L))).thenReturn(existing);
         when(examSessionService.count(any())).thenReturn(0L);
         mockMvc.perform(delete("/exam-papers/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -286,7 +296,10 @@ class ExamPaperControllerTest extends ControllerTestBase {
         existing.setCourseId(1L);
         when(examPaperService.getById(eq(1L))).thenReturn(existing);
         when(examQuestionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(eq));
-        when(questionService.getById(eq(9L))).thenReturn(new Question());
+        Question projected = new Question();
+        projected.setId(9L);
+        projected.setContent("题干");
+        when(questionService.listByIds(any())).thenReturn(List.of(projected));
         mockMvc.perform(get("/exam-papers/1/questions").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

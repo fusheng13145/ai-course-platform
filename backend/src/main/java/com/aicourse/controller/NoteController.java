@@ -4,6 +4,7 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.FavoriteDTO;
 import com.aicourse.dto.NoteRequestDTO;
+import com.aicourse.vo.KnowledgeVOs;
 import com.aicourse.entity.Note;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.NoteService;
@@ -45,38 +46,38 @@ public class NoteController {
     /** 查询当前用户自己的笔记列表，支持按课程/章节/知识点/收藏/关键词筛选 */
     @GetMapping
     @Operation(summary = "获取我的笔记列表")
-    public ApiResponse<List<Note>> list(Authentication auth,
+    public ApiResponse<List<KnowledgeVOs.NoteVO>> list(Authentication auth,
                                          @RequestParam(required = false) Long courseId,
                                          @RequestParam(required = false) Long chapterId,
                                          @RequestParam(required = false) Long knowledgePointId,
                                          @RequestParam(required = false) Boolean favorite,
                                          @RequestParam(required = false) String keyword) {
         Long userId = currentUserId(auth);
-        return ApiResponse.success(noteService.listNotes(userId, courseId, chapterId, knowledgePointId, favorite, keyword));
+        return ApiResponse.success(KnowledgeVOs.NoteVO.from(noteService.listNotes(userId, courseId, chapterId, knowledgePointId, favorite, keyword)));
     }
 
     /** 获取当前用户自己的一条笔记详情 */
     @GetMapping("/{id}")
     @Operation(summary = "获取单条笔记")
-    public ApiResponse<Note> getOne(Authentication auth, @PathVariable Long id) {
+    public ApiResponse<KnowledgeVOs.NoteVO> getOne(Authentication auth, @PathVariable Long id) {
         Long userId = currentUserId(auth);
-        return ApiResponse.success(noteService.getOwned(userId, id));
+        return ApiResponse.success(KnowledgeVOs.NoteVO.from(noteService.getOwned(userId, id)));
     }
 
     /** 新建或更新（按内容定位）当前用户的笔记 */
     @PostMapping
     @Operation(summary = "新建或更新笔记")
-    public ApiResponse<Note> create(Authentication auth, @Valid @RequestBody NoteRequestDTO dto) {
+    public ApiResponse<KnowledgeVOs.NoteVO> create(Authentication auth, @Valid @RequestBody NoteRequestDTO dto) {
         Long userId = currentUserId(auth);
-        return ApiResponse.success(noteService.createOrUpdate(userId, dto));
+        return ApiResponse.success(KnowledgeVOs.NoteVO.from(noteService.createOrUpdate(userId, dto)));
     }
 
     /** 更新当前用户自己的一条笔记 */
     @PutMapping("/{id}")
     @Operation(summary = "更新笔记")
-    public ApiResponse<Note> update(Authentication auth, @PathVariable Long id, @Valid @RequestBody NoteRequestDTO dto) {
+    public ApiResponse<KnowledgeVOs.NoteVO> update(Authentication auth, @PathVariable Long id, @Valid @RequestBody NoteRequestDTO dto) {
         Long userId = currentUserId(auth);
-        return ApiResponse.success(noteService.updateOwned(userId, id, dto));
+        return ApiResponse.success(KnowledgeVOs.NoteVO.from(noteService.updateOwned(userId, id, dto)));
     }
 
     /** 删除当前用户自己的一条笔记 */
@@ -91,8 +92,9 @@ public class NoteController {
     /** 切换某条笔记的收藏状态 */
     @PatchMapping("/{id}/favorite")
     @Operation(summary = "切换笔记收藏状态")
-    public ApiResponse<Note> toggleFavorite(Authentication auth, @PathVariable Long id, @Valid @RequestBody FavoriteDTO body) {
+    public ApiResponse<KnowledgeVOs.NoteVO> toggleFavorite(Authentication auth, @PathVariable Long id, @Valid @RequestBody FavoriteDTO body) {
         Long userId = currentUserId(auth);
-        return ApiResponse.success(noteService.setFavorite(userId, id, body.getFavorite()));
+        return ApiResponse.success(KnowledgeVOs.NoteVO.from(noteService.setFavorite(userId, id, body.getFavorite())));
     }
 }
+

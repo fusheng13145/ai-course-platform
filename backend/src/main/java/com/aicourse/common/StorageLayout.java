@@ -7,6 +7,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * 上传存储布局的唯一口径。
  *
@@ -20,6 +23,8 @@ import java.util.Locale;
  * 因此前端与历史数据库 URL 都不需要改前缀。</p>
  */
 public final class StorageLayout {
+
+    private static final Logger log = LoggerFactory.getLogger(StorageLayout.class);
 
     /** 对外统一逻辑前缀，保留旧口径以兼容历史数据。 */
     public static final String PUBLIC_PREFIX = "/uploads/";
@@ -212,6 +217,8 @@ public final class StorageLayout {
         try {
             return Files.deleteIfExists(target);
         } catch (IOException e) {
+            // 删除失败被上层当成「文件不在了」，必须以 warn 留痕，否则存储泄漏无从排查
+            log.warn("删除存储对象失败: key={}, cause={}", key, e.getMessage());
             return false;
         }
     }

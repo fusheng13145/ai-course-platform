@@ -27,22 +27,28 @@ public final class ContractPaths {
     public static final String KG_ENABLED = "knowledge-graph.enabled";
     /** KG：Python 知识图谱微服务基址。 */
     public static final String KG_BASE_URL = "knowledge-graph.base-url";
-    /** KG：基址默认值。 */
-    public static final String KG_DEFAULT_BASE_URL = "http://localhost:8001";
+    /**
+     * KG：基址默认值。**端口统一的唯一事实源**（2026-11-24 起默认走 Engine Hub 单口 8600）。
+     * 分离布局（ENGINE_LAYOUT=separate）由启动器注入 KG_BASE_URL=8001 覆盖，不回改这里。
+     */
+    public static final String KG_DEFAULT_BASE_URL = "http://localhost:8600";
 
     /** RAG：是否启用 Python RAG 微服务（默认 false → 使用本地占位实现，返回 503）。 */
     public static final String RAG_ENABLED = "rag.enabled";
     /** RAG：Python RAG 微服务基址。 */
     public static final String RAG_BASE_URL = "rag.base-url";
-    /** RAG：基址默认值。 */
-    public static final String RAG_DEFAULT_BASE_URL = "http://localhost:8002";
+    /**
+     * RAG：基址默认值。8002 已于批次 3B-2 退役，知识库端点并入 deepgraph 进程；
+     * 端口统一后与 KG/FT 同址（Engine Hub 8600），分离布局指 8501。
+     */
+    public static final String RAG_DEFAULT_BASE_URL = "http://localhost:8600";
 
     /** FT：是否启用 Python 微调微服务（默认 false → 使用本地占位 / 503 降级）。 */
     public static final String FT_ENABLED = "fine-tune.enabled";
     /** FT：Python 微调微服务基址。 */
     public static final String FT_BASE_URL = "fine-tune.base-url";
-    /** FT：基址默认值。 */
-    public static final String FT_DEFAULT_BASE_URL = "http://localhost:8003";
+    /** FT：基址默认值。端口统一后走 Engine Hub 8600；分离布局由启动器注入 8003。 */
+    public static final String FT_DEFAULT_BASE_URL = "http://localhost:8600";
 
     /**
      * DeepGraph RAG：是否启用文档图谱 RAG 微服务（deepgraph_rag，端口 8501，默认 false → 不参与问答链）。
@@ -53,8 +59,8 @@ public final class ContractPaths {
     public static final String DEEPGRAPH_ENABLED = "deepgraph-rag.enabled";
     /** DeepGraph RAG：微服务基址。 */
     public static final String DEEPGRAPH_BASE_URL = "deepgraph-rag.base-url";
-    /** DeepGraph RAG：基址默认值。 */
-    public static final String DEEPGRAPH_DEFAULT_BASE_URL = "http://localhost:8501";
+    /** DeepGraph RAG：基址默认值。端口统一后走 Engine Hub 8600；分离布局由启动器注入 8501。 */
+    public static final String DEEPGRAPH_DEFAULT_BASE_URL = "http://localhost:8600";
 
     // ===================== KG（8001）端点：HTTP 方法 + 路径 =====================
 

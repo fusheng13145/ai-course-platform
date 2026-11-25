@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.vo.UserSessionVO;
 import com.aicourse.entity.UserSession;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.UserSessionService;
@@ -40,11 +41,11 @@ public class UserSessionController {
      */
     @GetMapping("/online")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<List<UserSession>> getOnlineUsers() {
+    public ApiResponse<List<UserSessionVO>> getOnlineUsers() {
         // 8A（WP9）：会话监视对院系管理员 403、只读校级；TEACHER 的全站在线枚举一并摘除
         // （教师枚举全平台用户会话本就是越界面，随本批一并收紧）
         adminScopeGuard.assertSchoolOnly();
-        return ApiResponse.success(userSessionService.list());
+        return ApiResponse.success(UserSessionVO.from(userSessionService.list()));
     }
 
     /**
@@ -54,11 +55,11 @@ public class UserSessionController {
      */
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER') or #userId == authentication.principal")
-    public ApiResponse<List<UserSession>> getSessionHistory(@PathVariable Long userId) {
+    public ApiResponse<List<UserSessionVO>> getSessionHistory(@PathVariable Long userId) {
         // 8A（WP9）：会话历史属审计面——本人可查自己；管理员侧仅校级
-        assertSelfOrSchoolAdmin(userId);
+        adminScopeGuard.assertSelfOrSchoolOnly(userId);
         List<UserSession> sessions = userSessionService.getSessionHistory(userId);
-        return ApiResponse.success(sessions);
+        return ApiResponse.success(UserSessionVO.from(sessions));
     }
 
     /**
@@ -101,20 +102,11 @@ public class UserSessionController {
      */
     @GetMapping("/abnormal/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
-    public ApiResponse<List<UserSession>> detectAbnormal(@PathVariable Long userId) {
-        assertSelfOrSchoolAdmin(userId);
+    public ApiResponse<List<UserSessionVO>> detectAbnormal(@PathVariable Long userId) {
+        adminScopeGuard.assertSelfOrSchoolOnly(userId);
         List<UserSession> abnormalSessions = userSessionService.detectAbnormalSessions(userId);
-        return ApiResponse.success(abnormalSessions);
+        return ApiResponse.success(UserSessionVO.from(abnormalSessions));
     }
 
-    /**
-     * 审计自助口径（8A/WP9）：本人可查自己的会话面；管理员侧仅校级（院系 403）。
-     */
-    private void assertSelfOrSchoolAdmin(Long userId) {
-        Long currentUserId = adminScopeGuard.currentUserId();
-        if (userId.equals(currentUserId)) {
-            return;
-        }
-        adminScopeGuard.assertSchoolOnly();
     }
-}
+

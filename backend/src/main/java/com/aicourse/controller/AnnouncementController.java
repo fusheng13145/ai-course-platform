@@ -1,7 +1,9 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.entity.AdminClass;
+import com.aicourse.vo.NoticeVOs;
 import com.aicourse.entity.Announcement;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.common.ApiCode;
@@ -16,7 +18,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -72,22 +73,23 @@ public class AnnouncementController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Announcement> publish(@Valid @RequestBody PublishRequest request, Authentication auth) {
+    public ApiResponse<NoticeVOs.AnnouncementVO> publish(@Valid @RequestBody PublishRequest request, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         assertPublishAllowed(request, userId, auth);
-        String role = isAdmin(auth) ? Announcement.ROLE_ADMIN : guessRole(request, userId);
-        return ApiResponse.success("发布成功", announcementService.publish(
+        String role = AccessSupport.isAdmin(auth) ? Announcement.ROLE_ADMIN : guessRole(request, userId);
+        return ApiResponse.success("发布成功", NoticeVOs.AnnouncementVO.from(announcementService.publish(
                 request.courseId, request.teachingClassId, request.adminClassId,
-                request.title, request.content, userId, role));
+                request.title, request.content, userId, role)));
     }
 
     /** 当前用户可见的公告分页（三维度并集，按发布时间倒序）。 */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<IPage<Announcement>> list(@RequestParam(defaultValue = "1") long page,
+    public ApiResponse<IPage<NoticeVOs.AnnouncementVO>> list(@RequestParam(defaultValue = "1") long page,
                                                  @RequestParam(defaultValue = "10") long size,
                                                  Authentication auth) {
-        return ApiResponse.success(announcementService.pageVisible(page, size, (Long) auth.getPrincipal()));
+        return ApiResponse.success(announcementService.pageVisible(page, size, (Long) auth.getPrincipal())
+                .convert(NoticeVOs.AnnouncementVO::from));
     }
 
     /**
@@ -97,7 +99,7 @@ public class AnnouncementController {
      */
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<IPage<Announcement>> listAll(@RequestParam(defaultValue = "1") long page,
+    public ApiResponse<IPage<NoticeVOs.AnnouncementVO>> listAll(@RequestParam(defaultValue = "1") long page,
                                                     @RequestParam(defaultValue = "10") long size,
                                                     @RequestParam(required = false) Long courseId,
                                                     @RequestParam(required = false) String targetType,
@@ -112,14 +114,16 @@ public class AnnouncementController {
                         .and(keyword != null && !keyword.isBlank(),
                                 w -> w.like(Announcement::getTitle, keyword).or().like(Announcement::getContent, keyword))
                         .orderByDesc(Announcement::getCreatedAt);
-        return ApiResponse.success(announcementService.page(new Page<>(page, size), wrapper));
+        return ApiResponse.success(announcementService.page(new Page<>(page, size), wrapper)
+                .convert(NoticeVOs.AnnouncementVO::from));
     }
 
     /** 公告详情：非受众 403（与「不存在 404」语义分开，拆包方案 WP8 验收 2）。 */
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Announcement> detail(@PathVariable Long id, Authentication auth) {
-        return ApiResponse.success(announcementService.getVisible(id, (Long) auth.getPrincipal()));
+    public ApiResponse<NoticeVOs.AnnouncementVO> detail(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.success(NoticeVOs.AnnouncementVO.from(
+                announcementService.getVisible(id, (Long) auth.getPrincipal())));
     }
 
     private void assertPublishAllowed(PublishRequest request, Long userId, Authentication auth) {
@@ -131,10 +135,10 @@ public class AnnouncementController {
         if (request.courseId != null) {
             courseAccessControl.assertCanManageCourse(request.courseId, auth);
         } else if (request.teachingClassId != null) {
-            if (!isAdmin(auth)) {
+            if (!AccessSupport.isAdmin(auth)) {
                 teachingClassAccessControl.assertTeachingClassLead(request.teachingClassId, userId);
             }
-        } else if (!isAdmin(auth)) {
+        } else if (!AccessSupport.isAdmin(auth)) {
             AdminClass adminClass = adminClassAccessControl.requireAdminClass(request.adminClassId);
             if (!userId.equals(adminClass.getAdvisorTeacherId())) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "只有本班班主任可以发布班级公告");
@@ -153,9 +157,5 @@ public class AnnouncementController {
         return Announcement.ROLE_TEACHER;
     }
 
-    private boolean isAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_ADMIN"::equals);
-    }
 }
+

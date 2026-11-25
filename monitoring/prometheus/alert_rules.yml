@@ -140,7 +140,8 @@ groups:
   # ---------------- 业务依赖健康（health 探针指标化） ----------------
   # 将 /actuator/health 暴露的 4 个自定义业务探针状态指标化（见 HealthMetricsService）：
   # database / redis 为实际连通性探测；llmProvider 为 API Key 配置就绪度（静态，不探测，
-  # 避免 token 费用）；pythonServices 为 Python 微服务（8001/8002/8003）运行时 HTTP 健康探测。
+  # 避免 token 费用）；pythonServices 为 Python 微服务（8001 KG / 8501 DeepGraph+知识库 / 8003 FT）
+  # 运行时 HTTP 健康探测（8002 已于批次 3B-2 退役，知识库随 8501 探）。
   - name: aicourse-dependencies
     rules:
       - alert: HealthDependencyDown

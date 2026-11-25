@@ -330,6 +330,8 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
             try {
                 return Double.valueOf(s.trim());
             } catch (NumberFormatException e) {
+                // 权重字段是非数字脏数据：降级为 null 由调用方拒绝或忽略，但必须留痕（DEF-05）。
+                log.warn("成绩构成权重不是合法数字，按缺失处理: raw={}", s);
                 return null;
             }
         }

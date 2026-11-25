@@ -36,7 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 是否加钳制属影响面较大的改动，需团队评审后再定，此处不擅改 src/main。</p>
  */
 @WebMvcTest(CourseController.class)
-@Import(AdminScopeGuard.class)
+// 3E-04B：引入真实用例层，让既有 service/守卫打桩与 verify 继续作用于真实编排
+@Import({AdminScopeGuard.class,com.aicourse.application.course.CourseApplicationService.class})
 class CourseControllerPaginationBoundaryTest extends ControllerTestBase {
 
     @MockitoBean

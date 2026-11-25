@@ -4,17 +4,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.dto.ChapterReorderDTO;
+import com.aicourse.dto.CourseChapterSaveDTO;
 import com.aicourse.entity.Course;
+import com.aicourse.vo.CourseChapterVO;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.TeacherCourseService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -83,13 +85,13 @@ public class CourseChapterController {
      * @return 章节信息
      */
     @GetMapping("/chapters/{id}")
-    public ApiResponse<CourseChapter> getById(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<CourseChapterVO> getById(@PathVariable Long id, Authentication auth) {
         CourseChapter chapter = chapterService.getById(id);
         if (chapter == null) {
             throw new BusinessException(ApiCode.NOT_FOUND, "章节不存在");
         }
-        if (isAdmin(auth)) {
-            return ApiResponse.success(chapter);
+        if (AccessSupport.isAdmin(auth)) {
+            return ApiResponse.success(CourseChapterVO.from(chapter));
         }
         Course course = requireCourse(chapter.getCourseId());
         Long userId = (Long) auth.getPrincipal();
@@ -98,10 +100,10 @@ public class CourseChapterController {
             if (!Boolean.TRUE.equals(chapter.getIsPublished())) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "章节尚未发布，无权查看");
             }
-            return ApiResponse.success(chapter);
+            return ApiResponse.success(CourseChapterVO.from(chapter));
         }
         courseAccessControl.assertCanManageCourse(chapter.getCourseId(), auth);
-        return ApiResponse.success(chapter);
+        return ApiResponse.success(CourseChapterVO.from(chapter));
     }
 
     /**
@@ -115,7 +117,7 @@ public class CourseChapterController {
      * </ul>
      */
     private List<Map<String, Object>> resolveChapterTree(Long courseId, Authentication auth) {
-        if (isAdmin(auth)) {
+        if (AccessSupport.isAdmin(auth)) {
             return teachingService.getFullChapterTree(courseId);
         }
         Course course = requireCourse(courseId);
@@ -200,10 +202,12 @@ public class CourseChapterController {
      */
     @PostMapping("/chapters")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<CourseChapter> create(@Valid @RequestBody CourseChapter chapter, Authentication auth) {
+    public ApiResponse<CourseChapterVO> create(@Valid @RequestBody CourseChapterSaveDTO dto, Authentication auth) {
+        // 入参收 DTO：id/时间戳不接受客户端传入，courseId 仅在创建时生效
+        CourseChapter chapter = dto.toEntity();
         // 课程管理权限校验与落库下沉至服务层（事务化）
-        CourseChapter saved = chapterService.createChapter(chapter, (Long) auth.getPrincipal(), isAdmin(auth));
-        return ApiResponse.success("创建成功", saved);
+        CourseChapter saved = chapterService.createChapter(chapter, (Long) auth.getPrincipal(), AccessSupport.isAdmin(auth));
+        return ApiResponse.success("创建成功", CourseChapterVO.from(saved));
     }
 
     /**
@@ -215,12 +219,15 @@ public class CourseChapterController {
      */
     @PutMapping("/chapters/{id}")
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
-    public ApiResponse<CourseChapter> update(@PathVariable Long id,
-                                             @Valid @RequestBody CourseChapter chapter,
+    public ApiResponse<CourseChapterVO> update(@PathVariable Long id,
+                                             @Valid @RequestBody CourseChapterSaveDTO dto,
                                              Authentication auth) {
+        CourseChapter chapter = dto.toEntity();
+        // 章节归属只认库里的既有 courseId：否则客户端可用本接口把别人的章节"搬"到自己课程下
+        chapter.setCourseId(null);
         // 章节存在性/权限校验与更新落库下沉至服务层（事务化）
-        CourseChapter updatedChapter = chapterService.updateChapter(id, chapter, (Long) auth.getPrincipal(), isAdmin(auth));
-        return ApiResponse.success("更新成功", updatedChapter);
+        CourseChapter updatedChapter = chapterService.updateChapter(id, chapter, (Long) auth.getPrincipal(), AccessSupport.isAdmin(auth));
+        return ApiResponse.success("更新成功", CourseChapterVO.from(updatedChapter));
     }
 
     /**
@@ -233,7 +240,7 @@ public class CourseChapterController {
     @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
         // 章节存在性/权限校验与删除落库下沉至服务层（事务化）
-        chapterService.deleteChapter(id, (Long) auth.getPrincipal(), isAdmin(auth));
+        chapterService.deleteChapter(id, (Long) auth.getPrincipal(), AccessSupport.isAdmin(auth));
         return ApiResponse.success("删除成功", null);
     }
 
@@ -263,14 +270,6 @@ public class CourseChapterController {
             chapterService.updateById(chapter);
         }
         return ApiResponse.success("排序更新成功", null);
-    }
-
-    /**
-     * 判断当前用户是否为管理员（create/update/delete 传给服务层作归属旁路口径，维持原语义）
-     */
-    private boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
     }
 
     /**

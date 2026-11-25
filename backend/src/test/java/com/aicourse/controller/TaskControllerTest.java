@@ -12,11 +12,15 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import java.util.Map;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -28,6 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对带有 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')") 的端点新增/保留 STUDENT 越权 403 测试。
  */
 @WebMvcTest(TaskController.class)
+// 3E-04A：引入真实用例层，让既有 service/守卫打桩与 verify 继续作用于真实编排
+@Import(com.aicourse.application.course.TaskApplicationService.class)
 class TaskControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -522,5 +528,49 @@ class TaskControllerTest extends ControllerTestBase {
                         .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk());
         verify(activityVisibilityGuard).applyTaskScope(any(), any(), eq(11L));
+    }
+
+    // ==================== 入参收实体加固（批次 3B-3） ====================
+
+    @Test
+    @DisplayName("POST /tasks - 注入 creatorId/status/isPublished/id 一律忽略，创建人取登录身份")
+    void create_ignoresInjectedServerFields() throws Exception {
+        when(taskService.save(any())).thenReturn(true);
+
+        mockMvc.perform(post("/tasks").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":777,\"creatorId\":999,\"status\":\"PUBLISHED\",\"isPublished\":true,"
+                                + "\"title\":\"新作业\",\"courseId\":1}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isPublished").value(false))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+        ArgumentCaptor<Task> captor = ArgumentCaptor.forClass(Task.class);
+        verify(taskService).save(captor.capture());
+        Task created = captor.getValue();
+        assertNull(created.getId());
+        assertEquals(1L, created.getCreatorId().longValue(), "创建人取登录身份");
+        assertEquals(Boolean.FALSE, created.getIsPublished(), "发布只能走 /publish");
+        assertEquals("DRAFT", created.getStatus());
+    }
+
+    @Test
+    @DisplayName("PUT /tasks/1 - 注入 creatorId/status/isPublished 被丢弃")
+    void update_ignoresInjectedPublishState() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "已存在"));
+        when(taskService.updateById(any())).thenReturn(true);
+
+        mockMvc.perform(put("/tasks/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"creatorId\":999,\"status\":\"PUBLISHED\",\"isPublished\":true,\"title\":\"改名\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Task> captor = ArgumentCaptor.forClass(Task.class);
+        verify(taskService).updateById(captor.capture());
+        Task patch = captor.getValue();
+        assertNull(patch.getCreatorId());
+        assertNull(patch.getStatus());
+        assertNull(patch.getIsPublished());
+        assertEquals("改名", patch.getTitle());
     }
 }

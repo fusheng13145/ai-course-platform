@@ -24,7 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 该控制器类级别 @PreAuthorize("hasRole('ADMIN')")，原有 STUDENT 越权 403 测试保留不动。
  */
 @WebMvcTest(OperationLogController.class)
-@Import(AdminScopeGuard.class)
+@Import({AdminScopeGuard.class,
+        com.aicourse.application.admin.OperationLogApplicationService.class})
 class OperationLogControllerTest extends ControllerTestBase {
 
     @MockitoBean

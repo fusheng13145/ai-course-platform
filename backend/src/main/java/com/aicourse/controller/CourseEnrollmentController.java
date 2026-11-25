@@ -1,58 +1,45 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import jakarta.validation.Valid;
-
-import com.aicourse.common.ApiCode;
+import com.aicourse.application.enrollment.CourseEnrollmentApplicationService;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.EnrollmentCancelDTO;
-import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
-import com.aicourse.entity.User;
-import com.aicourse.exception.BusinessException;
-import com.aicourse.security.AdminScopeGuard;
-import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.CourseService;
-import com.aicourse.service.UserService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.aicourse.vo.CourseVOs;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 /**
  * 课程报名记录接口控制器
+ *
+ * <p>3E-05D：院系收口、关键字学生ID集解析、三端共用归属校验、审核状态机与 3 处 wrapper 已下移到
+ * {@link CourseEnrollmentApplicationService}；本类保留报名/退课两条「一行转发」入口与路由。</p>
  */
 @RestController
 @RequestMapping("/enrollments")
 @Tag(name = "选课管理")
 public class CourseEnrollmentController {
 
-    private static final Logger log = LoggerFactory.getLogger(CourseEnrollmentController.class);
-
     private final CourseEnrollmentService enrollmentService;
-    private final CourseService courseService;
-    private final UserService userService;
-    private final AdminScopeGuard adminScopeGuard;
-    private final TeachingClassAccessControl teachingClassAccessControl;
+    private final CourseEnrollmentApplicationService courseEnrollmentApplicationService;
 
-    public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService,
-                                      UserService userService, AdminScopeGuard adminScopeGuard,
-                                      TeachingClassAccessControl teachingClassAccessControl) {
+    public CourseEnrollmentController(CourseEnrollmentService enrollmentService,
+                                      CourseEnrollmentApplicationService courseEnrollmentApplicationService) {
         this.enrollmentService = enrollmentService;
-        this.courseService = courseService;
-        this.userService = userService;
-        this.adminScopeGuard = adminScopeGuard;
-        this.teachingClassAccessControl = teachingClassAccessControl;
+        this.courseEnrollmentApplicationService = courseEnrollmentApplicationService;
     }
 
     /**
@@ -62,12 +49,13 @@ public class CourseEnrollmentController {
      * @return 报名记录
      */
     @PostMapping
-    public ApiResponse<CourseEnrollment> enroll(Authentication auth, @Valid @RequestBody Map<String, Long> body) {
+    public ApiResponse<CourseVOs.EnrollmentVO> enroll(Authentication auth,
+                                                     @Valid @RequestBody Map<String, Long> body) {
         Long studentId = (Long) auth.getPrincipal();
         Long courseId = body.get("courseId");
         // 查重/软退课恢复/审批状态判定/教学班容量等业务下沉至服务层（事务化）
         CourseEnrollment enrollment = enrollmentService.enroll(studentId, courseId, body.get("teachingClassId"));
-        return ApiResponse.success("报名成功", enrollment);
+        return ApiResponse.success("报名成功", CourseVOs.EnrollmentVO.from(enrollment));
     }
 
     /**
@@ -76,64 +64,15 @@ public class CourseEnrollmentController {
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<PagedResponse<CourseEnrollment>> listAll(
+    public ApiResponse<PagedResponse<CourseVOs.EnrollmentVO>> listAll(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
-        LambdaQueryWrapper<CourseEnrollment> qw = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(status != null && !status.isBlank(), CourseEnrollment::getApprovalStatus, status)
-                .eq(courseId != null, CourseEnrollment::getCourseId, courseId);
-        // 院系管理员只能看本院课程；显式传 courseId 时先按课程学院收口，避免跨院枚举。
-        boolean collegeScoped = adminScopeGuard.isCollegeAdmin();
-        if (courseId != null && collegeScoped) {
-            Course course = courseService.getById(courseId);
-            if (course == null) {
-                throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-            }
-            adminScopeGuard.assertCourseAccess(course);
-        }
-        // keyword 按学生姓名/用户名过滤：先解析学生ID集再入 SQL（不得分页后当页二次过滤）
-        List<Long> matched = null;
-        if (keyword != null && !keyword.isBlank()) {
-            String kw = keyword.trim();
-            matched = userService.list(new LambdaQueryWrapper<User>()
-                            .and(w -> w.like(User::getFullName, kw).or().like(User::getUsername, kw))
-                            .last("LIMIT 500"))
-                    .stream().map(User::getId).toList();
-        }
-        if (collegeScoped) {
-            List<Long> collegeStudentIds = adminScopeGuard.currentCollegeUserIds();
-            if (collegeStudentIds == null || collegeStudentIds.isEmpty()) {
-                return emptyEnrollmentPage(page, size);
-            }
-            if (matched != null) {
-                matched = matched.stream().filter(collegeStudentIds::contains).toList();
-                if (matched.isEmpty()) {
-                    return emptyEnrollmentPage(page, size);
-                }
-                qw.in(CourseEnrollment::getStudentId, matched);
-            } else {
-                qw.in(CourseEnrollment::getStudentId, collegeStudentIds);
-            }
-        } else if (matched != null) {
-            if (matched.isEmpty()) {
-                return emptyEnrollmentPage(page, size);
-            }
-            qw.in(CourseEnrollment::getStudentId, matched);
-        }
-        qw.orderByDesc(CourseEnrollment::getId);
-        Page<CourseEnrollment> result = enrollmentService.page(Page.of(page, size), qw);
-        return ApiResponse.success(PagedResponse.of(result));
-    }
-
-    private ApiResponse<PagedResponse<CourseEnrollment>> emptyEnrollmentPage(int page, int size) {
-        Page<CourseEnrollment> empty = new Page<>(page, size);
-        empty.setRecords(List.of());
-        empty.setTotal(0);
-        return ApiResponse.success(PagedResponse.of(empty));
+        return ApiResponse.success(
+                courseEnrollmentApplicationService.listAll(page, size, status, courseId, keyword));
     }
 
     /**
@@ -142,14 +81,9 @@ public class CourseEnrollmentController {
      * @return 报名记录分页数据
      */
     @GetMapping("/my")
-    public ApiResponse<PagedResponse<CourseEnrollment>> myEnrollments(Authentication auth) {
+    public ApiResponse<PagedResponse<CourseVOs.EnrollmentVO>> myEnrollments(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, userId)
-                .eq(CourseEnrollment::getIsActive, true)
-                .eq(CourseEnrollment::getApprovalStatus, "APPROVED");
-        Page<CourseEnrollment> enrollmentPage = enrollmentService.page(new Page<>(1, 100), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(enrollmentPage));
+        return ApiResponse.success(courseEnrollmentApplicationService.myEnrollments(userId));
     }
 
     /**
@@ -174,27 +108,13 @@ public class CourseEnrollmentController {
      */
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('STUDENT','TEACHER','ADMIN')")
-    public ApiResponse<CourseEnrollment> cancel(
+    public ApiResponse<CourseVOs.EnrollmentVO> cancel(
             @PathVariable Long id,
             @Valid @RequestBody EnrollmentCancelDTO body,
             Authentication auth) {
-        CourseEnrollment enrollment = enrollmentService.getById(id);
-        if (enrollment == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "选课记录不存在");
-        }
-        Long operatorId = (Long) auth.getPrincipal();
-        boolean isStudent = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_STUDENT"));
-        if (isStudent) {
-            if (!operatorId.equals(enrollment.getStudentId())) {
-                throw new BusinessException(ApiCode.FORBIDDEN, "只能取消自己的选课");
-            }
-        } else {
-            assertEnrollmentCourseOwner(enrollment, auth);
-        }
         CourseEnrollment cancelled =
-                enrollmentService.cancelEnrollment(id, operatorId, body.getReason());
-        return ApiResponse.success("已取消选课", cancelled);
+                courseEnrollmentApplicationService.cancel(id, body.getReason(), auth);
+        return ApiResponse.success("已取消选课", CourseVOs.EnrollmentVO.from(cancelled));
     }
 
     /**
@@ -205,23 +125,9 @@ public class CourseEnrollmentController {
      */
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<CourseEnrollment> approve(@PathVariable Long id, Authentication auth) {
-        CourseEnrollment enrollment = enrollmentService.getById(id);
-        if (enrollment == null) {
-            throw new BusinessException("选课记录不存在");
-        }
-        if (!"PENDING".equalsIgnoreCase(enrollment.getApprovalStatus())) {
-            throw new BusinessException(ApiCode.CONFLICT, "仅待审批的选课可以通过");
-        }
-        assertEnrollmentCourseOwner(enrollment, auth);
-        Long approverId = (Long) auth.getPrincipal();
-        enrollment.setApprovalStatus("APPROVED");
-        enrollment.setApprovedBy(approverId);
-        enrollment.setApprovalTime(LocalDateTime.now());
-        enrollment.setIsActive(true);
-
-        enrollmentService.updateById(enrollment);
-        return ApiResponse.success("审核通过", enrollment);
+    public ApiResponse<CourseVOs.EnrollmentVO> approve(@PathVariable Long id, Authentication auth) {
+        CourseEnrollment enrollment = courseEnrollmentApplicationService.approve(id, auth);
+        return ApiResponse.success("审核通过", CourseVOs.EnrollmentVO.from(enrollment));
     }
 
     /**
@@ -233,64 +139,12 @@ public class CourseEnrollmentController {
      */
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<CourseEnrollment> reject(
+    public ApiResponse<CourseVOs.EnrollmentVO> reject(
             @PathVariable Long id,
             @Valid @RequestBody(required = false) Map<String, String> body,
             Authentication auth) {
-        CourseEnrollment enrollment = enrollmentService.getById(id);
-        if (enrollment == null) {
-            throw new BusinessException("选课记录不存在");
-        }
-        if (!"PENDING".equalsIgnoreCase(enrollment.getApprovalStatus())) {
-            throw new BusinessException(ApiCode.CONFLICT, "仅待审批的选课可以驳回");
-        }
-        assertEnrollmentCourseOwner(enrollment, auth);
-        Long approverId = (Long) auth.getPrincipal();
-        enrollment.setApprovalStatus("REJECTED");
-        enrollment.setApprovedBy(approverId);
-        enrollment.setApprovalTime(LocalDateTime.now());
-        // 修复（2026-09-14）：驳回必须同时置 is_active=false。
-        // is_active 的语义是「选课是否有效」，被驳回的报名显然不是有效选课；
-        // 原实现只改 approval_status，导致下游按 is_active 判权的链路（资源下载、开考资格）
-        // 仍把**已驳回**的学生当作课程成员放行，且该记录继续占用 max_students 名额。
-        enrollment.setIsActive(false);
-
-        if (body != null && body.get("reason") != null) {
-            enrollment.setApprovalComment(body.get("reason"));
-        }
-        enrollmentService.updateById(enrollment);
-        return ApiResponse.success("已拒绝", enrollment);
-    }
-
-    /**
-     * 选课管理归属校验：管理员按学院范围放行；教师须为课程负责人或该教学班主讲。
-     */
-    private void assertEnrollmentCourseOwner(CourseEnrollment enrollment, Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) {
-            if (adminScopeGuard.isCollegeAdmin()) {
-                Course adminCourse = courseService.getById(enrollment.getCourseId());
-                if (adminCourse == null) {
-                    throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-                }
-                adminScopeGuard.assertCourseAccess(adminCourse);
-            }
-            return;
-        }
-        Course course = courseService.getById(enrollment.getCourseId());
-        if (course == null) {
-            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
-        }
-        if (userId.equals(course.getTeacherId())) {
-            return;
-        }
-        if (enrollment.getTeachingClassId() != null) {
-            // 本班主讲同样可以管理自己班的选课；其他班主讲会被 403 拒绝。
-            teachingClassAccessControl.assertRosterManage(enrollment.getTeachingClassId(), userId);
-            return;
-        }
-        throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该课程的选课记录");
+        String reason = body != null ? body.get("reason") : null;
+        CourseEnrollment enrollment = courseEnrollmentApplicationService.reject(id, reason, auth);
+        return ApiResponse.success("已拒绝", CourseVOs.EnrollmentVO.from(enrollment));
     }
 }

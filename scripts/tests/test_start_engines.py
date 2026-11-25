@@ -132,31 +132,31 @@ def test_should_start_respects_explicit_disabled_switch():
 
 
 def test_plan_starts_only_what_is_down_and_in_dependency_order():
-    # 2026-11-21：deepgraph(8501) 入编排后 ORDER 为五项，本用例随之覆盖 deepgraph
+    # 2026-11-24（批次 3B-2）：8002 退役，ORDER 收敛为四项（知识库并入 deepgraph）
     plan = eng.plan(
-        status={"neo4j": False, "kg": False, "rag": False, "deepgraph": False, "ft": False},
-        want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
+        status={"neo4j": False, "kg": False, "deepgraph": False, "ft": False},
+        want={"neo4j": True, "kg": True, "deepgraph": True, "ft": True},
     )
-    assert plan == ["neo4j", "kg", "rag", "deepgraph", "ft"]
+    assert plan == ["neo4j", "kg", "deepgraph", "ft"]
 
     # 已在跑的绝不重启：双实例共用一套库却各自计限流（DR-36）
     plan = eng.plan(
-        status={"neo4j": True, "kg": True, "rag": False, "deepgraph": False, "ft": False},
-        want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
+        status={"neo4j": True, "kg": True, "deepgraph": False, "ft": False},
+        want={"neo4j": True, "kg": True, "deepgraph": True, "ft": True},
     )
-    assert plan == ["rag", "deepgraph", "ft"]
+    assert plan == ["deepgraph", "ft"]
 
-    # 图库起不来时 KG 照起（回落内存图），RAG 与图库无关
+    # 图库起不来时 KG 照起（回落内存图），知识库（并进 8501）与图库无关
     plan = eng.plan(
-        status={"neo4j": False, "kg": False, "rag": False, "deepgraph": False, "ft": False},
-        want={"neo4j": False, "kg": True, "rag": True, "deepgraph": True, "ft": False},
+        status={"neo4j": False, "kg": False, "deepgraph": False, "ft": False},
+        want={"neo4j": False, "kg": True, "deepgraph": True, "ft": False},
     )
-    assert plan == ["kg", "rag", "deepgraph"]
+    assert plan == ["kg", "deepgraph"]
 
     # ft 关掉（.env 写 FT_ENABLED=false）时不得被默认拉起来
     plan = eng.plan(
-        status={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": False},
-        want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": False},
+        status={"neo4j": True, "kg": True, "deepgraph": True, "ft": False},
+        want={"neo4j": True, "kg": True, "deepgraph": True, "ft": False},
     )
     assert plan == []
 
@@ -164,11 +164,26 @@ def test_plan_starts_only_what_is_down_and_in_dependency_order():
 def test_plan_is_empty_when_everything_is_already_up():
     assert (
         eng.plan(
-            status={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
-            want={"neo4j": True, "kg": True, "rag": True, "deepgraph": True, "ft": True},
+            status={"neo4j": True, "kg": True, "deepgraph": True, "ft": True},
+            want={"neo4j": True, "kg": True, "deepgraph": True, "ft": True},
         )
         == []
     )
+
+
+def test_retired_8002_service_no_longer_has_a_port_or_a_launch_entry():
+    """3B-2 退役守卫：8002 不得再出现在端口表/服务目录/模块表里，否则启动器会拉起第二套知识库。
+
+    同时钉住「退役不是能力丢失」：`rag` 仍能解析，只是解析到 8501 的那一个进程。
+    """
+    assert "rag" not in eng.PORTS and "rag" not in eng.ORDER
+    assert "rag" not in eng.SERVICE_DIRS and "rag" not in eng.APP_MODULES
+    assert eng.RETIRED_SERVICES == {"rag": "deepgraph"}
+    # 知识库旋钮不许随退役消失：它必须在 deepgraph 的导出名单里（少一个＝8501 里静默降级）
+    exported = set(eng.ENGINE_EXPORTS["deepgraph"])
+    for knob in ("RAG_EMBED_MODEL", "RAG_DATA_DIR", "RAG_CHUNK_SIZE", "RAG_RERANK_ENABLED", "RAG_HYDE_ENABLED"):
+        assert knob in exported
+    assert "rag" not in eng.ENGINE_EXPORTS
 
 
 # --------------------------------------------------------------- 子进程环境
@@ -186,6 +201,8 @@ def test_engine_env_exports_uri_and_never_a_placeholder_key():
     rag_env = eng.engine_env(base, service="rag", neo4j_uri=None, api_key="sk-real")
     assert rag_env["DEEPSEEK_API_KEY"] == "sk-real"
     assert "NEO4J_URI" not in rag_env
+    # `rag` 是能力别名：导出名单实际就是 deepgraph 那一套（同一进程两套路由）
+    assert set(eng.ENGINE_EXPORTS[eng.RETIRED_SERVICES["rag"]]) == set(eng.ENGINE_EXPORTS["deepgraph"])
 
     rag_env = eng.engine_env(base, service="rag", neo4j_uri=None, api_key=None)
     assert "DEEPSEEK_API_KEY" not in rag_env
@@ -194,7 +211,9 @@ def test_engine_env_exports_uri_and_never_a_placeholder_key():
     assert base["DEEPSEEK_API_KEY"] == "  # placeholder"
 
 
-def test_engine_env_merges_offline_flags_for_rag_only():
+def test_engine_env_merges_offline_flags_for_the_knowledge_hosting_service():
+    """离线位必须跟着知识库走：它现在跑在 8501 进程里（含 sentence-transformers），
+    缺 HF_HUB_OFFLINE 时无外网会挂死（§18.5 同型）。`rag` 别名同样要拿到。"""
     base = {"PATH": "x"}
     offline = {"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
     rag_env = eng.engine_env(base, service="rag", neo4j_uri=None, api_key=None, offline=offline)
@@ -233,8 +252,9 @@ def test_engine_env_forwards_the_dotenv_knobs_the_engines_actually_read():
     assert rag_env["RAG_EMBED_MODEL"] == "BAAI/bge-m3"
     assert rag_env["RAG_CHUNK_SIZE"] == "500"
     assert rag_env["DEEPSEEK_MODEL"] == "deepseek-reasoner"
-    # 串服务不导出：KG 的认证键不该进 RAG 进程，RAG 的旋钮也不该进 KG 进程
-    assert "NEO4J_PASSWORD" not in rag_env
+    # 8002 退役后知识库跑在 8501 进程里，该进程本来就要 Neo4j 认证（图谱能力），
+    # 所以 NEO4J_PASSWORD 出现在这里属于**同期同进程**的正当导出，不再是「串服务」。
+    assert rag_env["NEO4J_PASSWORD"] == "not-a-real-secret"
 
     kg_env = eng.engine_env(
         {}, service="kg", neo4j_uri="bolt://127.0.0.1:7687", api_key=None, dotenv=dotenv
@@ -259,8 +279,12 @@ def test_engine_export_list_covers_every_var_the_engines_read():
     read = set()
     for rel in (
         "python-services/kg_service/kg_store.py",
+        # 8002 退役后知识库的实读点就在 8501 的这两个模块里；退役不动磁盘目录，
+        # 因此原 rag_service 的读取点继续留在扫描清单（防止「以退役为由」漏导出）
         "python-services/rag_service/rag_engine.py",
         "python-services/rag_service/rag_service.py",
+        "python-services/deepgraph_rag/knowledge_engine.py",
+        "python-services/deepgraph_rag/knowledge_api.py",
         "python-services/fine_tune_service/ft_llm.py",
         "python-services/fine_tune_service/lora_engine.py",
         "python-services/fine_tune_service/lora_service.py",
@@ -291,21 +315,25 @@ def test_uvicorn_command_uses_current_interpreter_and_loopback_only():
 
 
 def test_venv_python_points_at_the_service_local_venv():
-    """重依赖只装在服务自己的 `.venv` 里；用系统解释器起 8002 会静默降级（端口在听、检索恒空）。
+    """重依赖只装在服务自己的 `.venv` 里；用系统解释器起 8501 会让知识库静默降级
+    （端口在听、检索恒空）。
 
     因此解释器选择必须是「优先服务 venv」，且 venv 缺失时**显式返回 None** 让调用方上报，
     不允许悄悄换回 `sys.executable` 而仍宣称引擎真实可用。
     """
-    path = eng.venv_python("rag", exists=lambda p: True)
+    path = eng.venv_python("deepgraph", exists=lambda p: True)
     assert path is not None
-    assert str(ROOT / "python-services" / "rag_service") in path
+    assert str(ROOT / "python-services" / "deepgraph_rag") in path
     if os.name == "nt":
         assert path.endswith(r".venv\Scripts\python.exe")
     else:  # pragma: no cover - 本机为 Windows，这里只是不炸
         assert path.endswith(".venv/bin/python")
 
+    # `rag` 别名解析到同一服务目录：退役后不另建第二份 venv
+    assert eng.venv_python("rag", exists=lambda p: True) == path
+
     # 阴性对照：venv 缺失必须返回 None（KG 本机就没有 .venv，这是被允许的降级）
-    assert eng.venv_python("rag", exists=lambda p: False) is None
+    assert eng.venv_python("deepgraph", exists=lambda p: False) is None
 
 
 def test_venv_python_checks_the_file_system_with_a_file_test(tmp_path):
@@ -313,10 +341,10 @@ def test_venv_python_checks_the_file_system_with_a_file_test(tmp_path):
     拿它判 `python.exe` 会恒为 False —— 启动器就会一直静默回落到系统解释器（2026-11-13 实测踩中）。
     """
     sub = ("Scripts", "python.exe") if os.name == "nt" else ("bin", "python")
-    exe = tmp_path.joinpath("python-services", "rag_service", ".venv", *sub)
+    exe = tmp_path.joinpath("python-services", "deepgraph_rag", ".venv", *sub)
     exe.parent.mkdir(parents=True)
     exe.write_text("", encoding="utf-8")
-    assert eng.venv_python("rag", root=tmp_path) == str(exe)
+    assert eng.venv_python("deepgraph", root=tmp_path) == str(exe)
     # 只有目录、没有解释器文件时仍然返回 None
     assert eng.venv_python("kg", root=tmp_path) is None
 
@@ -324,7 +352,7 @@ def test_venv_python_checks_the_file_system_with_a_file_test(tmp_path):
 def test_engine_python_is_the_shared_decision_both_launchers_use():
     """`start-all.py` 也构造 uvicorn 命令；解释器的裁决只准有一处（否则两条路径会分叉）。"""
     assert eng.engine_python("kg") == (eng.venv_python("kg") or sys.executable)
-    assert eng.engine_python("rag") == (eng.venv_python("rag") or sys.executable)
+    assert eng.engine_python("deepgraph") == (eng.venv_python("deepgraph") or sys.executable)
 
 
 def test_wait_until_succeeds_on_later_attempt_and_times_out_otherwise():
@@ -369,9 +397,13 @@ def test_is_port_listening_sees_a_real_listener(tmp_path):
 
 
 def test_service_urls_are_the_documented_probe_paths():
-    # 8002 的 /health 不存在（返 404），用它当探针会把活着的引擎判成死的
+    # 8002 已退役：知识库探针改指 8501 的 /api/v1/rag/documents
+    # （该路由从来没有 /health，拿 /health 探会把活引擎判成死的）
     assert eng.probe_url("kg") == "http://127.0.0.1:8001/api/v1/graph/health"
-    assert eng.probe_url("rag") == "http://127.0.0.1:8002/api/v1/rag/documents"
+    assert eng.probe_url("rag") == "http://127.0.0.1:8501/api/v1/rag/documents"
+    assert eng.probe_url("deepgraph") == "http://127.0.0.1:8501/api/v1/deepgraph/health"
+    # 阴性对照：退役端口不得再被任何探针引用
+    assert all("8002" not in eng.probe_url(name) for name in ("kg", "rag", "deepgraph", "ft"))
 
 
 @pytest.mark.parametrize("bad", ["", None])
@@ -418,3 +450,16 @@ def test_effective_api_key_rejects_non_ascii_value():
     """
     assert eng.effective_api_key("sk-abcdef已移除清露") is None
     assert eng.effective_api_key("sk-0123456789abcdef") == "sk-0123456789abcdef"
+
+
+def test_plan_respects_layout_order_hub_layout_never_pulls_legacy_engines():
+    """回归守卫（2026-11-24 真跑踩中）：`plan()` 曾写死全局 ORDER，
+    于是 hub 布局下 want 只有 {neo4j, hub}，其余名字落到 `want.get(name, True)` 的 True 分支，
+    `--only hub` 实际拉起了 8001/8501/8003 三套旧引擎 —— 用户看到"单口启动却开了三个端口"。
+    钉住：plan 的顺序必须由调用方按布局传入。"""
+    status = {"neo4j": False, "hub": False, "kg": False, "deepgraph": False, "ft": False}
+    want = {"neo4j": True, "hub": True}
+    assert eng.plan(status, want, eng.ORDER_HUB) == ["neo4j", "hub"]
+    # 阴性对照：不传 order 时按全局 ORDER 走，会多出旧引擎名（这就是本用例存在的理由）
+    legacy = eng.plan(status, want)
+    assert set(legacy) - {"neo4j"} == {"kg", "deepgraph", "ft"}, "旧行为已变则对照失效"

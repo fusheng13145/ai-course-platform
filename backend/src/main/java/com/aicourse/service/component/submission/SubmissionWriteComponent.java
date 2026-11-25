@@ -1,5 +1,6 @@
 package com.aicourse.service.component.submission;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.constant.SubmissionStatus;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
@@ -32,26 +33,37 @@ public class SubmissionWriteComponent {
     private final TaskService taskService;
     private final SubmissionJsonComponent jsonSupport;
     private final TeachingClassSnapshotResolver teachingClassSnapshotResolver;
+    private final SubmissionSubmitGuard submitGuard;
     private final Counter submissionsCreated;
 
     public SubmissionWriteComponent(SubmissionMapper submissionMapper,
                                     @Lazy TaskService taskService,
                                     SubmissionJsonComponent jsonSupport,
                                     TeachingClassSnapshotResolver teachingClassSnapshotResolver,
+                                    SubmissionSubmitGuard submitGuard,
                                     MeterRegistry meterRegistry) {
         this.submissionMapper = submissionMapper;
         this.taskService = taskService;
         this.jsonSupport = jsonSupport;
         this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
+        this.submitGuard = submitGuard;
         this.submissionsCreated = Counter.builder("aicourse_submissions_created_total")
                 .description("作业正式提交（含草稿转正）累计次数")
                 .register(meterRegistry);
     }
 
     /**
-     * 提交作业（含逾期判断、提交次数上限、草稿转正）
+     * 提交作业（含逾期判断、提交次数上限、草稿转正）。
+     * <p>Q-02 并发去重：整段读改写序列由 {@link SubmissionSubmitGuard} 按
+     * {@code lock:submit:{taskId}:{studentId}} 互斥，并发重复立刻 409 而非撞库唯一键。</p>
      */
     public Submission submitAssignment(Long taskId, Long studentId, String content, List<String> fileUrls) {
+        try (SubmissionSubmitGuard.Lease lease = submitGuard.acquire(taskId, studentId)) {
+            return doSubmitAssignment(taskId, studentId, content, fileUrls);
+        }
+    }
+
+    private Submission doSubmitAssignment(Long taskId, Long studentId, String content, List<String> fileUrls) {
         log.info("提交提交");
 
         // 检查任务是否存在
@@ -148,8 +160,16 @@ public class SubmissionWriteComponent {
     /**
      * 保存作业草稿（对标超星：可先存草稿再正式提交）
      * 每位学生每任务仅保留一份草稿，重复保存覆盖。
+     * <p>Q-02：与正式提交共用同一把 (taskId, studentId) 锁 —— 二者操作的是同一组行
+     * （草稿转正复用草稿行），并发下若各持不同锁仍会分裂出双行。</p>
      */
     public Submission saveDraft(Long taskId, Long studentId, String content, List<String> fileUrls) {
+        try (SubmissionSubmitGuard.Lease lease = submitGuard.acquire(taskId, studentId)) {
+            return doSaveDraft(taskId, studentId, content, fileUrls);
+        }
+    }
+
+    private Submission doSaveDraft(Long taskId, Long studentId, String content, List<String> fileUrls) {
         log.info("保存提交");
 
         Task task = taskService.getById(taskId);
@@ -215,13 +235,22 @@ public class SubmissionWriteComponent {
     }
 
     /**
-     * 重新提交
+     * 重新提交。
+     * <p>Q-02：锁键由既有行反推 (taskId, studentId)，与正式提交同一命名空间 —— 重交同样在
+     * 「查次数上限 → 插新 attempt 行」的读改写窗口内，不放锁会被 maxSubmissions 绕过。</p>
      */
     public Submission resubmit(Long submissionId, String content, List<String> fileUrls) {
         Submission existing = submissionMapper.selectById(submissionId);
         if (existing == null) {
-            throw new BusinessException("提交记录不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "提交记录不存在");
         }
+        try (SubmissionSubmitGuard.Lease lease =
+                     submitGuard.acquire(existing.getTaskId(), existing.getStudentId())) {
+            return doResubmit(existing, content, fileUrls);
+        }
+    }
+
+    private Submission doResubmit(Submission existing, String content, List<String> fileUrls) {
         if (!SubmissionStatus.RETURNED.equals(existing.getStatus()) && !SubmissionStatus.SUBMITTED.equals(existing.getStatus())) {
             throw new BusinessException("当前状态不允许重新提交");
         }

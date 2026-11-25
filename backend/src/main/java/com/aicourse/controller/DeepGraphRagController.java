@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.UploadMagic;
 import com.aicourse.exception.BusinessException;
@@ -126,8 +127,7 @@ public class DeepGraphRagController {
     public ResponseEntity<ApiResponse<JsonNode>> listDocuments(@RequestParam(required = false) Long courseId,
                                                                Authentication auth) {
         if (courseId == null) {
-            boolean admin = auth != null && auth.getAuthorities().stream()
-                    .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+            boolean admin = auth != null && AccessSupport.isAdmin(auth);
             if (!admin) {
                 throw new BusinessException(ApiCode.FORBIDDEN, "列举全部课程文档仅管理员可用");
             }

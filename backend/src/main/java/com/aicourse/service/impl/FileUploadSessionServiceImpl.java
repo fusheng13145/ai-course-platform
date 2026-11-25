@@ -220,7 +220,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
     private void assertOwnership(FileUploadSession session, Long uploaderId) {
         if (session.getUploaderId() == null || uploaderId == null
                 || !session.getUploaderId().equals(uploaderId)) {
-            throw new BusinessException(403, "无权操作该上传会话");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该上传会话");
         }
     }
 
@@ -275,7 +275,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                 throw new BusinessException("分片摘要校验不通过（MD5 与声明不符），本片已丢弃");
             }
         } catch (NoSuchAlgorithmException e) {
-            throw new BusinessException(500, "分片摘要校验不可用", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "分片摘要校验不可用", e);
         } catch (IOException e) {
             log.error("分片落盘失败: session={}, chunk={}, {}", sessionId, chunkIndex, e.getMessage());
             throw new BusinessException("分片写入失败");
@@ -437,7 +437,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                 log.warn("合并中间产物清理失败: {}", merging);
             }
             log.error("分片合并失败: session={}, {}", sessionId, e.getMessage());
-            throw new BusinessException(500, "分片合并失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "分片合并失败", e);
         } catch (RuntimeException e) {
             try {
                 Files.deleteIfExists(merging);
@@ -445,7 +445,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
                 log.warn("合并中间产物清理失败: {}", merging);
             }
             log.error("分片合并存储失败: session={}, {}", sessionId, e.getMessage());
-            throw new BusinessException(500, "分片合并失败", e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "分片合并失败", e);
         }
         deleteChunkDir(sessionId);
         session.setStatus("COMPLETED");

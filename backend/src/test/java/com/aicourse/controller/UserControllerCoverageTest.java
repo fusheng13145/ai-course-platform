@@ -88,7 +88,7 @@ class UserControllerCoverageTest {
     void listAndSearch_scope() {
         when(userService.searchUsers(isNull(), eq("STUDENT"), eq(1), eq(10)))
                 .thenReturn(new Page<>(1, 10));
-        ApiResponse<PagedResponse<User>> list = controller.list(1, 10, "STUDENT", null);
+        ApiResponse<PagedResponse<com.aicourse.vo.UserVO>> list = controller.list(1, 10, "STUDENT", null);
         assertNotNull(list.getData());
 
         when(adminScopeGuard.currentCollegeFilter()).thenReturn(3L);
@@ -103,13 +103,14 @@ class UserControllerCoverageTest {
         User self = user(1L, "self@example.com", "13800138000");
         self.setPassword("raw");
         when(userService.getById(1L)).thenReturn(self);
-        ApiResponse<User> own = controller.getById(1L, auth(1L));
-        assertNull(own.getData().getPassword());
+        ApiResponse<com.aicourse.vo.UserVO> own = controller.getById(1L, auth(1L));
+        assertThrows(NoSuchMethodException.class, () -> com.aicourse.vo.UserVO.class.getMethod("getPassword"),
+                "UserVO 不应声明 password getter：出参层不存在该字段");
         assertEquals("self@example.com", own.getData().getEmail());
 
         User other = user(2L, "ab@example.com", "13800138000");
         when(userService.getById(2L)).thenReturn(other);
-        ApiResponse<User> masked = controller.getById(2L, auth(1L));
+        ApiResponse<com.aicourse.vo.UserVO> masked = controller.getById(2L, auth(1L));
         assertEquals("a***@example.com", masked.getData().getEmail());
         assertEquals("138****8000", masked.getData().getPhone());
 
@@ -122,7 +123,7 @@ class UserControllerCoverageTest {
     void masking_boundaries() {
         User oneChar = user(1L, "a@example.com", "1234567890");
         when(userService.getUserProfile(1L)).thenReturn(oneChar);
-        ApiResponse<User> result = controller.getProfile(1L, auth(99L));
+        ApiResponse<com.aicourse.vo.UserVO> result = controller.getProfile(1L, auth(99L));
         assertEquals("*@example.com", result.getData().getEmail());
         assertEquals("1234567890", result.getData().getPhone());
 
@@ -178,7 +179,7 @@ class UserControllerCoverageTest {
         dto.setCollegeId(9L);
         dto.setAdminClassId(0L);
 
-        ApiResponse<User> created = controller.create(dto);
+        ApiResponse<com.aicourse.vo.UserVO> created = controller.create(dto);
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userService).save(captor.capture());
         User saved = captor.getValue();
@@ -186,7 +187,8 @@ class UserControllerCoverageTest {
         assertEquals(9L, saved.getCollegeId());
         assertNull(saved.getAdminClassId());
         verify(passwordEncoder).encode("Password123");
-        assertNull(created.getData().getPassword());
+        assertThrows(NoSuchMethodException.class, () -> com.aicourse.vo.UserVO.class.getMethod("getPassword"),
+                "UserVO 不应声明 password getter：出参层不存在该字段");
 
         dto.setAdminClassId(12L);
         controller.create(dto);

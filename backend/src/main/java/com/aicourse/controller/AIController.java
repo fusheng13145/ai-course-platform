@@ -12,7 +12,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AIAccessSupport;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
-import com.aicourse.service.component.ai.AiCallContext;
+import com.aicourse.common.AiCallContext;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;
@@ -352,6 +352,7 @@ public class AIController {
         try {
             return JsonUtils.toJson(Map.of("token", token != null ? token : ""));
         } catch (Exception e) {
+            log.debug("SSE 增量帧序列化失败，降级为空增量: {}", e.getMessage());
             return "{\"token\":\"\"}";
         }
     }
@@ -361,6 +362,7 @@ public class AIController {
         try {
             return JsonUtils.toJson(Map.of("sessionId", sessionId != null ? sessionId : ""));
         } catch (Exception e) {
+            log.debug("SSE 会话帧序列化失败，降级为空会话ID: {}", e.getMessage());
             return "{\"sessionId\":\"\"}";
         }
     }
@@ -370,6 +372,7 @@ public class AIController {
         try {
             return JsonUtils.toJson(Map.of("sources", sources == null ? List.of() : sources));
         } catch (Exception e) {
+            log.debug("SSE 出处帧序列化失败，降级为空出处: {}", e.getMessage());
             return "{\"sources\":[]}";
         }
     }

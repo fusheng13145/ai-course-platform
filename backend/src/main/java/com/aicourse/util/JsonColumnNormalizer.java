@@ -4,6 +4,8 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.exception.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +33,8 @@ import java.util.stream.Collectors;
  * </ol>
  */
 public final class JsonColumnNormalizer {
+
+    private static final Logger log = LoggerFactory.getLogger(JsonColumnNormalizer.class);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -125,6 +129,8 @@ public final class JsonColumnNormalizer {
         try {
             return MAPPER.readTree(text).isArray();
         } catch (Exception e) {
+            // 判定失败会被当成「非 JSON」进而触发二次拆分，留痕才查得回是哪条数据
+            log.debug("JSON 数组判定失败，按非数组处理: {}", e.getMessage());
             return false;
         }
     }
@@ -138,6 +144,7 @@ public final class JsonColumnNormalizer {
             MAPPER.readTree(text);
             return true;
         } catch (Exception e) {
+            log.debug("JSON 合法性判定失败，按非 JSON 处理: {}", e.getMessage());
             return false;
         }
     }
@@ -166,6 +173,7 @@ public final class JsonColumnNormalizer {
             }
             return List.of(node.asText());
         } catch (Exception e) {
+            log.debug("JSON 列不是合法 JSON，退化为分隔符拆分（历史脏数据兼容）: {}", e.getMessage());
             return Arrays.stream(text.split("[,，]"))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
@@ -194,6 +202,7 @@ public final class JsonColumnNormalizer {
             }
             return node.asText();
         } catch (Exception e) {
+            log.debug("答案列不是合法 JSON，退化为原文比较（历史裸值兼容）: {}", e.getMessage());
             return text.trim();
         }
     }

@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.vo.OrgVOs;
 import com.aicourse.entity.AdminClass;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.AdvisorService;
@@ -38,8 +39,8 @@ public class AdvisorController {
     /** 当前教师担任班主任的行政班列表。 */
     @GetMapping("/classes")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<AdminClass>> myClasses(Authentication auth) {
-        return ApiResponse.success(advisorService.listMyClasses((Long) auth.getPrincipal()));
+    public ApiResponse<List<OrgVOs.AdminClassVO>> myClasses(Authentication auth) {
+        return ApiResponse.success(OrgVOs.AdminClassVO.from(advisorService.listMyClasses((Long) auth.getPrincipal())));
     }
 
     /** 班级聚合画像：班主任本人或管理员按学院作用域。 */

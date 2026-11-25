@@ -1,28 +1,21 @@
 package com.aicourse.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import jakarta.validation.Valid;
 
-import com.aicourse.common.ActivityVisibility;
+import com.aicourse.application.exam.ExamPaperApplicationService;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.exception.BusinessException;
-import com.aicourse.entity.Course;
-import com.aicourse.entity.ExamPaper;
-import com.aicourse.entity.ExamPaperStatus;
 import com.aicourse.dto.AutoComposeDTO;
+import com.aicourse.dto.ExamPaperSaveDTO;
+import com.aicourse.entity.ExamPaper;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.security.ActivityVisibilityGuard;
-import com.aicourse.security.RoleUtil;
-import com.aicourse.service.ActivityTargetService;
-import com.aicourse.service.CourseService;
+import com.aicourse.security.ExamPaperAccessControl;
 import com.aicourse.service.ExamPaperService;
-import com.aicourse.service.ExamSessionService;
 import com.aicourse.vo.ExamPaperDetailVO;
 import com.aicourse.vo.ExamPaperStatsVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.aicourse.vo.ExamPaperVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,159 +23,42 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
- * 试卷管理接口控制器
+ * 试卷管理接口控制器。
+ *
+ * <p><b>阶段3 · 3E-03A 后的边界</b>：本类只做 HTTP——参数接收、DTO 校验、VO 转换、权限注解。
+ * 建卷/改卷/删卷/归档/审核流转/组卷/复制这些**多步编排**已移入
+ * {@link ExamPaperApplicationService}；列表查询与 {@code courseName} 回填也随之下移，
+ * 因此本类不再拼查询 DSL、不再依赖目标教学班服务、不再持有考试会话服务。</p>
+ *
+ * <p>留在本类的只有纯读取端点（详情/统计）与它们的对象级授权。</p>
  */
 @Tag(name = "试卷管理", description = "试卷的新增、查询、修改、删除、发布、自动组卷等功能")
 @RestController
 @RequestMapping("/exam-papers")
 public class ExamPaperController {
 
-    private static final Logger log = LoggerFactory.getLogger(ExamPaperController.class);
-
     private final ExamPaperService examPaperService;
-    private final ExamSessionService examSessionService;
-    private final com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
-    private final CourseService courseService;
+    private final ExamPaperAccessControl examPaperAccessControl;
     private final ActivityVisibilityGuard activityVisibilityGuard;
-    private final ActivityTargetService activityTargetService;
+    private final ExamPaperApplicationService examPaperApplicationService;
 
     public ExamPaperController(ExamPaperService examPaperService,
-                               ExamSessionService examSessionService,
-                               com.aicourse.security.ExamPaperAccessControl examPaperAccessControl,
-                               CourseService courseService,
+                               ExamPaperAccessControl examPaperAccessControl,
                                ActivityVisibilityGuard activityVisibilityGuard,
-                               ActivityTargetService activityTargetService) {
+                               ExamPaperApplicationService examPaperApplicationService) {
         this.examPaperService = examPaperService;
-        this.examSessionService = examSessionService;
         this.examPaperAccessControl = examPaperAccessControl;
-        this.courseService = courseService;
         this.activityVisibilityGuard = activityVisibilityGuard;
-        this.activityTargetService = activityTargetService;
+        this.examPaperApplicationService = examPaperApplicationService;
     }
 
-    /**
-     * 分页查询试卷列表（支持课程、状态、关键词筛选）
-     * @param page 当前页码
-     * @param size 每页条数
-     * @param courseId 课程ID
-     * @param status 试卷状态（仅教师/管理员生效；学生恒为已发布）
-     * @param keyword 标题/描述关键词
-     * @param auth 当前登录主体（用于按角色过滤可见范围）
-     * @return 分页试卷数据
-     */
-    @GetMapping
-    @Operation(summary = "分页查询试卷列表")
-    public ApiResponse<PagedResponse<ExamPaper>> listByParams(
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size,
-            @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) Long teachingClassId,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String keyword,
-            Authentication auth) {
-        LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<>();
-        if (courseId != null) {
-            queryWrapper.eq(ExamPaper::getCourseId, courseId);
-        }
-        if (status != null && !status.isBlank() && RoleUtil.isTeacherOrAdmin(auth)) {
-            queryWrapper.eq(ExamPaper::getStatus, status.trim().toUpperCase());
-        }
-        if (keyword != null && !keyword.isBlank()) {
-            String trimmed = keyword.trim();
-            queryWrapper.and(w -> w.like(ExamPaper::getTitle, trimmed)
-                    .or().like(ExamPaper::getDescription, trimmed));
-        }
-        // 修复（2026-09-21，P1-2）：学生仅可见已发布试卷。
-        // 原实现无任何状态过滤，学生「我的考试」列表会列出教师尚未发布的草稿卷并渲染
-        // 「开始考试」按钮——点击后虽被 startExam 拦截（试卷尚未发布），但界面已构成误导，
-        // 且向学生暴露了未发布试卷的存在与标题。教师/管理员保留全量可见（需管理自己的草稿）。
-        if (!RoleUtil.isTeacherOrAdmin(auth)) {
-            queryWrapper.eq(ExamPaper::getStatus, ExamPaperStatus.PUBLISHED.name());
-        }
-        // WP6：按教学班可见范围过滤（COURSE 全课程可见；CLASSES 仅目标教学班）
-        activityVisibilityGuard.applyExamPaperScope(queryWrapper, auth, teachingClassId);
-        Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
-        fillCourseNames(examPaperPage.getRecords());
-        return ApiResponse.success(PagedResponse.of(examPaperPage));
-    }
-
-    /**
-     * 回填试卷所属课程名称（{@code courseName} 为非持久化展示字段）。
-     *
-     * <p>修复（2026-09-23，P1-4）：此前 {@code ExamPaper} 只含 courseId，前端
-     * {@code exam.courseName || '未知课程'} 必然兜底，学生端考试卡片恒显示「未知课程」。
-     * 此处去重后一次批量查询，避免 N+1。</p>
-     */
-    private void fillCourseNames(List<ExamPaper> papers) {
-        if (papers == null || papers.isEmpty()) {
-            return;
-        }
-        List<Long> courseIds = papers.stream()
-                .map(ExamPaper::getCourseId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        if (courseIds.isEmpty()) {
-            return;
-        }
-        // 不用 Collectors.toMap：课程名理论上可为 null，toMap 遇 null value 会抛 NPE
-        Map<Long, String> nameById = new HashMap<>();
-        for (Course course : courseService.listByIds(courseIds)) {
-            if (course.getId() != null) {
-                nameById.put(course.getId(), course.getName());
-            }
-        }
-        for (ExamPaper paper : papers) {
-            paper.setCourseName(nameById.get(paper.getCourseId()));
-        }
-    }
-
-    /**
-     * 根据课程ID分页查询试卷
-     * @param courseId 课程ID
-     * @param page 当前页码
-     * @param size 每页条数
-     * @return 分页试卷数据
-     */
-    @GetMapping("/course/{courseId}")
-    @Operation(summary = "根据课程ID分页查询试卷")
-    public ApiResponse<PagedResponse<ExamPaper>> listByCourse(
-            @PathVariable Long courseId,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size,
-            @RequestParam(required = false) Long teachingClassId,
-            Authentication auth) {
-        LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<ExamPaper>()
-                .eq(ExamPaper::getCourseId, courseId);
-        // 与 /exam-papers 列表口径保持一致（2026-09-23 补漏）：学生不得看到未发布试卷。
-        // 本端点由 CourseExamPanel 使用，学生在课程页可到达，此前 P1-2 只收了主列表，漏了这一处。
-        if (!RoleUtil.isTeacherOrAdmin(auth)) {
-            queryWrapper.eq(ExamPaper::getStatus, ExamPaperStatus.PUBLISHED.name());
-        }
-        activityVisibilityGuard.applyExamPaperScope(queryWrapper, auth, teachingClassId);
-        Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
-        fillCourseNames(examPaperPage.getRecords());
-        return ApiResponse.success(PagedResponse.of(examPaperPage));
-    }
-
-    /**
-     * 根据ID查询试卷详情
-     * @param id 试卷ID
-     * @return 试卷信息
-     */
-    @GetMapping("/{id}")
-    @Operation(summary = "根据ID查询试卷详情")
-    public ApiResponse<ExamPaper> getById(@PathVariable Long id, Authentication auth) {
-        ExamPaper examPaper = examPaperService.getById(id);
-        activityVisibilityGuard.assertVisibleExamPaper(examPaper, auth);
-        return ApiResponse.success(examPaper);
+    /** 试卷分页转出参模型（阶段 3 · Q-05）。 */
+    private static PagedResponse<ExamPaperVO> toPagedVO(Page<ExamPaper> page) {
+        return PagedResponse.of(page.getRecords().stream().map(ExamPaperVO::from).toList(),
+                page.getTotal(), page.getCurrent(), page.getSize());
     }
 
     private ExamPaper requirePaper(Long id) {
@@ -194,115 +70,88 @@ public class ExamPaperController {
     }
 
     /**
-     * 新增试卷（教师/管理员权限）
-     * @param exam 试卷信息
-     * @param auth 认证信息
-     * @return 新增试卷数据
+     * 分页查询试卷列表。
+     * @param page 页码
+     * @param size 每页条数
+     * @param courseId 课程ID
+     * @param status 试卷状态（仅教师/管理员生效；学生恒为已发布）
+     * @param keyword 标题/描述关键词
+     * @param auth 当前登录主体（用于按角色过滤可见范围）
      */
+    @GetMapping
+    @Operation(summary = "分页查询试卷列表")
+    public ApiResponse<PagedResponse<ExamPaperVO>> listByParams(
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long teachingClassId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            Authentication auth) {
+        return ApiResponse.success(toPagedVO(examPaperApplicationService.listByParams(
+                page, size, courseId, teachingClassId, status, keyword, auth)));
+    }
+
+    /** 根据课程ID分页查询试卷。 */
+    @GetMapping("/course/{courseId}")
+    @Operation(summary = "根据课程ID分页查询试卷")
+    public ApiResponse<PagedResponse<ExamPaperVO>> listByCourse(
+            @PathVariable Long courseId,
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) Long teachingClassId,
+            Authentication auth) {
+        return ApiResponse.success(toPagedVO(examPaperApplicationService.listByCourse(
+                courseId, page, size, teachingClassId, auth)));
+    }
+
+    /** 根据ID查询试卷详情。 */
+    @GetMapping("/{id}")
+    @Operation(summary = "根据ID查询试卷详情")
+    public ApiResponse<ExamPaperVO> getById(@PathVariable Long id, Authentication auth) {
+        ExamPaper examPaper = examPaperService.getById(id);
+        activityVisibilityGuard.assertVisibleExamPaper(examPaper, auth);
+        return ApiResponse.success(ExamPaperVO.from(examPaper));
+    }
+
+    /** 新增试卷（教师/管理员权限）。 */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "新增试卷")
-    public ApiResponse<ExamPaper> create(@Valid @RequestBody ExamPaper exam, Authentication auth) {
-        // 对象级授权：试卷必须归属当前教师（管理员按治理口径放行），防止甲课教师为乙课创建试卷。
-        examPaperAccessControl.assertCanCompose(exam.getCourseId(), auth);
-        exam.setCreatorId((Long) auth.getPrincipal());
-        String requestedVisibility = ActivityVisibility.normalizeOrNull(exam.getVisibility());
-        if (ActivityVisibility.CLASSES.equals(requestedVisibility)
-                || (exam.getTeachingClassIds() != null && !exam.getTeachingClassIds().isEmpty())) {
-            activityVisibilityGuard.assertNotAdmin(auth);
-        }
-        String visibility = activityTargetService.normalizeAndValidate(
-                null, exam.getCourseId(), exam.getVisibility(), exam.getTeachingClassIds(), true);
-        exam.setVisibility(visibility);
-        examPaperService.save(exam);
-        activityTargetService.replaceExamPaperTargets(exam.getId(), visibility, exam.getTeachingClassIds());
-        return ApiResponse.success("创建成功", exam);
+    public ApiResponse<ExamPaperVO> create(@Valid @RequestBody ExamPaperSaveDTO dto, Authentication auth) {
+        return ApiResponse.success("创建成功", ExamPaperVO.from(examPaperApplicationService.create(dto, auth)));
     }
 
-    /**
-     * 修改试卷（教师/管理员权限）
-     * @param id 试卷ID
-     * @param exam 待更新试卷数据
-     * @return 更新后试卷信息
-     */
+    /** 修改试卷（教师/管理员权限）。 */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改试卷")
-    public ApiResponse<ExamPaper> update(@PathVariable Long id, @Valid @RequestBody ExamPaper exam, Authentication auth) {
-        // 归属校验（2026-09-14 修复）：仅试卷所属课程的授课教师或管理员可修改
-        ExamPaper existing = examPaperService.getById(id);
-        examPaperAccessControl.assertCanManage(existing, auth);
-        boolean targetsTouched = exam.getVisibility() != null || exam.getTeachingClassIds() != null;
-        String normalizedVisibility = null;
-        if (targetsTouched) {
-            // 管理员不得修改目标教学班（WP6 验收第 4 条）
-            activityVisibilityGuard.assertNotAdmin(auth);
-            String effectiveVisibility = exam.getVisibility() != null
-                    ? exam.getVisibility() : existing.getVisibility();
-            normalizedVisibility = activityTargetService.normalizeAndValidate(
-                    id, existing.getCourseId(), effectiveVisibility, exam.getTeachingClassIds(), true);
-            exam.setVisibility(normalizedVisibility);
-        }
-        // 修复 A-02 #5/#8：更新收口到服务层 updateExamPaper——
-        // status/isActive/creatorId 白名单剔除（审核流转只走 /publish、/approve、/reject），
-        // 并校验显式传入的 totalScore 与题目分值合计一致
-        ExamPaper updatedExam = examPaperService.updateExamPaper(id, exam);
-        if (targetsTouched) {
-            activityTargetService.replaceExamPaperTargets(id, normalizedVisibility, exam.getTeachingClassIds());
-        }
-        return ApiResponse.success("更新成功", updatedExam);
+    public ApiResponse<ExamPaperVO> update(@PathVariable Long id,
+                                           @Valid @RequestBody ExamPaperSaveDTO dto, Authentication auth) {
+        return ApiResponse.success("更新成功",
+                ExamPaperVO.from(examPaperApplicationService.update(id, dto, auth)));
     }
 
-    /**
-     * 删除试卷（教师/管理员权限）
-     * @param id 试卷ID
-     * @return 操作结果
-     */
+    /** 删除试卷（教师/管理员权限）。 */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除试卷",
             description = "无考试记录时物理删除；已产生考试会话的试卷返回 409，避免外键级联销毁考试记录")
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
-        // 归属校验（2026-09-14 修复）：仅试卷所属课程的授课教师或管理员可删除
-        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
-        // 修复（2026-11-01，B-13 ⑳）：禁止删除已产生考试记录的试卷。
-        // 外键 fk_exam_questions_paper / fk_exam_sessions_paper 均为 ON DELETE CASCADE，
-        // fk_proctor_sessions_exam 又对 exam_sessions 级联 —— 直接物理删会连坐销毁
-        // 题目行、考试会话与监考事件。项目主裁定（2026-11-01）：存在 exam_sessions 时返回 409。
-        long sessionCount = examSessionService.count(
-                new LambdaQueryWrapper<com.aicourse.entity.ExamSession>()
-                        .eq(com.aicourse.entity.ExamSession::getExamPaperId, id));
-        if (sessionCount > 0) {
-            throw new BusinessException(ApiCode.CONFLICT,
-                    "该试卷已产生 " + sessionCount + " 条考试记录，不能删除；请改为归档");
-        }
-        examPaperService.removeById(id);
+        examPaperApplicationService.delete(id, auth);
         return ApiResponse.success("删除成功", null);
     }
 
-    /**
-     * 归档试卷（教师/管理员权限）。
-     * <p>已产生考试记录的试卷 DELETE 返回 409，归档是文案指定的出路：只改状态、
-     * 保留题目与考试记录，学生列表（只筛 PUBLISHED）随即不可见。</p>
-     * @param id 试卷ID
-     * @param auth 认证信息
-     * @return 归档后的试卷
-     */
+    /** 归档试卷（教师/管理员权限）。 */
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "归档试卷",
             description = "PUBLISHED → ARCHIVED，幂等；用于已产生考试记录、不可物理删除的试卷")
-    public ApiResponse<ExamPaper> archive(@PathVariable Long id, Authentication auth) {
-        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
-        examPaperService.archiveExamPaper(id);
-        return ApiResponse.success("已归档", examPaperService.getById(id));
+    public ApiResponse<ExamPaperVO> archive(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.success("已归档", ExamPaperVO.from(examPaperApplicationService.archive(id, auth)));
     }
 
-    /**
-     * 查询试卷完整详情（含题目列表）
-     * @param id 试卷ID
-     * @return 试卷详情（包含题目信息）
-     */
+    /** 查询试卷完整详情（含题目列表）。 */
     @GetMapping("/{id}/detail")
     @Operation(summary = "查询试卷完整详情")
     public ApiResponse<ExamPaperDetailVO> getDetail(@PathVariable Long id, Authentication auth) {
@@ -310,113 +159,65 @@ public class ExamPaperController {
         ExamPaper paper = requirePaper(id);
         examPaperAccessControl.assertCanRead(paper, auth);
         activityVisibilityGuard.assertVisibleExamPaper(paper, auth);
-        ExamPaperDetailVO detail = examPaperService.getExamPaperDetail(id);
-        return ApiResponse.success(detail);
+        return ApiResponse.success(examPaperService.getExamPaperDetail(id));
     }
 
-    /**
-     * 发布试卷（教师/管理员权限）
-     * @param id 试卷ID
-     * @return 发布后试卷信息
-     */
+    /** 发布试卷 / 提交审核（教师提交；管理员走 /approve）。 */
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "发布试卷 / 提交审核",
             description = "教师提交审核（DRAFT/REJECTED → PENDING_REVIEW）；管理员发布入口按 WP6 返回 403，"
                     + "审核通过走 /approve")
-    public ApiResponse<ExamPaper> publish(@PathVariable Long id, Authentication auth) {
-        // WP6：管理员只读治理，不直接发布试卷；管理员仅通过 /approve 完成审核动作
-        activityVisibilityGuard.assertNotAdmin(auth);
-        // 归属校验：仅试卷所属课程的授课教师可提交审核
-        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
-        examPaperService.submitExamPaperForReview(id);
-        return ApiResponse.success("已提交审核", examPaperService.getById(id));
+    public ApiResponse<ExamPaperVO> publish(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.success("已提交审核", ExamPaperVO.from(examPaperApplicationService.publish(id, auth)));
     }
 
-    /**
-     * 审核通过（管理员）：仅待审核态可操作。
-     * @param id 试卷ID
-     * @return 审核后的试卷
-     */
+    /** 审核通过（管理员）：仅待审核态可操作。 */
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "审核通过试卷", description = "PENDING_REVIEW → PUBLISHED，并推送选课学生通知")
-    public ApiResponse<ExamPaper> approve(@PathVariable Long id) {
-        examPaperService.approveExamPaper(id);
-        return ApiResponse.success("审核通过", examPaperService.getById(id));
+    public ApiResponse<ExamPaperVO> approve(@PathVariable Long id) {
+        return ApiResponse.success("审核通过", ExamPaperVO.from(examPaperApplicationService.approve(id)));
     }
 
-    /**
-     * 审核驳回（管理员）：仅待审核态可操作。
-     * @param id 试卷ID
-     * @param body 驳回原因（reason，可选）
-     * @return 驳回后的试卷
-     */
+    /** 审核驳回（管理员）：仅待审核态可操作。 */
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "审核驳回试卷", description = "PENDING_REVIEW → REJECTED，并向创建人发送驳回通知；原因仅进通知与日志，不落库")
-    public ApiResponse<ExamPaper> reject(@PathVariable Long id,
-                                         @RequestBody(required = false) Map<String, String> body) {
+    @Operation(summary = "审核驳回试卷",
+            description = "PENDING_REVIEW → REJECTED，并向创建人发送驳回通知；原因仅进通知与日志，不落库")
+    public ApiResponse<ExamPaperVO> reject(@PathVariable Long id,
+                                           @RequestBody(required = false) Map<String, String> body) {
         String reason = body == null ? null : body.get("reason");
-        examPaperService.rejectExamPaper(id, reason);
-        return ApiResponse.success("已驳回", examPaperService.getById(id));
+        return ApiResponse.success("已驳回", ExamPaperVO.from(examPaperApplicationService.reject(id, reason)));
     }
 
-    /**
-     * 自动组卷（教师/管理员权限）
-     * 按题型数量和难度比例从题库随机抽取题目生成试卷
-     * @param dto 组卷参数
-     * @param auth 认证信息
-     * @return 生成的试卷
-     */
+    /** 自动组卷（教师/管理员权限）。 */
     @PostMapping("/auto-compose")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "自动组卷")
-    public ApiResponse<ExamPaper> autoCompose(@Valid @RequestBody AutoComposeDTO dto, Authentication auth) {
+    public ApiResponse<ExamPaperVO> autoCompose(@Valid @RequestBody AutoComposeDTO dto, Authentication auth) {
         Long creatorId = (Long) auth.getPrincipal();
-        // 归属校验：仅目标课程的授课教师或管理员可组卷（修复他师越权为他人课程组卷）
-        examPaperAccessControl.assertCanCompose(dto.getCourseId(), auth);
-        ExamPaper paper = examPaperService.autoComposeExamPaper(dto, creatorId);
-        return ApiResponse.success("自动组卷成功", paper);
+        return ApiResponse.success("自动组卷成功",
+                ExamPaperVO.from(examPaperApplicationService.autoCompose(dto, creatorId, auth)));
     }
 
-
-    /**
-     * 复制试卷（教师/管理员权限）
-     * @param id 源试卷ID
-     * @param body 包含新标题
-     * @param auth 认证信息
-     * @return 新试卷信息
-     */
+    /** 复制试卷（教师/管理员权限）。 */
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "复制试卷")
-    public ApiResponse<ExamPaper> copy(@PathVariable Long id, @Valid @RequestBody Map<String, String> body,
-                                       Authentication auth) {
-        // 修复 A-02 #6：对象级 ACL——复制源试卷要求对源试卷所属课程有管理权。
-        // 缺失时任意教师可复制他师试卷，并经 /detail 读取全部题目与标准答案。
-        examPaperAccessControl.assertCanManage(requirePaper(id), auth);
-        String newTitle = body.get("newTitle");
-        ExamPaper newPaper = examPaperService.copyExamPaper(id, newTitle);
-        return ApiResponse.success("复制成功", newPaper);
+    public ApiResponse<ExamPaperVO> copy(@PathVariable Long id, @Valid @RequestBody Map<String, String> body,
+                                         Authentication auth) {
+        return ApiResponse.success("复制成功",
+                ExamPaperVO.from(examPaperApplicationService.copy(id, body.get("newTitle"), auth)));
     }
 
-    /**
-     * 获取试卷统计（题型分布、分值分布）
-     * @param id 试卷ID
-     * @return 统计数据
-     */
+    /** 获取试卷统计（题型分布、分值分布）。 */
     @GetMapping("/{id}/statistics")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取试卷统计")
     public ApiResponse<ExamPaperStatsVO> statistics(@PathVariable Long id, Authentication auth) {
         // 统计含题型/分值分布，属教学侧数据；学生无使用场景（前端仅教师端调用）
         examPaperAccessControl.assertCanRead(examPaperService.getById(id), auth);
-        ExamPaperStatsVO stats = examPaperService.getPaperStatistics(id);
-        return ApiResponse.success(stats);
-    }
-
-    public ExamSessionService getExamSessionService() {
-        return examSessionService;
+        return ApiResponse.success(examPaperService.getPaperStatistics(id));
     }
 }

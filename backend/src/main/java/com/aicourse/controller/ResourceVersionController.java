@@ -4,7 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.security.AccessSupport;
 import com.aicourse.entity.Resource;
+import com.aicourse.vo.ResourceVOs;
 import com.aicourse.entity.ResourceVersion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
@@ -58,11 +60,11 @@ public class ResourceVersionController {
      * @return 版本列表（按版本号降序）
      */
     @GetMapping("/resource/{resourceId}")
-    public ApiResponse<List<ResourceVersion>> getVersionHistory(@PathVariable Long resourceId,
+    public ApiResponse<List<ResourceVOs.ResourceVersionVO>> getVersionHistory(@PathVariable Long resourceId,
                                                                 Authentication auth) {
         assertResourceReadable(resourceId, auth);
         List<ResourceVersion> versions = resourceVersionService.getVersionHistory(resourceId);
-        return ApiResponse.success(versions);
+        return ApiResponse.success(ResourceVOs.ResourceVersionVO.from(versions));
     }
 
     /**
@@ -73,7 +75,7 @@ public class ResourceVersionController {
      */
     @PostMapping("")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<ResourceVersion> createNewVersion(@Valid @RequestBody ResourceVersionCreateDTO dto,
+    public ApiResponse<ResourceVOs.ResourceVersionVO> createNewVersion(@Valid @RequestBody ResourceVersionCreateDTO dto,
                                                          Authentication auth) {
         Long resourceId = dto.getResourceId();
         // 契约修复（2026-09-14）：DTO 的必填字段是 fileUrl（@NotBlank），但控制器原先只读 url，
@@ -101,7 +103,7 @@ public class ResourceVersionController {
 
         ResourceVersion version = resourceVersionService.createNewVersion(
                 resourceId, fileName, fileType, url, description, uploaderId, fileSize);
-        return ApiResponse.success("版本创建成功", version);
+        return ApiResponse.success("版本创建成功", ResourceVOs.ResourceVersionVO.from(version));
     }
 
     /**
@@ -131,10 +133,10 @@ public class ResourceVersionController {
      * @return 当前激活的版本
      */
     @GetMapping("/active/{resourceId}")
-    public ApiResponse<ResourceVersion> getActiveVersion(@PathVariable Long resourceId, Authentication auth) {
+    public ApiResponse<ResourceVOs.ResourceVersionVO> getActiveVersion(@PathVariable Long resourceId, Authentication auth) {
         assertResourceReadable(resourceId, auth);
         ResourceVersion activeVersion = resourceVersionService.getActiveVersion(resourceId);
-        return ApiResponse.success(activeVersion);
+        return ApiResponse.success(ResourceVOs.ResourceVersionVO.from(activeVersion));
     }
 
     // ===================== 归属校验（内部工具） =====================
@@ -162,8 +164,7 @@ public class ResourceVersionController {
      * 教师须为资源所属课程的授课教师。
      */
     private void assertResourceManageable(Long resourceId, Authentication auth) {
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> "ROLE_ADMIN".equals(g.getAuthority()));
+        boolean isAdmin = AccessSupport.isAdmin(auth);
         if (isAdmin && !adminScopeGuard.isCollegeAdmin()) {
             return;
         }
@@ -190,3 +191,4 @@ public class ResourceVersionController {
         }
     }
 }
+

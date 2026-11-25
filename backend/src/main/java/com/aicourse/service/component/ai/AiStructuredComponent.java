@@ -289,7 +289,9 @@ public class AiStructuredComponent {
         try {
             root = OBJECT_MAPPER.readTree(toParse);
         } catch (Exception e) {
-            // 非法 JSON -> 回退为单条文本记录
+            // 非法 JSON -> 回退为单条文本记录；回退后结果形状变化（1 条 vs N 条），必须留痕
+            log.warn("AI 出题结果不是合法 JSON，回退为单条文本记录: cause={}, head={}",
+                    e.getMessage(), jsonText.length() > 80 ? jsonText.substring(0, 80) : jsonText);
             Map<String, Object> rec = new LinkedHashMap<>();
             rec.put("content", jsonText);
             rec.put("type", "SINGLE_CHOICE");

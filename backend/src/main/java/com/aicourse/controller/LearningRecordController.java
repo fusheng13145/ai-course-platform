@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.LearningRecordSaveDTO;
+import com.aicourse.vo.LearningProgressVOs;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.service.LearningRecordService;
 import com.aicourse.vo.DailyLearningStatVO;
@@ -29,23 +31,31 @@ public class LearningRecordController {
     private static final Logger log = LoggerFactory.getLogger(LearningRecordController.class);
 
     private final LearningRecordService learningRecordService;
+    private final com.aicourse.application.student.StudentLearningApplicationService
+            studentLearningApplicationService;
 
-    public LearningRecordController(LearningRecordService learningRecordService) {
+    public LearningRecordController(LearningRecordService learningRecordService,
+                                    com.aicourse.application.student.StudentLearningApplicationService
+                                            studentLearningApplicationService) {
         this.learningRecordService = learningRecordService;
+        this.studentLearningApplicationService = studentLearningApplicationService;
     }
 
     /**
      * 新增学习记录（学生/管理员权限）
-     * @param record 学习记录信息
+     * <p>入参只接受行为字段：{@code userId} 恒取登录用户（不可把学时记到别人账上），
+     * {@code id}／{@code createdAt} 由服务端生成。</p>
+     * @param dto 学习记录信息
      * @param auth 认证信息
      * @return 新增记录数据
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<LearningRecord> record(@Valid @RequestBody LearningRecord record, Authentication auth) {
+    public ApiResponse<LearningProgressVOs.RecordVO> record(@Valid @RequestBody LearningRecordSaveDTO dto, Authentication auth) {
+        LearningRecord record = dto.toEntity();
         record.setUserId((Long) auth.getPrincipal());
         learningRecordService.save(record);
-        return ApiResponse.success("记录成功", record);
+        return ApiResponse.success("记录成功", LearningProgressVOs.RecordVO.from(record));
     }
 
     /**
@@ -54,12 +64,9 @@ public class LearningRecordController {
      * @return 学习记录列表
      */
     @GetMapping
-    public ApiResponse<List<LearningRecord>> myRecords(Authentication auth) {
+    public ApiResponse<List<LearningProgressVOs.RecordVO>> myRecords(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<LearningRecord> queryWrapper = new LambdaQueryWrapper<LearningRecord>()
-                .eq(LearningRecord::getUserId, userId);
-        List<LearningRecord> recordList = learningRecordService.list(queryWrapper);
-        return ApiResponse.success(recordList);
+        return ApiResponse.success(studentLearningApplicationService.myRecords(userId));
     }
 
     /**

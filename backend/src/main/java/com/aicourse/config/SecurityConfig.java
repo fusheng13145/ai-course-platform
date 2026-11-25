@@ -401,18 +401,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration corsConfig = new CorsConfiguration();
-        // 允许的前端域名白名单改为配置驱动（cors.allowed-origins），多环境免改代码
-        List<String> allowedOrigins = corsProperties.getAllowedOrigins();
-        if (allowedOrigins == null || allowedOrigins.isEmpty()) {
-            if (corsDevFallback) {
-                // 仅本地开发便利：未配置 origins 时回退 localhost。生产须置 app.cors.dev-fallback=false
-                // 并在 cors.allowed-origins 显式列出受信前端域名（不含 localhost），避免带凭证跨域泄漏。
-                allowedOrigins = List.of("http://localhost:5173");
-            } else {
-                log.warn("cors.allowed-origins 未配置且 app.cors.dev-fallback=false，"
-                        + " 将拒绝一切跨域请求（fail-closed）。生产环境请在配置中显式设置受信前端域名。");
-                allowedOrigins = List.of();
-            }
+        // 允许的前端域名白名单改为配置驱动（cors.allowed-origins），多环境免改代码。
+        // 解析口径与 WebSocket 共用 CorsOriginResolver，避免两条链路判定漂移（DEF-07）。
+        List<String> allowedOrigins = CorsOriginResolver.resolve(
+                corsProperties.getAllowedOrigins(), corsDevFallback);
+        if (CorsOriginResolver.isFailClosed(allowedOrigins)) {
+            log.warn("cors.allowed-origins 未配置且 app.cors.dev-fallback=false，"
+                    + " 将拒绝一切跨域请求（fail-closed）。生产环境请在配置中显式设置受信前端域名。");
         }
         corsConfig.setAllowedOrigins(allowedOrigins);
         // 允许的请求方式
