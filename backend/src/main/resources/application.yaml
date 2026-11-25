@@ -181,8 +181,10 @@ server:
 
 # ===================== MyBatis-Plus 配置 =====================
 mybatis-plus:
-  # Mapper XML文件路径
-  mapper-locations: classpath*:mapper/**/*.xml
+  # 说明：本仓库全部 Mapper 走注解 SQL（@Select/@Update/@Insert/@Delete），
+  # resources 下无任何 mapper XML，故不声明 mapper-locations —— 声明一个匹配不到
+  # 任何文件的通配路径只会误导后来者以为存在 XML 映射层。
+  # 若将来引入 XML 映射，再显式加回 classpath*:mapper/**/*.xml 并配套 *.xml 到 resources/mapper。
   # 实体类别名包
   type-aliases-package: com.aicourse.entity
   configuration:
