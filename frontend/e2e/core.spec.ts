@@ -78,20 +78,32 @@ function pickList(body: unknown): Array<Record<string, unknown>> {
   return Array.isArray(list) ? (list as Array<Record<string, unknown>>) : []
 }
 
+/**
+ * 从考试列表行进入答题页。
+ *
+ * <p>2026-11-25 起「开始作答 / 再次考试」调用 {@code window.open} 打开独立的沉浸式答题页
+ * （{@code /exam-room/{paperId}}），列表页保留。旧实现只等当前页出现 {@code .question}，
+ * 在新标签页口径下必然超时。这里返回真正承载答题页的 {@link Page}，调用方后续断言都跑在它上面。</p>
+ */
 async function startFromRow(
   page: import('@playwright/test').Page,
   row: import('@playwright/test').Locator,
-) {
+): Promise<import('@playwright/test').Page> {
+  const popupPromise = page.waitForEvent('popup', { timeout: 15000 }).catch(() => null)
   await row.getByRole('button', { name: /开始作答|继续作答/ }).click()
-  // 开考/续考会先弹确认层（Modal）；出现就点确认，不出现就直接进答题
-  const dialog = page.locator('.modal-panel')
-  await dialog.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {})
+  const room = (await popupPromise) ?? page
+  if (room !== page) await room.waitForLoadState('domcontentloaded')
+
+  // 兼容旧版同页确认层：出现 .modal-panel 才点确认；新标签页直达答题页时不会出现。
+  const dialog = room.locator('.modal-panel')
+  await dialog.waitFor({ state: 'visible', timeout: 500 }).catch(() => {})
   if (await dialog.count()) {
     await dialog
       .getByRole('button', { name: /确定|开始|继续|进入/ })
       .first()
       .click()
   }
+  return room
 }
 
 async function ensureExamPaper(
@@ -304,29 +316,27 @@ test.describe.serial('核心链路（真栈）', () => {
 
     const row = page.locator('.exam-row', { hasText: paperTitle })
     await expect(row, '学生考试列表里没有刚发布的卷子').toBeVisible()
-    await startFromRow(page, row)
+    const room = await startFromRow(page, row)
 
-    await expect(page.locator('.question')).toBeVisible()
+    // 首帧要等 Vite 冷启动/路由懒加载把答题组件装载完；本机实测冷缓存下 >10s，
+    // 10s 会把「慢」误判成「坏」。这里只放宽等待，不跳过任何业务断言。
+    await expect(room.locator('.question')).toBeVisible({ timeout: 30000 })
     // 进入答题后首帧还会拉一次会话/题目，等它稳定再点，避免元素被重渲染打断
-    await page.waitForTimeout(2000)
-    const firstOption = page.locator('.q-options input[type=radio]').first()
+    await room.waitForTimeout(2000)
+    const firstOption = room.locator('.q-options input[type=radio]').first()
     if (!(await firstOption.isChecked())) {
-      await page.locator('.q-options label').first().click()
+      await room.locator('.q-options label').first().click()
     }
     await expect(firstOption).toBeChecked()
-    await expect(page.locator('.sheet-progress')).toContainText('已作答 1')
+    await expect(room.locator('.sheet-progress')).toContainText('已作答 1')
     // 作答按 30 秒周期自动保存；等一个周期再刷新，验的是服务端真的存下了
-    await page.waitForTimeout(32000)
+    await room.waitForTimeout(32000)
 
-    // 刷新后重新进入：服务端会话仍在，选项应回填
-    await page.reload({ waitUntil: 'domcontentloaded' })
-    await expect(page.locator('.exam-panel')).toBeVisible()
-    const rowAfterReload = page.locator('.exam-row', { hasText: paperTitle })
-    await expect(rowAfterReload).toBeVisible()
-    await startFromRow(page, rowAfterReload)
-    await expect(page.locator('.question')).toBeVisible()
-    await expect(page.locator('.sheet-progress')).toContainText('已作答 1')
-    await expect(page.locator('.q-options input[type=radio]').first()).toBeChecked()
+    // 刷新后仍在答题页：服务端会话仍在，选项应回填
+    await room.reload({ waitUntil: 'domcontentloaded' })
+    await expect(room.locator('.question')).toBeVisible({ timeout: 30000 })
+    await expect(room.locator('.sheet-progress')).toContainText('已作答 1')
+    await expect(room.locator('.q-options input[type=radio]').first()).toBeChecked()
     await context.close()
   })
 
@@ -348,21 +358,22 @@ test.describe.serial('核心链路（真栈）', () => {
     await page.goto(`/student/courses/${EXAM_COURSE_ID}/exams`, { waitUntil: 'domcontentloaded' })
     const row = page.locator('.exam-row', { hasText: title })
     await expect(row, '学生考试列表里没有刚发布的卷子').toBeVisible()
-    await startFromRow(page, row)
-    await expect(page.locator('.question')).toBeVisible()
-    await page.waitForTimeout(1500)
+    const room = await startFromRow(page, row)
+    await expect(room.locator('.question')).toBeVisible({ timeout: 30000 })
+    await room.waitForTimeout(1500)
 
     // 题型不定，能答就答一题；不答也允许交卷（未答题按 0 分），
     // 本用例验的是「正式交卷 → 服务端判分 → 结果页读数」整条链，而不是正确率。
-    const firstRadio = page.locator('.q-options input[type=radio]').first()
+    const firstRadio = room.locator('.q-options input[type=radio]').first()
     if (await firstRadio.count()) {
-      await page.locator('.q-options label').first().click()
+      await room.locator('.q-options label').first().click()
     }
 
-    await page.getByRole('button', { name: '交卷', exact: true }).click()
-    await page.getByRole('button', { name: '确认提交' }).click()
-    await expect(page.locator('.exam-panel .result')).toBeVisible()
-    const scoreLine = (await page.locator('.result .score b').innerText()).trim()
+    await room.getByRole('button', { name: '交卷', exact: true }).click()
+    await room.getByRole('button', { name: '确认提交' }).click()
+    // 答题页在独立标签页里，结果视图是房间页的 .result（不再挂在列表页 .exam-panel 下）
+    await expect(room.locator('.result')).toBeVisible()
+    const scoreLine = (await room.locator('.result .score b').innerText()).trim()
     expect(scoreLine, `结果页未显示判分读数：${scoreLine}`).toMatch(/\d+(\.\d+)?\s*分/)
     const uiScore = Number(scoreLine.replace(/[^\d.]/g, ''))
 

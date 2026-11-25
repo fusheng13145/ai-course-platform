@@ -27,10 +27,10 @@ import java.util.Set;
  * <p>证据口径与 {@code AiRagComponent} 原有实现逐字一致：只有 {@code mode=ENGINE} 的检索结果才算
  * 真实引擎证据；知识点匹配要求名称至少 2 字且整体出现在归一化后的问题中；描述压缩后截断
  * {@value #MAX_DESCRIPTION_LEN} 字。所有外部查询失败一律降级为空证据，绝不阻断上层主流程。</p>
- * <p><b>双引擎合并（2026-11-21 DeepGraph RAG 接入）</b>：8002 知识点语料检索为主引擎，
- * 8501 deepgraph_rag（已验收 DeepSeek-RAG-Chatbot 契约适配）为整篇文档语料的<b>增量</b>第二检索源；
+ * <p><b>双引擎合并（2026-11-21 DeepGraph RAG 接入）</b>：知识点语料 RAG（原 8002，现与
+ * DeepGraph 同进程）为主引擎，DeepGraph 文档语料为整篇文档的<b>增量</b>第二检索源；
  * {@link #retrieveWithDocuments} / {@link #retrieveMergedTyped} 把两路 ENGINE 证据去重合并。
- * 第二引擎未启用/不可达/异常时静默跳过，只回落到 8002 单引擎——与未集成前行为完全一致。</p>
+ * 第二引擎未启用/不可达/异常时静默跳过，只回落到知识点语料单引擎——与未集成前行为完全一致。</p>
  */
 @Slf4j
 @Component
@@ -90,8 +90,8 @@ public class CourseEvidenceComponent {
     }
 
     /**
-     * 双引擎合并检索（问答主链入口）：8002 知识点语料 + 8501 整篇文档语料（deepgraph_rag）。
-     * <p>两路各自的 {@code mode=ENGINE} 结果按片段归一化去重后拼接（8002 在前，deepgraph 补充其后，
+     * 双引擎合并检索（问答主链入口）：知识点语料（原 8002）+ DeepGraph 整篇文档语料。
+     * <p>两路各自的 {@code mode=ENGINE} 结果按片段归一化去重后拼接（知识点语料在前，deepgraph 补充其后，
      * 条数上限 {@value #MAX_DEEPGRAPH_SOURCES}）。deepgraph 未启用/不可达/异常时静默跳过。</p>
      */
     public List<RagSource> retrieveWithDocuments(String query, Long courseId, int topK) {

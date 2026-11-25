@@ -45,7 +45,7 @@ public class AiRagComponent {
      * 模型记忆或模板文案冒充引擎答案。
      * </p>
      * <p>2026-11-21 DeepGraph RAG 接入：检索改走 {@link CourseEvidenceComponent#retrieveWithDocuments}
-     * 双引擎合并——8002 知识点语料为主，8501 deepgraph_rag 整篇文档语料为增量第二源
+     * 双引擎合并——知识点语料（原 8002）为主，DeepGraph 整篇文档语料为增量第二源
      * （未启用/不可达时静默跳过，行为与单引擎时一致）。</p>
      */
     public QaAnswerVO ragAsk(String question, Long courseId) {

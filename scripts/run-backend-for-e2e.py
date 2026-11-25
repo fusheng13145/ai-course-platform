@@ -84,6 +84,12 @@ def main() -> int:
         "JWT_SECRET": env_file.get("JWT_SECRET", ""),
         "COOKIE_SECURE": "false",
         "REQUIRE_HTTPS": "false",
+        # MinIO 默认开启；凭据缺失会让 MinioConfig 在启动期 fail-fast（2026-11-25 验收实测）。
+        # 只透传对象存储四项，仍不注入 MAIL_*（否则验证码会打真实 SMTP）。
+        "MINIO_ROOT_USER": env_file.get("MINIO_ROOT_USER", env_file.get("MINIO_ACCESS_KEY", "")),
+        "MINIO_ROOT_PASSWORD": env_file.get("MINIO_ROOT_PASSWORD", env_file.get("MINIO_SECRET_KEY", "")),
+        "MINIO_BUCKET": env_file.get("MINIO_BUCKET", "aicourse-uploads"),
+        "MINIO_ENABLED": env_file.get("MINIO_ENABLED", "true"),
         # 直连 localhost 时必须绕开本机拦截代理，否则探活得到 502/10061
         "NO_PROXY": "localhost,127.0.0.1",
         "no_proxy": "localhost,127.0.0.1",

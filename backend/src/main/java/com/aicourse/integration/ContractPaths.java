@@ -5,8 +5,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 /**
  * 集成契约常量（调用约定的唯一事实来源）。
  * <p>
- * 知识图谱（KG，端口 8001）、RAG（端口 8002）与微调（FT，端口 8003）三个 Python 微服务由团队另一成员负责，
- * 本端（Java 后端）实现<b>消费侧</b>与<b>标准化对接契约</b>。本类集中定义：
+ * 知识图谱（KG）、知识库 RAG 与微调（FT）三个能力域由 Python 侧承载。默认部署为
+ * 单进程 Engine Hub（8600，{@code ENGINE_LAYOUT=hub}）；{@code ENGINE_LAYOUT=separate}
+ * 时回退为 8001 / 8501 / 8003 三进程布局。本端（Java 后端）实现<b>消费侧</b>与<b>标准化对接契约</b>。本类集中定义：
  * <ul>
  *   <li>配置键（{@code knowledge-graph.*} / {@code rag.*} / {@code fine-tune.*}），用于按 {@code enabled} 切换本地占位 / 远端 Python；</li>
  *   <li>HTTP 方法 + 路径（端点契约）；</li>
@@ -69,7 +70,7 @@ public final class ContractPaths {
     public static final String KG_INGEST = "/api/v1/graph/ingest";
     public static final String KG_SUBGRAPH = "/api/v1/graph/subgraph";
 
-    // ===================== RAG（8002）端点：HTTP 方法 + 路径 =====================
+    // ===================== RAG（原 8002，现随 Engine Hub 8600 / 分离布局 8501）端点 =====================
 
     public static final String RAG_HEALTH = "/api/v1/rag/health";
     public static final String RAG_ASK = "/api/v1/rag/ask";

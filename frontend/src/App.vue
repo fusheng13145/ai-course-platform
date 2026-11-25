@@ -6,7 +6,7 @@
 
 <script setup>
 import { ref, onErrorCaptured } from 'vue'
-import AppErrorBoundary from '@/components/AppErrorBoundary.vue'
+import AppErrorBoundary from '@/ui/components/AppErrorBoundary.vue'
 
 const errorBoundaryRef = ref(null)
 

@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => ({
     },
     // 预热高频页面模块，降低首次导航延迟
     warmup: {
-      clientFiles: ['./src/main.js', './src/layouts/*.vue', './src/views/*/Dashboard.vue'],
+      clientFiles: ['./src/main.ts', './src/App.vue'],
     },
     proxy: {
       '/api': {

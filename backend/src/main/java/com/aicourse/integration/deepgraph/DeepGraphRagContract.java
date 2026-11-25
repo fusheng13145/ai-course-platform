@@ -6,10 +6,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
- * DeepGraph RAG 集成契约（文档图谱检索增强，端口 8501）。
+ * DeepGraph RAG 集成契约（文档图谱检索增强；逻辑端口 8501，Engine Hub 部署时走 8600）。
  * <p>
  * 对接 {@code python-services/deepgraph_rag/}（已验收的 DeepSeek-RAG-Chatbot 原样复制 +
- * {@code api_server.py} 契约适配器）。与 8002 的 {@code RagContract} 互补而非替代：
+ * {@code api_server.py} 契约适配器）。与知识点语料 RAG（原 8002，现与其同进程）互补而非替代：
  * 8002 面向知识点语料（structured corpus）的 BM25+向量+RRF+HyDE+重排混合检索；
  * 8501 面向<b>整篇课程文档</b>（PDF/DOCX/TXT 原文入库）的 FAISS+BM25 混合召回、
  * Neo4j GraphRAG 关系上下文、HyDE 查询扩展与 Cross-Encoder 重排（复制内容保持原实现不变）。
@@ -37,7 +37,7 @@ import java.util.List;
  *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/chapter-graph}</td><td>course_id, document_name, chapter_name?</td><td>success, nodes, edges, relations[]</td></tr>
  *   <tr><td>POST</td><td>{@code /api/v1/deepgraph/learning-path}</td><td>target, course_id?, max_depth</td><td>path_text, mode</td></tr>
  * </table>
- * 降级语义与 8002 完全一致：HTTP 503（或 body {@code code:503}/{@code mode:"UNAVAILABLE"}）。
+ * 降级语义与知识库 RAG 契约完全一致：HTTP 503（或 body {@code code:503}/{@code mode:"UNAVAILABLE"}）。
  */
 public interface DeepGraphRagContract {
 

@@ -20,7 +20,8 @@ import org.springframework.stereotype.Service;
  * 本类实现业务接口 {@link RAGService}，内部按 {@code rag.provider} 委派到标准化契约
  * {@link RagContract} 的具体实现（2026-11-15 基线：Python 为核心、Java 仅备选）：
  * <ul>
- *   <li>{@code provider=python}（默认）→ {@link HttpRagProvider}：HTTP 对接 Python RAG 微服务 8002；</li>
+ *   <li>{@code provider=python}（默认）→ {@link HttpRagProvider}：HTTP 对接知识库 RAG
+ *       （默认 Engine Hub 8600；分离布局 8501，原 8002 已退役并入）；</li>
  *   <li>{@code provider=java} → {@link DisabledRagProvider}：不调 Python，返回 {@code 503}，问答走纯 LLM 兜底；</li>
  *   <li>{@code provider} 未配置 → 沿用历史开关 {@code rag.enabled}，保证老配置不回退。</li>
  * </ul>
@@ -45,7 +46,7 @@ public class RAGServiceImpl implements RAGService {
      * 解析是否使用 Python 引擎（package-private：便于单测直测）。
      * <ol>
      *   <li>{@code rag.provider=java} → 强制纯 LLM，不调 Python；</li>
-     *   <li>{@code rag.provider=python} → 使用 Python 8002 契约（默认）；</li>
+     *   <li>{@code rag.provider=python} → 使用知识库 RAG 契约（默认）；</li>
      *   <li>空 / 未识别 → 沿用历史开关 {@code rag.enabled}，保证老配置文件不回退。</li>
      * </ol>
      */

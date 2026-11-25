@@ -10,6 +10,7 @@ import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.vo.SubmissionVO;
@@ -105,9 +106,6 @@ public class SubmissionApplicationService {
     // ===================== 写：提交/草稿/重交/评分/退回/AI评分 =====================
 
     /**
-     * 提交作业（{@code POST /submissions} 入口）。
-     */
-    /**
      * 我的提交记录（按 studentId 归属过滤，创建时间倒序）。
      */
     public PagedResponse<SubmissionVO> mySubmissions(Long studentId, long page, long size) {
@@ -115,7 +113,7 @@ public class SubmissionApplicationService {
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getStudentId, studentId)
                         .orderByDesc(Submission::getCreatedAt));
-        return toPagedVO(result);
+        return PageSupport.toPage(result, SubmissionVO::from);
     }
 
     /**
@@ -129,13 +127,8 @@ public class SubmissionApplicationService {
         if (RoleConstants.STUDENT.equals(AccessSupport.roleOf(auth))) {
             queryWrapper.eq(Submission::getStudentId, (Long) auth.getPrincipal());
         }
-        return toPagedVO(submissionService.page(Page.of(page, size), queryWrapper));
-    }
-
-    /** 提交分页转出参模型（阶段 3 · Q-05）。 */
-    private static PagedResponse<SubmissionVO> toPagedVO(Page<Submission> page) {
-        return PagedResponse.of(page.getRecords().stream().map(SubmissionVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
+        return PageSupport.toPage(submissionService.page(Page.of(page, size), queryWrapper),
+                SubmissionVO::from);
     }
 
     public Submission submit(SubmissionCreateDTO body, Authentication auth) {

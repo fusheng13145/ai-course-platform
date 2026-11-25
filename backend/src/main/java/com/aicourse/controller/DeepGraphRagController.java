@@ -32,8 +32,8 @@ import java.util.Locale;
 /**
  * DeepGraph RAG（文档图谱检索增强）控制器。
  * <p>
- * 对接 {@code python-services/deepgraph_rag}（8501，已验收 DeepSeek-RAG-Chatbot 原样复制 +
- * 契约适配器 {@code api_server.py}）。与 {@link RAGController}（8002 知识点语料库）互补：
+ * 对接 {@code python-services/deepgraph_rag}（8501 逻辑端口；Engine Hub 部署时走 8600）。
+ * 与 {@link RAGController}（知识点语料库，原 8002 已并入同进程）互补：
  * 本控制器治理<b>整篇课程文档</b>的入库、检索、章节图谱与学习路径。
  * 问答主链（{@code /ai/qa/*}）已自动合并本引擎召回，无需前端改造；
  * 本控制器是治理与调试入口。引擎未启用时服务层返回 503 降级 JSON，按既有语义如实透出。

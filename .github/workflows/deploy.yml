@@ -35,7 +35,7 @@ on:
         required: true
         type: string
       include_python:
-        description: "是否同时启动 Python 引擎（kg-service / rag-service / neo4j）"
+        description: "是否同时启动 Python 引擎（engine-hub / neo4j；回滚布局为 kg-service + deepgraph-service）"
         required: true
         default: true
         type: boolean
