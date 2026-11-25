@@ -769,13 +769,15 @@ jobs:
           cache-dependency-path: |
             python-services/rag_service/requirements.txt
             python-services/deepgraph_rag/requirements-platform.txt
+            python-services/deepgraph_rag/requirements-test.txt
 
       - name: Install dependencies
-        # merged 契约步骤 import 的是 deepgraph_rag/api_server.py，它顶层 import requests、
-        # 运行期还要 neo4j；只装 rag_service 的清单会在 collection 阶段直接
-        # ModuleNotFoundError: No module named 'requests'（CI 首跑实测）。
-        # 平台适配层清单不含 torch/faiss，装上不改变「引擎降级」语义。
-        run: pip install -r requirements.txt -r ../deepgraph_rag/requirements-platform.txt pytest
+        # merged 契约步骤会把同一批断言打到 deepgraph_rag/api_server.py（8501）：
+        #   · 它顶层 import requests、运行期还要 neo4j → 缺则 collection 阶段直接
+        #     ModuleNotFoundError: No module named 'requests'；
+        #   · test_deepgraph_contract.py 的图构造断言用 networkx（requirements-test.txt）。
+        # 两份清单都不含 torch/faiss，装上不改变「引擎降级」语义。
+        run: pip install -r requirements.txt -r ../deepgraph_rag/requirements-platform.txt -r ../deepgraph_rag/requirements-test.txt pytest
 
       - name: Contract + engine unit tests (FastAPI TestClient)
         # 缺陷修复（2026-10-04）：原先只跑单文件契约测试（旧名 contract_test.py，

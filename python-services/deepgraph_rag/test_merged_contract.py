@@ -89,11 +89,14 @@ def test_knowledge_engine_keeps_engine_identity():
 
 # ---------------- 2/3. 端点集合：8002 全在，deepgraph 不少 ----------------
 def _load_legacy_rag_app():
-    """按文件路径加载 8002 的 app（绕过 sys.modules，避免与合并实现混淆）。"""
+    """按文件路径加载 8002 的 app（独立模块名，避免与合并实现混淆）。"""
     rag_dir = os.path.normpath(_RAG_DIR)
-    spec = importlib.util.spec_from_file_location(
-        "legacy_rag_service_for_routes", os.path.join(rag_dir, "rag_service.py"))
+    name = "legacy_rag_service_for_routes"
+    spec = importlib.util.spec_from_file_location(name, os.path.join(rag_dir, "rag_service.py"))
     module = importlib.util.module_from_spec(spec)
+    # 必须登记进 sys.modules：pydantic 2.14 在构建 OpenAPI 时按模块名解析模型的
+    # forward ref，模块不可见会抛 PydanticUserError（class-not-fully-defined）。
+    sys.modules[name] = module
     sys.path.insert(0, rag_dir)
     try:
         spec.loader.exec_module(module)
@@ -102,15 +105,26 @@ def _load_legacy_rag_app():
     return module.app
 
 
+_HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options", "trace"}
+
+
 def _api_signatures(app):
-    """(path, frozenset(methods)) 集合，只取 /api/ 前缀的业务端点。"""
+    """{(path, method)} 集合，只取 /api/ 前缀的业务端点（每个「路径+方法」算一条）。
+
+    用 OpenAPI 路径表而不是遍历 ``app.routes``：FastAPI 0.136 起 include_router 的结果
+    被包成惰性 ``_IncludedRouter``（``app.routes`` 里只剩一个 path=None 的容器，真实路由
+    要等首次解析才展开），而 requirements-platform 是 ``fastapi>=0.115,<1``，CI 解析到新
+    版本后会把「知识库 9 端点已挂载」误判成「能力降级」。``openapi()`` 在新旧两代实现下
+    都会展开成最终路径表，与真实路由口径一致（smoke 用例打的就是同一批路径）。
+    """
+    schema_paths = app.openapi().get("paths", {})
     out = set()
-    for route in app.routes:
-        path = getattr(route, "path", None)
-        methods = getattr(route, "methods", None)
-        if not path or not methods or not path.startswith("/api/"):
+    for path, ops in schema_paths.items():
+        if not path.startswith("/api/"):
             continue
-        out.add((path, frozenset(methods)))
+        for method in ops:
+            if method.lower() in _HTTP_METHODS:
+                out.add((path, method.upper()))
     return out
 
 
