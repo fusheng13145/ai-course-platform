@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -73,6 +75,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 其余 POST /ai/** 仅 TEACHER/ADMIN；所有 /ai/** 未认证一律 401。</p>
  */
 @WebMvcTest({AIController.class, AIInsightController.class, AILearningPathController.class})
+// SSE 用例（/ai/qa/stream）在异步 dispatch 时 MockHttpServletResponse 的 header map 仍会
+// 被流式线程写入，而 MockMvc 默认的 PrintingResultHandler 恰好在这一刻遍历 headers，
+// 偶发 ConcurrentModificationException（CI 上复现过，本地难复现）。关掉默认打印即可消除：
+// 断言全部落在响应体上，不依赖控制台输出。
+@AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @Import({com.aicourse.security.AIAccessSupport.class,
         com.aicourse.application.enrollment.CourseEnrollmentApplicationService.class})
 class AIControllerCoverageTest extends ControllerTestBase {
