@@ -117,6 +117,36 @@ jobs:
         run: npm run size:gate
 
   # ------------------------------------------------------------------
+  # 前端门禁聚合状态（分支保护要求的状态检查名沿用旧作业名 `Frontend (lint + build)`）
+  #
+  # 背景：前端门禁在收敛时拆成了 `frontend-quality`（lint/format/audit）与
+  # `frontend-build`（构建 + 体积门禁）两个作业，但 main 分支保护规则里的必需检查
+  # 仍写着旧名 `Frontend (lint + build)`，导致 PR 永久停在 "Expected — Waiting for
+  # status to be reported"，合并按钮点不动。
+  #
+  # 这里用一个不做任何构建的聚合作业补上这个检查名：只有两个前端门禁都成功它才成功，
+  # 任一失败/取消它都失败。这样既恢复合并能力，又不削弱任何既有门禁
+  # （真正干活仍是上面两个作业，聚合作业只透传结果）。
+  # ------------------------------------------------------------------
+  frontend-gate:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    needs: [frontend-quality, frontend-build]
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate frontend gates
+        run: |
+          echo "frontend-quality=${{ needs.frontend-quality.result }}"
+          echo "frontend-build=${{ needs.frontend-build.result }}"
+          if [ "${{ needs.frontend-quality.result }}" != "success" ] \
+             || [ "${{ needs.frontend-build.result }}" != "success" ]; then
+            echo "::error::Frontend gates did not pass (lint/build)"
+            exit 1
+          fi
+          echo "Frontend gates passed"
+
+  # ------------------------------------------------------------------
   # 后端：编译 + 单元测试 + Testcontainers 集成测试（Java 21，与 backend/Dockerfile 的 temurin-21 对齐）
   # ------------------------------------------------------------------
   backend:
