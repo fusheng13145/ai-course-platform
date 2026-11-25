@@ -279,10 +279,8 @@ def test_engine_export_list_covers_every_var_the_engines_read():
     read = set()
     for rel in (
         "python-services/kg_service/kg_store.py",
-        # 8002 退役后知识库的实读点就在 8501 的这两个模块里；退役不动磁盘目录，
-        # 因此原 rag_service 的读取点继续留在扫描清单（防止「以退役为由」漏导出）
-        "python-services/rag_service/rag_engine.py",
-        "python-services/rag_service/rag_service.py",
+        # 8002 退役后知识库的实读点就在 8501 的这两个模块里。
+        # 退役副本 rag_service/ 已物理删除，扫描清单随之收敛，避免守着一个不存在的路径。
         "python-services/deepgraph_rag/knowledge_engine.py",
         "python-services/deepgraph_rag/knowledge_api.py",
         "python-services/fine_tune_service/ft_llm.py",

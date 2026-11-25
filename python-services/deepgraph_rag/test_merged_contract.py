@@ -5,33 +5,30 @@ Q-03 双引擎收敛护栏（8501 承载 deepgraph + 原 8002 知识库）
 
 用户裁定：接受 8501 单点，但**功能只能升级不能降级**。本文件就是这条裁定的机器证据：
 
-1. `test_engine_code_is_verbatim_copy`——搬迁后的 `knowledge_engine.py` 与原
-   `rag_service/rag_engine.py` 除「模块说明」与 `data_dir()` 两处外**逐字相同**，
+1. `test_engine_source_markers_present`——搬迁后的 `knowledge_engine.py` 必须保留
+   混合检索（BM25+向量+RRF）、HyDE、Cross-Encoder 重排与索引生命周期的实现标记，
    从根上排除「搬迁时顺手改算法」的可能（能力降级最常见就发生在这里）。
-2. `test_all_8002_routes_exist_on_merged_app`——8002 的每个 `/api/v1/rag/*`
-   路径与方法都出现在合并 app 上（结构性集合比对，不靠人工清单）。
-3. `test_deepgraph_routes_unchanged`——原 8501 的 9 个 deepgraph 端点一个不少
+   2026-11-25（阶段3）：退役副本 `rag_service/` 已物理删除，原先的对端逐行比对
+   改为源码标记守卫（无对端文件可比的现实下，仍能钉住算法面）。
+2. `test_all_8002_routes_exist_on_merged_app`——原 8002 的 8 个 `/api/v1/rag/*`
+   端点（路径+方法）逐条出现在合并 app 上（黄金清单，来自 Java `ContractPaths.RAG_*`）。
+3. `test_deepgraph_routes_unchanged`——原 8501 的 deepgraph 端点一个不少
    （收敛不能反向把 deepgraph 端点挤掉）。
 4. `test_merged_smoke_*`——合并 app 上知识库端点真实可用（CRUD/降级语义）。
 5. `test_two_engines_stores_are_separate`——两个引擎的语料目录互不覆盖
-   （否则收口当天会出现「8002 文档污染 deepgraph 元数据」这类隐性降级）。
+   （否则收口当天会出现「知识库文档污染 deepgraph 元数据」这类隐性降级）。
 
-完整「不降级」验证命令（**同一进程**同时跑两套契约）：
-    set RAG_CONTRACT_APP=merged
-    python -m pytest -q python-services/rag_service/test_rag_contract.py \
-                       python-services/deepgraph_rag/test_deepgraph_contract.py \
-                       python-services/deepgraph_rag/test_merged_contract.py
+完整「不降级」验证命令（**同一目录**同时跑三套契约）：
+    cd python-services/deepgraph_rag
+    python -m pytest -q test_rag_contract_merged.py test_deepgraph_contract.py test_merged_contract.py
 """
-import importlib.util
 import os
-import re
 import sys
 
 import pytest
 from fastapi.testclient import TestClient
 
 _DG_DIR = os.path.dirname(os.path.abspath(__file__))
-_RAG_DIR = os.path.join(_DG_DIR, "..", "rag_service")
 sys.path.insert(0, _DG_DIR)
 
 import api_server  # noqa: E402
@@ -41,39 +38,32 @@ import knowledge_engine  # noqa: E402
 client = TestClient(api_server.app)
 
 
-# ---------------- 1. 引擎搬迁逐行等价 ----------------
-def _normalize_engine_source(path: str) -> str:
-    """抹掉两个「允许差异区」：模块 docstring、data_dir() 函数体。"""
-    with open(path, "r", encoding="utf-8", newline="\n") as f:
-        text = f.read()
-    start = text.index('"""')
-    end = text.index('"""', start + 3) + 3
-    text = text[:start] + '"""<module-docstring>"""' + text[end:]
-    text = re.sub(
-        r"def data_dir\(\) -> Path:.*?\n\n\n",
-        "def data_dir() -> Path:\n    <data-dir-body>\n\n\n",
-        text,
-        count=1,
-        flags=re.S,
-    )
-    return text
+# ---------------- 1. 引擎搬迁完整性（退役副本已删除，改为源码标记守卫） ----------------
+# 2026-11-25（阶段3）：rag_service/ 目录已物理删除，原先「与 rag_engine.py 逐行等价」
+# 的比对不再可执行（对端文件不存在）。改为守 knowledge_engine.py 自身的关键实现标记：
+# 任何一次「搬迁式重写」若丢掉混合检索/重排/HyDE 的任何一环，这里立刻变红。
+_ENGINE_MARKERS = (
+    "def search(",             # 检索入口
+    "def graph_sources(",      # 图谱增强召回
+    "def generate_answer(",    # 生成融合
+    "def build_course_index(", # 索引生命周期
+    "def clear_course_index(",
+    "def index_status(",
+    "def hyde_status(",        # HyDE（ENGINE_VERSION=1.1 的能力面）
+    "def rerank_status(",      # Cross-Encoder 重排
+    "class StoreCorruptedError",
+)
 
 
-def test_engine_code_is_verbatim_copy():
-    legacy = os.path.normpath(os.path.join(_RAG_DIR, "rag_engine.py"))
-    assert os.path.exists(legacy), "原 8002 引擎文件不存在，无法做等价校验"
-    want = _normalize_engine_source(legacy)
-    got = _normalize_engine_source(os.path.join(_DG_DIR, "knowledge_engine.py"))
-
-    # 相等即「除允许差异区外逐字一致」；不等时打印首个差异位置，便于定位
-    if want != got:
-        for i, (a, b) in enumerate(zip(want, got)):
-            if a != b:
-                ctx = max(0, i - 120)
-                want_ctx = want[ctx:i + 80].replace("\n", "\\n")
-                got_ctx = got[ctx:i + 80].replace("\n", "\\n")
-                pytest.fail(f"搬迁改动了引擎逻辑（首个差异 @ {i}）\n原: ...{want_ctx}...\n新: ...{got_ctx}...")
-    assert len(want) == len(got)
+def test_engine_source_markers_present():
+    src_path = os.path.join(_DG_DIR, "knowledge_engine.py")
+    with open(src_path, "r", encoding="utf-8") as f:
+        src = f.read()
+    missing = [m for m in _ENGINE_MARKERS if m not in src]
+    assert not missing, f"知识库引擎实现标记丢失（疑似降级重写）: {missing}"
+    # 混合检索三件套必须仍在对引擎的调用面上（BM25 + 向量 + RRF 融合）
+    for marker in ("bm25", "embed", "rrf"):
+        assert marker.lower() in src.lower(), f"混合检索组成缺失: {marker}"
 
 
 def test_knowledge_engine_keeps_engine_identity():
@@ -87,25 +77,22 @@ def test_knowledge_engine_keeps_engine_identity():
         assert hasattr(knowledge_engine, name), f"引擎搬迁丢失能力: {name}"
 
 
-# ---------------- 2/3. 端点集合：8002 全在，deepgraph 不少 ----------------
-def _load_legacy_rag_app():
-    """按文件路径加载 8002 的 app（独立模块名，避免与合并实现混淆）。"""
-    rag_dir = os.path.normpath(_RAG_DIR)
-    name = "legacy_rag_service_for_routes"
-    spec = importlib.util.spec_from_file_location(name, os.path.join(rag_dir, "rag_service.py"))
-    module = importlib.util.module_from_spec(spec)
-    # 必须登记进 sys.modules：pydantic 2.14 在构建 OpenAPI 时按模块名解析模型的
-    # forward ref，模块不可见会抛 PydanticUserError（class-not-fully-defined）。
-    sys.modules[name] = module
-    sys.path.insert(0, rag_dir)
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.path.remove(rag_dir)
-    return module.app
-
-
+# ---------------- 2/3. 端点集合：原 8002 的 8 端点全在，deepgraph 不少 ----------------
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options", "trace"}
+
+# 原 8002 的 8 个端点 × 方法 = Java `ContractPaths.RAG_*` 的权威口径，逐条点名。
+# 2026-11-25（阶段3）：不再从已删除的 rag_service.py 动态取集合，改为此处写成黄金清单，
+# 任何一条在 8501 上消失都会因为「能力降级」而失败。
+_RAG_GOLDEN = {
+    ("/api/v1/rag/health", "GET"),
+    ("/api/v1/rag/documents", "GET"),
+    ("/api/v1/rag/documents", "POST"),
+    ("/api/v1/rag/documents/{document_id}", "DELETE"),
+    ("/api/v1/rag/retrieve", "POST"),
+    ("/api/v1/rag/ask", "POST"),
+    ("/api/v1/rag/index/build/{course_id}", "POST"),
+    ("/api/v1/rag/index/{course_id}", "DELETE"),
+}
 
 
 def _api_signatures(app):
@@ -114,7 +101,7 @@ def _api_signatures(app):
     用 OpenAPI 路径表而不是遍历 ``app.routes``：FastAPI 0.136 起 include_router 的结果
     被包成惰性 ``_IncludedRouter``（``app.routes`` 里只剩一个 path=None 的容器，真实路由
     要等首次解析才展开），而 requirements-platform 是 ``fastapi>=0.115,<1``，CI 解析到新
-    版本后会把「知识库 9 端点已挂载」误判成「能力降级」。``openapi()`` 在新旧两代实现下
+    版本后会把「知识库端点已挂载」误判成「能力降级」。``openapi()`` 在新旧两代实现下
     都会展开成最终路径表，与真实路由口径一致（smoke 用例打的就是同一批路径）。
     """
     schema_paths = app.openapi().get("paths", {})
@@ -129,24 +116,14 @@ def _api_signatures(app):
 
 
 def test_all_8002_routes_exist_on_merged_app():
-    legacy = _api_signatures(_load_legacy_rag_app())
-    assert len(legacy) >= 9, f"8002 端点数量异常: {sorted(legacy)}"
     merged = _api_signatures(api_server.app)
-    missing = sorted(legacy - merged)
-    assert not missing, f"合并服务缺少 8002 端点（能力降级）: {missing}"
-
-    # 反向确认：9 个业务端点（health 之外）逐个点名，避免集合比对被「同路径不同方法」蒙混
-    expected_paths = {
-        "/api/v1/rag/health",
-        "/api/v1/rag/retrieve",
-        "/api/v1/rag/ask",
-        "/api/v1/rag/documents",
-        "/api/v1/rag/documents/{document_id}",
-        "/api/v1/rag/index/build/{course_id}",
-        "/api/v1/rag/index/{course_id}",
-    }
-    merged_paths = {p for p, _ in merged}
-    assert expected_paths <= merged_paths, f"缺少: {sorted(expected_paths - merged_paths)}"
+    missing = sorted(_RAG_GOLDEN - merged)
+    assert not missing, f"合并服务缺少原 8002 端点（能力降级）: {missing}"
+    # 反向确认：/api/v1/rag 的路径集合不多不少（多出来的端点必须先改契约再改这里）
+    merged_rag_paths = {p for p, _ in merged if p.startswith("/api/v1/rag")}
+    assert merged_rag_paths == {p for p, _ in _RAG_GOLDEN}, (
+        f"知识库路径集合与黄金清单不一致: {sorted(merged_rag_paths)}"
+    )
 
 
 def test_deepgraph_routes_unchanged():

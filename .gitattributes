@@ -20,6 +20,10 @@ python-services/deepgraph_rag/utils/*.py binary
 python-services/deepgraph_rag/_archive_scripts/*.py binary
 python-services/deepgraph_rag/api_server.py text eol=lf diff
 python-services/deepgraph_rag/test_deepgraph_contract.py text eol=lf diff
+# 平台自有契约测试（同目录下其余 *.py 属上游字节保真快照，按 binary 入库）：
+# 这两个文件是阶段3 搬入/改写的自有源码，必须保留 text 以便审阅 diff。
+python-services/deepgraph_rag/test_merged_contract.py text eol=lf diff
+python-services/deepgraph_rag/test_rag_contract_merged.py text eol=lf diff
 
 # 二进制文件不做行尾转换
 *.png binary
