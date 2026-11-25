@@ -1,10 +1,16 @@
 # ============================================================
-# GHCR 镜像覆盖层（A 路径断链 #13，DR-71）
+# GHCR 镜像覆盖层（A 路径断链 #13，DR-71；2026-11-25 端口统一后补齐）
 #
-# 用途：docker-compose.yml 自定义镜像名是 aicourse/backend:local /
-#   aicourse/frontend:local（`docker compose up --build` 本地构建），
-#   而 release.yml 推送的是 ghcr.io/<owner>/<repo>/backend|frontend:<tag>。
+# 用途：docker-compose.yml 自定义镜像名是 aicourse/<svc>:local（`docker compose up --build`
+#   本地构建），而 release.yml 推送的是 ghcr.io/<owner>/<repo>/<svc>:<tag>。
 #   两者名字不一致 → 直接 `docker compose pull` 拉不到任何东西。
+#
+# 覆盖范围必须与 release.yml 的「构建并推送」清单逐项对应，少一条就会在
+#   `up -d --no-build` 时退回基础文件的 aicourse/xxx:local（不存在 → pull denied）。
+#   · backend / frontend          （profile full）
+#   · engine-hub                  （profile python，8600 单口引擎）
+#   · kg-service / deepgraph-service（profile legacy-engines，回滚口）
+#   · fine-tune-service           （profile ft）
 #
 # 用法（在仓库根执行）：
 #   export GHCR_REPO=ghcr.io/<owner>/<repo>
@@ -22,9 +28,20 @@ services:
   frontend:
     image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/frontend:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
 
-  # Python 引擎（profiles: python）同样来自 GHCR；不启用该 profile 时不会启动。
+  # Python 引擎（profiles: python）：单端口 8600，承载 kg / deepgraph+知识库 / 微调。
+  # 2026-11-24 端口统一后，`--profile python` 拉起的就是它，不再是 kg-service。
+  engine-hub:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/engine-hub:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+
+  # 回滚口（profiles: legacy-engines）：拆回三端口布局时才需要，保持与 release 的推送一致。
   kg-service:
     image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/kg-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
 
-  # 【2026-11-25 阶段3】rag-service 镜像已停止发布：知识库能力随 deepgraph-service(8501) 交付。
+  deepgraph-service:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/deepgraph-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+
+  fine-tune-service:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/fine-tune-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+
+  # 【2026-11-25 阶段3】rag-service 镜像已停止发布：知识库能力随 engine-hub(8600) 交付。
   # 若仍需临时回滚到 8002，请使用历史 tag 手工指定 image，勿改本清单。

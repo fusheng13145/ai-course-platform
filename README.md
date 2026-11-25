@@ -190,13 +190,13 @@ python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登
 - **读数唯一来源**：`docs/测试文档.md` §2；引用时连同**日期与口径**（单元 vs 含 IT）一起引。
 - **e2e 前置**：流程套件要求后端以 `RATELIMIT_LOGIN_LIMIT=200` 起、三份 `.auth` 会话夹具与端口匹配；视觉套件固定 5175 且**不用 `--update-snapshots` 吸收未知漂移**。缺前置时的红灯是环境问题，不是产品缺陷（判红纪律见 `docs/测试文档.md` §4）。
 - **登录保护是两层**：速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）与尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）；尝试层阈值更低，失败路径下先触发，**必须分层断言**。
-- **CI**：`.github/workflows/ci.yml` 13 个作业；连 `deploy`／`eval-nightly`／`release` 共 17 个唯一作业键（清单见 `docs/测试文档.md` §7）。`frontend-e2e` 在 **PR** 跑 `core`／`knowledge-graph`／`question-transfer` 三个核心 spec，在 `push main`／`workflow_dispatch` 跑完整流程套件；PR #120/#123 已合并。Actions 页面可观测；匿名 API 仍受限流。`main` 当前记录 `protected=true`（2026-11-19）；团队约定为 CI 可执行 job 全绿后合并，不设强制评审。
+- **CI**：`.github/workflows/ci.yml` 14 个作业（前端质量/构建、后端 `mvn verify`、Trivy、gitleaks、OSV、三个 Python 契约、启动器守卫、E2E、部署就绪）；另有 `deploy.yml`（1 个）、`eval-nightly.yml`（1 个）、`release.yml`（4 个）三个辅助工作流（清单见 `docs/测试文档.md` §7）。`frontend-e2e` 在 **PR** 跑 `core`／`knowledge-graph`／`question-transfer` 三个核心 spec，在 `push main`／`workflow_dispatch` 跑完整流程套件；主干经 PR 合入（最近合入为 PR #145）。Actions 页面可观测；匿名 API 仍受限流。`main` 当前记录 `protected=true`（2026-11-19）；团队约定为 CI 可执行 job 全绿后合并，不设强制评审。
 
 ---
 
 ## 已知边界（表述不得越过这条线）
 
-- 当前只有**本机原生进程**这一条部署形态可执行；Compose 配置已齐备（16 服务，含 `minio` 与 `ft` profile），CI 的 Docker job 只在 `main`/手动触发时构建，本机与目标环境均未 `up` 验证（见 `docs/部署文档.md` §6）。**这条形态只服务开发与验收，不构成生产就绪**：Phase 1 上线必须补齐容器或等价编排、TLS/反代、密钥、备份恢复与监控告警。
+- 当前只有**本机原生进程**这一条部署形态可执行；Compose 配置已齐备（18 服务，含 `minio` 与 `ft` profile），CI 的 Docker job 只在 `main`/手动触发时构建，本机与目标环境均未 `up` 验证（见 `docs/部署文档.md` §6）。**这条形态只服务开发与验收，不构成生产就绪**：Phase 1 上线必须补齐容器或等价编排、TLS/反代、密钥、备份恢复与监控告警。
 - 集成层（16 例 Testcontainers）与 Trivy 漏洞库侧**只在 CI 有读数**。
 - 视觉基线覆盖 5 个锚点页（10 张，明暗各一），非锚点页的渲染缺陷抓不到；无障碍只有近似读数，**不构成 WCAG 合规结论**。
 - 压力读数来自本机笔记本单实例，**不是生产容量结论**。
@@ -211,9 +211,9 @@ python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登
 
 1. 先读 `docs/项目手册.md` §6（分支与推送、提交与评审、密钥与敏感信息、证据纪律、Windows 本机约定）。
 2. 动手前认领对应待办文档里的条目——判据、进入点、代价与「明确不做」都在 `docs/前端待办项.md`／`docs/后端待办项.md`。
-3. 提交前过 `.github/pull_request_template.md` 的自检清单；**数据点改动只改唯一来源**（测试文档 §2 或手册 §8）。
+3. 提交前按 `docs/开发规范.md` §3 协作 的自检口径核对；**数据点改动只改唯一来源**（测试文档 §2 或手册 §8）。
 4. 涉及 Python 契约字段时：同步 `ContractPaths` 常量 + `docs/系统架构设计.md` §6 集成契约 + 两侧契约测试。
-5. 报告 Bug／提需求请使用 Issue 模板（`.github/ISSUE_TEMPLATE/`）。
+5. 本仓库只用 PR、不建 Issue：缺陷与需求直接在 PR 描述里说明（模板已移除，按 `docs/开发规范.md` §3 的结构写清“改了什么 + 为什么 + 如何验证”）。
 
 ---
 

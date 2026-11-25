@@ -6,9 +6,9 @@ name: Nightly RAG Evaluation
 # 设计要点：
 # 1) 评测脚手架校验（py_compile + qa-set.json 结构）始终执行，零基础设施依赖，保证最基本护栏；
 # 2) 后端以 mysql+redis 服务容器启动（复用 backend CI job 同款约定），跑「仅检索召回」评测；
-# 3) 【2026-11-07 P1 整改批】拉起真实 8002 引擎（uvicorn 进程，非容器）：装 CPU 版 torch +
-#    rag_service 引擎依赖 → 健康等待 → seed-rag-corpus.py 重放语料 → 注入 RAG_ENABLED=true，
-#    evaluate.py 经 backend 代理打到真实混合检索（BM25+向量+RRF），产出真实 recall@k。
+# 3) 【2026-11-25 阶段3】拉起真实合并引擎（uvicorn 进程，非容器；8501 = deepgraph + 知识库）：
+#    健康等待 → seed-rag-corpus.py 重放语料 → 注入 RAG_ENABLED=true，evaluate.py 经 backend
+#    代理打到真实混合检索（BM25+向量+RRF），产出真实 recall@k。原 8002 独立进程已退役。
 #    引擎链路任一步失败时该步 continue-on-error 且不置 RAG_ENABLED → 退回 503 降级语义
 #    （evaluate.py 记录 retrieve_error，job 不中断）——nightly 结果 JSON 的 mode 字段可区分两态；
 # 4) 结果 JSON 作为 artifact 上传，便于趋势对比与答辩证据留存。

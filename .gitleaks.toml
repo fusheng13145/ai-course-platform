@@ -25,7 +25,7 @@ useDefault = true
 [[allowlists]]
 description = "已知非真实密钥占位与脱敏标记（勿添加真实密钥）"
 regexes = [
-  # CI 构建/测试专用占位口令（见 ci.yml，仅用于 CI 容器与镜像构建，非真实密钥）
+  # CI 构建/测试专用占位口令（见 .github/workflows/ci-*.yml，仅用于 CI 容器与镜像构建，非真实密钥）
   '''ci-test-password-8f3k''',
   '''ci-build-only-password-9f2k1m8x''',
   '''ci-build-only-redis-7q4w2e9r''',
@@ -34,9 +34,9 @@ regexes = [
   # 同族补齐（2026-10-07）：以下三枚是后加入的 CI 服务容器/夜间评测占位口令，此前漏登记，
   # 导致 secret-scan 对 `.github/workflows/*` 的每次改动都点红。仍是**按值**豁免，
   # 且这些值只出现在 GitHub 托管 runner 的一次性容器里，不落任何真实环境。
-  '''ci-test-neo4j-8f3k''',                            # ci.yml / release.yml 的 Neo4j 服务容器
-  '''eval-nightly-pw-7c2k''',                          # eval-nightly.yml 的 MySQL/数据源口令
-  '''eval-nightly-jwt-secret-0123456789abcdef0123456789abcdef''',  # eval-nightly.yml 的 JWT_SECRET
+  '''ci-test-neo4j-8f3k''',                            # 历史：Neo4j 服务容器（相关 job 已删，值保留防历史区间命中）
+  '''eval-nightly-pw-7c2k''',                          # 历史：夜间评测 MySQL 口令（job 已删）
+  '''eval-nightly-jwt-secret-0123456789abcdef0123456789abcdef''',  # 历史：夜间评测 JWT_SECRET（job 已删）
   # git filter-repo 历史擦除后的脱敏占位符（非密钥）
   '''REDACTED''',
   # 【已轮换作废】F-02 之前的旧 JWT 密钥：远程 main/leyon 历史已擦除（全新克隆 pickaxe 复验归零），
@@ -70,9 +70,8 @@ regexes = [
   # ==========================================================================
   # 【2026-10-07 新增】分支区间扫描需要的「已失效历史值」
   # --------------------------------------------------------------------------
-  # CI 已从「全历史扫描」改为「HEAD 内容 + 变更提交区间」两段扫描（见 ci.yml 的 secret-scan），
-  # 因此仍会命中**本分支独有、但在 main 上没有**的旧提交。下列两值均已从当前文件内容中移除
-  # （逐条 `git show <commit>:<file>` 与 HEAD 对比核实），属早先轮换掉的样例/临时口令：
+  # 当前 ci.yml 只做「HEAD 内容扫描」；下列两值是为历史上的区间扫描保留的已失效旧口令，
+  # 已从当前文件内容中移除（逐条 `git show <commit>:<file>` 与 HEAD 对比核实）：
   #   · `09d25e094faa6ca255…`：Spring 教程通用的示例 JWT 密钥（网络上公开可查的教学样例，非本项目密钥），
   #     2026-06 的 application.yaml 里用过，现已改为从环境变量注入，HEAD 内容不含该串。
   #   · `NEO4J_AUTH=neo4j/1234…`：早期 docker-compose 的 Neo4j 临时口令，现由
@@ -88,10 +87,11 @@ regexes = [
 # --------------------------------------------------------------------------
 # `python-services/deepgraph_rag/docker-compose.yml` 为上游 25 文件字节快照之一，
 # 其中的 `NEO4J_AUTH` 是上游项目公开的本地演示默认值，不是本平台生产凭据；
-# 平台不使用 Docker 启动该服务（RAG 以 8001/8501 本机进程运行），该文件不参与
-# 任何 CI 镜像构建。为同时保持「上游字节零修改」证据与密钥门禁，这里按
-# **路径 + 完整匹配行** 双条件精确豁免这一条，不按全仓库值放行：
-# 一旦该文件被用于镜像构建或出现其他值，门禁仍会失败。
+# 2026-11-25 状态更新：该快照文件已随「第三方内容清零」删除（见 UPSTREAM_MANIFEST.json
+# 的 platform-owned 口径），本条豁免仅保留给「变更区间扫描可能覆盖到的历史提交」，
+# 当前 HEAD 已无该文件，任何新出现同口径口令都不会被本条豁免。
+# 仍按 **路径 + 完整匹配行** 双条件精确豁免，不按全仓库值放行：
+# 一旦该路径重新出现同名文件且携带其他值，门禁仍会失败。
 # ==========================================================================
 [[allowlists]]
 description = "上游 DeepGraph RAG 快照 docker-compose 的本地演示口令（路径+值双限定）"
