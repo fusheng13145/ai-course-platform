@@ -23,6 +23,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -85,8 +86,13 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
 
-    /** 保存课程 */
+    /**
+     * 保存课程。
+     * <p>课程落库与默认教学班同步必须同成同败：教学班缺失会让选课、成绩、统计三条链路
+     * 全部指向不存在的班级，因此不允许以"课程已建、班级后补"的中间态收场。</p>
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(cacheNames = "courses", key = "'all'")
     public boolean save(Course entity) {
         log.info("保存课程");
@@ -106,13 +112,16 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         return saved;
     }
 
+    /**
+     * 更新课程。
+     * <p>与 {@code save} 同口径：课程元信息与默认教学班的联动更新在同一事务内完成。</p>
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     @Caching(evict = {
             @CacheEvict(cacheNames = "courses", key = "'all'"),
             @CacheEvict(cacheNames = "courses", key = "#entity.id")
     })
-
-    /** 更新课程 */
     public boolean updateById(Course entity) {
         log.info("更新课程");
 
