@@ -2,6 +2,8 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.PageSupport;
+import com.aicourse.common.PagedResponse;
 import com.aicourse.vo.ResourceVOs;
 import com.aicourse.entity.Resource;
 import com.aicourse.security.CourseAccessControl;
@@ -27,7 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.InputStream;
 import java.util.List;
-import com.aicourse.common.PagedResponse;
 
 /**
  * 课程资源查询控制器
@@ -127,14 +128,16 @@ public class ResourceController {
             List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
             Page<Resource> result = resourceService.searchResourcesInCourses(
                     keyword, readableCourseIds, page, size);
-            return ResponseEntity.ok(ApiResponse.success(toPagedResourceVO(result)));
+            return ResponseEntity.ok(ApiResponse.success(
+                    PageSupport.toPage(result, ResourceVOs.ResourceVO::from)));
         }
         if (!resourceAccessSupport.canAccessCourse(courseId, auth)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
         }
         Page<Resource> result = resourceService.searchResources(keyword, courseId, page, size);
-        return ResponseEntity.ok(ApiResponse.success(toPagedResourceVO(result)));
+        return ResponseEntity.ok(ApiResponse.success(
+                PageSupport.toPage(result, ResourceVOs.ResourceVO::from)));
     }
 
     /**
@@ -214,10 +217,5 @@ public class ResourceController {
         return value.replaceAll("[\\r\\n\"]", "_");
     }
 
-    /** 资源分页转出参模型（阶段 3 · Q-05 收口）。 */
-    private static PagedResponse<ResourceVOs.ResourceVO> toPagedResourceVO(Page<Resource> page) {
-        return PagedResponse.of(page.getRecords().stream().map(ResourceVOs.ResourceVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
 }
 

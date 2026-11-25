@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.security.AdminScopeGuard;
@@ -59,15 +60,7 @@ public class LoginLogController {
         // 8A（WP9）：登录历史是审计面——本人仍可查自己；管理员侧仅校级（院系 403）
         adminScopeGuard.assertSelfOrSchoolOnly(userId);
         Page<LoginLog> result = loginLogService.getUserLoginHistory(userId, page, size);
-        return ApiResponse.success(toPagedVO(result));
-    }
-
-    /**
-     * 分页结果转出参模型（阶段 3 · Q-05：不再直返实体）。
-     */
-    private static PagedResponse<LoginLogVO> toPagedVO(Page<LoginLog> result) {
-        return PagedResponse.of(result.getRecords().stream().map(LoginLogVO::from).toList(),
-                result.getTotal(), result.getCurrent(), result.getSize());
+        return ApiResponse.success(PageSupport.toPage(result, LoginLogVO::from));
     }
 
     /**
@@ -114,7 +107,7 @@ public class LoginLogController {
         // 8A（WP9）：审计列表对院系管理员 403，校级原口径（院系分支随之移除）
         adminScopeGuard.assertSchoolOnly();
         Page<LoginLog> result = loginLogService.getLoginLogList(page, size, status, userId);
-        return ApiResponse.success(toPagedVO(result));
+        return ApiResponse.success(PageSupport.toPage(result, LoginLogVO::from));
     }
 
     /**
@@ -162,7 +155,7 @@ public class LoginLogController {
             @RequestParam(required = false) Long userId) {
         adminScopeGuard.assertSchoolOnly();
         Page<LoginLog> result = loginLogService.getFailureLogs(page, size, userId);
-        return ApiResponse.success(toPagedVO(result));
+        return ApiResponse.success(PageSupport.toPage(result, LoginLogVO::from));
     }
 
     /**

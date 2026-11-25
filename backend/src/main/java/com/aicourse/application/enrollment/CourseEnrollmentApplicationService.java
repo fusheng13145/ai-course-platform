@@ -1,6 +1,7 @@
 package com.aicourse.application.enrollment;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.Course;
@@ -118,7 +119,7 @@ public class CourseEnrollmentApplicationService {
         }
         qw.orderByDesc(CourseEnrollment::getId);
         Page<CourseEnrollment> result = enrollmentService.page(Page.of(page, size), qw);
-        return toPagedVO(result);
+        return PageSupport.toPage(result, CourseVOs.EnrollmentVO::from);
     }
 
     /** 我的报名记录（仅审批通过且有效，V14 / WP5）。 */
@@ -128,7 +129,7 @@ public class CourseEnrollmentApplicationService {
                 .eq(CourseEnrollment::getIsActive, true)
                 .eq(CourseEnrollment::getApprovalStatus, APPROVED);
         Page<CourseEnrollment> result = enrollmentService.page(new Page<>(1, MY_ENROLLMENTS_PAGE_SIZE), qw);
-        return toPagedVO(result);
+        return PageSupport.toPage(result, CourseVOs.EnrollmentVO::from);
     }
 
     // ==================== 取消 / 审核 ====================
@@ -229,11 +230,6 @@ public class CourseEnrollmentApplicationService {
             return;
         }
         throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该课程的选课记录");
-    }
-
-    private static PagedResponse<CourseVOs.EnrollmentVO> toPagedVO(Page<CourseEnrollment> page) {
-        return PagedResponse.of(page.getRecords().stream().map(CourseVOs.EnrollmentVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
     }
 
     private static PagedResponse<CourseVOs.EnrollmentVO> emptyPage(int page, int size) {

@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import com.aicourse.application.exam.ExamPaperApplicationService;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AutoComposeDTO;
 import com.aicourse.dto.ExamPaperSaveDTO;
@@ -55,12 +56,6 @@ public class ExamPaperController {
         this.examPaperApplicationService = examPaperApplicationService;
     }
 
-    /** 试卷分页转出参模型（阶段 3 · Q-05）。 */
-    private static PagedResponse<ExamPaperVO> toPagedVO(Page<ExamPaper> page) {
-        return PagedResponse.of(page.getRecords().stream().map(ExamPaperVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
-
     private ExamPaper requirePaper(Long id) {
         ExamPaper paper = examPaperService.getById(id);
         if (paper == null) {
@@ -88,8 +83,8 @@ public class ExamPaperController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
-        return ApiResponse.success(toPagedVO(examPaperApplicationService.listByParams(
-                page, size, courseId, teachingClassId, status, keyword, auth)));
+        return ApiResponse.success(PageSupport.toPage(examPaperApplicationService.listByParams(
+                page, size, courseId, teachingClassId, status, keyword, auth), ExamPaperVO::from));
     }
 
     /** 根据课程ID分页查询试卷。 */
@@ -101,8 +96,8 @@ public class ExamPaperController {
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) Long teachingClassId,
             Authentication auth) {
-        return ApiResponse.success(toPagedVO(examPaperApplicationService.listByCourse(
-                courseId, page, size, teachingClassId, auth)));
+        return ApiResponse.success(PageSupport.toPage(examPaperApplicationService.listByCourse(
+                courseId, page, size, teachingClassId, auth), ExamPaperVO::from));
     }
 
     /** 根据ID查询试卷详情。 */

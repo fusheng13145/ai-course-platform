@@ -1,5 +1,6 @@
 package com.aicourse.application.teacher;
 
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.GradeDTO;
 import com.aicourse.dto.TaskSaveDTO;
@@ -83,7 +84,7 @@ public class TeacherAssignmentApplicationService {
             qw.in(Task::getCourseId, readableCourseIds);
         }
         Page<Task> taskPage = taskService.page(Page.of(page, size), qw);
-        return toPagedTaskVO(taskPage);
+        return PageSupport.toPage(taskPage, TaskVO::from);
     }
 
     /** 作业详情（需作业归属校验）。 */
@@ -114,7 +115,7 @@ public class TeacherAssignmentApplicationService {
         teacherAccessGuard.assertTaskOwner(assignmentId, auth);
         Page<Submission> submissionPage = submissionService.page(Page.of(page, size),
                 new LambdaQueryWrapper<Submission>().eq(Submission::getTaskId, assignmentId));
-        return toPagedSubmissionVO(submissionPage);
+        return PageSupport.toPage(submissionPage, SubmissionVO::from);
     }
 
     /** 批改某条提交（只允许写 score 与 feedback，防止注入 graderId/status）。 */
@@ -134,13 +135,4 @@ public class TeacherAssignmentApplicationService {
         return TaskVO.from(taskService.publishTask(assignmentId));
     }
 
-    private static PagedResponse<TaskVO> toPagedTaskVO(Page<Task> page) {
-        return PagedResponse.of(page.getRecords().stream().map(TaskVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
-
-    private static PagedResponse<SubmissionVO> toPagedSubmissionVO(Page<Submission> page) {
-        return PagedResponse.of(page.getRecords().stream().map(SubmissionVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
 }

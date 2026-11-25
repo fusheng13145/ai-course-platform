@@ -1,6 +1,7 @@
 package com.aicourse.application.course;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.CourseSaveDTO;
 import com.aicourse.entity.Course;
@@ -88,7 +89,8 @@ public class CourseApplicationService {
                 .like(keyword != null, Course::getName, keyword)
                 .orderByDesc(Course::getCreatedAt);
         applyCollegeFilter(queryWrapper, collegeId);
-        return toPagedCourseVO(courseService.page(Page.of(page, size), queryWrapper));
+        return PageSupport.toPage(courseService.page(Page.of(page, size), queryWrapper),
+                CourseVOs.CourseVO::from);
     }
 
     /** 课程详情（院系管理员按学院限制访问）。 */
@@ -105,7 +107,8 @@ public class CourseApplicationService {
                 .eq(CourseEnrollment::getStudentId, userId)
                 .eq(CourseEnrollment::getIsActive, true)
                 .eq(CourseEnrollment::getApprovalStatus, "APPROVED");
-        return toPagedEnrollmentVO(enrollmentService.page(Page.of(page, size), queryWrapper));
+        return PageSupport.toPage(enrollmentService.page(Page.of(page, size), queryWrapper),
+                CourseVOs.EnrollmentVO::from);
     }
 
     /** 当前教师创建的课程。 */
@@ -113,7 +116,8 @@ public class CourseApplicationService {
         Long userId = (Long) auth.getPrincipal();
         LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
                 .eq(Course::getTeacherId, userId);
-        return toPagedCourseVO(courseService.page(Page.of(page, size), queryWrapper));
+        return PageSupport.toPage(courseService.page(Page.of(page, size), queryWrapper),
+                CourseVOs.CourseVO::from);
     }
 
     /** 课程学生名单（教师仅限本人课程）。 */
@@ -121,7 +125,8 @@ public class CourseApplicationService {
         assertCourseOwner(id, auth);
         LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getCourseId, id);
-        return toPagedEnrollmentVO(enrollmentService.page(Page.of(page, size), queryWrapper));
+        return PageSupport.toPage(enrollmentService.page(Page.of(page, size), queryWrapper),
+                CourseVOs.EnrollmentVO::from);
     }
 
     /** 课程统计：已通过正式学员数 + 待审核报名数 + 课程状态。 */
@@ -292,13 +297,4 @@ public class CourseApplicationService {
         }
     }
 
-    private static PagedResponse<CourseVOs.CourseVO> toPagedCourseVO(Page<Course> page) {
-        return PagedResponse.of(page.getRecords().stream().map(CourseVOs.CourseVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
-
-    private static PagedResponse<CourseVOs.EnrollmentVO> toPagedEnrollmentVO(Page<CourseEnrollment> page) {
-        return PagedResponse.of(page.getRecords().stream().map(CourseVOs.EnrollmentVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
 }

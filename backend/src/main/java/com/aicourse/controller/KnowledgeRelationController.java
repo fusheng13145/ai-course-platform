@@ -2,6 +2,7 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.KnowledgeRelationDTO;
 import com.aicourse.vo.KnowledgeVOs;
@@ -75,14 +76,6 @@ public class KnowledgeRelationController {
     }
 
     /** 获取关联关系列表（分页，支持课程筛选；非管理员必须显式指定课程）。 */
-    /**
-     * 关系分页结果转出参模型（阶段 3 · Q-05）。
-     */
-    private static PagedResponse<KnowledgeVOs.RelationVO> toPagedVO(Page<KnowledgePointRelation> page) {
-        return PagedResponse.of(page.getRecords().stream().map(KnowledgeVOs.RelationVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
-
     @GetMapping("/relations")
     public ApiResponse<PagedResponse<KnowledgeVOs.RelationVO>> getRelationList(
             @RequestParam(defaultValue = "1") int page,
@@ -101,7 +94,7 @@ public class KnowledgeRelationController {
                     ? relationService.getRelationList(page, size, (Long) null)
                     : relationService.getRelationListByCourses(page, size, readableCourseIds);
         }
-        return ApiResponse.success(toPagedVO(result));
+        return ApiResponse.success(PageSupport.toPage(result, KnowledgeVOs.RelationVO::from));
     }
 
     /** 获取某知识点的所有关联关系（入向+出向）。 */

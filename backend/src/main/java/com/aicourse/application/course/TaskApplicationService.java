@@ -3,6 +3,7 @@ package com.aicourse.application.course;
 import com.aicourse.common.ActivityVisibility;
 import com.aicourse.common.ActivityTargetsPayload;
 import com.aicourse.common.ApiCode;
+import com.aicourse.common.PageSupport;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.ActivityTargetDTO;
 import com.aicourse.dto.TaskSaveDTO;
@@ -72,7 +73,7 @@ public class TaskApplicationService {
                 .eq(courseId != null, Task::getCourseId, courseId)
                 .eq(courseAccessControl.isStudent(auth), Task::getStatus, "PUBLISHED");
         activityVisibilityGuard.applyTaskScope(queryWrapper, auth, teachingClassId);
-        return toPagedVO(taskService.page(Page.of(page, size), queryWrapper));
+        return PageSupport.toPage(taskService.page(Page.of(page, size), queryWrapper), TaskVO::from);
     }
 
     /** 按课程分页查询任务。 */
@@ -83,7 +84,7 @@ public class TaskApplicationService {
                 .eq(Task::getCourseId, courseId)
                 .eq(courseAccessControl.isStudent(auth), Task::getStatus, "PUBLISHED");
         activityVisibilityGuard.applyTaskScope(queryWrapper, auth, teachingClassId);
-        return toPagedVO(taskService.page(Page.of(page, size), queryWrapper));
+        return PageSupport.toPage(taskService.page(Page.of(page, size), queryWrapper), TaskVO::from);
     }
 
     /** 任务详情（按可见性判定，学生可达）。 */
@@ -249,8 +250,4 @@ public class TaskApplicationService {
         return task;
     }
 
-    private static PagedResponse<TaskVO> toPagedVO(Page<Task> page) {
-        return PagedResponse.of(page.getRecords().stream().map(TaskVO::from).toList(),
-                page.getTotal(), page.getCurrent(), page.getSize());
-    }
 }
